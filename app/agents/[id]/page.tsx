@@ -48,24 +48,28 @@ export default function AgentDetailPage() {
                         >
                             <div className="absolute inset-0 bg-[#c5a059]/5 z-10 pointer-events-none"></div>
 
-                            {/* Media Placeholder Image */}
+                            {/* Media Placeholder Image or Character Art */}
                             <div className="w-full h-full bg-[#1e1b4b]/30 flex items-center justify-center">
-                                <div className="text-center px-12">
-                                    <div className={`w-20 h-20 border-2 border-[#c5a059]/40 rounded-full mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform ${isPlaying ? "animate-pulse border-[#c5a059]" : ""}`}>
-                                        {isPlaying ? (
-                                            <div className="flex gap-1 items-end h-6">
-                                                <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
-                                                <div className="w-1 h-6 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
-                                                <div className="w-1 h-4 bg-[#c5a059] animate-[bounce_0.5s_infinite]"></div>
-                                            </div>
-                                        ) : (
-                                            <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-[#c5a059]/60 border-b-[10px] border-b-transparent ml-2"></div>
-                                        )}
+                                {entity.image && !isPlaying ? (
+                                    <img src={entity.image} alt={entity.name} className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" />
+                                ) : (
+                                    <div className="text-center px-12">
+                                        <div className={`w-20 h-20 border-2 border-[#c5a059]/40 rounded-full mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform ${isPlaying ? "animate-pulse border-[#c5a059]" : ""}`}>
+                                            {isPlaying ? (
+                                                <div className="flex gap-1 items-end h-6">
+                                                    <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
+                                                    <div className="w-1 h-6 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
+                                                    <div className="w-1 h-4 bg-[#c5a059] animate-[bounce_0.5s_infinite]"></div>
+                                                </div>
+                                            ) : (
+                                                <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-[#c5a059]/60 border-b-[10px] border-b-transparent ml-2"></div>
+                                            )}
+                                        </div>
+                                        <p className="medieval-text-gold text-sm opacity-60">
+                                            {isPlaying ? "Narração em progresso..." : "Toque para ouvir a apresentação"}
+                                        </p>
                                     </div>
-                                    <p className="medieval-text-gold text-sm opacity-60">
-                                        {isPlaying ? "Narração em progresso..." : "Toque para ouvir a apresentação"}
-                                    </p>
-                                </div>
+                                )}
                             </div>
 
                             {/* Decorative Frame */}
