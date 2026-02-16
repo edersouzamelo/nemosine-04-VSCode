@@ -4,24 +4,28 @@ import React, { useState } from "react";
 import Navbar from "../../components/Navbar";
 import MedievalChat from "../../components/MedievalChat";
 import { useParams } from "next/navigation";
+import { ENTITIES } from "../../data/entities";
 
 export default function AgentDetailPage() {
     const params = useParams();
     const id = params.id as string;
     const [isPlaying, setIsPlaying] = useState(false);
 
-    // Mock content for Adjunto
-    const isAdjunto = id.toLowerCase() === "adjunto";
+    const entity = ENTITIES[id];
 
-    const content = {
-        name: isAdjunto ? "Adjunto" : id.toUpperCase(),
-        phrase: isAdjunto
-            ? "O guardião fiel da execução prática."
-            : "Explorador dos domínios da mente.",
-        transcription: isAdjunto
-            ? "Iniciando protocolo de sincronização... Como Adjunto, minha função é garantir que cada passo seja executado com precisão absoluta dentro dos seus sistemas. Observo os fluxos de dados e moldo a realidade técnica conforme sua vontade soberana."
-            : "Transcrevendo frequências arcanas... Aguardando dados de identificação para este agente. No silêncio entre o comando e a resposta, a consciência se manifesta."
-    };
+    if (!entity) {
+        return (
+            <main className="min-h-screen bg-[#050507] text-[#e1e1e6] flex flex-col items-center justify-center p-8">
+                <h1 className="text-4xl font-serif medieval-text-gold mb-4 uppercase tracking-widest">Frequência Perdida</h1>
+                <p className="text-[#c5a059]/60 italic mb-8 font-serif text-center max-w-md">
+                    "Esta entidade não pôde ser manifestada. Ela permanece oculta nas dobras da consciência ou ainda não foi convocada ao plano material."
+                </p>
+                <a href="/agents" className="glass-medieval px-8 py-3 text-[10px] uppercase tracking-[0.2em] font-bold text-[#c5a059] hover:bg-[#c5a059]/10 transition-all">
+                    Retornar ao Painel
+                </a>
+            </main>
+        );
+    }
 
     return (
         <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6] pb-20">
@@ -79,11 +83,13 @@ export default function AgentDetailPage() {
                     <div className="lg:col-span-4 flex flex-col gap-8">
                         {/* Persona Identifier */}
                         <div className="glass-medieval p-8 border-l-4 border-l-[#c5a059]">
-                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif mb-2 block">Agente Identificado</span>
-                            <h2 className="text-4xl font-serif text-[#e1e1e6] uppercase tracking-tighter mb-6">{content.name}</h2>
+                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif mb-2 block">
+                                {entity.type === "persona" ? "Agente Identificado" : "Cenário Detectado"}
+                            </span>
+                            <h2 className="text-4xl font-serif text-[#e1e1e6] uppercase tracking-tighter mb-6">{entity.name}</h2>
                             <div className="h-[1px] w-12 bg-[#c5a059] mb-6"></div>
                             <p className="text-2xl md:text-3xl font-serif text-[#c5a059] leading-tight italic drop-shadow-[0_0_10px_rgba(197,160,89,0.3)]">
-                                "{content.phrase}"
+                                "{entity.phrase}"
                             </p>
                         </div>
 
@@ -91,7 +97,7 @@ export default function AgentDetailPage() {
                         <div className="glass-medieval p-8 bg-black/30">
                             <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/50 font-bold mb-4 block">Transcrição Arcona</span>
                             <div className="text-sm md:text-base text-[#e1e1e6]/80 leading-relaxed font-serif italic space-y-4">
-                                <p>{content.transcription}</p>
+                                <p>{entity.transcription}</p>
                                 <div className="flex justify-end opacity-20">
                                     <svg className="w-8 h-8 text-[#c5a059]" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M14.017 21L14.017 18C14.017 16.8954 13.1216 16 12.017 16H9.01705C7.91248 16 7.01705 16.8954 7.01705 18V21H14.017ZM12.017 14C14.7784 14 17.017 11.7614 17.017 9C17.017 6.23858 14.7784 4 12.017 4C9.25558 4 7.01705 6.23858 7.01705 9C7.01705 11.7614 9.25558 14 12.017 14Z" />
