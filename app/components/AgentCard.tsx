@@ -1,5 +1,4 @@
-"use client";
-
+import Link from "next/link";
 import React from "react";
 
 interface AgentCardProps {
@@ -7,10 +6,11 @@ interface AgentCardProps {
     label?: string;
     image?: string;
     className?: string;
+    href?: string;
 }
 
-export default function AgentCard({ name, label = "Persona", image, className = "" }: AgentCardProps) {
-    return (
+export default function AgentCard({ name, label = "Persona", image, className = "", href }: AgentCardProps) {
+    const cardContent = (
         <div className={`group relative aspect-[3/4] overflow-hidden glass-medieval transition-all duration-500 hover:scale-105 hover:z-10 cursor-pointer ${className}`}>
             {/* Card Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-end p-4">
@@ -42,4 +42,14 @@ export default function AgentCard({ name, label = "Persona", image, className = 
             <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
         </div>
     );
+
+    if (href) {
+        return (
+            <Link href={href} className="block w-full h-full">
+                {cardContent}
+            </Link>
+        );
+    }
+
+    return cardContent;
 }
