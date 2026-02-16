@@ -4,11 +4,12 @@ import React from "react";
 
 interface AgentCardProps {
     name: string;
+    label?: string;
     image?: string;
     className?: string;
 }
 
-export default function AgentCard({ name, image, className = "" }: AgentCardProps) {
+export default function AgentCard({ name, label = "Persona", image, className = "" }: AgentCardProps) {
     return (
         <div className={`group relative aspect-[3/4] overflow-hidden glass-medieval transition-all duration-500 hover:scale-105 hover:z-10 cursor-pointer ${className}`}>
             {/* Card Content */}
@@ -30,7 +31,7 @@ export default function AgentCard({ name, image, className = "" }: AgentCardProp
 
                 {/* Name Tag */}
                 <div className="relative z-20 w-full text-center">
-                    <p className="text-[10px] medieval-text-gold font-bold mb-1 opacity-60 group-hover:opacity-100 transition-opacity">Persona</p>
+                    <p className="text-[10px] medieval-text-gold font-bold mb-1 opacity-60 group-hover:opacity-100 transition-opacity">{label}</p>
                     <h3 className="text-xs md:text-sm font-serif text-[#e1e1e6] uppercase tracking-widest break-words leading-tight">
                         {name}
                     </h3>
