@@ -12,6 +12,8 @@ const AGENTS = [
     "Sócio", "Sombra", "Terapeuta", "Treinador", "Vazio", "Vidente", "Vigia", "Vingador"
 ];
 
+import { ENTITIES } from "../data/entities";
+
 export default function AgentsPage() {
     return (
         <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
@@ -33,16 +35,23 @@ export default function AgentsPage() {
                     </header>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-6">
-                        {AGENTS.map((name) => (
-                            <AgentCard
-                                key={name}
-                                name={name}
-                                href={`/agents/${name.toLowerCase().replace(/\s+/g, '-')}`}
-                            />
-                        ))}
+                        {AGENTS.map((name) => {
+                            const slug = name.toLowerCase().replace(/\s+/g, '-');
+                            const entity = ENTITIES[slug];
+                            return (
+                                <AgentCard
+                                    key={name}
+                                    name={name}
+                                    image={entity?.image}
+                                    href={`/agents/${slug}`}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
             </section>
+
+
 
             {/* Footer */}
             <footer className="relative z-20 p-8 border-t border-[#c5a059]/10 bg-black/60 text-center">

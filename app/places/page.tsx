@@ -1,11 +1,6 @@
 import AgentCard from "../components/AgentCard";
 import Navbar from "../components/Navbar";
-
-const PLACES = [
-    "Não-Lugar", "Labirinto", "Arquivo", "Porão", "Masmorra", "Biblioteca", "Claustro", "Galeria",
-    "Oficina", "Teatro", "Mercado Real", "Núcleo", "Tribunal", "Jardim", "Observatório", "Mosteiro",
-    "Portal", "Torreão", "Campanário", "Sala do Trono", "Ponte", "Solar"
-];
+import { ENTITIES, PLACES } from "../data/entities";
 
 export default function PlacesPage() {
     return (
@@ -27,15 +22,25 @@ export default function PlacesPage() {
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Cenários de Processamento Cognitivo</p>
                     </header>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
-                        {PLACES.map((name) => (
-                            <AgentCard
-                                key={name}
-                                name={name}
-                                label="Lugar"
-                                href={`/agents/${name.toLowerCase().replace(/\s+/g, '-')}`}
-                            />
-                        ))}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 md:gap-6">
+                        {[...PLACES].sort((a, b) => {
+                            if (a === "Não-Lugar") return 1;
+                            if (b === "Não-Lugar") return -1;
+                            return 0;
+                        }).map((name) => {
+                            const slug = name.toLowerCase().replace(/\s+/g, '-');
+                            const entity = ENTITIES[slug];
+                            return (
+                                <AgentCard
+                                    key={name}
+                                    name={name}
+                                    label="Lugar"
+                                    image={entity?.image}
+                                    href={`/agents/${slug}`}
+                                    className="aspect-[9/16]"
+                                />
+                            );
+                        })}
                     </div>
                 </div>
             </section>

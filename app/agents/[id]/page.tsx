@@ -2,7 +2,10 @@
 
 import React, { useState } from "react";
 import Navbar from "../../components/Navbar";
-import MedievalChat from "../../components/MedievalChat";
+import RetractablePanel from "@/app/components/RetractablePanel";
+import ChatHistoryList from "@/app/components/ChatHistoryList";
+import MedievalChat from "@/app/components/MedievalChat";
+import TimekeeperWidget from "@/app/components/TimekeeperWidget";
 import { useParams } from "next/navigation";
 import { ENTITIES } from "../../data/entities";
 
@@ -10,6 +13,9 @@ export default function AgentDetailPage() {
     const params = useParams();
     const id = params.id as string;
     const [isPlaying, setIsPlaying] = useState(false);
+    const audioRef = React.useRef<HTMLAudioElement | null>(null);
+    const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+    const [refreshHistory, setRefreshHistory] = useState(0);
 
     const entity = ENTITIES[id];
 
@@ -27,96 +33,123 @@ export default function AgentDetailPage() {
         );
     }
 
+    const toggleAudio = () => {
+        if (!audioRef.current || !entity.audio) return;
+
+        if (isPlaying) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+        } else {
+            audioRef.current.play().catch(e => console.error("Audio playback failed:", e));
+            setIsPlaying(true);
+        }
+    };
+
     return (
-        <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6] pb-20">
+        <main className="relative h-screen bg-[#050507] text-[#e1e1e6] flex flex-col overflow-hidden">
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0">
                 <div className="absolute inset-0 bg-black/80 z-10 backdrop-blur-[4px]"></div>
                 <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center opacity-10 mix-blend-screen"></div>
             </div>
 
-            <Navbar />
+            <div className="relative z-20">
+                <Navbar />
+            </div>
 
-            <div className="relative z-10 max-w-7xl mx-auto px-6 pt-12">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+            {/* CONTENT LAYOUT - Fixed Height calculated */}
+            <div className="relative z-10 flex-1 flex flex-col lg:flex-row h-[calc(100vh-80px)] overflow-hidden">
 
-                    {/* Left/Main Column: Media Presentation */}
-                    <div className="lg:col-span-8 flex flex-col gap-8">
-                        <div
-                            className="relative aspect-video w-full glass-medieval overflow-hidden group cursor-pointer"
-                            onClick={() => setIsPlaying(!isPlaying)}
-                        >
-                            <div className="absolute inset-0 bg-[#c5a059]/5 z-10 pointer-events-none"></div>
+                {/* LEFT: VISUALS & HISTORY */}
+                <div className="lg:w-1/3 p-6 flex flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20">
+                    <div
+                        className="relative w-full aspect-square max-w-[300px] glass-medieval overflow-hidden group cursor-pointer shadow-2xl rounded-lg shrink-0"
+                        onClick={toggleAudio}
+                    >
+                        {/* Hidden Audio */}
+                        {entity.audio && (
+                            <audio
+                                ref={audioRef}
+                                src={entity.audio}
+                                onEnded={() => setIsPlaying(false)}
+                                onPause={() => setIsPlaying(false)}
+                                onPlay={() => setIsPlaying(true)}
+                            />
+                        )}
 
-                            {/* Media Placeholder Image or Character Art */}
-                            <div className="w-full h-full bg-[#1e1b4b]/30 flex items-center justify-center">
-                                {entity.image && !isPlaying ? (
-                                    <img src={entity.image} alt={entity.name} className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" />
-                                ) : (
-                                    <div className="text-center px-12">
-                                        <div className={`w-20 h-20 border-2 border-[#c5a059]/40 rounded-full mx-auto mb-6 flex items-center justify-center group-hover:scale-110 transition-transform ${isPlaying ? "animate-pulse border-[#c5a059]" : ""}`}>
-                                            {isPlaying ? (
-                                                <div className="flex gap-1 items-end h-6">
-                                                    <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
-                                                    <div className="w-1 h-6 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
-                                                    <div className="w-1 h-4 bg-[#c5a059] animate-[bounce_0.5s_infinite]"></div>
-                                                </div>
-                                            ) : (
-                                                <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[16px] border-l-[#c5a059]/60 border-b-[10px] border-b-transparent ml-2"></div>
-                                            )}
-                                        </div>
-                                        <p className="medieval-text-gold text-sm opacity-60">
-                                            {isPlaying ? "Narração em progresso..." : "Toque para ouvir a apresentação"}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
+                        {(entity.landscapeImage || entity.image) && (
+                            <img
+                                src={entity.landscapeImage || entity.image}
+                                alt={entity.name}
+                                className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
+                            />
+                        )}
 
-                            {/* Decorative Frame */}
-                            <div className="absolute inset-4 border border-[#c5a059]/10 pointer-events-none"></div>
-                        </div>
-
-                        {/* Chat Box below media */}
-                        <div className="mt-4">
-                            <h3 className="text-[10px] uppercase tracking-[0.4em] text-[#c5a059]/50 font-bold mb-4">Interação Direta</h3>
-                            <MedievalChat />
-                        </div>
-                    </div>
-
-                    {/* Right Column: Info Panels */}
-                    <div className="lg:col-span-4 flex flex-col gap-8">
-                        {/* Persona Identifier */}
-                        <div className="glass-medieval p-8 border-l-4 border-l-[#c5a059]">
-                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif mb-2 block">
-                                {entity.type === "persona" ? "Agente Identificado" : "Cenário Detectado"}
-                            </span>
-                            <h2 className="text-4xl font-serif text-[#e1e1e6] uppercase tracking-tighter mb-6">{entity.name}</h2>
-                            <div className="h-[1px] w-12 bg-[#c5a059] mb-6"></div>
-                            <p className="text-2xl md:text-3xl font-serif text-[#c5a059] leading-tight italic drop-shadow-[0_0_10px_rgba(197,160,89,0.3)]">
-                                "{entity.phrase}"
-                            </p>
-                        </div>
-
-                        {/* Transcription Panel */}
-                        <div className="glass-medieval p-8 bg-black/30">
-                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/50 font-bold mb-4 block">Transcrição Arcona</span>
-                            <div className="text-sm md:text-base text-[#e1e1e6]/80 leading-relaxed font-serif italic space-y-4">
-                                <p>{entity.transcription}</p>
-                                <div className="flex justify-end opacity-20">
-                                    <svg className="w-8 h-8 text-[#c5a059]" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M14.017 21L14.017 18C14.017 16.8954 13.1216 16 12.017 16H9.01705C7.91248 16 7.01705 16.8954 7.01705 18V21H14.017ZM12.017 14C14.7784 14 17.017 11.7614 17.017 9C17.017 6.23858 14.7784 4 12.017 4C9.25558 4 7.01705 6.23858 7.01705 9C7.01705 11.7614 9.25558 14 12.017 14Z" />
-                                    </svg>
+                        {/* Audio Indicator Overlay */}
+                        <div className="absolute bottom-4 right-4 z-20">
+                            {isPlaying ? (
+                                <div className="flex gap-1 items-end h-6 bg-black/60 p-2 rounded-lg backdrop-blur text-[#c5a059]">
+                                    <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
+                                    <div className="w-1 h-6 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
+                                    <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Navigation hint */}
-                        <div className="mt-auto px-4 opacity-40">
-                            <p className="text-[9px] uppercase tracking-widest text-center">Nemosine v0.4.0 • Visão Detalhada</p>
+                            ) : (
+                                <div className="bg-black/60 p-2 rounded-full text-[#c5a059] opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                </div>
+                            )}
                         </div>
                     </div>
 
+                    {/* HISTORY LIST */}
+                    <ChatHistoryList
+                        personaId={entity.name}
+                        currentThreadId={currentThreadId}
+                        onSelectThread={setCurrentThreadId}
+                        refreshTrigger={refreshHistory}
+                    />
                 </div>
+
+                {/* CENTER/RIGHT: CHAT (The Main Focus) */}
+                <div className="flex-1 p-4 flex flex-col w-full max-w-4xl mx-auto h-full overflow-hidden">
+                    <MedievalChat
+                        personaId={entity.name}
+                        currentThreadId={currentThreadId}
+                        onThreadCreated={(id) => {
+                            setCurrentThreadId(id);
+                            setRefreshHistory(prev => prev + 1);
+                        }}
+                        onNewChat={() => setCurrentThreadId(null)}
+                    />
+                    {/* Special Widget for Arauto */}
+                    {entity.name.toLowerCase() === 'arauto' && <TimekeeperWidget />}
+                </div>
+
+                {/* LATERAL PANEL: DETAILS */}
+                <RetractablePanel title="Dossiê do Agente">
+                    {/* Identity Card */}
+                    <div className="space-y-2">
+                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
+                            Identificação
+                        </span>
+                        <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{entity.name}</h2>
+                        <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
+                        <p className="text-xl font-serif text-[#c5a059] italic">
+                            "{entity.phrase}"
+                        </p>
+                    </div>
+
+                    {/* Script / Description */}
+                    <div className="mt-8 space-y-4">
+                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
+                            Protocolo & Roteiro
+                        </span>
+                        <p className="text-sm font-light leading-relaxed text-[#e1e1e6]/80 whitespace-pre-line">
+                            {entity.script || entity.transcription}
+                        </p>
+                    </div>
+                </RetractablePanel>
+
             </div>
         </main>
     );

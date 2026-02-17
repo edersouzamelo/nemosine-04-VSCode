@@ -11,7 +11,8 @@ export default function Navbar() {
     const navItems = [
         { name: "Personas", href: "/agents" },
         { name: "Lugares da Mente", href: "/places" },
-        { name: "Comunidade Nemosine", href: "#" },
+        { name: "Constituição", href: "/constitution" },
+        { name: "Comunidade Nemosine", href: "https://linktr.ee/nemosinenous" },
     ];
 
     return (
@@ -38,8 +39,8 @@ export default function Navbar() {
                             ) : (
                                 <Link href={item.href} className="flex flex-col items-center group">
                                     <span className={`text-[11px] uppercase tracking-[0.2em] font-bold transition-all duration-300 ${isActive
-                                            ? "text-[#c5a059] drop-shadow-[0_0_8px_rgba(197,160,89,0.4)]"
-                                            : "text-[#c5a059]/40 group-hover:text-[#c5a059]/80"
+                                        ? "text-[#c5a059] drop-shadow-[0_0_8px_rgba(197,160,89,0.4)]"
+                                        : "text-[#c5a059]/40 group-hover:text-[#c5a059]/80"
                                         }`}>
                                         {item.name}
                                     </span>

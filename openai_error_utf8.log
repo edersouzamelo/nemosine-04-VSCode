@@ -1,0 +1,81 @@
+﻿--- TESTING OPENAI CHAT ---
+[USER] Estou perdido e n├úo sei por onde come├ºar.
+node.exe : Test 
+failed: Error: 
+Persona O Mentor not 
+found in ENTITIES.
+No linha:1 
+caractere:1
++ & "C:\Program Files
+\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (Test fa   
+ iled: Er...nd in    
+ ENTITIES.:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+    at generatePerson
+aResponse (C:\Users\e
+ders\Desktop\Dev 
+Nemo AG\nemosine-04-V
+SCode-main\app\lib\ne
+mosine\llm_client.ts:
+22:15)
+    at runTest (C:\Us
+ers\eders\Desktop\Dev
+ Nemo AG\nemosine-04-
+VSCode-main\app\lib\n
+emosine\test_openai_c
+hat.ts:21:32)
+    at <anonymous> (C
+:\Users\eders\Desktop
+\Dev Nemo AG\nemosine
+-04-VSCode-main\app\l
+ib\nemosine\test_open
+ai_chat.ts:28:1)
+    at 
+Object.<anonymous> (C
+:\Users\eders\Desktop
+\Dev Nemo AG\nemosine
+-04-VSCode-main\app\l
+ib\nemosine\test_open
+ai_chat.ts:28:9)
+    at 
+Module._compile (node
+:internal/modules/cjs
+/loader:1688:14)
+    at 
+Object.transformer (C
+:\Users\eders\AppData
+\Local\npm-cache\_npx
+\fd45a72a545557e9\nod
+e_modules\tsx\dist\re
+gister-D46fvsV_.cjs:3
+:1104)
+    at Module.load (n
+ode:internal/modules/
+cjs/loader:1423:32)
+    at 
+Function._load (node:
+internal/modules/cjs/
+loader:1246:12)
+    at TracingChannel
+.traceSync (node:diag
+nostics_channel:322:1
+4)
+    at 
+wrapModuleLoad (node:
+internal/modules/cjs/
+loader:235:24)

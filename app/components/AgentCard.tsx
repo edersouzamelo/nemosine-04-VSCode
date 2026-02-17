@@ -29,13 +29,17 @@ export default function AgentCard({ name, label = "Persona", image, className = 
                     <img src={image} alt={name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                 )}
 
-                {/* Name Tag */}
-                <div className="relative z-20 w-full text-center">
-                    <p className="text-[10px] medieval-text-gold font-bold mb-1 opacity-60 group-hover:opacity-100 transition-opacity">{label}</p>
-                    <h3 className="text-xs md:text-sm font-serif text-[#e1e1e6] uppercase tracking-widest break-words leading-tight">
-                        {name}
-                    </h3>
-                </div>
+                {/* Name Tag - Only show if no image is present */}
+                {!image && (
+                    <div className="relative z-20 w-full text-center">
+                        <p className="text-[10px] medieval-text-gold font-bold mb-1 opacity-60 group-hover:opacity-100 transition-opacity">{label}</p>
+                        <h3 className="text-xs md:text-sm font-serif text-[#e1e1e6] uppercase tracking-widest break-words leading-tight">
+                            {name}
+                        </h3>
+                    </div>
+                )}
+
+
             </div>
 
             {/* Hover Glow */}
