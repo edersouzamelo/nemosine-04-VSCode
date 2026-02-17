@@ -1,6 +1,6 @@
 import { EntityData } from '@/app/data/entities';
 
-export type LocationType = 'Castelo' | 'Porão' | 'Masmorra' | 'Claustro' | 'Biblioteca' | 'Observatório' | 'Jardim' | 'Teatro' | 'Oficina' | 'Galeria' | 'Sala do Trono' | 'Campanário' | 'Torreão' | 'Ponte' | 'Solar' | 'Mercado Real' | 'Tribunal' | 'Núcleo' | 'Não-Lugar' | 'Labirinto' | 'Arquivo';
+export type LocationType = 'Castelo' | 'Porão' | 'Masmorra' | 'Claustro' | 'Biblioteca' | 'Observatório' | 'Jardim' | 'Teatro' | 'Oficina' | 'Galeria' | 'Sala do Trono' | 'Campanário' | 'Torreão' | 'Ponte' | 'Solar' | 'Mercado Real' | 'Tribunal' | 'Núcleo' | 'Não-Lugar' | 'Labirinto' | 'Arquivo' | 'Confessor 2.0';
 
 export type VisibilityLevel = 'PUBLIC' | 'RESTRICTED' | 'PRIVATE' | 'SECRET';
 
