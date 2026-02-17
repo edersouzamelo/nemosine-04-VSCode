@@ -8,6 +8,7 @@ const session: SessionState = {
     current_location: 'Castelo',
     active_personas: [{ id: 'Mentor', is_active: true, temporary_memory: [] }],
     room_log: [],
+    threads: {},
     is_incognito: false
 };
 

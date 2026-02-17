@@ -6,6 +6,7 @@ let currentState: SessionState = {
     current_location: 'Castelo', // Start public
     active_personas: [],
     room_log: [],
+    threads: {},
     is_incognito: false
 };
 
