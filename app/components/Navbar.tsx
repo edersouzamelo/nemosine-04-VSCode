@@ -4,14 +4,17 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import MedievalButton from "./MedievalButton";
+import { useSession, signOut } from "next-auth/react";
 
 export default function Navbar() {
     const pathname = usePathname();
+    const { data: session } = useSession();
 
     const navItems = [
         { name: "Personas", href: "/agents" },
         { name: "Lugares da Mente", href: "/places" },
         { name: "Constituição", href: "/constitution" },
+        { name: "Sala de Lazer", href: "/space/games" },
         { name: "Comunidade Nemosine", href: "https://linktr.ee/nemosinenous" },
     ];
 
@@ -19,7 +22,7 @@ export default function Navbar() {
         <header className="relative z-20 border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4 text-decoration-none">
                 <Link href="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
-                    <h1 className="text-2xl font-serif medieval-text-gold">Nemosine</h1>
+                    <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                     <div className="h-6 w-[1px] bg-[#c5a059]/30 hidden sm:block"></div>
                     <span className="text-[10px] uppercase tracking-widest opacity-60 hidden sm:block">Painel de Controle</span>
                 </Link>
@@ -32,10 +35,10 @@ export default function Navbar() {
                     return (
                         <React.Fragment key={item.name}>
                             {index > 0 && <div className="h-4 w-[1px] bg-[#c5a059]/10"></div>}
-                            {item.href === "#" ? (
-                                <button className="text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300 cursor-pointer hover:drop-shadow-[0_0_5px_rgba(197,160,89,0.3)]">
+                            {item.href.startsWith("http") ? (
+                                <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300 cursor-pointer hover:drop-shadow-[0_0_5px_rgba(197,160,89,0.3)]">
                                     {item.name}
-                                </button>
+                                </a>
                             ) : (
                                 <Link href={item.href} className="flex flex-col items-center group">
                                     <span className={`text-[11px] uppercase tracking-[0.2em] font-bold transition-all duration-300 ${isActive
@@ -54,10 +57,30 @@ export default function Navbar() {
                 })}
             </nav>
 
-            <div className="flex gap-4">
-                <MedievalButton variant="secondary" className="!py-2 !px-4 !text-[10px]">
-                    Sincronizar Backend
-                </MedievalButton>
+            <div className="flex gap-4 items-center">
+                {session ? (
+                    <div className="flex items-center gap-4">
+                        <Link href="/space">
+                            <MedievalButton variant="secondary" className="!py-2 !px-4 !text-[10px]">
+                                Espaço Local
+                            </MedievalButton>
+                        </Link>
+                        <div className="flex items-center gap-2">
+                            {session.user?.image && (
+                                <img src={session.user.image} alt={session.user.name || "User"} className="w-8 h-8 rounded-full border border-[#c5a059]/50" />
+                            )}
+                            <button onClick={() => signOut()} className="text-[10px] uppercase tracking-widest text-[#c5a059]/60 hover:text-[#c5a059] transition-colors">
+                                Sair
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <Link href="/">
+                        <MedievalButton variant="secondary" className="!py-2 !px-4 !text-[10px]">
+                            Entrar
+                        </MedievalButton>
+                    </Link>
+                )}
             </div>
         </header>
     );

@@ -37,7 +37,7 @@ export default function PlacesPage() {
                                     label="Lugar"
                                     image={entity?.image}
                                     href={`/agents/${slug}`}
-                                    className="aspect-[9/16]"
+                                    className="aspect-[4/7]"
                                 />
                             );
                         })}

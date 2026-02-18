@@ -126,7 +126,7 @@ export default function AgentDetailPage() {
                 </div>
 
                 {/* LATERAL PANEL: DETAILS */}
-                <RetractablePanel title="Dossiê do Agente">
+                <RetractablePanel title={entity.type === 'place' ? "Dossiê do Lugar" : "Dossiê do Agente"}>
                     {/* Identity Card */}
                     <div className="space-y-2">
                         <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
