@@ -12,7 +12,7 @@ export default function GamesHubPage() {
         <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} p-8 pt-24`}>
             <div className="max-w-7xl mx-auto">
                 <header className="mb-12 border-b border-[#C5A059]/30 pb-6">
-                    <h1 className="text-4xl medieval-header text-[#C5A059] mb-2">Sala de Lazer</h1>
+                    <h1 className="text-4xl medieval-header text-[#C5A059] mb-2">Jogos</h1>
                     <p className="text-gray-400">Um espaço para descanso e reflexão através das cartas.</p>
                 </header>
 

@@ -15,6 +15,19 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --color-gold: var(--border-gold);
+
+  --color-primary: #D4AF37;
+  --color-background-light: #f4f4f5;
+  --color-background-dark: #05070a;
+  --color-mystic-blue: #1a1c2c;
+  --color-mystic-violet: #2d1b33;
+  --color-seal-red: #7a1e1e;
+
+  --font-display: "Cinzel", serif;
+  --font-body: "Cormorant Garamond", serif;
+
+  --animate-swirl: swirl 40s linear infinite;
+  --background-image-portal-gradient: radial-gradient(circle, rgba(45, 27, 51, 1) 0%, rgba(26, 28, 44, 1) 50%, rgba(5, 7, 10, 1) 100%);
 }
 
 body {
@@ -106,6 +119,111 @@ body {
 .medieval-text-gold {
   color: var(--border-gold);
   text-shadow: 0 0 8px rgba(197, 160, 89, 0.5);
-  letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+@keyframes swirl {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.portal-bg {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(100, 50, 200, 0.15) 0%, rgba(30, 30, 80, 0.1) 40%, transparent 70%);
+  animation: swirl 40s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.gold-text {
+  background: linear-gradient(to bottom, #f9e29b 0%, #d4af37 40%, #a67c00 70%, #f9e29b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.8));
+}
+
+.mystic-overlay {
+  background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.7) 100%);
+}
+
+/* Grimoire Specific Styles */
+@theme inline {
+  --color-parchment: #D7C4A3;
+  --color-parchment-dark: #2A1E15;
+}
+
+.grimoire-border {
+  border: 12px solid transparent;
+  border-image: url("https://www.transparenttextures.com/patterns/dark-leather.png") 30 round;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.2);
+  position: relative;
+}
+
+.grimoire-border::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  border: 2px solid #D4AF37;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.parchment-texture {
+  background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAKsoi2H37MOTm8vwWIs4H6zbs8xrGuQI350pNQ-ec-HSIARDazbhCmY3fN-NBJbWAVV_agEWz7jhfKL8hz1veZhVO2tPmhTczL_Y9bdFKBvbp055fu7hnZvtQFXoAfqH8BZ7NpxZ0bOSy1-vc8IJyAhRsOZpWq3FV-Sag2oUTZpBte4ZGaXrwaIJIfOZAtdQDPcpyHTmxE6-HoWzkEydjMoe6BcshuzBDpT-D7gGbzgw7IJanX6-OGTBLeuPthf5p1R7Wwsu_4DmqY");
+  background-color: #D7C4A3;
+}
+
+.dark .parchment-texture {
+  background-color: #1a1510;
+}
+
+.ink-writing {
+  overflow: hidden;
+  border-right: 0.15em solid #D4AF37;
+  white-space: nowrap;
+  margin: 0 auto;
+  letter-spacing: 0.15em;
+  animation: typing 3.5s steps(40, end), blink-caret 0.75s step-end infinite;
+}
+
+@keyframes typing {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes blink-caret {
+
+  from,
+  to {
+    border-color: transparent;
+  }
+
+  50% {
+    border-color: #D4AF37;
+  }
+}
+
+.gold-glow {
+  text-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+}
+
+.filigree {
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10 Q 50 0 90 10 Q 100 50 90 90 Q 50 100 10 90 Q 0 50 10 10' fill='none' stroke='%23D4AF37' stroke-width='0.5' opacity='0.3'/%3E%3C/svg%3E");
 }

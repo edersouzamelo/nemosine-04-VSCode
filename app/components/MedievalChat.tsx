@@ -1,22 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-
-interface Message {
-    id: string;
-    text: string;
-    sender: "user" | "persona";
-}
-
-interface ChatThread {
-    id: string;
-    title: string;
-    messages: {
-        id: string;
-        role: "user" | "assistant" | "system";
-        content: string;
-    }[];
-}
+import { useChat } from "@ai-sdk/react";
+import { UIMessage, DefaultChatTransport } from "ai";
 
 interface MedievalChatProps {
     personaId: string;
@@ -26,17 +12,94 @@ interface MedievalChatProps {
 }
 
 export default function MedievalChat({ personaId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [input, setInput] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
     const [threadTitle, setThreadTitle] = useState("");
     const [isEditingTitle, setIsEditingTitle] = useState(false);
-
-    // Track the active thread Internal ID. 
-    // If props.currentThreadId is null, we are in "Draft" mode (no thread ID yet).
-    // Once message sent -> create thread -> get ID.
-
+    const [input, setInput] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Feature: Speech to Text & File Upload
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+    const { messages, sendMessage, status, setMessages } = useChat({
+        id: currentThreadId || 'new-thread',
+        transport: new DefaultChatTransport({
+            api: '/api/chat',
+            body: {
+                personaId,
+                threadId: currentThreadId || undefined
+            },
+            fetch: async (url, init) => {
+                const res = await fetch(url, init);
+                const newThreadId = res.headers.get('x-thread-id');
+                if (newThreadId && newThreadId !== currentThreadId) {
+                    onThreadCreated(newThreadId);
+                }
+                return res;
+            }
+        })
+    });
+
+    const isLoading = status !== 'ready';
+
+    const handleSend = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!input.trim() && !selectedFile) return;
+
+        const request: any = { role: 'user', text: input };
+
+        if (selectedFile) {
+            request.files = [selectedFile];
+        }
+
+        sendMessage(request);
+        setInput("");
+        setSelectedFile(null);
+    };
+
+    const toggleListening = () => {
+        if (isListening) {
+            recognitionRef.current?.stop();
+            setIsListening(false);
+        } else {
+            recognitionRef.current?.start();
+            setIsListening(true);
+        }
+    };
+
+    // Speech Recognition Setup
+    useEffect(() => {
+        if (typeof window !== "undefined" && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            recognitionRef.current = new SpeechRecognition();
+            recognitionRef.current.continuous = true;
+            recognitionRef.current.interimResults = true;
+            recognitionRef.current.lang = 'pt-BR'; // Portuguese
+
+            recognitionRef.current.onresult = (event: any) => {
+                let finalTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    }
+                }
+                if (finalTranscript) {
+                    setInput(prev => prev + (prev ? ' ' : '') + finalTranscript);
+                }
+            };
+
+            recognitionRef.current.onerror = (event: any) => {
+                console.error("Speech recognition error:", event.error);
+                setIsListening(false);
+            };
+
+            recognitionRef.current.onend = () => {
+                setIsListening(false);
+            };
+        }
+    }, []);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,111 +118,23 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                 return;
             }
 
-            setIsLoading(true);
             try {
                 const res = await fetch(`/api/chat?threadId=${currentThreadId}`);
                 const data = await res.json();
                 if (data.thread) {
                     setMessages(data.thread.messages.map((m: any) => ({
                         id: m.id,
-                        text: m.content,
-                        sender: m.role === 'assistant' ? 'persona' : 'user'
+                        role: m.role,
+                        content: m.content
                     })));
                     setThreadTitle(data.thread.title);
                 }
             } catch (e) {
                 console.error("Load thread error:", e);
-            } finally {
-                setIsLoading(false);
             }
         };
         loadThread();
-    }, [currentThreadId, personaId]);
-
-    const handleSend = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isLoading) return;
-
-        const userText = input;
-        setInput("");
-
-        // Optimistic update
-        const tempId = Date.now().toString();
-        setMessages(prev => [...prev, { id: tempId, text: userText, sender: "user" }]);
-        setIsLoading(true);
-
-        try {
-            // Determine action: Create Thread or Send Message?
-            let activeId = currentThreadId;
-
-            if (!activeId) {
-                // Create Thread AND Send Message in one go
-                const createRes = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'create_thread',
-                        personaId,
-                        title: userText.substring(0, 30),
-                        message: userText // Include message
-                    })
-                });
-                const createData = await createRes.json();
-
-                if (createData.thread) {
-                    activeId = createData.thread.id;
-                    // Update messages with whatever the server returned (User + Agent)
-                    setMessages(createData.thread.messages.map((m: any) => ({
-                        id: m.id,
-                        text: m.content,
-                        sender: m.role === 'assistant' ? 'persona' : 'user'
-                    })));
-
-                    // Notify parent to change URL/State
-                    onThreadCreated(activeId!);
-                    // We are done for this turn
-                    return;
-                } else {
-                    throw new Error("Could not create thread");
-                }
-            }
-
-            // Existing Thread: Send Message normally
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    threadId: activeId,
-                    message: userText,
-                    personaId // REQUIRED for response generation
-                }),
-            });
-
-            const data = await response.json();
-
-            if (data.error) {
-                const detailedError = data.details ? `${data.error}: ${data.details}` : data.error;
-                throw new Error(detailedError);
-            }
-
-            setMessages(prev => [...prev, {
-                id: Date.now().toString(),
-                text: data.response || "...",
-                sender: "persona"
-            }]);
-
-        } catch (error) {
-            console.error("Chat Error:", error);
-            const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-            setMessages(prev => [...prev, {
-                id: Date.now().toString(),
-                text: `Erro: ${errorMessage}`,
-                sender: "persona"
-            }]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [currentThreadId, personaId, setMessages]);
 
     const handleTitleUpdate = async () => {
         setIsEditingTitle(false);
@@ -171,6 +146,11 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             });
             onThreadCreated(currentThreadId); // Force refresh list
         }
+    };
+
+    // Helper to clean up response text from hidden tags
+    const cleanContent = (text: string) => {
+        return text.replace(/\[MEMORY:\s*.*?\]/ig, '').trim();
     };
 
     return (
@@ -226,23 +206,23 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                     </div>
                 )}
 
-                {messages.map((msg) => (
+                {messages.map((msg: UIMessage) => (msg.role !== 'system' && (
                     <div
                         key={msg.id}
-                        className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                        className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
-                        <div className={`max-w-[85%] p-5 text-lg leading-relaxed shadow-lg font-serif ${msg.sender === "user"
+                        <div className={`max-w-[85%] p-5 text-lg leading-relaxed shadow-lg font-serif whitespace-pre-wrap ${msg.role === "user"
                             ? "bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#f0ebe3] rounded-2xl rounded-tr-sm"
                             : "bg-[#0a0a0c] border border-[#c5a059]/10 text-[#e1e1e6] rounded-2xl rounded-tl-sm"
                             }`}
                             style={{ fontFamily: '"Garamond", "EB Garamond", serif', fontWeight: 600 }}
                         >
-                            {msg.text}
+                            {cleanContent(msg.parts ? msg.parts.filter(p => p.type === 'text').map(p => (p as any).text).join('\n') : (msg as any).content || '')}
                         </div>
                     </div>
-                ))}
+                )))}
 
-                {isLoading && (
+                {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
                     <div className="flex justify-start">
                         <div className="bg-[#0a0a0c] border border-[#c5a059]/10 p-4 rounded-2xl rounded-tl-sm flex gap-2 items-center">
                             <div className="w-1.5 h-1.5 bg-[#c5a059] rounded-full animate-bounce"></div>
@@ -255,19 +235,57 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSend} className="shrink-0 p-4 bg-black/80 backdrop-blur-md border-t border-[#c5a059]/20">
-                <div className="relative flex gap-3">
+            <form onSubmit={handleSend} className="shrink-0 p-4 bg-black/80 backdrop-blur-md border-t border-[#c5a059]/20 flex flex-col gap-2">
+
+                {/* File Preview */}
+                {selectedFile && (
+                    <div className="flex items-center gap-2 p-2 bg-[#c5a059]/10 border border-[#c5a059]/30 rounded-lg text-sm text-[#e1e1e6]">
+                        📎 {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                        <button type="button" onClick={() => setSelectedFile(null)} className="ml-auto text-red-500 hover:text-red-400">✕</button>
+                    </div>
+                )}
+
+                <div className="relative flex gap-3 items-center">
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-3 text-[#c5a059] bg-black/50 border border-[#c5a059]/30 hover:bg-[#c5a059]/10 transition-colors rounded-xl"
+                        title="Anexar PDF"
+                    >
+                        📎
+                    </button>
+                    <input
+                        type="file"
+                        accept="application/pdf"
+                        ref={fileInputRef}
+                        className="hidden"
+                        onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                                setSelectedFile(e.target.files[0]);
+                            }
+                        }}
+                    />
+
+                    <button
+                        type="button"
+                        onClick={toggleListening}
+                        className={`p-3 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse' : 'bg-black/50 border border-[#c5a059]/30 text-[#c5a059] hover:bg-[#c5a059]/10'}`}
+                        title={isListening ? "Parar Gravação" : "Ditado (🎤)"}
+                    >
+                        🎤
+                    </button>
+
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Digite sua mensagem..."
+                        placeholder="Digite ou dite sua mensagem..."
                         className="flex-1 bg-black/50 border border-[#c5a059]/30 p-4 text-base text-[#e1e1e6] placeholder-[#c5a059]/30 focus:outline-none focus:border-[#c5a059] transition-all rounded-xl font-serif"
                         style={{ fontFamily: '"Garamond", "EB Garamond", serif' }}
                     />
                     <button
                         type="submit"
-                        disabled={isLoading}
+                        disabled={isLoading || (!input.trim() && !selectedFile)}
                         className="px-6 bg-[#c5a059] hover:bg-[#b08d48] text-black font-bold uppercase tracking-widest text-xs transition-colors rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

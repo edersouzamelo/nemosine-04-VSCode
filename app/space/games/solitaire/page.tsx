@@ -112,6 +112,47 @@ export default function SolitairePage() {
         }
     };
 
+    const handleDragStart = (e: React.DragEvent, card: MinCard, loc: CardLocation) => {
+        if (!card.faceUp) {
+            e.preventDefault();
+            return;
+        }
+        if (loc.type === 'waste' && card !== waste[waste.length - 1]) {
+            e.preventDefault();
+            return;
+        }
+        setSelected({ loc, card });
+        e.dataTransfer.setData('text/plain', card.id);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDropOnCard = (e: React.DragEvent, targetCard: MinCard, targetLoc: CardLocation) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (selected) {
+            attemptMove(selected, { loc: targetLoc, card: targetCard });
+        }
+    };
+
+    const handleDropOnEmptyTableau = (e: React.DragEvent, colIdx: number) => {
+        e.preventDefault();
+        if (selected && selected.card.rank === 'K') {
+            moveCardsToTableau(selected, colIdx);
+        }
+    };
+
+    const handleDropOnEmptyFoundation = (e: React.DragEvent, fIdx: number) => {
+        e.preventDefault();
+        if (selected && selected.card.rank === 'A') {
+            moveToFoundation(selected, fIdx);
+        }
+    };
+
     const attemptMove = (source: { loc: CardLocation, card: MinCard }, target: { loc: CardLocation, card: MinCard }) => {
         // To Tableau
         if (target.loc.type === 'tableau') {
@@ -141,24 +182,22 @@ export default function SolitairePage() {
 
     const moveCardsToTableau = (source: { loc: CardLocation, card: MinCard }, colIdx: number) => {
         let cardsToMove: MinCard[] = [];
+        const nextTableau = [...tableau]; // Use a single reference
 
         // Remove from source
         if (source.loc.type === 'waste') {
             setWaste(prev => prev.slice(0, -1));
             cardsToMove = [source.card];
         } else if (source.loc.type === 'tableau') {
-            const col = tableau[source.loc.index];
+            const col = nextTableau[source.loc.index];
             const idx = col.findIndex(c => c.id === source.card.id);
             cardsToMove = col.slice(idx);
-            const newTableau = [...tableau];
-            newTableau[source.loc.index] = col.slice(0, idx);
+
+            nextTableau[source.loc.index] = col.slice(0, idx);
             // Auto flip new top
-            if (newTableau[source.loc.index].length > 0) {
-                // newTableau[source.loc.index][newTableau[source.loc.index].length - 1].faceUp = true; 
-                // Logic handled in click, or auto here? Let's keep it manual click-to-flip or auto check?
-                // Standard is auto-flip.
+            if (nextTableau[source.loc.index].length > 0) {
+                nextTableau[source.loc.index][nextTableau[source.loc.index].length - 1].faceUp = true;
             }
-            setTableau(newTableau);
         } else if (source.loc.type === 'foundation') {
             const newFoundations = [...foundations];
             newFoundations[source.loc.index].pop();
@@ -167,9 +206,8 @@ export default function SolitairePage() {
         }
 
         // Add to target
-        const newTableau = [...tableau];
-        newTableau[colIdx] = [...newTableau[colIdx], ...cardsToMove];
-        setTableau(newTableau);
+        nextTableau[colIdx] = [...nextTableau[colIdx], ...cardsToMove];
+        setTableau(nextTableau);
         setSelected(null);
     };
 
@@ -189,6 +227,9 @@ export default function SolitairePage() {
         } else if (source.loc.type === 'tableau') {
             const newTableau = [...tableau];
             cardToMove = newTableau[source.loc.index].pop()!;
+            if (newTableau[source.loc.index].length > 0) {
+                newTableau[source.loc.index][newTableau[source.loc.index].length - 1].faceUp = true;
+            }
             setTableau(newTableau);
         }
 
@@ -240,7 +281,10 @@ export default function SolitairePage() {
                             {waste.map((card, idx) => (
                                 <div key={card.id}
                                     className={`absolute inset-0 cursor-pointer ${selected?.card.id === card.id ? 'ring-2 ring-[#C5A059] scale-105 z-10' : ''}`}
+                                    style={{ transform: `translateX(${Math.min(idx * 2, 20)}px) translateY(${Math.min(idx * 1, 10)}px)` }}
                                     onClick={() => handleCardClick(card, { type: 'waste', index: 0 })}
+                                    draggable={card === waste[waste.length - 1]}
+                                    onDragStart={(e) => handleDragStart(e, card, { type: 'waste', index: 0 })}
                                 >
                                     <img src={card.imagePath} className="w-full h-full object-contain drop-shadow-md" />
                                 </div>
@@ -257,6 +301,11 @@ export default function SolitairePage() {
                                 onClick={() => {
                                     if (pile.length > 0) handleCardClick(pile[pile.length - 1], { type: 'foundation', index: idx });
                                     else handleEmptyFoundationClick(idx);
+                                }}
+                                onDragOver={handleDragOver}
+                                onDrop={(e) => {
+                                    if (pile.length > 0) handleDropOnCard(e, pile[pile.length - 1], { type: 'foundation', index: idx });
+                                    else handleDropOnEmptyFoundation(e, idx);
                                 }}
                             >
                                 {pile.length === 0 ? (
@@ -284,6 +333,10 @@ export default function SolitairePage() {
                                         e.stopPropagation();
                                         handleCardClick(card, { type: 'tableau', index: colIdx });
                                     }}
+                                    draggable={card.faceUp}
+                                    onDragStart={(e) => handleDragStart(e, card, { type: 'tableau', index: colIdx })}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDropOnCard(e, card, { type: 'tableau', index: colIdx })}
                                 >
                                     {card.faceUp ? (
                                         <img src={card.imagePath} className="w-full h-auto drop-shadow-md rounded-lg" />
@@ -293,7 +346,11 @@ export default function SolitairePage() {
                                 </div>
                             ))}
                             {col.length === 0 && (
-                                <div className="w-full h-36 rounded-lg border border-dashed border-[#333] flex items-center justify-center">
+                                <div
+                                    className="w-full h-36 rounded-lg border border-dashed border-[#333] flex items-center justify-center"
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDropOnEmptyTableau(e, colIdx)}
+                                >
                                     <span className="text-xs text-gray-700">K</span>
                                 </div>
                             )}

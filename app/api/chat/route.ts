@@ -1,119 +1,169 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generatePersonaResponse } from '@/app/lib/nemosine/llm_client';
+import pdfParse from 'pdf-parse';
 import {
-    getSession,
     createThread,
     getThread,
     addMessageToThread,
     getThreadsForPersona,
     updateThreadTitle,
-    deleteThread
+    deleteThread,
+    addUserMemory
 } from '@/app/lib/nemosine/session_store';
+import { auth } from '@/auth';
+
+import { streamText } from 'ai';
+import { openai as vercelOpenai } from '@ai-sdk/openai';
+import { buildSystemPrompt } from '@/app/lib/nemosine/llm_client';
 
 export async function POST(req: NextRequest) {
     try {
+        const session = await auth();
+        const userId = session?.user?.id;
+
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const body = await req.json();
-        const { action, personaId, threadId, message, title } = body;
+        const { messages, personaId, threadId } = body;
 
-        // Action: CREATE_THREAD
-        if (action === 'create_thread') {
-            if (!personaId) return NextResponse.json({ error: 'Missing personaId' }, { status: 400 });
-
-            const thread = createThread(personaId, title);
-
-            // If an initial message is provided, process it immediately
-            if (message) {
-                console.log(`[API/Chat] New Thread ${thread.id} init msg: ${message.substring(0, 50)}...`);
-
-                // 1. Add User Message
-                addMessageToThread(thread.id, 'user', message);
-
-                // 2. Generate Response
-                // Pass the updated thread messages (which now includes the user message)
-                // We need to fetch the thread again or just push the user message to a temp array
-                // getThread returns object ref, so 'thread' might not have the new msg if addMessageToThread modifies it in place?
-                // session_store modifies in place.
-                const updatedThreadForGen = getThread(thread.id);
-                const history = updatedThreadForGen ? updatedThreadForGen.messages : [];
-
-                const responseText = await generatePersonaResponse(personaId, message, history);
-
-                // 3. Add Agent Response
-                addMessageToThread(thread.id, 'assistant', responseText);
-
-                // Update thread object with new messages to return
-                // (Since createThread returns a ref, we just need to ensure we return the updated state)
-                // Re-fetching thread content just to be safe
-                const updatedThread = getThread(thread.id);
-                return NextResponse.json({ thread: updatedThread });
-            }
-
-            return NextResponse.json({ thread });
+        // Ensure we are receiving array of messages and personaId
+        if (!messages || !Array.isArray(messages) || !personaId) {
+            return NextResponse.json({ error: 'Invalid request format or missing personaId' }, { status: 400 });
         }
 
-        // Action: SEND_MESSAGE
-        if (threadId && message) {
-            let thread = getThread(threadId);
+        // Vercel AI SDK 6.x uses `parts` instead of `content` in UIMessage
+        const lastMessage = messages[messages.length - 1];
+        let userText = lastMessage.parts
+            ? lastMessage.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
+            : lastMessage.content || '';
 
-            // If thread doesn't exist (maybe lost in memory), try to recreate or error
-            // For now, if no threadId matches, error.
-            if (!thread) {
-                return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+        // Process any attached PDF files
+        if (lastMessage.parts) {
+            const fileParts = lastMessage.parts.filter((p: any) => p.type === 'file' && p.mediaType === 'application/pdf');
+            for (const filePart of fileParts) {
+                try {
+                    if (filePart.url && filePart.url.includes('base64,')) {
+                        const base64Data = filePart.url.split(',')[1];
+                        const buffer = Buffer.from(base64Data, 'base64');
+                        const pdfData = await pdfParse(buffer);
+                        userText += `\n\n[CONTEÚDO DO ARQUIVO ANEXADO (${filePart.filename || 'documento.pdf'})]\n${pdfData.text}`;
+                    }
+                } catch (err) {
+                    console.error("Error parsing PDF attachment:", err);
+                    userText += `\n\n[Falha ao extrair texto do PDF anexado.]`;
+                }
             }
-
-            console.log(`[API/Chat] msg to thread ${threadId}: ${message.substring(0, 50)}...`);
-
-            // 1. Add User Message
-            addMessageToThread(threadId, 'user', message);
-
-            // 2. Generate Response 
-            const history = thread.messages; // addMessageToThread modifies this array in place? Yes.
-            const responseText = await generatePersonaResponse(personaId, message, history);
-
-            // 3. Add Agent Response
-            addMessageToThread(threadId, 'assistant', responseText);
-
-            return NextResponse.json({ response: responseText });
         }
 
-        return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+        let activeThreadId = threadId;
+
+        // 1. Create thread if it doesn't exist
+        if (!activeThreadId) {
+            const newTitle = userText.substring(0, 30);
+            const thread = await createThread(userId, personaId, newTitle);
+            activeThreadId = thread.id;
+        }
+
+        // 2. Save user message to our persistent DB
+        await addMessageToThread(userId, activeThreadId, 'user', userText);
+
+        // 3. Fetch canonical history from DB to ensure it has all previous context
+        const threadData = await getThread(userId, activeThreadId);
+        const history = threadData?.messages || [];
+
+        // 4. Build the dynamic system prompt (Constitution + Memory + Persona)
+        const systemPrompt = await buildSystemPrompt(userId, personaId);
+
+        // 5. Format messages for Vercel AI SDK
+        const coreMessages = history.map(msg => ({
+            role: msg.role as 'user' | 'assistant' | 'system',
+            content: msg.content
+        }));
+
+        // 6. Start the stream
+        const result = await streamText({
+            model: vercelOpenai('gpt-4-turbo-preview'), // or gpt-4o
+            system: systemPrompt,
+            messages: coreMessages,
+            temperature: 0.7,
+            onFinish: async ({ text }) => {
+                // Background execution when stream finishes
+                let finalResponse = text;
+                const memoryMatch = text.match(/\[MEMORY:\s*(.*?)\]/i);
+                if (memoryMatch && memoryMatch[1]) {
+                    const fact = memoryMatch[1].trim();
+                    await addUserMemory(userId, fact, personaId);
+                    console.log(`[Memory Extracted from Stream Finish] ${fact}`);
+                    finalResponse = text.replace(/\[MEMORY:\s*.*?\]/ig, '').trim();
+                }
+                // Save AI response to DB
+                await addMessageToThread(userId, activeThreadId, 'assistant', finalResponse);
+            }
+        });
+
+        // 7. Return the stream, injecting the thread ID via headers so the client knows it
+        return result.toTextStreamResponse({
+            headers: {
+                'x-thread-id': activeThreadId
+            }
+        });
 
     } catch (error: any) {
-        console.error('[API/Chat] Error:', error);
+        console.error('[API/Chat Stream] Error:', error);
         return NextResponse.json({
             error: 'Internal Server Error',
-            details: error.message,
-            stack: error.stack
+            details: error.message
         }, { status: 500 });
     }
 }
 
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
-    const personaId = searchParams.get('personaId');
-    const threadId = searchParams.get('threadId');
+    try {
+        const session = await auth();
+        const userId = session?.user?.id;
 
-    // Get specific thread history
-    if (threadId) {
-        const thread = getThread(threadId);
-        if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
-        return NextResponse.json({ thread });
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { searchParams } = new URL(req.url);
+        const personaId = searchParams.get('personaId');
+        const threadId = searchParams.get('threadId');
+
+        // Get specific thread history
+        if (threadId) {
+            const thread = await getThread(userId, threadId);
+            if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
+            return NextResponse.json({ thread });
+        }
+
+        // List active threads for a persona
+        if (personaId) {
+            const threads = await getThreadsForPersona(userId, personaId);
+            return NextResponse.json({ threads });
+        }
+
+        return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    } catch (error: any) {
+        console.error('[API/Chat GET] Error:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-
-    // List active threads for a persona
-    if (personaId) {
-        const threads = getThreadsForPersona(personaId);
-        return NextResponse.json({ threads });
-    }
-
-    return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
 }
 
 export async function PATCH(req: NextRequest) {
     try {
+        const session = await auth();
+        const userId = session?.user?.id;
+
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { threadId, title } = await req.json();
         if (threadId && title) {
-            updateThreadTitle(threadId, title);
+            await updateThreadTitle(userId, threadId, title);
             return NextResponse.json({ success: true });
         }
         return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
@@ -124,10 +174,17 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
     try {
+        const session = await auth();
+        const userId = session?.user?.id;
+
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { searchParams } = new URL(req.url);
         const threadId = searchParams.get('threadId');
         if (threadId) {
-            deleteThread(threadId);
+            await deleteThread(userId, threadId);
             return NextResponse.json({ success: true });
         }
         return NextResponse.json({ error: 'Missing threadId' }, { status: 400 });

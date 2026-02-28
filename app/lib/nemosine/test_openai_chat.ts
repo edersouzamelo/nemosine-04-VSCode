@@ -19,7 +19,7 @@ async function runTest() {
     console.log(`[USER] ${userMsg}`);
 
     try {
-        const response = await generatePersonaResponse('Mentor', userMsg, session.room_log);
+        const response = await generatePersonaResponse('test-user', 'Mentor', userMsg, session.room_log);
         console.log(`[MENTOR] ${response}`);
     } catch (err) {
         console.error('Test failed:', err);

@@ -14,7 +14,7 @@ export default function Navbar() {
         { name: "Personas", href: "/agents" },
         { name: "Lugares da Mente", href: "/places" },
         { name: "Constituição", href: "/constitution" },
-        { name: "Sala de Lazer", href: "/space/games" },
+        { name: "Jogos", href: "/space/games" },
         { name: "Comunidade Nemosine", href: "https://linktr.ee/nemosinenous" },
     ];
 

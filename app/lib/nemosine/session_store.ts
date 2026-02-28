@@ -1,4 +1,7 @@
 import { SessionState, ChatThread } from './types';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // Use a global variable to persist state across hot reloads in development
 const globalForNemosine = globalThis as unknown as { nemosineSession: SessionState };
@@ -21,62 +24,139 @@ export const getSession = (): SessionState => {
     return globalForNemosine.nemosineSession;
 };
 
-// Thread Management
-export const createThread = (personaId: string, title?: string): ChatThread => {
-    const session = getSession();
-    const id = Date.now().toString(); // Simple ID
-    const newThread: ChatThread = {
-        id,
-        personaId,
-        title: title || `Conversa com ${personaId}`,
-        messages: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+// Thread Management (Now Async via Prisma)
+export const createThread = async (userId: string, personaId: string, title?: string): Promise<ChatThread> => {
+    const thread = await prisma.thread.create({
+        data: {
+            userId,
+            personaId,
+            title: title || `Conversa com ${personaId}`,
+        },
+        include: { messages: true }
+    });
+
+    // Convert to ChatThread format
+    return {
+        id: thread.id,
+        personaId: thread.personaId,
+        title: thread.title,
+        messages: thread.messages.map(m => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+            timestamp: m.timestamp.getTime()
+        })),
+        createdAt: thread.createdAt.getTime(),
+        updatedAt: thread.updatedAt.getTime()
     };
-    session.threads[id] = newThread;
-    return newThread;
 };
 
-export const getThread = (threadId: string): ChatThread | undefined => {
-    const session = getSession();
-    return session.threads[threadId];
+export const getThread = async (userId: string, threadId: string): Promise<ChatThread | null> => {
+    const thread = await prisma.thread.findFirst({
+        where: { id: threadId, userId },
+        include: { messages: { orderBy: { timestamp: 'asc' } } }
+    });
+
+    if (!thread) return null;
+
+    return {
+        id: thread.id,
+        personaId: thread.personaId,
+        title: thread.title,
+        messages: thread.messages.map(m => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+            timestamp: m.timestamp.getTime()
+        })),
+        createdAt: thread.createdAt.getTime(),
+        updatedAt: thread.updatedAt.getTime()
+    };
 };
 
-export const getThreadsForPersona = (personaId: string): ChatThread[] => {
-    const session = getSession();
-    return Object.values(session.threads)
-        .filter(t => t.personaId === personaId)
-        .sort((a, b) => b.updatedAt - a.updatedAt); // Newest first
+export const getThreadsForPersona = async (userId: string, personaId: string): Promise<ChatThread[]> => {
+    const threads = await prisma.thread.findMany({
+        where: { userId, personaId },
+        orderBy: { updatedAt: 'desc' },
+        include: { messages: true }
+    });
+
+    return threads.map(thread => ({
+        id: thread.id,
+        personaId: thread.personaId,
+        title: thread.title,
+        messages: thread.messages.map(m => ({
+            id: m.id,
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+            timestamp: m.timestamp.getTime()
+        })),
+        createdAt: thread.createdAt.getTime(),
+        updatedAt: thread.updatedAt.getTime()
+    }));
 };
 
-export const addMessageToThread = (threadId: string, role: 'user' | 'assistant' | 'system', content: string) => {
-    const session = getSession();
-    const thread = session.threads[threadId];
-    if (thread) {
-        thread.messages.push({
-            id: Date.now().toString() + Math.random().toString().slice(2, 5),
+export const addMessageToThread = async (userId: string, threadId: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> => {
+    // Verify ownership
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    if (!thread) throw new Error("Thread not found or unauthorized");
+
+    await prisma.message.create({
+        data: {
+            threadId,
             role,
+            content
+        }
+    });
+
+    // Update thread updatedAt
+    await prisma.thread.update({
+        where: { id: threadId },
+        data: { updatedAt: new Date() }
+    });
+};
+
+export const updateThreadTitle = async (userId: string, threadId: string, title: string): Promise<void> => {
+    // Verify ownership
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    if (!thread) return;
+
+    await prisma.thread.update({
+        where: { id: threadId },
+        data: { title }
+    });
+};
+
+export const deleteThread = async (userId: string, threadId: string): Promise<void> => {
+    // Verify ownership
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    if (!thread) return;
+
+    await prisma.thread.delete({
+        where: { id: threadId }
+    });
+};
+
+// Memory Management (Cross-Session)
+export const getUserMemories = async (userId: string): Promise<string[]> => {
+    const memories = await prisma.userMemory.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'asc' }
+    });
+    return memories.map(m => m.content);
+};
+
+export const addUserMemory = async (userId: string, content: string, personaId?: string): Promise<void> => {
+    await prisma.userMemory.create({
+        data: {
+            userId,
             content,
-            timestamp: Date.now()
-        });
-        thread.updatedAt = Date.now();
-    }
+            personaId
+        }
+    });
 };
 
-export const updateThreadTitle = (threadId: string, title: string) => {
-    const session = getSession();
-    const thread = session.threads[threadId];
-    if (thread) {
-        thread.title = title;
-    }
-};
-
-export const deleteThread = (threadId: string) => {
-    const session = getSession();
-    delete session.threads[threadId];
-};
-
-// Legacy support (to avoid breaking other possible refs, though we are moving to threads)
+// Legacy support
 export const addLog = (role: 'user' | 'assistant' | 'system', content: string) => {
     const session = getSession();
     session.room_log.push({

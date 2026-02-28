@@ -16,6 +16,11 @@ export default function OraclePage() {
     const [isFlipped, setIsFlipped] = useState(false);
     const [isShuffling, setIsShuffling] = useState(false);
 
+    const getPersonaSlug = (name: string) => {
+        if (name === 'Bobo') return 'bobo-da-corte';
+        return name.toLowerCase().replace(/\s+/g, '-');
+    };
+
     const drawCard = () => {
         if (isShuffling) return;
 
@@ -48,11 +53,20 @@ export default function OraclePage() {
                 <p className="text-gray-400 max-w-md mx-auto">Concentre-se em uma questão e retire uma carta.</p>
             </div>
 
-            <div className="relative w-64 h-96 perspective-1000 cursor-pointer group" onClick={drawCard}>
-                <div className={`relative w-full h-full transition-transform duration-700 transform-style-3d ${isFlipped ? "rotate-y-180" : ""}`}>
+            <div className="relative w-64 h-96 cursor-pointer group" style={{ perspective: '1000px' }} onClick={!isFlipped ? drawCard : undefined}>
+                <div
+                    className="relative w-full h-full transition-transform duration-700"
+                    style={{
+                        transformStyle: 'preserve-3d',
+                        transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
+                    }}
+                >
 
                     {/* Front (Card Back Image) */}
-                    <div className="absolute inset-0 backface-hidden rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-[#333] overflow-hidden group-hover:shadow-[0_0_40px_rgba(197,160,89,0.3)] transition-shadow">
+                    <div
+                        className="absolute inset-0 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-[#333] overflow-hidden group-hover:shadow-[0_0_40px_rgba(197,160,89,0.3)] transition-shadow"
+                        style={{ backfaceVisibility: 'hidden' }}
+                    >
                         <img src={BACK_OF_CARD_IMAGE} alt="Verso" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-transparent transition-colors">
                             <span className={`text-[#C5A059] bg-black/80 px-4 py-2 rounded-full text-xs uppercase tracking-widest ${isShuffling ? "animate-pulse" : ""}`}>
@@ -62,15 +76,23 @@ export default function OraclePage() {
                     </div>
 
                     {/* Back (The Revealed Card) */}
-                    <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-xl shadow-[0_0_50px_rgba(197,160,89,0.4)] border border-[#C5A059] overflow-hidden bg-black">
+                    <div
+                        className="absolute inset-0 rounded-xl shadow-[0_0_50px_rgba(197,160,89,0.4)] border border-[#C5A059] overflow-hidden bg-black"
+                        style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                    >
                         {currentCard ? (
-                            <>
+                            <Link href={`/agents/${getPersonaSlug(currentCard.name)}`} className="w-full h-full relative group/card block">
                                 <img src={currentCard.imagePath} alt={currentCard.name} className="w-full h-full object-contain p-2" />
+                                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 z-10">
+                                    <span className="bg-black/90 text-[#C5A059] px-4 py-2 rounded-full text-xs font-bold border border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.5)]">
+                                        Falar com {currentCard.name}
+                                    </span>
+                                </div>
                                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 text-center">
-                                    <h2 className="text-2xl font-bold text-[#C5A059] drop-shadow-md">{currentCard.name}</h2>
+                                    <h2 className="text-2xl font-bold text-[#C5A059] drop-shadow-md group-hover/card:text-white transition-colors">{currentCard.name}</h2>
                                     <p className="text-xs text-gray-300 uppercase tracking-widest">{currentCard.suit} {currentCard.rank}</p>
                                 </div>
-                            </>
+                            </Link>
                         ) : (
                             <div className="w-full h-full bg-gray-900"></div>
                         )}
