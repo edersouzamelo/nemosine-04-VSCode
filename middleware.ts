@@ -4,12 +4,11 @@ import { authConfig } from "./auth.config"
 const { auth } = NextAuth(authConfig)
 
 export default auth((req) => {
-    if (!req.auth && req.nextUrl.pathname === "/space") {
-        const newUrl = new URL("/?login=true", req.nextUrl.origin)
-        return Response.redirect(newUrl)
-    }
+    // Authentication disabled by request.
+    // Allow all traffic through.
 })
 
 export const config = {
-    matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+    // Disable middleware matcher entirely
+    matcher: [],
 }

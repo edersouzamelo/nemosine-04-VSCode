@@ -58,29 +58,16 @@ export default function Navbar() {
             </nav>
 
             <div className="flex gap-4 items-center">
-                {session ? (
-                    <div className="flex items-center gap-4">
-                        <Link href="/space">
-                            <MedievalButton variant="secondary" className="!py-2 !px-4 !text-[10px]">
-                                Espaço Local
-                            </MedievalButton>
-                        </Link>
-                        <div className="flex items-center gap-2">
-                            {session.user?.image && (
-                                <img src={session.user.image} alt={session.user.name || "User"} className="w-8 h-8 rounded-full border border-[#c5a059]/50" />
-                            )}
-                            <button onClick={() => signOut()} className="text-[10px] uppercase tracking-widest text-[#c5a059]/60 hover:text-[#c5a059] transition-colors">
-                                Sair
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <Link href="/">
+                <div className="flex items-center gap-4">
+                    <Link href="/space">
                         <MedievalButton variant="secondary" className="!py-2 !px-4 !text-[10px]">
-                            Entrar
+                            Espaço Local
                         </MedievalButton>
                     </Link>
-                )}
+                    <div className="flex items-center gap-2">
+                        <img src="https://ui-avatars.com/api/?name=Admin&background=c5a059&color=000" alt="User" className="w-8 h-8 rounded-full border border-[#c5a059]/50" />
+                    </div>
+                </div>
             </div>
         </header>
     );
