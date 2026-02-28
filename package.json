@@ -19,6 +19,7 @@
     "mammoth": "^1.11.0",
     "next": "15.1.9",
     "next-auth": "^5.0.0-beta.30",
+    "nodemailer": "^8.0.1",
     "openai": "^6.22.0",
     "pdf-parse": "^1.1.4",
     "prisma": "^5.22.0",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20.19.33",
+    "@types/nodemailer": "^7.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
