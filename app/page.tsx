@@ -13,15 +13,9 @@ export default function Home() {
     if (!email) return;
     setIsLoading(true);
     try {
-      const res = await signIn("resend", { email, redirect: false, callbackUrl: "/space" });
-      if (res && !res.error) {
-        setStep(2);
-      } else {
-        console.error("Login failed", res?.error);
-      }
+      await signIn("resend", { email, callbackUrl: "/space" });
     } catch (error) {
       console.error("Login failed", error);
-    } finally {
       setIsLoading(false);
     }
   };
