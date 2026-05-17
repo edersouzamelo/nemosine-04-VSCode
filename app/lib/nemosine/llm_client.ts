@@ -95,7 +95,7 @@ export async function generatePersonaResponse(
     try {
         console.log(`[LLM] Calling OpenAI for ${personaId}...`);
         const completion = await openai.chat.completions.create({
-            model: "gpt-4-turbo-preview", // Or gpt-3.5-turbo
+            model: "gpt-4o", // Updated from deprecated gpt-4-turbo-preview
             messages: messages,
             temperature: 0.7,
         });

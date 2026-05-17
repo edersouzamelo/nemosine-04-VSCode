@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
         // 6. Start the stream
         const result = await streamText({
-            model: vercelOpenai('gpt-4-turbo-preview'), // or gpt-4o
+            model: vercelOpenai('gpt-4o'), // updated to gpt-4o since preview is deprecated
             system: systemPrompt,
             messages: coreMessages,
             temperature: 0.7,
