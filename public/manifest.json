@@ -1,0 +1,18 @@
+{
+  "name": "Nemosine Nous",
+  "short_name": "Nemosine",
+  "description": "Sistema de Cartas das Personas de Nemosine Nous",
+  "start_url": "/?v=3",
+  "display": "standalone",
+  "background_color": "#050507",
+  "theme_color": "#c5a059",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/nemosine-cube-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

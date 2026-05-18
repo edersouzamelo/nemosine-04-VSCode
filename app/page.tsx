@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Geist } from "next/font/google";
 import MedievalButton from "./components/MedievalButton";
+import { signIn } from "next-auth/react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,23 +14,62 @@ const geistSans = Geist({
 export default function Home() {
   const router = useRouter();
   const [showGrimoire, setShowGrimoire] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleEnterVortex = () => {
     setShowGrimoire(true);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !password) return;
     setIsLoading(true);
+    setError("");
 
-    // Bypass NextAuth entirely to satisfy user request for instant access
-    // Fake a small delay for the aesthetic animation, then redirect
-    setTimeout(() => {
-      router.push("/space");
-    }, 800);
+    try {
+      if (isRegistering) {
+        // Rotina de Registro
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+          setError(data.message || "Erro ao registrar");
+          setIsLoading(false);
+          return;
+        }
+        // Se registrar com sucesso, faz o login automaticamente
+      }
+
+      // Rotina de Login (para ambos os casos)
+      const res = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+      });
+
+      if (res?.error) {
+        if (res.error === "CredentialsSignin") {
+          setError("Email ou senha incorretos.");
+        } else {
+          setError(res.error);
+        }
+        setIsLoading(false);
+      } else {
+        router.push("/space");
+      }
+    } catch (err) {
+      setError("Erro de conexão");
+      setIsLoading(false);
+    }
   };
 
   const toggleDarkMode = () => {
@@ -98,17 +138,38 @@ export default function Home() {
                   </header>
                   <div className="space-y-2">
                     <h2 className="text-xl md:text-2xl font-display text-stone-900 dark:text-stone-100 italic">
-                      Entrar no Grimório
+                      {isRegistering ? "Manifestar Presença" : "Entrar no Grimório"}
                     </h2>
                     <p className="text-sm text-stone-600 dark:text-stone-400 italic">
-                      Insira seu endereço de email para manifestar o portal.
+                      {isRegistering ? "Registre-se para iniciar seu processamento." : "Insira suas credenciais para manifestar o portal."}
                     </p>
                   </div>
 
-                  <form onSubmit={handleLogin} className="mt-10 space-y-8">
+                  <form onSubmit={handleAuth} className="mt-10 space-y-6">
+                    {error && (
+                      <div className="p-3 bg-red-900/30 border border-red-500/50 text-red-200 text-sm">
+                        {error}
+                      </div>
+                    )}
+
+                    {isRegistering && (
+                      <div className="relative">
+                        <input
+                          className="w-full bg-transparent border-t-0 border-x-0 border-b-2 border-primary/30 focus:border-primary focus:ring-0 text-stone-900 dark:text-stone-100 placeholder:text-stone-500/50 placeholder:italic transition-all duration-300 py-3 text-lg peer"
+                          placeholder="Como deseja ser chamado?"
+                          type="text"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          required={isRegistering}
+                          disabled={isLoading}
+                        />
+                        <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-500 peer-focus:w-full"></div>
+                      </div>
+                    )}
+
                     <div className="relative">
                       <input
-                        className="w-full bg-transparent border-t-0 border-x-0 border-b-2 border-primary/30 focus:border-primary focus:ring-0 text-stone-900 dark:text-stone-100 placeholder:text-stone-500/50 placeholder:italic transition-all duration-300 py-4 text-lg peer"
+                        className="w-full bg-transparent border-t-0 border-x-0 border-b-2 border-primary/30 focus:border-primary focus:ring-0 text-stone-900 dark:text-stone-100 placeholder:text-stone-500/50 placeholder:italic transition-all duration-300 py-3 text-lg peer"
                         placeholder="seu-email@dominio.com"
                         type="email"
                         value={email}
@@ -118,14 +179,38 @@ export default function Home() {
                       />
                       <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-500 peer-focus:w-full"></div>
                     </div>
+
+                    <div className="relative">
+                      <input
+                        className="w-full bg-transparent border-t-0 border-x-0 border-b-2 border-primary/30 focus:border-primary focus:ring-0 text-stone-900 dark:text-stone-100 placeholder:text-stone-500/50 placeholder:italic transition-all duration-300 py-3 text-lg peer"
+                        placeholder="Sua senha secreta"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        disabled={isLoading}
+                      />
+                      <div className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-500 peer-focus:w-full"></div>
+                    </div>
+
                     <button
                       type="submit"
                       disabled={isLoading}
                       className="w-full group/btn relative overflow-hidden py-4 px-6 border border-primary/50 bg-stone-900 dark:bg-stone-950 text-primary font-display tracking-widest hover:text-stone-900 hover:bg-primary transition-all duration-500 shadow-lg disabled:opacity-50 cursor-pointer"
                     >
-                      <span className="relative z-10">{isLoading ? "CONECTANDO..." : "CONTINUAR"}</span>
+                      <span className="relative z-10">{isLoading ? "PROCESSANDO..." : "CONTINUAR"}</span>
                       <div className="absolute inset-0 bg-primary translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300"></div>
                     </button>
+                    
+                    <div className="text-center mt-4">
+                      <button 
+                        type="button" 
+                        onClick={() => setIsRegistering(!isRegistering)}
+                        className="text-xs text-primary/60 hover:text-primary transition-colors cursor-pointer uppercase tracking-widest"
+                      >
+                        {isRegistering ? "Já possui acesso? Entrar" : "Novo por aqui? Registrar-se"}
+                      </button>
+                    </div>
                   </form>
 
                 </div>

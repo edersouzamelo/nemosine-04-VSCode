@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import MedievalButton from "./MedievalButton";
@@ -9,6 +9,19 @@ import { useSession, signOut } from "next-auth/react";
 export default function Navbar() {
     const pathname = usePathname();
     const { data: session } = useSession();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setMenuOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const navItems = [
         { name: "Personas", href: "/agents" },
@@ -21,7 +34,7 @@ export default function Navbar() {
     return (
         <header className="relative z-20 border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4 text-decoration-none">
-                <Link href="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+                <Link href="/space" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
                     <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                     <div className="h-6 w-[1px] bg-[#c5a059]/30 hidden sm:block"></div>
                     <span className="text-[10px] uppercase tracking-widest opacity-60 hidden sm:block">Painel de Controle</span>
@@ -64,8 +77,67 @@ export default function Navbar() {
                             Espaço Local
                         </MedievalButton>
                     </Link>
-                    <div className="flex items-center gap-2">
-                        <img src="https://ui-avatars.com/api/?name=Admin&background=c5a059&color=000" alt="User" className="w-8 h-8 rounded-full border border-[#c5a059]/50" />
+
+                    {/* User Avatar + Dropdown Menu */}
+                    <div className="relative" ref={menuRef}>
+                        <button
+                            onClick={() => setMenuOpen(!menuOpen)}
+                            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                            <img
+                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || 'U')}&background=c5a059&color=000`}
+                                alt="User"
+                                className="w-8 h-8 rounded-full border-2 border-[#c5a059]/50 hover:border-[#c5a059] transition-colors"
+                            />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {menuOpen && (
+                            <div className="absolute right-0 top-12 w-64 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl overflow-hidden animate-[fadeIn_0.15s_ease-out] z-50">
+                                {/* User Info */}
+                                <div className="px-4 py-3 border-b border-[#c5a059]/10">
+                                    <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuário"}</p>
+                                    <p className="text-xs text-white/40 truncate">{session?.user?.email}</p>
+                                </div>
+
+                                {/* Menu Items */}
+                                <div className="py-1">
+                                    <Link
+                                        href="/space"
+                                        onClick={() => setMenuOpen(false)}
+                                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-all"
+                                    >
+                                        <span className="text-base">🏠</span>
+                                        Meu Espaço
+                                    </Link>
+
+                                    {session?.user?.email === "edersouzamelo@gmail.com" && (
+                                        <Link
+                                            href="/admin"
+                                            onClick={() => setMenuOpen(false)}
+                                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-all"
+                                        >
+                                            <span className="text-base">⚙️</span>
+                                            Painel Admin
+                                        </Link>
+                                    )}
+                                </div>
+
+                                {/* Logout */}
+                                <div className="border-t border-[#c5a059]/10 py-1">
+                                    <button
+                                        onClick={() => {
+                                            setMenuOpen(false);
+                                            signOut({ callbackUrl: "/" });
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400/80 hover:text-red-400 hover:bg-red-500/5 transition-all cursor-pointer"
+                                    >
+                                        <span className="text-base">🚪</span>
+                                        Sair do Grimório
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -23,35 +23,55 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-    const { messages, sendMessage, status, setMessages } = useChat({
-        id: currentThreadId || 'new-thread',
-        transport: new DefaultChatTransport({
-            api: '/api/chat',
-            body: {
-                personaId,
-                threadId: currentThreadId || undefined
-            },
-            fetch: async (url, init) => {
-                const res = await fetch(url, init);
-                const newThreadId = res.headers.get('x-thread-id');
-                if (newThreadId && newThreadId !== currentThreadId) {
-                    onThreadCreated(newThreadId);
+    const currentThreadIdRef = useRef(currentThreadId);
+    useEffect(() => {
+        currentThreadIdRef.current = currentThreadId;
+    }, [currentThreadId]);
+
+    const transport = React.useMemo(() => new DefaultChatTransport({
+        api: '/api/chat',
+        fetch: async (url, init) => {
+            if (init && init.body) {
+                try {
+                    if (typeof init.body === 'string') {
+                        const bodyObj = JSON.parse(init.body);
+                        bodyObj.personaId = personaId;
+                        bodyObj.threadId = currentThreadIdRef.current || undefined;
+                        init.body = JSON.stringify(bodyObj);
+                    } else if (init.body instanceof FormData) {
+                        init.body.append('personaId', personaId);
+                        if (currentThreadIdRef.current) {
+                            init.body.append('threadId', currentThreadIdRef.current);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Interceptor failed to append body params:", e);
                 }
-                return res;
             }
-        })
+            const res = await fetch(url, init);
+            const newThreadId = res.headers.get('x-thread-id');
+            if (newThreadId && newThreadId !== currentThreadIdRef.current) {
+                onThreadCreated(newThreadId);
+            }
+            return res;
+        }
+    }), [personaId, onThreadCreated]);
+
+    const { messages, sendMessage, status, setMessages } = useChat({
+        id: personaId,
+        transport
     });
 
-    const isLoading = status !== 'ready';
+    const isLoading = status === 'submitted' || status === 'streaming';
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() && !selectedFile) return;
 
-        const request: any = { role: 'user', text: input };
+        const request: any = { role: 'user', content: input };
 
         if (selectedFile) {
-            request.files = [selectedFile];
+            request.experimental_attachments = [selectedFile]; // Vercel AI SDK uses this for attachments
         }
 
         sendMessage(request);
@@ -109,12 +129,24 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
         scrollToBottom();
     }, [messages, isLoading]);
 
+    const [lastLoadedThreadId, setLastLoadedThreadId] = useState<string | null>(null);
+
     // Load thread when ID changes
     useEffect(() => {
         const loadThread = async () => {
             if (!currentThreadId) {
                 setMessages([]);
                 setThreadTitle(`Conversa com ${personaId}`);
+                setLastLoadedThreadId(null);
+                return;
+            }
+
+            if (currentThreadId === lastLoadedThreadId) return;
+
+            // If we already have messages (from sending the first prompt), do not overwrite them!
+            // We only fetch history if we are genuinely switching to an existing thread.
+            if (messages.length > 0 && !lastLoadedThreadId) {
+                setLastLoadedThreadId(currentThreadId);
                 return;
             }
 
@@ -128,13 +160,14 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         content: m.content
                     })));
                     setThreadTitle(data.thread.title);
+                    setLastLoadedThreadId(currentThreadId);
                 }
             } catch (e) {
                 console.error("Load thread error:", e);
             }
         };
         loadThread();
-    }, [currentThreadId, personaId, setMessages]);
+    }, [currentThreadId, personaId, setMessages, lastLoadedThreadId, messages.length]);
 
     const handleTitleUpdate = async () => {
         setIsEditingTitle(false);
@@ -286,7 +319,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                     <button
                         type="submit"
                         disabled={isLoading || (!input.trim() && !selectedFile)}
-                        className="px-6 bg-[#c5a059] hover:bg-[#b08d48] text-black font-bold uppercase tracking-widest text-xs transition-colors rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-3 bg-[#c5a059] hover:bg-[#b08d48] text-black font-bold uppercase tracking-widest text-xs transition-colors rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

@@ -1,7 +1,7 @@
 import { SessionState, ChatThread } from './types';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+export const prisma = new PrismaClient();
 
 // Use a global variable to persist state across hot reloads in development
 const globalForNemosine = globalThis as unknown as { nemosineSession: SessionState };

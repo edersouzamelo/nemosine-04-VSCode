@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import Navbar from "../../components/Navbar";
 import RetractablePanel from "@/app/components/RetractablePanel";
 import ChatHistoryList from "@/app/components/ChatHistoryList";
@@ -74,15 +75,23 @@ export default function AgentDetailPage() {
                                 onEnded={() => setIsPlaying(false)}
                                 onPause={() => setIsPlaying(false)}
                                 onPlay={() => setIsPlaying(true)}
+                                onError={(e) => {
+                                    // Previne que o erro de "source not supported" suba para o Next.js Error Overlay
+                                    e.preventDefault();
+                                    setIsPlaying(false);
+                                }}
                             />
                         )}
 
                         {(entity.landscapeImage || entity.image) && (
-                            <img
-                                src={entity.landscapeImage || entity.image}
-                                alt={entity.name}
-                                className={`w-full h-full object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
-                            />
+                            <div className="absolute inset-0 w-full h-full overflow-hidden">
+                                <Image
+                                    src={entity.landscapeImage || entity.image || ''}
+                                    alt={entity.name}
+                                    fill
+                                    className={`object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
+                                />
+                            </div>
                         )}
 
                         {/* Audio Indicator Overlay */}

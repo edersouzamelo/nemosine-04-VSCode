@@ -8,7 +8,8 @@ import {
     getThreadsForPersona,
     updateThreadTitle,
     deleteThread,
-    addUserMemory
+    addUserMemory,
+    prisma
 } from '@/app/lib/nemosine/session_store';
 import { auth } from '@/auth';
 
@@ -16,19 +17,29 @@ import { streamText } from 'ai';
 import { openai as vercelOpenai } from '@ai-sdk/openai';
 import { buildSystemPrompt } from '@/app/lib/nemosine/llm_client';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
     try {
-        const { PrismaClient } = require('@prisma/client');
-        const prisma = new PrismaClient();
-        let user = await prisma.user.findUnique({ where: { email: "edersouzamelo@gmail.com" } });
-        if (!user) user = await prisma.user.create({ data: { email: "edersouzamelo@gmail.com", name: "Eder" } });
-        const userId = user.id;
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const userId = session.user.id;
 
+        const log = (msg: string) => {
+            console.log(msg);
+        };
+
+        const t0 = Date.now();
         const body = await req.json();
         const { messages, personaId, threadId } = body;
+        log(`[API/Chat] Received request. threadId: ${threadId}, messages count: ${messages?.length}`);
 
         // Ensure we are receiving array of messages and personaId
         if (!messages || !Array.isArray(messages) || !personaId) {
+            log('[API/Chat] Error: Invalid request format');
             return NextResponse.json({ error: 'Invalid request format or missing personaId' }, { status: 400 });
         }
 
@@ -37,6 +48,7 @@ export async function POST(req: NextRequest) {
         let userText = lastMessage.parts
             ? lastMessage.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text).join('\n')
             : lastMessage.content || '';
+        log(`[API/Chat] User text length: ${userText.length}`);
 
         // Process any attached PDF files
         if (lastMessage.parts) {
@@ -60,7 +72,7 @@ export async function POST(req: NextRequest) {
 
         // 1. Create thread if it doesn't exist
         if (!activeThreadId) {
-            const newTitle = userText.substring(0, 30);
+            const newTitle = userText.length > 30 ? userText.substring(0, 30).trim() + '...' : userText;
             const thread = await createThread(userId, personaId, newTitle);
             activeThreadId = thread.id;
         }
@@ -69,11 +81,15 @@ export async function POST(req: NextRequest) {
         await addMessageToThread(userId, activeThreadId, 'user', userText);
 
         // 3. Fetch canonical history from DB to ensure it has all previous context
+        const t1 = Date.now();
         const threadData = await getThread(userId, activeThreadId);
         const history = threadData?.messages || [];
+        log(`[API/Chat] DB fetch took ${Date.now() - t1}ms`);
 
         // 4. Build the dynamic system prompt (Constitution + Memory + Persona)
+        const t2 = Date.now();
         const systemPrompt = await buildSystemPrompt(userId, personaId);
+        log(`[API/Chat] System prompt build took ${Date.now() - t2}ms`);
 
         // 5. Format messages for Vercel AI SDK
         const coreMessages = history.map(msg => ({
@@ -82,6 +98,7 @@ export async function POST(req: NextRequest) {
         }));
 
         // 6. Start the stream
+        log(`[API/Chat] Starting stream after ${Date.now() - t0}ms total prep time`);
         const result = await streamText({
             model: vercelOpenai('gpt-4o'), // updated to gpt-4o since preview is deprecated
             system: systemPrompt,
@@ -103,7 +120,7 @@ export async function POST(req: NextRequest) {
         });
 
         // 7. Return the stream, injecting the thread ID via headers so the client knows it
-        return result.toTextStreamResponse({
+        return result.toUIMessageStreamResponse({
             headers: {
                 'x-thread-id': activeThreadId
             }

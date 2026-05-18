@@ -41,3 +41,11 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+.vercel
+
+# temporary/scratch files
+api_perf.log
+inspect_stream.ts
+test_api_latency.js
+test_stream.js
