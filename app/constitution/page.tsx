@@ -1,6 +1,13 @@
+import Navbar from "../components/Navbar";
+import InstitutionalFooter from "../components/InstitutionalFooter";
+
 export default function ConstitutionPage() {
     return (
-        <div className="min-h-screen pt-24 pb-12 px-4 flex justify-center bg-[#0a0a0c]">
+        <main className="min-h-screen bg-[#0a0a0c]">
+            <div className="sticky top-0 z-50">
+                <Navbar />
+            </div>
+            <div className="pb-12 px-4 pt-12 flex justify-center">
             {/* Parchment Container */}
             <div className="relative w-full max-w-4xl bg-[#e3d5b8] text-[#2c241b] rounded-sm shadow-[0_0_50px_rgba(197,160,89,0.2)] p-12 md:p-16 overflow-hidden">
 
@@ -151,6 +158,8 @@ export default function ConstitutionPage() {
 
                 </div>
             </div>
-        </div>
+            </div>
+            <InstitutionalFooter />
+        </main>
     );
 }

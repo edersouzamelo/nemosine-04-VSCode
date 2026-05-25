@@ -2,17 +2,16 @@ import OpenAI from 'openai';
 import { ENTITIES } from '@/app/data/entities';
 import { SessionState, PersonaState } from './types';
 import { CONSTITUTION_TEXT, CODEX_NOUS_TEXT, ATLAS_NOUS_TEXT } from '@/app/data/system_context';
-import { getUserMemories } from './session_store';
+import { getUserMemories, getVisibleConversationEpisodes } from './session_store';
+import { isPrivateMemorySpace } from './privacy';
 
-// Initialize OpenAI Client
-// In a real app, use process.env.OPENAI_API_KEY
-// For this test, we assume the environment variable is set or passed.
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    dangerouslyAllowBrowser: true // For testing in some environments, but ideally backend only
+    apiKey: process.env.OPENAI_API_KEY
 });
 
-export async function buildSystemPrompt(userId: string, personaId: string): Promise<string> {
+type ResponseLanguage = "pt-BR" | "es" | "en";
+
+export async function buildSystemPrompt(userId: string, personaId: string, language: ResponseLanguage = "pt-BR"): Promise<string> {
     // 1. Retrieve Persona Data
     const personaData = Object.values(ENTITIES).find((p: any) => p.name === personaId);
     if (!personaData) {
@@ -20,10 +19,24 @@ export async function buildSystemPrompt(userId: string, personaId: string): Prom
     }
 
     // 2. Fetch User Memories
-    const memories = await getUserMemories(userId);
+    const isPrivateSpace = isPrivateMemorySpace(personaId);
+    const [memories, conversationEpisodes] = await Promise.all([
+        getUserMemories(userId, personaId),
+        getVisibleConversationEpisodes(userId, personaId)
+    ]);
     const memoryContext = memories.length > 0
-        ? `\n[MEMÓRIA DE LONGO PRAZO DO USUÁRIO]\nNas suas conversas anteriores (mesmo com outros personas), o sistema acumulou os seguintes fatos sobre o usuário:\n${memories.map(m => `- ${m}`).join('\n')}\nUtilize essas informações para personalizar profundamente suas respostas e demonstrar que você o conhece.\n`
+        ? `\n[MEMÓRIA DE LONGO PRAZO DO USUÁRIO]\n${isPrivateSpace
+            ? "Este espaço recebe memórias compartilhadas externas e suas próprias memórias privadas. Conteúdo privado deste espaço nunca deve ser mencionado como conhecimento disponível fora dele."
+            : "Nas suas conversas anteriores, exceto nos espaços privados, o sistema acumulou os seguintes fatos sobre o usuário:"}\n${memories.map(m => `- ${m}`).join('\n')}\nUtilize essas informações para personalizar suas respostas pela perspectiva desta persona.\n`
         : "";
+    const episodeContext = conversationEpisodes.length > 0
+        ? `\n[EPISÓDIOS RECENTES COMPARTILHADOS]\nVocê pode reconhecer fatos e temas tratados recentemente pelo usuário com outras perspectivas. Responda pela sua própria função, sem alegar que participou da conversa original.\n${conversationEpisodes.join('\n\n')}\n`
+        : "";
+    const sharedContextInstruction = `
+[USO DO CONTEXTO COMPARTILHADO]
+Memórias e episódios visíveis acima são contexto efetivamente disponível para esta persona, ainda que tenham surgido em conversa com outra persona.
+Quando o usuário perguntar o que você sabe, recorda ou percebe sobre ele ou sobre assuntos já tratados, use os dados disponíveis, distinguindo fato declarado, episódio conversado e inferência.
+Não alegue desconhecimento total se as seções de memória ou episódios contiverem informação pertinente. Preserve a sua própria voz ao responder.`;
 
     // 3. Build System Prompt (The "Soul")
     // Inject Time Awareness
@@ -32,6 +45,12 @@ export async function buildSystemPrompt(userId: string, personaId: string): Prom
     const dateString = now.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     const timeContext = `\n[CONTEXTO TEMPORAL]\nHoje é ${dateString}. A hora atual é ${timeString}.\nVocê deve levar este horário em consideração para suas respostas e rotinas.`;
+    const languageName = {
+        "pt-BR": "português brasileiro",
+        es: "español",
+        en: "English"
+    }[language];
+    const languageConstraint = `\n[IDIOMA DA INTERAÇÃO]\nResponda em ${languageName}, salvo se o usuário pedir expressamente outro idioma nesta mensagem.`;
 
     // Inject Constitution and System Context
     let dynamicContext = "";
@@ -43,16 +62,33 @@ export async function buildSystemPrompt(userId: string, personaId: string): Prom
 
     const memoryInstruction = `
 [EXTRAÇÃO DE MEMÓRIA]
-Se, APENAS NA MENSAGEM ATUAL, o usuário revelar um fato importante, preferência ou detalhe pessoal sobre si mesmo que seja útil de lembrar no futuro, você deve anexar o seguinte ao FINAL da sua resposta:
-[MEMORY: <o fato que você aprendeu>]
-Exemplo: [MEMORY: O usuário relatou que adora estudar história medieval].
-Se não houver nenhum fato novo e relevante a aprender na mensagem atual do usuário, NÃO adicione a tag.`;
+Ao final de uma interação substantiva, registre apenas informações novas que ajudem outras perspectivas a continuar o mesmo assunto sem pedir que o usuário o reconte. Você pode anexar até três tags ao FINAL da resposta:
+[MEMORY: FATO | <preferência, circunstância ou objetivo duradouro do usuário>]
+[MEMORY: EPISÓDIO | <o que foi discutido ou deliberado nesta interação>]
+[MEMORY: TEMA ATIVO | <assunto que permanece em exploração ou decisão>]
+Exemplo: [MEMORY: TEMA ATIVO | O usuário está refletindo sobre uma transição profissional].
+Não registre trivialidades, não repita memória já evidente no contexto e não invente fatos. Se não houver conteúdo novo e relevante, NÃO adicione tag.
+${isPrivateSpace
+        ? "Neste espaço privado, qualquer memória extraída permanece restrita a este mesmo espaço e não pode ser transportada, resumida ou revelada a outras personas ou lugares."
+        : "Não tente inferir, solicitar ou revelar conteúdo dos espaços privados Confessor 2.0 ou Porão."}`;
 
     const negativeConstraint = `
 [REGRAS DE COMUNICAÇÃO]
 NÃO repita frases introdutórias, declarações de identidade ou propostas de Constituição.
 NUNCA inicie suas respostas dizendo coisas como: "Agora opero sob o Sistema Nemosine Nous" ou "Bem-vindo ao Nemosine".
-Vá direto ao ponto e responda naturalmente à interação do usuário de acordo com sua Persona.`;
+NÃO finalize automaticamente com fórmulas de atendimento ou disponibilidade, tais como "como posso ajudar?", "em que posso auxiliar?", "sobre o que deseja conversar?", "posso ajudar com algo mais?" ou equivalentes.
+NÃO force simpatia, acolhimento, amizade ou prestatividade quando isso não pertencer à natureza desta persona.
+Pergunte apenas quando a pergunta nascer organicamente da vocação desta persona ou for indispensável para avançar o assunto; uma resposta pode terminar em afirmação, advertência, imagem, silêncio indicado ou provocação.
+Vá direto ao ponto e responda à interação do usuário de acordo com sua Persona.`;
+
+    const embodimentConstraint = `
+[INCORPORAÇÃO OBRIGATÓRIA DA PERSONA]
+Você já foi invocado como ${personaId}. Desde a primeira resposta, fale inequivocamente pela voz, vocação, temperamento e enquadramento descritos no seu prompt.
+Não aguarde que o usuário diga "responda como ${personaId}".
+Evite respostas genéricas de assistente, linguagem corporativa e listas numeradas por padrão. Use listas somente quando a tarefa realmente exigir organização objetiva ou quando isso for inerente à sua função; mesmo assim preserve a sua voz.
+Ofereça substância proporcional ao assunto: em temas reflexivos, desenvolva uma leitura própria e não reduza a resposta a duas frases protocolares.
+Não neutralize arestas da persona para soar agradável. Personas rudes, austeras, confrontadoras, frias, enigmáticas ou delicadas devem permanecer distintamente assim, sempre dentro dos limites de segurança.
+Quando episódios compartilhados acima contiverem informação solicitada, reconheça-a como contexto disponível do sistema e trate-a pela sua própria perspectiva, sem alegar que participou da conversa original.`;
 
     const systemContext = `
 ========================================
@@ -65,11 +101,14 @@ ${CONSTITUTION_TEXT}
 ${dynamicContext}
 ========================================
 ${memoryContext}
+${episodeContext}
+${sharedContextInstruction}
 ${memoryInstruction}
+${embodimentConstraint}
 ${negativeConstraint}
 `;
 
-    return (personaData.prompt || `Você é ${personaId}.`) + timeContext + systemContext;
+    return (personaData.prompt || `Você é ${personaId}.`) + timeContext + languageConstraint + systemContext;
 }
 
 export async function generatePersonaResponse(

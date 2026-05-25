@@ -10,7 +10,7 @@ const ADMIN_EMAIL = "edersouzamelo@gmail.com";
 export async function GET() {
   try {
     const session = await auth();
-    if (!session?.user?.email || session.user.email !== ADMIN_EMAIL) {
+    if (!session?.user?.email || session.user.email.trim().toLowerCase() !== ADMIN_EMAIL) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 
@@ -47,7 +47,6 @@ export async function GET() {
       select: {
         id: true,
         personaId: true,
-        title: true,
         createdAt: true,
         updatedAt: true,
         user: {

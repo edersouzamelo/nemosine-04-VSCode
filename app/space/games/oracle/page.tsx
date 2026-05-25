@@ -5,6 +5,8 @@ import { DECK, shuffleDeck, Card, BACK_OF_CARD_IMAGE } from "@/lib/deck";
 import MedievalButton from "@/app/components/MedievalButton";
 import Link from "next/link";
 import { Geist } from "next/font/google";
+import Navbar from "@/app/components/Navbar";
+import InstitutionalFooter from "@/app/components/InstitutionalFooter";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -40,7 +42,11 @@ export default function OraclePage() {
     };
 
     return (
-        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} flex flex-col items-center justify-center p-4`}>
+        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className}`}>
+            <div className="sticky top-0 z-50">
+                <Navbar />
+            </div>
+            <div className="relative min-h-[calc(100vh-80px)] flex flex-col items-center justify-center p-4">
 
             <header className="absolute top-6 left-6 flex items-center gap-4">
                 <Link href="/space/games" className="text-gray-500 hover:text-[#C5A059] transition-colors">
@@ -107,6 +113,8 @@ export default function OraclePage() {
                 </MedievalButton>
             </div>
 
+            </div>
+            <InstitutionalFooter />
         </main>
     );
 }

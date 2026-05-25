@@ -23,7 +23,6 @@ interface AdminMetrics {
   recentActivity: Array<{
     id: string;
     personaId: string;
-    title: string;
     createdAt: string;
     updatedAt: string;
     user: { name: string | null; email: string | null };
@@ -83,6 +82,8 @@ export default function AdminPage() {
     ...metrics.personaUsage.map((p) => p._count.id),
     1
   );
+  const activityEntries = Object.entries(metrics.activityByDay);
+  const maxActivityCount = Math.max(...activityEntries.map(([, count]) => count), 1);
 
   return (
     <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
@@ -189,30 +190,29 @@ export default function AdminPage() {
         </div>
 
         {/* Atividade por Dia */}
-        {Object.keys(metrics.activityByDay).length > 0 && (
+        {activityEntries.length > 0 && (
           <div className="bg-black/40 border border-[#c5a059]/20 rounded-lg p-6 backdrop-blur-md mb-10">
             <h2 className="text-sm uppercase tracking-widest text-[#c5a059] font-bold mb-6">
               Atividade dos Últimos 30 Dias
             </h2>
             <div className="flex items-end gap-1 h-32">
-              {Object.entries(metrics.activityByDay).map(([day, count]) => {
-                const maxCount = Math.max(
-                  ...Object.values(metrics.activityByDay)
-                );
-                const height = (count / maxCount) * 100;
+              {activityEntries.map(([day, count]) => {
+                const height = (count / maxActivityCount) * 100;
                 return (
                   <div
                     key={day}
-                    className="flex-1 flex flex-col items-center gap-1 group"
+                    className="flex-1 h-full flex flex-col items-center justify-end gap-1 group"
                   >
                     <span className="text-[8px] text-[#c5a059] opacity-0 group-hover:opacity-100 transition-opacity">
                       {count}
                     </span>
-                    <div
-                      className="w-full bg-gradient-to-t from-[#c5a059]/40 to-[#c5a059] rounded-t transition-all duration-500 hover:from-[#c5a059]/60"
-                      style={{ height: `${Math.max(height, 4)}%` }}
-                      title={`${day}: ${count} msgs`}
-                    ></div>
+                    <div className="w-full h-24 flex items-end">
+                      <div
+                        className="w-full bg-gradient-to-t from-[#c5a059]/40 to-[#c5a059] rounded-t transition-all duration-500 hover:from-[#c5a059]/60"
+                        style={{ height: `${Math.max(height, 4)}%` }}
+                        title={`${day}: ${count} msgs`}
+                      ></div>
+                    </div>
                     <span className="text-[7px] text-white/20 -rotate-45 origin-top-left whitespace-nowrap">
                       {day.slice(5)}
                     </span>
@@ -234,7 +234,6 @@ export default function AdminPage() {
                 <tr className="text-[10px] uppercase tracking-widest text-[#c5a059]/60 border-b border-[#c5a059]/10">
                   <th className="text-left p-2">Usuário</th>
                   <th className="text-left p-2">Persona</th>
-                  <th className="text-left p-2">Título</th>
                   <th className="text-center p-2">Msgs</th>
                   <th className="text-right p-2">Última Atividade</th>
                 </tr>
@@ -251,9 +250,6 @@ export default function AdminPage() {
                     <td className="p-2 text-[#c5a059]/80 text-xs capitalize font-serif">
                       {a.personaId}
                     </td>
-                    <td className="p-2 text-white/50 text-xs max-w-[200px] truncate">
-                      {a.title}
-                    </td>
                     <td className="p-2 text-center text-[#c5a059]/60 text-xs">
                       {a._count.messages}
                     </td>
@@ -265,7 +261,7 @@ export default function AdminPage() {
                 {metrics.recentActivity.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={4}
                       className="text-center text-white/30 text-sm italic p-6"
                     >
                       Nenhuma atividade registrada.

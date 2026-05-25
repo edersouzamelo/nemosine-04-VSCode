@@ -1,5 +1,6 @@
 import { SessionState, ChatThread } from './types';
 import { PrismaClient } from '@prisma/client';
+import { isPrivateMemorySpace, PRIVATE_MEMORY_SPACES } from './privacy';
 
 export const prisma = new PrismaClient();
 
@@ -138,22 +139,104 @@ export const deleteThread = async (userId: string, threadId: string): Promise<vo
 };
 
 // Memory Management (Cross-Session)
-export const getUserMemories = async (userId: string): Promise<string[]> => {
+// Memories created inside private spaces may return only to their originating space.
+export const getUserMemories = async (userId: string, targetPersonaId: string): Promise<string[]> => {
+    const visibleSources = isPrivateMemorySpace(targetPersonaId)
+        ? [
+            { personaId: null },
+            { personaId: { notIn: [...PRIVATE_MEMORY_SPACES] } },
+            { personaId: targetPersonaId }
+        ]
+        : [
+            { personaId: null },
+            { personaId: { notIn: [...PRIVATE_MEMORY_SPACES] } }
+        ];
+
     const memories = await prisma.userMemory.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'asc' }
+        where: {
+            userId,
+            OR: visibleSources
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 60,
+        select: { content: true }
     });
-    return memories.map(m => m.content);
+    return memories.reverse().map(m => m.content);
+};
+
+export const getVisibleConversationEpisodes = async (userId: string, targetPersonaId: string): Promise<string[]> => {
+    const visibleSources = isPrivateMemorySpace(targetPersonaId)
+        ? [
+            { personaId: { notIn: [...PRIVATE_MEMORY_SPACES] } },
+            { personaId: targetPersonaId }
+        ]
+        : [
+            { personaId: { notIn: [...PRIVATE_MEMORY_SPACES] } }
+        ];
+
+    const threads = await prisma.thread.findMany({
+        where: {
+            userId,
+            OR: visibleSources
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 8,
+        include: {
+            messages: {
+                orderBy: { timestamp: 'desc' },
+                take: 4
+            }
+        }
+    });
+
+    return threads
+        .filter(thread => thread.messages.length > 0)
+        .map(thread => {
+            const excerpt = [...thread.messages]
+                .reverse()
+                .map(message => {
+                    const speaker = message.role === 'user' ? 'Usuário' : thread.personaId;
+                    return `${speaker}: ${message.content.slice(0, 280)}`;
+                })
+                .join('\n');
+
+            return `[Conversa com ${thread.personaId}]\n${excerpt}`;
+        });
 };
 
 export const addUserMemory = async (userId: string, content: string, personaId?: string): Promise<void> => {
+    const normalizedContent = content.trim().slice(0, 1000);
+    if (!normalizedContent) return;
+
+    const existingMemory = await prisma.userMemory.findFirst({
+        where: {
+            userId,
+            personaId: personaId ?? null,
+            content: normalizedContent
+        }
+    });
+
+    if (existingMemory) return;
+
     await prisma.userMemory.create({
         data: {
             userId,
-            content,
+            content: normalizedContent,
             personaId
         }
     });
+};
+
+export const retainConversationEpisode = async (userId: string, personaId: string, content: string): Promise<void> => {
+    const normalizedMessage = content.replace(/\s+/g, ' ').trim();
+    if (normalizedMessage.length < 12) return;
+
+    // Retain the user's public trail without presenting every utterance as an established fact.
+    await addUserMemory(
+        userId,
+        `EPISODIO COM ${personaId} | O usuario escreveu: ${normalizedMessage.slice(0, 900)}`,
+        personaId
+    );
 };
 
 // Legacy support

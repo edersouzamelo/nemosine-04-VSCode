@@ -1,5 +1,6 @@
 import AgentCard from "../components/AgentCard";
 import Navbar from "../components/Navbar";
+import InstitutionalFooter from "../components/InstitutionalFooter";
 import { ENTITIES, PLACES } from "../data/entities";
 
 export default function PlacesPage() {
@@ -51,6 +52,7 @@ export default function PlacesPage() {
                     "Cada lugar abriga um segredo, e cada segredo é uma chave para o entendimento."
                 </p>
             </footer>
+            <InstitutionalFooter />
         </main>
     );
 }

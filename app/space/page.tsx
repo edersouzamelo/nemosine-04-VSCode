@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
+import InstitutionalFooter from "../components/InstitutionalFooter";
 
 export default async function SpacePage() {
     const session = await auth();
@@ -10,7 +11,7 @@ export default async function SpacePage() {
     }
 
     return (
-        <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
+        <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6] flex flex-col">
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0">
                 <div className="absolute inset-0 bg-black/60 z-10 backdrop-blur-[2px]"></div>
@@ -19,7 +20,7 @@ export default async function SpacePage() {
 
             <Navbar />
 
-            <section className="relative z-10 p-12 max-w-4xl mx-auto">
+            <section className="relative z-10 flex-1 p-12 max-w-4xl mx-auto w-full">
                 <h1 className="text-4xl font-serif text-[#c5a059] mb-8 uppercase tracking-tight">Espaço Local</h1>
 
                 <div className="bg-black/40 border border-[#c5a059]/20 p-8 rounded-lg backdrop-blur-md">
@@ -37,6 +38,7 @@ export default async function SpacePage() {
                     </div>
                 </div>
             </section>
+            <InstitutionalFooter />
         </main>
     );
 }

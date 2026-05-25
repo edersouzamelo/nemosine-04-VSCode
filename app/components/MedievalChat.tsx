@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { UIMessage, DefaultChatTransport } from "ai";
+import { useLanguage } from "./LanguageProvider";
 
 interface MedievalChatProps {
     personaId: string;
@@ -12,6 +13,7 @@ interface MedievalChatProps {
 }
 
 export default function MedievalChat({ personaId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
+    const { language, t } = useLanguage();
     const [threadTitle, setThreadTitle] = useState("");
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [input, setInput] = useState("");
@@ -20,6 +22,8 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
     // Feature: Speech to Text & File Upload
     const [isListening, setIsListening] = useState(false);
     const recognitionRef = useRef<any>(null);
+    const speechInputBaseRef = useRef("");
+    const lastDictationTranscriptRef = useRef("");
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -37,9 +41,11 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         const bodyObj = JSON.parse(init.body);
                         bodyObj.personaId = personaId;
                         bodyObj.threadId = currentThreadIdRef.current || undefined;
+                        bodyObj.language = language;
                         init.body = JSON.stringify(bodyObj);
                     } else if (init.body instanceof FormData) {
                         init.body.append('personaId', personaId);
+                        init.body.append('language', language);
                         if (currentThreadIdRef.current) {
                             init.body.append('threadId', currentThreadIdRef.current);
                         }
@@ -55,9 +61,9 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             }
             return res;
         }
-    }), [personaId, onThreadCreated]);
+    }), [personaId, onThreadCreated, language]);
 
-    const { messages, sendMessage, status, setMessages } = useChat({
+    const { messages, sendMessage, status, setMessages, error, clearError } = useChat({
         id: personaId,
         transport
     });
@@ -68,15 +74,20 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
         e.preventDefault();
         if (!input.trim() && !selectedFile) return;
 
-        const request: any = { role: 'user', content: input };
-
+        const messageText = input;
+        let files: FileList | undefined;
         if (selectedFile) {
-            request.experimental_attachments = [selectedFile]; // Vercel AI SDK uses this for attachments
+            const transfer = new DataTransfer();
+            transfer.items.add(selectedFile);
+            files = transfer.files;
         }
-
-        sendMessage(request);
+        clearError();
         setInput("");
         setSelectedFile(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+        await sendMessage({ text: messageText, files });
     };
 
     const toggleListening = () => {
@@ -84,6 +95,8 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             recognitionRef.current?.stop();
             setIsListening(false);
         } else {
+            speechInputBaseRef.current = input.trim();
+            lastDictationTranscriptRef.current = "";
             recognitionRef.current?.start();
             setIsListening(true);
         }
@@ -96,17 +109,22 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             recognitionRef.current = new SpeechRecognition();
             recognitionRef.current.continuous = true;
             recognitionRef.current.interimResults = true;
-            recognitionRef.current.lang = 'pt-BR'; // Portuguese
+            recognitionRef.current.lang = language;
 
             recognitionRef.current.onresult = (event: any) => {
-                let finalTranscript = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
+                const segments: string[] = [];
+                for (let i = 0; i < event.results.length; ++i) {
+                    const segment = event.results[i][0].transcript.trim();
+                    const previousSegment = segments[segments.length - 1];
+                    if (segment && (!previousSegment || previousSegment.toLowerCase() !== segment.toLowerCase())) {
+                        segments.push(segment);
                     }
                 }
-                if (finalTranscript) {
-                    setInput(prev => prev + (prev ? ' ' : '') + finalTranscript);
+
+                const transcript = segments.join(' ').trim();
+                if (transcript && transcript !== lastDictationTranscriptRef.current) {
+                    lastDictationTranscriptRef.current = transcript;
+                    setInput([speechInputBaseRef.current, transcript].filter(Boolean).join(' '));
                 }
             };
 
@@ -118,8 +136,13 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             recognitionRef.current.onend = () => {
                 setIsListening(false);
             };
+
+            return () => {
+                recognitionRef.current?.abort();
+                recognitionRef.current = null;
+            };
         }
-    }, []);
+    }, [language]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -136,7 +159,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
         const loadThread = async () => {
             if (!currentThreadId) {
                 setMessages([]);
-                setThreadTitle(`Conversa com ${personaId}`);
+                setThreadTitle(`${t("conversationWith")} ${personaId}`);
                 setLastLoadedThreadId(null);
                 return;
             }
@@ -167,7 +190,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             }
         };
         loadThread();
-    }, [currentThreadId, personaId, setMessages, lastLoadedThreadId, messages.length]);
+    }, [currentThreadId, personaId, setMessages, lastLoadedThreadId, messages.length, t]);
 
     const handleTitleUpdate = async () => {
         setIsEditingTitle(false);
@@ -208,7 +231,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                             onClick={() => currentThreadId && setIsEditingTitle(true)}
                             className={`text-sm uppercase tracking-widest font-bold medieval-text-gold truncate cursor-pointer hover:text-white transition-colors ${!currentThreadId ? 'opacity-50 cursor-default' : ''}`}
                         >
-                            {threadTitle || "Nova Conversa"}
+                            {threadTitle || t("newChat")}
                         </div>
                     )}
                 </div>
@@ -218,9 +241,9 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                     <button
                         onClick={onNewChat}
                         className="p-2 hover:bg-[#c5a059]/20 rounded-full transition-colors text-[#c5a059] flex items-center gap-2 group"
-                        title="Nova Conversa"
+                        title={t("newChat")}
                     >
-                        <span className="text-[10px] uppercase font-bold hidden group-hover:block transition-all">Novo Chat</span>
+                        <span className="text-[10px] uppercase font-bold hidden group-hover:block transition-all">{t("newChat")}</span>
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
@@ -235,7 +258,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         <div className="w-16 h-16 rounded-full border border-[#c5a059]/20 flex items-center justify-center">
                             <span className="text-3xl">✦</span>
                         </div>
-                        <p className="text-sm font-serif italic">Inicie uma nova jornada com {personaId}...</p>
+                        <p className="text-sm font-serif italic">{t("startJourney")} {personaId}...</p>
                     </div>
                 )}
 
@@ -244,11 +267,10 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         key={msg.id}
                         className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
-                        <div className={`max-w-[85%] p-5 text-lg leading-relaxed shadow-lg font-serif whitespace-pre-wrap ${msg.role === "user"
+                        <div className={`chat-readable max-w-[85%] p-5 shadow-lg whitespace-pre-wrap ${msg.role === "user"
                             ? "bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#f0ebe3] rounded-2xl rounded-tr-sm"
                             : "bg-[#0a0a0c] border border-[#c5a059]/10 text-[#e1e1e6] rounded-2xl rounded-tl-sm"
                             }`}
-                            style={{ fontFamily: '"Garamond", "EB Garamond", serif', fontWeight: 600 }}
                         >
                             {cleanContent(msg.parts ? msg.parts.filter(p => p.type === 'text').map(p => (p as any).text).join('\n') : (msg as any).content || '')}
                         </div>
@@ -269,6 +291,11 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
 
             {/* Input Area */}
             <form onSubmit={handleSend} className="shrink-0 p-4 bg-black/80 backdrop-blur-md border-t border-[#c5a059]/20 flex flex-col gap-2">
+                {error && (
+                    <div className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
+                        {t("responseError")}
+                    </div>
+                )}
 
                 {/* File Preview */}
                 {selectedFile && (
@@ -283,13 +310,13 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         className="p-3 text-[#c5a059] bg-black/50 border border-[#c5a059]/30 hover:bg-[#c5a059]/10 transition-colors rounded-xl"
-                        title="Anexar PDF"
+                        title="Anexar PDF ou arquivo de texto"
                     >
                         📎
                     </button>
                     <input
                         type="file"
-                        accept="application/pdf"
+                        accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
                         ref={fileInputRef}
                         className="hidden"
                         onChange={(e) => {
@@ -312,9 +339,8 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Digite ou dite sua mensagem..."
-                        className="flex-1 bg-black/50 border border-[#c5a059]/30 p-4 text-base text-[#e1e1e6] placeholder-[#c5a059]/30 focus:outline-none focus:border-[#c5a059] transition-all rounded-xl font-serif"
-                        style={{ fontFamily: '"Garamond", "EB Garamond", serif' }}
+                        placeholder={t("messagePlaceholder")}
+                        className="chat-readable-input flex-1 bg-black/50 border border-[#c5a059]/30 p-4 text-[#e1e1e6] placeholder-[#c5a059]/30 focus:outline-none focus:border-[#c5a059] transition-all rounded-xl"
                     />
                     <button
                         type="submit"

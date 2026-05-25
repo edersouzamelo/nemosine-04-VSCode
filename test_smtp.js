@@ -1,26 +1,33 @@
 const nodemailer = require('nodemailer');
 
 async function main() {
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPassword = process.env.SMTP_PASSWORD;
+
+    if (!smtpUser || !smtpPassword) {
+        throw new Error('Set SMTP_USER and SMTP_PASSWORD before running this script.');
+    }
+
     const transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
-        secure: true, // This is likely what was missing!
+        secure: true,
         auth: {
-            user: 'edersouzamelo@gmail.com',
-            pass: 'udrn sxis wmwn ekmz',
+            user: smtpUser,
+            pass: smtpPassword,
         },
     });
 
     try {
         const info = await transporter.sendMail({
-            from: '"Nemosine Test" <edersouzamelo@gmail.com>',
-            to: "edersouzamelo@gmail.com",
-            subject: "Test SMTP",
-            text: "Checking if port 465 + secure:true works",
+            from: `"Nemosine Test" <${smtpUser}>`,
+            to: smtpUser,
+            subject: 'Test SMTP',
+            text: 'Checking if port 465 + secure:true works',
         });
-        console.log("Message sent: %s", info.messageId);
+        console.log('Message sent: %s', info.messageId);
     } catch (e) {
-        console.error("SMTP ERROR:", e);
+        console.error('SMTP ERROR:', e);
     }
 }
 

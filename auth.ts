@@ -10,6 +10,7 @@ class InvalidLoginError extends CredentialsSignin {
 const prisma = new PrismaClient()
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   // SEM adapter - Credentials + JWT não precisa de adapter no banco
   session: { strategy: "jwt" },
   pages: {
@@ -31,7 +32,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const user = await prisma.user.findUnique({
           where: {
-            email: credentials.email as string
+            email: (credentials.email as string).trim().toLowerCase()
           }
         });
 

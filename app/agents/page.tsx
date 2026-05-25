@@ -1,6 +1,7 @@
 import AgentCard from "../components/AgentCard";
 import MedievalButton from "../components/MedievalButton";
 import Navbar from "../components/Navbar";
+import InstitutionalFooter from "../components/InstitutionalFooter";
 
 const AGENTS = [
     "Adjunto", "Advogado", "Aprovisionador", "Arauto", "Arqueólogo", "Artista", "Astrônomo", "Autor",
@@ -53,12 +54,12 @@ export default function AgentsPage() {
 
 
 
-            {/* Footer */}
             <footer className="relative z-20 p-8 border-t border-[#c5a059]/10 bg-black/60 text-center">
                 <p className="text-[10px] medieval-text-gold opacity-40">
                     Existem 56 processos cognitivos ativos na rede Nemosine. Selecione uma persona para iniciar o processamento.
                 </p>
             </footer>
+            <InstitutionalFooter />
         </main>
     );
 }

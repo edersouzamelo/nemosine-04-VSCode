@@ -7,12 +7,15 @@ import RetractablePanel from "@/app/components/RetractablePanel";
 import ChatHistoryList from "@/app/components/ChatHistoryList";
 import MedievalChat from "@/app/components/MedievalChat";
 import TimekeeperWidget from "@/app/components/TimekeeperWidget";
+import PrivateSpaceNotice from "@/app/components/PrivateSpaceNotice";
+import { useLanguage } from "@/app/components/LanguageProvider";
 import { useParams } from "next/navigation";
 import { ENTITIES } from "../../data/entities";
 
 export default function AgentDetailPage() {
     const params = useParams();
-    const id = params.id as string;
+    const { t } = useLanguage();
+    const id = decodeURIComponent(params.id as string);
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = React.useRef<HTMLAudioElement | null>(null);
     const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
@@ -33,6 +36,9 @@ export default function AgentDetailPage() {
             </main>
         );
     }
+
+    const requiresPrivacyNotice =
+        entity.name === "Confessor 2.0" || entity.name === "Porão";
 
     const toggleAudio = () => {
         if (!audioRef.current || !entity.audio) return;
@@ -132,14 +138,15 @@ export default function AgentDetailPage() {
                     />
                     {/* Special Widget for Arauto */}
                     {entity.name.toLowerCase() === 'arauto' && <TimekeeperWidget />}
+                    {requiresPrivacyNotice && <PrivateSpaceNotice spaceName={entity.name} />}
                 </div>
 
                 {/* LATERAL PANEL: DETAILS */}
-                <RetractablePanel title={entity.type === 'place' ? "Dossiê do Lugar" : "Dossiê do Agente"}>
+                <RetractablePanel title={entity.type === 'place' ? t("dossierPlace") : t("dossierAgent")}>
                     {/* Identity Card */}
                     <div className="space-y-2">
                         <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                            Identificação
+                            {t("identification")}
                         </span>
                         <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{entity.name}</h2>
                         <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
@@ -151,7 +158,7 @@ export default function AgentDetailPage() {
                     {/* Script / Description */}
                     <div className="mt-8 space-y-4">
                         <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                            Protocolo & Roteiro
+                            {t("protocol")}
                         </span>
                         <p className="text-sm font-light leading-relaxed text-[#e1e1e6]/80 whitespace-pre-line">
                             {entity.script || entity.transcription}

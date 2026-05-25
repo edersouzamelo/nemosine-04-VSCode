@@ -12631,6 +12631,26 @@ export const ENTITIES: Record<string, EntityData> = {};
 // Helper to generate slugs consistent with current dashboard logic
 const getSlug = (name: string) => name.toLowerCase().replace(/\s+/g, '-');
 
+const normalizePersonaKey = (name: string) => name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .toLowerCase()
+    .replace(/^(o|a)\s+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const resolvePersonaPrompt = (name: string) => {
+    const normalizedName = normalizePersonaKey(name);
+    const promptEntry = Object.entries(PERSONA_PROMPTS).find(
+        ([promptName]) => normalizePersonaKey(promptName) === normalizedName
+    );
+
+    return promptEntry?.[1]
+        || PERSONA_SCRIPTS[name]
+        || `Você é ${name}, persona do Sistema Nemosine. Preserve rigorosamente sua voz, sua vocação e seu temperamento.`;
+};
+
 // Populate Personas
 PERSONAS.forEach((name) => {
     const slug = getSlug(name);
@@ -12676,7 +12696,7 @@ PERSONAS.forEach((name) => {
             phrase: PERSONA_PHRASES["Adjunto"] || "Eficiência, Labor, Produtividade",
             transcription: "Iniciando protocolo de sincronização... Como Adjunto, minha função é garantir que cada passo seja executado com precisão absoluta dentro dos seus sistemas. Observo os fluxos de dados e moldo a realidade técnica conforme sua vontade soberana.",
             script: script,
-            prompt: PERSONA_PROMPTS[name]
+            prompt: resolvePersonaPrompt(name)
         };
     } else {
         const entityData: EntityData = {
@@ -12688,7 +12708,7 @@ PERSONAS.forEach((name) => {
             phrase: PERSONA_PHRASES[name] || "Explorador das profundezas da psique humana.",
             transcription: `Saudações. Eu sou ${name}, um dos 56 processos cognitivos desta rede. Aguardando integração de dados e frequências arcanas para manifestação plena...`,
             script: script,
-            prompt: PERSONA_PROMPTS[name]
+            prompt: resolvePersonaPrompt(name)
         };
 
         ENTITIES[slug] = entityData;

@@ -22,8 +22,11 @@ export const metadata: Metadata = {
     title: "Nemosine",
   },
   icons: {
-    icon: "/assets/nemosine-cube-v2.png",
-    apple: "/assets/nemosine-cube-v2.png",
+    icon: [
+      { url: "/icons/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icons/nemosine-icon-192.png", type: "image/png", sizes: "192x192" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
   },
 };
 
@@ -43,8 +46,8 @@ export default function RootLayout({
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Cormorant+Garamond:wght@300;400;600&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-        <link rel="icon" href="/assets/nemosine-cube-v2.png" />
-        <link rel="apple-touch-icon" href="/assets/nemosine-cube-v2.png" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

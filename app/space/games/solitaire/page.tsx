@@ -5,6 +5,8 @@ import { DECK, shuffleDeck, Card, BACK_OF_CARD_IMAGE, CardSuit } from "@/lib/dec
 import Link from "next/link";
 import { Geist } from "next/font/google";
 import MedievalButton from "@/app/components/MedievalButton";
+import Navbar from "@/app/components/Navbar";
+import InstitutionalFooter from "@/app/components/InstitutionalFooter";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -248,7 +250,11 @@ export default function SolitairePage() {
 
 
     return (
-        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} p-4 overflow-hidden select-none`}>
+        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} overflow-hidden select-none`}>
+            <div className="sticky top-0 z-50">
+                <Navbar />
+            </div>
+            <div className="p-4">
             {/* Header */}
             <div className="flex justify-between items-center mb-4 max-w-6xl mx-auto border-b border-[#333] pb-2">
                 <div className="flex items-center gap-4">
@@ -359,6 +365,8 @@ export default function SolitairePage() {
                 </div>
 
             </div>
+            </div>
+            <InstitutionalFooter />
         </main>
     );
 }

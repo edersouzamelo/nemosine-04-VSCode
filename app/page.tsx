@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Geist } from "next/font/google";
 import MedievalButton from "./components/MedievalButton";
 import { signIn } from "next-auth/react";
+import { LanguageSelector, useLanguage } from "./components/LanguageProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,6 +21,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const { t } = useLanguage();
 
   const handleEnterVortex = () => {
     setShowGrimoire(true);
@@ -106,7 +108,7 @@ export default function Home() {
 
             <div onClick={handleEnterVortex} className="cursor-pointer">
               <MedievalButton className="text-lg px-12 py-4">
-                Entrar
+                {t("enter")}
               </MedievalButton>
             </div>
           </div>
@@ -136,12 +138,15 @@ export default function Home() {
                     </h1>
                     <div className="h-px w-24 bg-primary mx-auto opacity-40"></div>
                   </header>
+                  <div className="flex justify-center">
+                    <LanguageSelector dark={false} />
+                  </div>
                   <div className="space-y-2">
                     <h2 className="text-xl md:text-2xl font-display text-stone-900 dark:text-stone-100 italic">
-                      {isRegistering ? "Manifestar Presença" : "Entrar no Grimório"}
+                      {isRegistering ? t("registerTitle") : t("loginTitle")}
                     </h2>
                     <p className="text-sm text-stone-600 dark:text-stone-400 italic">
-                      {isRegistering ? "Registre-se para iniciar seu processamento." : "Insira suas credenciais para manifestar o portal."}
+                      {isRegistering ? t("registerPrompt") : t("loginPrompt")}
                     </p>
                   </div>
 
@@ -156,7 +161,7 @@ export default function Home() {
                       <div className="relative">
                         <input
                           className="w-full bg-transparent border-t-0 border-x-0 border-b-2 border-primary/30 focus:border-primary focus:ring-0 text-stone-900 dark:text-stone-100 placeholder:text-stone-500/50 placeholder:italic transition-all duration-300 py-3 text-lg peer"
-                          placeholder="Como deseja ser chamado?"
+                          placeholder={t("namePlaceholder")}
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
@@ -183,7 +188,7 @@ export default function Home() {
                     <div className="relative">
                       <input
                         className="w-full bg-transparent border-t-0 border-x-0 border-b-2 border-primary/30 focus:border-primary focus:ring-0 text-stone-900 dark:text-stone-100 placeholder:text-stone-500/50 placeholder:italic transition-all duration-300 py-3 text-lg peer"
-                        placeholder="Sua senha secreta"
+                        placeholder={t("passwordPlaceholder")}
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -198,7 +203,7 @@ export default function Home() {
                       disabled={isLoading}
                       className="w-full group/btn relative overflow-hidden py-4 px-6 border border-primary/50 bg-stone-900 dark:bg-stone-950 text-primary font-display tracking-widest hover:text-stone-900 hover:bg-primary transition-all duration-500 shadow-lg disabled:opacity-50 cursor-pointer"
                     >
-                      <span className="relative z-10">{isLoading ? "PROCESSANDO..." : "CONTINUAR"}</span>
+                      <span className="relative z-10">{isLoading ? t("processing") : t("continue")}</span>
                       <div className="absolute inset-0 bg-primary translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300"></div>
                     </button>
                     
@@ -208,7 +213,7 @@ export default function Home() {
                         onClick={() => setIsRegistering(!isRegistering)}
                         className="text-xs text-primary/60 hover:text-primary transition-colors cursor-pointer uppercase tracking-widest"
                       >
-                        {isRegistering ? "Já possui acesso? Entrar" : "Novo por aqui? Registrar-se"}
+                        {isRegistering ? t("haveAccess") : t("register")}
                       </button>
                     </div>
                   </form>

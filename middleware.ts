@@ -1,14 +1,15 @@
-import NextAuth from "next-auth"
-import { authConfig } from "./auth.config"
+import NextAuth from "next-auth";
+import { NextResponse } from "next/server";
+import { authConfig } from "./auth.config";
 
-const { auth } = NextAuth(authConfig)
+const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
-    // Authentication disabled by request.
-    // Allow all traffic through.
-})
+    if (!req.auth) {
+        return NextResponse.redirect(new URL("/", req.nextUrl));
+    }
+});
 
 export const config = {
-    // Disable middleware matcher entirely
-    matcher: [],
-}
+    matcher: ["/admin/:path*", "/agents/:path*", "/places/:path*", "/space/:path*"],
+};
