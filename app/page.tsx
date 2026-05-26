@@ -27,6 +27,18 @@ export default function Home() {
     setShowGrimoire(true);
   };
 
+  const handleGoogleAuth = async () => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      await signIn("google", { redirectTo: "/space" });
+    } catch {
+      setError("Erro de conexão");
+      setIsLoading(false);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
@@ -156,6 +168,27 @@ export default function Home() {
                         {error}
                       </div>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={handleGoogleAuth}
+                      disabled={isLoading}
+                      className="w-full flex items-center justify-center gap-3 py-3 px-6 border border-primary/40 bg-white/50 dark:bg-stone-950/40 text-stone-900 dark:text-stone-100 font-display text-sm tracking-widest hover:border-primary hover:bg-white/80 dark:hover:bg-stone-950/70 transition-all duration-300 shadow-sm disabled:opacity-50 cursor-pointer"
+                    >
+                      <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 18 18">
+                        <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.23-.16-1.8H9v3.4h4.84a4.14 4.14 0 0 1-1.8 2.72v2.25h2.92c1.7-1.57 2.68-3.88 2.68-6.57Z" />
+                        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.25c-.81.54-1.84.86-3.04.86-2.35 0-4.34-1.58-5.05-3.72H.93v2.32A9 9 0 0 0 9 18Z" />
+                        <path fill="#FBBC05" d="M3.95 10.71A5.42 5.42 0 0 1 3.67 9c0-.6.1-1.17.28-1.71V4.97H.93A9 9 0 0 0 0 9c0 1.45.35 2.82.93 4.03l3.02-2.32Z" />
+                        <path fill="#EA4335" d="M9 3.57c1.32 0 2.5.45 3.44 1.34l2.58-2.58C13.46.88 11.43 0 9 0A9 9 0 0 0 .93 4.97l3.02 2.32C4.66 5.15 6.65 3.57 9 3.57Z" />
+                      </svg>
+                      <span>{t("continueWithGoogle")}</span>
+                    </button>
+
+                    <div className="flex items-center gap-3 text-[10px] text-primary/60 tracking-widest">
+                      <div className="h-px flex-1 bg-primary/20"></div>
+                      <span>{t("or")}</span>
+                      <div className="h-px flex-1 bg-primary/20"></div>
+                    </div>
 
                     {isRegistering && (
                       <div className="relative">

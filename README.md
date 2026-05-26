@@ -56,7 +56,17 @@ O **Nemosine** é uma interface avançada de chat e exploração simbólica, pro
     Crie um arquivo `.env.local` na raiz do projeto e adicione sua chave:
     ```env
     OPENAI_API_KEY=sua-chave-aqui-sk-...
+    AUTH_SECRET=gere-um-segredo-seguro
+    AUTH_GOOGLE_ID=client-id-do-google
+    AUTH_GOOGLE_SECRET=client-secret-do-google
     ```
+
+    Para login Google, crie credenciais OAuth 2.0 do tipo aplicação web no Google Cloud Console e configure as URIs de redirecionamento:
+    ```text
+    http://localhost:3000/api/auth/callback/google
+    https://seu-dominio/api/auth/callback/google
+    ```
+    Contas Google com e-mail verificado são associadas automaticamente a uma conta Nemosine existente com o mesmo e-mail.
 
 4.  **Rodar o Servidor de Desenvolvimento:**
     ```bash
