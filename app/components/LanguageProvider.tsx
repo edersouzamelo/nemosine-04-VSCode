@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export type AppLanguage = "pt-BR" | "es" | "en";
+export type AppTheme = "dark" | "light";
 
 const translatedPersonaNames: Record<Exclude<AppLanguage, "pt-BR">, Record<string, string>> = {
     es: {
@@ -41,17 +42,19 @@ const translatedPersonaNames: Record<Exclude<AppLanguage, "pt-BR">, Record<strin
 
 const translations = {
     "pt-BR": {
-        controlPanel: "Painel de Controle",
         personas: "Personas",
         places: "Lugares da Mente",
         constitution: "Constituição",
         games: "Jogos",
         community: "Comunidade Nemosine",
-        localSpace: "Espaço Local",
         mySpace: "Meu Espaço",
         adminPanel: "Painel Admin",
         video: "Vídeo",
         language: "Idioma",
+        settings: "Configurações",
+        theme: "Tema",
+        lightTheme: "Claro",
+        darkTheme: "Escuro",
         logout: "Sair do Grimório",
         enter: "Entrar",
         loginTitle: "Entrar no Grimório",
@@ -80,10 +83,10 @@ const translations = {
         conversationWith: "Conversa com",
     },
     es: {
-        controlPanel: "Panel de Control", personas: "Personas", places: "Lugares de la Mente",
+        personas: "Personas", places: "Lugares de la Mente",
         constitution: "Constitución", games: "Juegos", community: "Comunidad Nemosine",
-        localSpace: "Espacio Local", mySpace: "Mi Espacio", adminPanel: "Panel Admin",
-        video: "Vídeo", language: "Idioma", logout: "Salir del Grimorio", enter: "Entrar",
+        mySpace: "Mi Espacio", adminPanel: "Panel Admin",
+        video: "Vídeo", language: "Idioma", settings: "Configuración", theme: "Tema", lightTheme: "Claro", darkTheme: "Oscuro", logout: "Salir del Grimorio", enter: "Entrar",
         loginTitle: "Entrar al Grimorio", registerTitle: "Manifestar Presencia",
         loginPrompt: "Ingresa tus credenciales para manifestar el portal.",
         registerPrompt: "Regístrate para iniciar tu procesamiento.",
@@ -98,10 +101,10 @@ const translations = {
         conversationWith: "Conversación con",
     },
     en: {
-        controlPanel: "Control Panel", personas: "Personas", places: "Places of the Mind",
+        personas: "Personas", places: "Places of the Mind",
         constitution: "Constitution", games: "Games", community: "Nemosine Community",
-        localSpace: "Local Space", mySpace: "My Space", adminPanel: "Admin Panel",
-        video: "Video", language: "Language", logout: "Leave the Grimoire", enter: "Enter",
+        mySpace: "My Space", adminPanel: "Admin Panel",
+        video: "Video", language: "Language", settings: "Settings", theme: "Theme", lightTheme: "Light", darkTheme: "Dark", logout: "Leave the Grimoire", enter: "Enter",
         loginTitle: "Enter the Grimoire", registerTitle: "Manifest Presence",
         loginPrompt: "Enter your credentials to manifest the portal.",
         registerPrompt: "Register to begin your processing.",
@@ -121,6 +124,8 @@ type TranslationKey = keyof typeof translations["pt-BR"];
 type LanguageContextValue = {
     language: AppLanguage;
     setLanguage: (language: AppLanguage) => void;
+    theme: AppTheme;
+    setTheme: (theme: AppTheme) => void;
     t: (key: TranslationKey) => string;
     entityName: (name: string) => string;
 };
@@ -128,6 +133,7 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [language, setLanguageState] = useState<AppLanguage>("pt-BR");
+    const [theme, setThemeState] = useState<AppTheme>("dark");
 
     useEffect(() => {
         const stored = window.localStorage.getItem("nemosine-language") as AppLanguage | null;
@@ -139,18 +145,35 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
+    useEffect(() => {
+        const storedTheme = window.localStorage.getItem("nemosine-theme");
+        const initialTheme: AppTheme = storedTheme === "light" ? "light" : "dark";
+        setThemeState(initialTheme);
+        document.documentElement.classList.toggle("dark", initialTheme === "dark");
+        document.documentElement.classList.toggle("light-theme", initialTheme === "light");
+    }, []);
+
     const setLanguage = (nextLanguage: AppLanguage) => {
         setLanguageState(nextLanguage);
         window.localStorage.setItem("nemosine-language", nextLanguage);
         document.documentElement.lang = nextLanguage;
     };
 
+    const setTheme = (nextTheme: AppTheme) => {
+        setThemeState(nextTheme);
+        window.localStorage.setItem("nemosine-theme", nextTheme);
+        document.documentElement.classList.toggle("dark", nextTheme === "dark");
+        document.documentElement.classList.toggle("light-theme", nextTheme === "light");
+    };
+
     const value = useMemo(() => ({
         language,
         setLanguage,
+        theme,
+        setTheme,
         t: (key: TranslationKey) => translations[language][key],
         entityName: (name: string) => language === "pt-BR" ? name : translatedPersonaNames[language][name] || name
-    }), [language]);
+    }), [language, theme]);
 
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

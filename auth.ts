@@ -85,11 +85,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user && token.sub) {
         session.user.id = token.sub;
       }
+      if (session.user && typeof token.picture === "string") {
+        session.user.image = token.picture;
+      }
       return session;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account, profile }) {
       if (user) {
         token.sub = user.id;
+      }
+      if (account?.provider === "google" && typeof profile?.picture === "string") {
+        token.picture = profile.picture;
       }
       return token;
     }

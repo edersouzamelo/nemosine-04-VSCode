@@ -4,22 +4,27 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import MedievalButton from "./MedievalButton";
-import { LanguageSelector, useLanguage } from "./LanguageProvider";
+import { useLanguage } from "./LanguageProvider";
+import type { AppLanguage, AppTheme } from "./LanguageProvider";
 import OnboardingVideo from "./OnboardingVideo";
 
 export default function Navbar() {
     const pathname = usePathname();
     const { data: session } = useSession();
-    const { t } = useLanguage();
+    const { language, setLanguage, theme, setTheme, t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [videoOpenSignal, setVideoOpenSignal] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
+    const settingsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
                 setMenuOpen(false);
+            }
+            if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+                setSettingsOpen(false);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -36,11 +41,9 @@ export default function Navbar() {
 
     return (
         <>
-            <header className="relative z-20 border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-                <Link href="/space" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+            <header className="site-navbar relative z-20 border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <Link href="/space" className="flex items-center hover:opacity-80 transition-opacity">
                     <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
-                    <div className="h-6 w-[1px] bg-[#c5a059]/30 hidden sm:block"></div>
-                    <span className="text-[10px] uppercase tracking-widest opacity-60 hidden sm:block">{t("controlPanel")}</span>
                 </Link>
 
                 <nav className="flex items-center gap-6 sm:gap-8">
@@ -67,24 +70,71 @@ export default function Navbar() {
                 </nav>
 
                 <div className="flex gap-4 items-center">
-                    <LanguageSelector />
-                    <Link href="/space">
-                        <MedievalButton variant="secondary" className="!py-2 !px-4 !text-[10px]">
-                            {t("localSpace")}
-                        </MedievalButton>
-                    </Link>
+                    <div className="relative" ref={settingsRef}>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSettingsOpen(!settingsOpen);
+                                setMenuOpen(false);
+                            }}
+                            className="settings-trigger flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] font-bold text-[#c5a059]/70 hover:text-[#c5a059] transition-colors"
+                            aria-expanded={settingsOpen}
+                        >
+                            <span className="material-icons text-base">tune</span>
+                            {t("settings")}
+                        </button>
+
+                        {settingsOpen && (
+                            <div className="site-dropdown absolute right-0 top-10 w-60 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl p-4 z-50">
+                                <label className="block text-[10px] uppercase tracking-widest text-[#c5a059]/70">
+                                    {t("language")}
+                                    <select
+                                        value={language}
+                                        onChange={(event) => setLanguage(event.target.value as AppLanguage)}
+                                        className="theme-control mt-2 w-full rounded border border-[#c5a059]/30 bg-black px-3 py-2 text-sm text-[#e1e1e6]"
+                                    >
+                                        <option value="pt-BR">PT/BR</option>
+                                        <option value="es">ESP</option>
+                                        <option value="en">ENG</option>
+                                    </select>
+                                </label>
+
+                                <div className="mt-4 text-[10px] uppercase tracking-widest text-[#c5a059]/70">
+                                    {t("theme")}
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                        {(["light", "dark"] as AppTheme[]).map((option) => (
+                                            <button
+                                                key={option}
+                                                type="button"
+                                                onClick={() => setTheme(option)}
+                                                className={`theme-choice rounded border px-2 py-2 text-xs transition-colors ${theme === option ? "selected border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
+                                            >
+                                                {option === "light" ? t("lightTheme") : t("darkTheme")}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     <div className="relative" ref={menuRef}>
-                        <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
+                        <button
+                            onClick={() => {
+                                setMenuOpen(!menuOpen);
+                                setSettingsOpen(false);
+                            }}
+                            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                        >
                             <img
-                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "U")}&background=c5a059&color=000`}
+                                src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "U")}&background=c5a059&color=000`}
                                 alt="User"
                                 className="w-8 h-8 rounded-full border-2 border-[#c5a059]/50 hover:border-[#c5a059] transition-colors"
                             />
                         </button>
 
                         {menuOpen && (
-                            <div className="absolute right-0 top-12 w-64 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl overflow-hidden z-50">
+                            <div className="site-dropdown absolute right-0 top-12 w-64 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl overflow-hidden z-50">
                                 <div className="px-4 py-3 border-b border-[#c5a059]/10">
                                     <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
                                     <p className="text-xs text-white/40 truncate">{session?.user?.email}</p>

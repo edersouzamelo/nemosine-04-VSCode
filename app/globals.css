@@ -9,6 +9,23 @@
   --portal-core: #1e1b4b;
 }
 
+.dark {
+  color-scheme: dark;
+}
+
+.light-theme {
+  --background: #f7f3ec;
+  --foreground: #302a22;
+  --border-gold: #8a6a42;
+  --portal-blue: #cab99d;
+  --portal-violet: #d5c7b0;
+  --portal-core: #eee5d7;
+  --color-primary: #72552c;
+  --color-background-light: #fbf8f2;
+  --color-background-dark: #fbf8f2;
+  color-scheme: light;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -240,4 +257,106 @@ body {
 
 .filigree {
   background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10 Q 50 0 90 10 Q 100 50 90 90 Q 50 100 10 90 Q 0 50 10 10' fill='none' stroke='%23D4AF37' stroke-width='0.5' opacity='0.3'/%3E%3C/svg%3E");
+}
+
+/* Light theme: quiet parchment surfaces with dark ink and restrained bronze accents. */
+.light-theme body,
+.light-theme main {
+  background-color: #f7f3ec !important;
+  color: #302a22 !important;
+}
+
+.light-theme main > .fixed.inset-0 {
+  opacity: 0.22;
+}
+
+.light-theme main > .fixed.inset-0 > .absolute {
+  background-color: rgba(247, 243, 236, 0.82) !important;
+  backdrop-filter: blur(1px);
+}
+
+.light-theme .site-navbar {
+  background-color: rgba(251, 248, 242, 0.92) !important;
+  border-color: rgba(122, 91, 48, 0.18) !important;
+  box-shadow: 0 1px 8px rgba(65, 48, 28, 0.06);
+}
+
+.light-theme .site-dropdown {
+  background-color: rgba(255, 252, 247, 0.98) !important;
+  border-color: rgba(122, 91, 48, 0.2) !important;
+  color: #302a22;
+}
+
+.light-theme .theme-control {
+  background: #f5efe5 !important;
+  border-color: rgba(122, 91, 48, 0.28) !important;
+  color: #302a22 !important;
+}
+
+.light-theme .theme-choice:not(.selected) {
+  color: #5e5243 !important;
+}
+
+.light-theme .glass-medieval {
+  background: rgba(255, 252, 247, 0.9);
+  border-color: rgba(122, 91, 48, 0.24);
+  box-shadow: 0 10px 32px rgba(65, 48, 28, 0.09);
+}
+
+.light-theme .bg-\[\#050507\],
+.light-theme .bg-\[\#0a0a0c\],
+.light-theme .bg-\[\#0a0a0a\],
+.light-theme .bg-\[\#111\] {
+  background-color: #f7f3ec !important;
+}
+
+.light-theme .bg-black\/20,
+.light-theme .bg-black\/30,
+.light-theme .bg-black\/40,
+.light-theme .bg-black\/50,
+.light-theme .bg-black\/60,
+.light-theme .bg-black\/70,
+.light-theme .bg-black\/80 {
+  background-color: rgba(255, 252, 247, 0.84) !important;
+}
+
+.light-theme .text-\[\#e1e1e6\],
+.light-theme .text-\[\#E5D0A1\],
+.light-theme .text-\[\#f0ebe3\],
+.light-theme [class*="text-white/"] {
+  color: #3b332a !important;
+}
+
+.light-theme .text-\[\#c5a059\],
+.light-theme .text-\[\#C5A059\],
+.light-theme [class*="text-[#c5a059]/"],
+.light-theme [class*="text-[#C5A059]/"],
+.light-theme .medieval-text-gold {
+  color: #72552c !important;
+  text-shadow: none;
+}
+
+.light-theme .border-\[\#c5a059\]\/10,
+.light-theme .border-\[\#c5a059\]\/20,
+.light-theme .border-\[\#c5a059\]\/30,
+.light-theme .border-\[\#C5A059\] {
+  border-color: rgba(122, 91, 48, 0.22) !important;
+}
+
+.light-theme footer {
+  background-color: rgba(239, 231, 218, 0.82) !important;
+  color: #645748 !important;
+}
+
+.light-theme .login-screen .text-primary,
+.light-theme .login-screen [class*="text-primary/"] {
+  color: #604722 !important;
+}
+
+.light-theme .login-screen .gold-glow {
+  text-shadow: 0 1px 1px rgba(64, 45, 23, 0.12);
+}
+
+.light-theme .login-screen .grimoire-border::before {
+  border-color: #80603a;
 }

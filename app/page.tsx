@@ -21,7 +21,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { t } = useLanguage();
+  const { t, theme, setTheme } = useLanguage();
 
   const handleEnterVortex = () => {
     setShowGrimoire(true);
@@ -86,8 +86,8 @@ export default function Home() {
     }
   };
 
-  const toggleDarkMode = () => {
-    document.documentElement.classList.toggle('dark');
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
   };
 
   return (
@@ -129,7 +129,7 @@ export default function Home() {
 
       {/* Login Screen - Grimório */}
       {showGrimoire && (
-        <div className="absolute inset-0 z-40 bg-background-light dark:bg-background-dark text-stone-800 dark:text-stone-200 flex items-center justify-center p-4 font-serif transition-colors duration-500 overflow-hidden">
+        <div className="login-screen absolute inset-0 z-40 bg-background-light dark:bg-background-dark text-stone-800 dark:text-stone-200 flex items-center justify-center p-4 font-serif transition-colors duration-500 overflow-hidden">
           <div className="fixed inset-0 pointer-events-none opacity-20 dark:opacity-40">
             <img alt="Mystical night sky" className="w-full h-full object-cover mix-blend-overlay" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAf4KTqlc_zrjm3r5WSX6BLbpWo7nCC8Mb6B2-6czh6WCjOMAgK6wmjnbJRJJk3n4P_jkvym2qFJNbq-6np4-GFZ8UahS9tt4eSCYG-icUeZF9nEXFGaWXtTviDaATpaBg3MlKOg3gKbsxlMo4dqr_uYaOeAaSh2eAz6g9Vmu_czi1yNPOl8oWghUNmore69ir2POv86ulmjwkdtctqXm1pNp72YBikSg8hKT3i8uPVJpPNwAoWOb0DkG0s9J-pY0HSH0YdUpMJ91Tp" />
           </div>
@@ -151,7 +151,7 @@ export default function Home() {
                     <div className="h-px w-24 bg-primary mx-auto opacity-40"></div>
                   </header>
                   <div className="flex justify-center">
-                    <LanguageSelector dark={false} />
+                    <LanguageSelector dark={theme === "dark"} />
                   </div>
                   <div className="space-y-2">
                     <h2 className="text-xl md:text-2xl font-display text-stone-900 dark:text-stone-100 italic">
@@ -270,7 +270,7 @@ export default function Home() {
             <div className="fixed top-6 right-6 z-20">
               <button
                 className="p-2 text-primary/60 hover:text-primary transition-colors cursor-pointer"
-                onClick={toggleDarkMode}
+                onClick={toggleTheme}
               >
                 <span className="material-icons">settings_brightness</span>
               </button>
