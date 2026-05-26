@@ -122,7 +122,7 @@ export default function RetractablePanel({ title, children }: RetractablePanelPr
             </div>
 
             {/* Panel */}
-            <div className={`fixed top-0 right-0 h-full w-[400px] bg-[#050507]/95 backdrop-blur-xl border-l border-[#c5a059]/30 shadow-2xl z-50 transform transition-transform duration-500 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`fixed top-0 right-0 h-full w-full max-w-[400px] bg-[#050507]/95 backdrop-blur-xl border-l border-[#c5a059]/30 shadow-2xl z-50 transform transition-transform duration-500 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
 
                 {/* Close Button */}
                 <button

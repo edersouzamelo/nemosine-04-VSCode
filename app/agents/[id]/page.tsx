@@ -200,32 +200,30 @@ export default function AgentDetailPage() {
                     {requiresPrivacyNotice && <PrivateSpaceNotice spaceName={entity.name} />}
                 </div>
 
-                {/* RIGHT: LATERAL PANEL DETAILS (Desktop) */}
-                <div className="hidden lg:block">
-                    <RetractablePanel title={entity.type === 'place' ? t("dossierPlace") : t("dossierAgent")}>
-                        {/* Identity Card */}
-                        <div className="space-y-2">
-                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                                {t("identification")}
-                            </span>
-                            <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{entity.name}</h2>
-                            <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
-                            <p className="text-xl font-serif text-[#c5a059] italic">
-                                "{entity.phrase}"
-                            </p>
-                        </div>
+                {/* RIGHT: LATERAL PANEL DETAILS */}
+                <RetractablePanel title={entity.type === 'place' ? t("dossierPlace") : t("dossierAgent")}>
+                    {/* Identity Card */}
+                    <div className="space-y-2">
+                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
+                            {t("identification")}
+                        </span>
+                        <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{entity.name}</h2>
+                        <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
+                        <p className="text-xl font-serif text-[#c5a059] italic">
+                            "{entity.phrase}"
+                        </p>
+                    </div>
 
-                        {/* Script / Description */}
-                        <div className="mt-8 space-y-4">
-                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                                {t("protocol")}
+                    {/* Script / Description */}
+                    <div className="mt-8 space-y-4">
+                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
+                            {t("protocol")}
                             </span>
                             <p className="text-sm font-light leading-relaxed text-[#e1e1e6]/80 whitespace-pre-line">
                                 {entity.script || entity.transcription}
                             </p>
                         </div>
                     </RetractablePanel>
-                </div>
 
             </div>
         </main>

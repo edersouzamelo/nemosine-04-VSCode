@@ -210,7 +210,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
     };
 
     return (
-        <div className="w-full h-full flex flex-col relative overflow-hidden bg-black/20 rounded-lg border border-[#c5a059]/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+        <div className="w-full h-full flex flex-col relative overflow-hidden bg-black/20 rounded-lg border border-[#c5a059]/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
 
             {/* Header / Toolbar */}
             <div className="shrink-0 border-b border-[#c5a059]/20 p-3 bg-black/80 backdrop-blur-md flex items-center justify-between z-10 h-16">
@@ -267,7 +267,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         key={msg.id}
                         className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
-                        <div className={`chat-readable max-w-[85%] p-5 shadow-lg whitespace-pre-wrap ${msg.role === "user"
+                        <div className={`chat-readable max-w-[85%] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.12)] whitespace-pre-wrap ${msg.role === "user"
                             ? "bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#f0ebe3] rounded-2xl rounded-tr-sm"
                             : "bg-[#0a0a0c] border border-[#c5a059]/10 text-[#e1e1e6] rounded-2xl rounded-tl-sm"
                             }`}

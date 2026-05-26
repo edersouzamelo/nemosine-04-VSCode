@@ -15,9 +15,9 @@ export default function Navbar() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [videoOpenSignal, setVideoOpenSignal] = useState(0);
+    const [navbarHidden, setNavbarHidden] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
-    const [navbarHidden, setNavbarHidden] = useState(false);
     const lastScrollRef = useRef(0);
     const ticking = useRef(false);
 
@@ -32,6 +32,41 @@ export default function Navbar() {
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window !== "undefined" && window.innerWidth < 1024) {
+            setNavbarHidden(true);
+        }
+    }, []);
+
+    // Handle navbar hide on scroll (mobile only)
+    useEffect(() => {
+        const handleScroll = () => {
+            if (!ticking.current) {
+                window.requestAnimationFrame(() => {
+                    const currentScroll = window.scrollY || document.documentElement.scrollTop;
+
+                    // Only on mobile (< 1024px)
+                    if (window.innerWidth < 1024) {
+                        if (currentScroll > lastScrollRef.current + 10) {
+                            // Scrolling down
+                            setNavbarHidden(true);
+                        } else if (currentScroll < lastScrollRef.current - 10) {
+                            // Scrolling up
+                            setNavbarHidden(false);
+                        }
+                    }
+
+                    lastScrollRef.current = currentScroll;
+                    ticking.current = false;
+                });
+                ticking.current = true;
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
     // Handle navbar hide on scroll (mobile only)
