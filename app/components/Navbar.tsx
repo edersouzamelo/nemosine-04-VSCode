@@ -73,13 +73,13 @@ export default function Navbar() {
 
     return (
         <>
-            <div className={`site-navbar-wrapper relative z-20 overflow-hidden transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0' : 'max-h-[112px]'}`}>
-                <header className={`site-navbar relative border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-transform duration-300 ${navbarHidden ? '-translate-y-full' : 'translate-y-0'}`}>
+            <div className={`site-navbar-wrapper relative z-20 overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0' : 'max-h-[220px]'}`}>
+                <header className={`site-navbar relative border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${navbarHidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
                     <Link href="/space" className="flex items-center hover:opacity-80 transition-opacity">
-                    <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
-                </Link>
+                        <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
+                    </Link>
 
-                <nav className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 sm:justify-start w-full max-w-full overflow-x-auto">
+                    <nav className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 sm:justify-start w-full max-w-full overflow-x-auto">
                     {navItems.map((item, index) => {
                         const isActive = pathname === item.href;
                         return (
