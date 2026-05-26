@@ -61,12 +61,12 @@ export default function AgentDetailPage() {
                 <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center opacity-10 mix-blend-screen"></div>
             </div>
 
-            <div className="navbar-container relative z-20 transition-transform duration-300">
+            <div className="navbar-container relative z-20 overflow-hidden transition-all duration-300">
                 <Navbar />
             </div>
 
             {/* CONTENT LAYOUT - Mobile First */}
-            <div className="relative z-10 flex-1 flex flex-col lg:flex-row h-[calc(100vh-80px)] overflow-hidden gap-0">
+            <div className="relative z-10 flex-1 flex flex-col lg:flex-row overflow-hidden gap-0">
 
                 {/* TOP: PERSONA IMAGE (Mobile) & RETRACTABLE MEMORIES */}
                 <div className="lg:hidden flex flex-col h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-4 space-y-4">
