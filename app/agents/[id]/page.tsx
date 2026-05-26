@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import Navbar from "../../components/Navbar";
 import RetractablePanel from "@/app/components/RetractablePanel";
+import CollapsiblePanel from "@/app/components/CollapsiblePanel";
 import ChatHistoryList from "@/app/components/ChatHistoryList";
 import MedievalChat from "@/app/components/MedievalChat";
 import TimekeeperWidget from "@/app/components/TimekeeperWidget";
@@ -60,20 +61,20 @@ export default function AgentDetailPage() {
                 <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center opacity-10 mix-blend-screen"></div>
             </div>
 
-            <div className="relative z-20">
+            <div className="navbar-container relative z-20 transition-transform duration-300">
                 <Navbar />
             </div>
 
-            {/* CONTENT LAYOUT - Fixed Height calculated */}
-            <div className="relative z-10 flex-1 flex flex-col lg:flex-row h-[calc(100vh-80px)] overflow-hidden">
+            {/* CONTENT LAYOUT - Mobile First */}
+            <div className="relative z-10 flex-1 flex flex-col lg:flex-row h-[calc(100vh-80px)] overflow-hidden gap-0">
 
-                {/* LEFT: VISUALS & HISTORY */}
-                <div className="lg:w-1/3 p-6 flex flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20">
+                {/* TOP: PERSONA IMAGE (Mobile) & RETRACTABLE MEMORIES */}
+                <div className="lg:hidden flex flex-col h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-4 space-y-4">
+                    {/* Small Image for Mobile */}
                     <div
-                        className="relative w-full aspect-square max-w-[300px] glass-medieval overflow-hidden group cursor-pointer shadow-2xl rounded-lg shrink-0"
+                        className="relative w-20 h-20 glass-medieval overflow-hidden group cursor-pointer rounded-lg shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)] self-center"
                         onClick={toggleAudio}
                     >
-                        {/* Hidden Audio */}
                         {entity.audio && (
                             <audio
                                 ref={audioRef}
@@ -82,7 +83,6 @@ export default function AgentDetailPage() {
                                 onPause={() => setIsPlaying(false)}
                                 onPlay={() => setIsPlaying(true)}
                                 onError={(e) => {
-                                    // Previne que o erro de "source not supported" suba para o Next.js Error Overlay
                                     e.preventDefault();
                                     setIsPlaying(false);
                                 }}
@@ -100,7 +100,64 @@ export default function AgentDetailPage() {
                             </div>
                         )}
 
-                        {/* Audio Indicator Overlay */}
+                        {/* Audio Indicator */}
+                        <div className="absolute bottom-1 right-1 z-20">
+                            {isPlaying ? (
+                                <div className="flex gap-0.5 items-end h-4 bg-black/60 p-1 rounded text-[#c5a059] text-xs">
+                                    <div className="w-0.5 h-2 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
+                                    <div className="w-0.5 h-3 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
+                                </div>
+                            ) : (
+                                <div className="bg-black/60 p-1 rounded text-[#c5a059] opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Memories in Retractable Panel (Mobile) */}
+                    <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
+                        <ChatHistoryList
+                            personaId={entity.name}
+                            currentThreadId={currentThreadId}
+                            onSelectThread={setCurrentThreadId}
+                            refreshTrigger={refreshHistory}
+                        />
+                    </CollapsiblePanel>
+                </div>
+
+                {/* LEFT: LARGE IMAGE & MEMORIES (Desktop Only) */}
+                <div className="hidden lg:flex lg:w-1/4 p-6 flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20 gap-6">
+                    {/* Desktop Image */}
+                    <div
+                        className="relative w-full aspect-square max-w-[220px] glass-medieval overflow-hidden group cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-lg shrink-0"
+                        onClick={toggleAudio}
+                    >
+                        {entity.audio && (
+                            <audio
+                                ref={audioRef}
+                                src={entity.audio}
+                                onEnded={() => setIsPlaying(false)}
+                                onPause={() => setIsPlaying(false)}
+                                onPlay={() => setIsPlaying(true)}
+                                onError={(e) => {
+                                    e.preventDefault();
+                                    setIsPlaying(false);
+                                }}
+                            />
+                        )}
+
+                        {(entity.landscapeImage || entity.image) && (
+                            <div className="absolute inset-0 w-full h-full overflow-hidden">
+                                <Image
+                                    src={entity.landscapeImage || entity.image || ''}
+                                    alt={entity.name}
+                                    fill
+                                    className={`object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
+                                />
+                            </div>
+                        )}
+
                         <div className="absolute bottom-4 right-4 z-20">
                             {isPlaying ? (
                                 <div className="flex gap-1 items-end h-6 bg-black/60 p-2 rounded-lg backdrop-blur text-[#c5a059]">
@@ -116,17 +173,19 @@ export default function AgentDetailPage() {
                         </div>
                     </div>
 
-                    {/* HISTORY LIST */}
-                    <ChatHistoryList
-                        personaId={entity.name}
-                        currentThreadId={currentThreadId}
-                        onSelectThread={setCurrentThreadId}
-                        refreshTrigger={refreshHistory}
-                    />
+                    {/* Desktop Memories Panel */}
+                    <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
+                        <ChatHistoryList
+                            personaId={entity.name}
+                            currentThreadId={currentThreadId}
+                            onSelectThread={setCurrentThreadId}
+                            refreshTrigger={refreshHistory}
+                        />
+                    </CollapsiblePanel>
                 </div>
 
-                {/* CENTER/RIGHT: CHAT (The Main Focus) */}
-                <div className="flex-1 p-4 flex flex-col w-full max-w-4xl mx-auto h-full overflow-hidden">
+                {/* CENTER/RIGHT: CHAT (The Main Focus - ~60%) */}
+                <div className="flex-1 p-4 lg:p-6 flex flex-col w-full h-full overflow-hidden">
                     <MedievalChat
                         personaId={entity.name}
                         currentThreadId={currentThreadId}
@@ -141,30 +200,32 @@ export default function AgentDetailPage() {
                     {requiresPrivacyNotice && <PrivateSpaceNotice spaceName={entity.name} />}
                 </div>
 
-                {/* LATERAL PANEL: DETAILS */}
-                <RetractablePanel title={entity.type === 'place' ? t("dossierPlace") : t("dossierAgent")}>
-                    {/* Identity Card */}
-                    <div className="space-y-2">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                            {t("identification")}
-                        </span>
-                        <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{entity.name}</h2>
-                        <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
-                        <p className="text-xl font-serif text-[#c5a059] italic">
-                            "{entity.phrase}"
-                        </p>
-                    </div>
+                {/* RIGHT: LATERAL PANEL DETAILS (Desktop) */}
+                <div className="hidden lg:block">
+                    <RetractablePanel title={entity.type === 'place' ? t("dossierPlace") : t("dossierAgent")}>
+                        {/* Identity Card */}
+                        <div className="space-y-2">
+                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
+                                {t("identification")}
+                            </span>
+                            <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{entity.name}</h2>
+                            <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
+                            <p className="text-xl font-serif text-[#c5a059] italic">
+                                "{entity.phrase}"
+                            </p>
+                        </div>
 
-                    {/* Script / Description */}
-                    <div className="mt-8 space-y-4">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                            {t("protocol")}
-                        </span>
-                        <p className="text-sm font-light leading-relaxed text-[#e1e1e6]/80 whitespace-pre-line">
-                            {entity.script || entity.transcription}
-                        </p>
-                    </div>
-                </RetractablePanel>
+                        {/* Script / Description */}
+                        <div className="mt-8 space-y-4">
+                            <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
+                                {t("protocol")}
+                            </span>
+                            <p className="text-sm font-light leading-relaxed text-[#e1e1e6]/80 whitespace-pre-line">
+                                {entity.script || entity.transcription}
+                            </p>
+                        </div>
+                    </RetractablePanel>
+                </div>
 
             </div>
         </main>

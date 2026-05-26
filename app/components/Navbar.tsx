@@ -17,6 +17,9 @@ export default function Navbar() {
     const [videoOpenSignal, setVideoOpenSignal] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
+    const [navbarHidden, setNavbarHidden] = useState(false);
+    const lastScrollRef = useRef(0);
+    const ticking = useRef(false);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -31,6 +34,35 @@ export default function Navbar() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Handle navbar hide on scroll (mobile only)
+    useEffect(() => {
+        const handleScroll = () => {
+            if (!ticking.current) {
+                window.requestAnimationFrame(() => {
+                    const currentScroll = window.scrollY || document.documentElement.scrollTop;
+                    
+                    // Only on mobile (< 1024px)
+                    if (window.innerWidth < 1024) {
+                        if (currentScroll > lastScrollRef.current + 10) {
+                            // Scrolling down
+                            setNavbarHidden(true);
+                        } else if (currentScroll < lastScrollRef.current - 10) {
+                            // Scrolling up
+                            setNavbarHidden(false);
+                        }
+                    }
+                    
+                    lastScrollRef.current = currentScroll;
+                    ticking.current = false;
+                });
+                ticking.current = true;
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll, { passive: true });
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
+
     const navItems = [
         { name: t("personas"), href: "/agents" },
         { name: t("places"), href: "/places" },
@@ -41,7 +73,7 @@ export default function Navbar() {
 
     return (
         <>
-            <header className="site-navbar relative z-20 border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <header className={`site-navbar relative z-20 border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-transform duration-300 ${navbarHidden ? '-translate-y-full' : 'translate-y-0'}`}>
                 <Link href="/space" className="flex items-center hover:opacity-80 transition-opacity">
                     <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                 </Link>
