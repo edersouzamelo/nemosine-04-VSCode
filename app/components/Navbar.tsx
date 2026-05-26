@@ -46,18 +46,18 @@ export default function Navbar() {
                     <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                 </Link>
 
-                <nav className="flex items-center gap-6 sm:gap-8">
+                <nav className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 sm:justify-start w-full max-w-full overflow-x-auto">
                     {navItems.map((item, index) => {
                         const isActive = pathname === item.href;
                         return (
                             <React.Fragment key={item.href}>
-                                {index > 0 && <div className="h-4 w-[1px] bg-[#c5a059]/10"></div>}
+                                {index > 0 && <div className="hidden sm:block h-4 w-[1px] bg-[#c5a059]/10" />}
                                 {item.href.startsWith("http") ? (
-                                    <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300">
+                                    <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300 whitespace-nowrap">
                                         {item.name}
                                     </a>
                                 ) : (
-                                    <Link href={item.href} className="flex flex-col items-center group">
+                                    <Link href={item.href} className="flex flex-col items-center group whitespace-nowrap">
                                         <span className={`text-[11px] uppercase tracking-[0.2em] font-bold transition-all duration-300 ${isActive ? "text-[#c5a059]" : "text-[#c5a059]/40 group-hover:text-[#c5a059]/80"}`}>
                                             {item.name}
                                         </span>
