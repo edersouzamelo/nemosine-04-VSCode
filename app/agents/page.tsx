@@ -1,4 +1,4 @@
-import PersonaCategoryExplorer from "../components/PersonaCategoryExplorer";
+import PersonaLevelCollection, { PersonaLevelFooter } from "../components/PersonaLevelCollection";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
 import { ENTITIES } from "../data/entities";
@@ -33,7 +33,7 @@ export default function AgentsPage() {
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Agentes Ativos no Sistema</p>
                     </header>
 
-                    <PersonaCategoryExplorer
+                    <PersonaLevelCollection
                         items={AGENTS.map((name) => {
                             const slug = name.toLowerCase().replace(/\s+/g, "-");
                             return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };
@@ -42,13 +42,7 @@ export default function AgentsPage() {
                 </div>
             </section>
 
-
-
-            <footer className="relative z-20 p-8 border-t border-[#c5a059]/10 bg-black/60 text-center">
-                <p className="text-[10px] medieval-text-gold opacity-40">
-                    Existem 56 processos cognitivos ativos na rede Nemosine. Selecione uma persona para iniciar o processamento.
-                </p>
-            </footer>
+            <PersonaLevelFooter />
             <InstitutionalFooter />
         </main>
     );

@@ -173,7 +173,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [language, setLanguageState] = useState<AppLanguage>("pt-BR");
     const [theme, setThemeState] = useState<AppTheme>("dark");
     const [cardOrderMode, setCardOrderModeState] = useState<CardOrderMode>("original");
-    const [level, setLevelState] = useState<NemosineLevel>("Peregrino");
+    const [level, setLevelState] = useState<NemosineLevel>("Soberano");
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);

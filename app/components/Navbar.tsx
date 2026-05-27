@@ -38,7 +38,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const navItems = [
         { name: t("start"), href: "/inicio" },
         { name: t("personas"), href: "/agents" },
-        { name: t("places"), href: "/places" },
+        ...(level === "Soberano" ? [{ name: t("places"), href: "/places" }] : []),
         { name: t("constitution"), href: "/constitution" },
         { name: t("games"), href: "/space/games" },
         { name: t("community"), href: "https://linktr.ee/nemosinenous" },

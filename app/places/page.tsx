@@ -1,11 +1,13 @@
 import CardCollectionGrid from "../components/CardCollectionGrid";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
+import PlacesLevelGate from "../components/PlacesLevelGate";
 import { ENTITIES, PLACES } from "../data/entities";
 
 export default function PlacesPage() {
     return (
-        <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
+        <PlacesLevelGate>
+            <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0">
                 <div className="absolute inset-0 bg-black/60 z-10 backdrop-blur-[2px]"></div>
@@ -41,6 +43,7 @@ export default function PlacesPage() {
                 </p>
             </footer>
             <InstitutionalFooter />
-        </main>
+            </main>
+        </PlacesLevelGate>
     );
 }

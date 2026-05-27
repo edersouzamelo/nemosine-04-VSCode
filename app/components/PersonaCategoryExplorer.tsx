@@ -48,12 +48,20 @@ const categories: Array<{
     }
 ];
 
-export default function PersonaCategoryExplorer({ items }: { items: PersonaItem[] }) {
-    const [activeCategory, setActiveCategory] = useState<PersonaCategory>("strategic");
+export default function PersonaCategoryExplorer({
+    items,
+    showCategories = true,
+    initialCategory = "strategic"
+}: {
+    items: PersonaItem[];
+    showCategories?: boolean;
+    initialCategory?: PersonaCategory;
+}) {
+    const [activeCategory, setActiveCategory] = useState<PersonaCategory>(initialCategory);
     const itemMap = useMemo(() => new Map(items.map((item) => [item.name, item])), [items]);
     const allNames = useMemo(() => items.map((item) => item.name), [items]);
     const category = categories.find((option) => option.id === activeCategory) || categories[0];
-    const visibleItems = category.id === "all"
+    const visibleItems = !showCategories || category.id === "all"
         ? items
         : (category.names || [])
             .map((name) => itemMap.get(name))
@@ -61,19 +69,23 @@ export default function PersonaCategoryExplorer({ items }: { items: PersonaItem[
 
     return (
         <>
-            <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-5">
-                {categories.map((option) => (
-                    <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setActiveCategory(option.id)}
-                        className={`rounded-xl border p-3 text-left transition-colors ${option.id === activeCategory ? "border-[#c5a059]/55 bg-[#c5a059]/10 text-[#d9bb78]" : "border-[#c5a059]/12 bg-black/15 text-[#c5a059]/55 hover:border-[#c5a059]/32"}`}
-                    >
-                        <span className="block text-[10px] font-bold uppercase tracking-[0.14em]">{option.label}</span>
-                    </button>
-                ))}
-            </div>
-            <p className="mb-7 text-center text-sm italic text-[#c5a059]/58">{category.description}</p>
+            {showCategories && (
+                <>
+                    <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-5">
+                        {categories.map((option) => (
+                            <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setActiveCategory(option.id)}
+                                className={`rounded-xl border p-3 text-left transition-colors ${option.id === activeCategory ? "border-[#c5a059]/55 bg-[#c5a059]/10 text-[#d9bb78]" : "border-[#c5a059]/12 bg-black/15 text-[#c5a059]/55 hover:border-[#c5a059]/32"}`}
+                            >
+                                <span className="block text-[10px] font-bold uppercase tracking-[0.14em]">{option.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <p className="mb-7 text-center text-sm italic text-[#c5a059]/58">{category.description}</p>
+                </>
+            )}
             <CardCollectionGrid collection="personas" items={visibleItems} orderUniverse={allNames} motionKey={activeCategory} />
         </>
     );
