@@ -15,7 +15,7 @@ import { ENTITIES } from "../../data/entities";
 
 export default function AgentDetailPage() {
     const params = useParams();
-    const { t } = useLanguage();
+    const { t, recordCardUse } = useLanguage();
     const id = decodeURIComponent(params.id as string);
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = React.useRef<HTMLAudioElement | null>(null);
@@ -23,6 +23,14 @@ export default function AgentDetailPage() {
     const [refreshHistory, setRefreshHistory] = useState(0);
 
     const entity = ENTITIES[id];
+
+    React.useEffect(() => {
+        if (entity) {
+            recordCardUse(entity.type === "place" ? "places" : "personas", entity.name);
+        }
+    // One visit should count once even when preferences rerender the provider.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
     if (!entity) {
         return (

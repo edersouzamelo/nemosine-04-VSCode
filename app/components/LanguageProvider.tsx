@@ -4,6 +4,14 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export type AppLanguage = "pt-BR" | "es" | "en";
 export type AppTheme = "dark" | "light";
+export type CardCollection = "personas" | "places";
+export type CardOrderMode = "original" | "popular" | "random" | "custom";
+
+type CardOrders = Record<CardCollection, string[]>;
+type CardUsage = Record<CardCollection, Record<string, number>>;
+
+const emptyCardOrders: CardOrders = { personas: [], places: [] };
+const emptyCardUsage: CardUsage = { personas: {}, places: {} };
 
 const translatedPersonaNames: Record<Exclude<AppLanguage, "pt-BR">, Record<string, string>> = {
     es: {
@@ -83,6 +91,12 @@ const translations = {
         conversationWith: "Conversa com",
         collapseMenu: "Recolher menu",
         expandMenu: "Mostrar menu",
+        cardOrder: "Ordem das cartas",
+        orderOriginal: "Ordem original",
+        orderPopular: "Mais usados",
+        orderRandom: "Aleatório",
+        orderCustom: "Personalizado",
+        dragCardsHint: "Arraste pelas alças nas grades",
     },
     es: {
         personas: "Personas", places: "Lugares de la Mente",
@@ -102,6 +116,9 @@ const translations = {
         onboardingTitle: "Primeros pasos en Nemosine", close: "Cerrar",
         conversationWith: "Conversación con",
         collapseMenu: "Ocultar menu", expandMenu: "Mostrar menu",
+        cardOrder: "Orden de cartas", orderOriginal: "Orden original",
+        orderPopular: "Mas usados", orderRandom: "Aleatorio",
+        orderCustom: "Personalizado", dragCardsHint: "Arrastra usando las asas de las tarjetas",
     },
     en: {
         personas: "Personas", places: "Places of the Mind",
@@ -121,6 +138,9 @@ const translations = {
         onboardingTitle: "Getting started with Nemosine", close: "Close",
         conversationWith: "Conversation with",
         collapseMenu: "Hide menu", expandMenu: "Show menu",
+        cardOrder: "Card order", orderOriginal: "Original order",
+        orderPopular: "Most used", orderRandom: "Random",
+        orderCustom: "Custom", dragCardsHint: "Drag using the card handles",
     }
 } as const;
 
@@ -130,6 +150,12 @@ type LanguageContextValue = {
     setLanguage: (language: AppLanguage) => void;
     theme: AppTheme;
     setTheme: (theme: AppTheme) => void;
+    cardOrderMode: CardOrderMode;
+    setCardOrderMode: (mode: CardOrderMode) => void;
+    getOrderedCards: (collection: CardCollection, originalOrder: string[]) => string[];
+    setCustomCardOrder: (collection: CardCollection, names: string[]) => void;
+    ensureRandomCardOrder: (collection: CardCollection, names: string[]) => void;
+    recordCardUse: (collection: CardCollection, name: string) => void;
     t: (key: TranslationKey) => string;
     entityName: (name: string) => string;
 };
@@ -138,6 +164,10 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [language, setLanguageState] = useState<AppLanguage>("pt-BR");
     const [theme, setThemeState] = useState<AppTheme>("dark");
+    const [cardOrderMode, setCardOrderModeState] = useState<CardOrderMode>("original");
+    const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
+    const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
+    const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
 
     useEffect(() => {
         const stored = window.localStorage.getItem("nemosine-language") as AppLanguage | null;
@@ -157,6 +187,26 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.classList.toggle("light-theme", initialTheme === "light");
     }, []);
 
+    useEffect(() => {
+        const storedMode = window.localStorage.getItem("nemosine-card-order") as CardOrderMode | null;
+        if (storedMode === "original" || storedMode === "popular" || storedMode === "random" || storedMode === "custom") {
+            setCardOrderModeState(storedMode);
+        }
+
+        const readStoredObject = <T,>(key: string, fallback: T): T => {
+            try {
+                const stored = window.localStorage.getItem(key);
+                return stored ? JSON.parse(stored) as T : fallback;
+            } catch {
+                return fallback;
+            }
+        };
+
+        setCustomCardOrders(readStoredObject("nemosine-custom-card-orders", emptyCardOrders));
+        setRandomCardOrders(readStoredObject("nemosine-random-card-orders", emptyCardOrders));
+        setCardUsage(readStoredObject("nemosine-card-usage", emptyCardUsage));
+    }, []);
+
     const setLanguage = (nextLanguage: AppLanguage) => {
         setLanguageState(nextLanguage);
         window.localStorage.setItem("nemosine-language", nextLanguage);
@@ -170,14 +220,82 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.classList.toggle("light-theme", nextTheme === "light");
     };
 
+    const setCardOrderMode = (mode: CardOrderMode) => {
+        setCardOrderModeState(mode);
+        window.localStorage.setItem("nemosine-card-order", mode);
+    };
+
+    const mergeCardOrder = (savedOrder: string[], originalOrder: string[]) => [
+        ...savedOrder.filter((name) => originalOrder.includes(name)),
+        ...originalOrder.filter((name) => !savedOrder.includes(name))
+    ];
+
+    const getOrderedCards = (collection: CardCollection, originalOrder: string[]) => {
+        if (cardOrderMode === "custom") {
+            return mergeCardOrder(customCardOrders[collection], originalOrder);
+        }
+        if (cardOrderMode === "random" && randomCardOrders[collection].length) {
+            return mergeCardOrder(randomCardOrders[collection], originalOrder);
+        }
+        if (cardOrderMode === "popular") {
+            return [...originalOrder].sort((left, right) => {
+                const difference = (cardUsage[collection][right] || 0) - (cardUsage[collection][left] || 0);
+                return difference || originalOrder.indexOf(left) - originalOrder.indexOf(right);
+            });
+        }
+        return originalOrder;
+    };
+
+    const setCustomCardOrder = (collection: CardCollection, names: string[]) => {
+        setCustomCardOrders((current) => {
+            const next = { ...current, [collection]: names };
+            window.localStorage.setItem("nemosine-custom-card-orders", JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const ensureRandomCardOrder = (collection: CardCollection, names: string[]) => {
+        setRandomCardOrders((current) => {
+            if (current[collection].length) return current;
+            const shuffled = [...names];
+            for (let index = shuffled.length - 1; index > 0; index -= 1) {
+                const randomIndex = Math.floor(Math.random() * (index + 1));
+                [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+            }
+            const next = { ...current, [collection]: shuffled };
+            window.localStorage.setItem("nemosine-random-card-orders", JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const recordCardUse = (collection: CardCollection, name: string) => {
+        setCardUsage((current) => {
+            const next = {
+                ...current,
+                [collection]: {
+                    ...current[collection],
+                    [name]: (current[collection][name] || 0) + 1
+                }
+            };
+            window.localStorage.setItem("nemosine-card-usage", JSON.stringify(next));
+            return next;
+        });
+    };
+
     const value = useMemo(() => ({
         language,
         setLanguage,
         theme,
         setTheme,
+        cardOrderMode,
+        setCardOrderMode,
+        getOrderedCards,
+        setCustomCardOrder,
+        ensureRandomCardOrder,
+        recordCardUse,
         t: (key: TranslationKey) => translations[language][key],
         entityName: (name: string) => language === "pt-BR" ? name : translatedPersonaNames[language][name] || name
-    }), [language, theme]);
+    }), [language, theme, cardOrderMode, customCardOrders, randomCardOrders, cardUsage]);
 
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

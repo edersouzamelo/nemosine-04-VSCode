@@ -1,4 +1,4 @@
-import AgentCard from "../components/AgentCard";
+import CardCollectionGrid from "../components/CardCollectionGrid";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
 import { ENTITIES, PLACES } from "../data/entities";
@@ -23,26 +23,14 @@ export default function PlacesPage() {
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Cenários de Processamento Cognitivo</p>
                     </header>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 md:gap-6">
-                        {[...PLACES].sort((a, b) => {
-                            if (a === "Não-Lugar") return 1;
-                            if (b === "Não-Lugar") return -1;
-                            return 0;
-                        }).map((name) => {
-                            const slug = name.toLowerCase().replace(/\s+/g, '-');
-                            const entity = ENTITIES[slug];
-                            return (
-                                <AgentCard
-                                    key={name}
-                                    name={name}
-                                    label="Lugar"
-                                    image={entity?.image}
-                                    href={`/agents/${slug}`}
-                                    className="aspect-[4/7]"
-                                />
-                            );
-                        })}
-                    </div>
+                    <CardCollectionGrid collection="places" items={[...PLACES].sort((a, b) => {
+                        if (a === "Não-Lugar") return 1;
+                        if (b === "Não-Lugar") return -1;
+                        return 0;
+                    }).map((name) => ({
+                        name,
+                        image: ENTITIES[name.toLowerCase().replace(/\s+/g, "-")]?.image
+                    }))} />
                 </div>
             </section>
 

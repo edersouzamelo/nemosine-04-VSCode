@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
-import type { AppLanguage, AppTheme } from "./LanguageProvider";
+import type { AppLanguage, AppTheme, CardOrderMode } from "./LanguageProvider";
 import OnboardingVideo from "./OnboardingVideo";
 
 interface NavbarProps {
@@ -16,7 +16,7 @@ interface NavbarProps {
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
-    const { language, setLanguage, theme, setTheme, t } = useLanguage();
+    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [videoOpenSignal, setVideoOpenSignal] = useState(0);
@@ -129,7 +129,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                         </button>
 
                         {settingsOpen && (
-                            <div className="site-dropdown absolute right-0 top-10 w-60 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl p-4 z-50">
+                            <div className="site-dropdown absolute right-0 top-10 w-72 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl p-4 z-50">
                                 <label className="block text-[10px] uppercase tracking-widest text-[#c5a059]/70">
                                     {t("language")}
                                     <select
@@ -158,6 +158,24 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                         ))}
                                     </div>
                                 </div>
+                                <label className="mt-4 block text-[10px] uppercase tracking-widest text-[#c5a059]/70">
+                                    {t("cardOrder")}
+                                    <select
+                                        value={cardOrderMode}
+                                        onChange={(event) => setCardOrderMode(event.target.value as CardOrderMode)}
+                                        className="theme-control mt-2 w-full rounded border border-[#c5a059]/30 bg-black px-3 py-2 text-sm text-[#e1e1e6]"
+                                    >
+                                        <option value="original">{t("orderOriginal")}</option>
+                                        <option value="popular">{t("orderPopular")}</option>
+                                        <option value="random">{t("orderRandom")}</option>
+                                        <option value="custom">{t("orderCustom")}</option>
+                                    </select>
+                                    {cardOrderMode === "custom" && (
+                                        <span className="mt-2 block normal-case tracking-normal text-[11px] text-[#c5a059]/55">
+                                            {t("dragCardsHint")}
+                                        </span>
+                                    )}
+                                </label>
                             </div>
                         )}
                     </div>

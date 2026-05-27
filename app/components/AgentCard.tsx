@@ -38,7 +38,7 @@ export default function AgentCard({ name, label = "Persona", image, className = 
                             src={image} 
                             alt={displayName}
                             fill
-                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
+                            sizes="(max-width: 640px) 25vw, (max-width: 768px) 33vw, (max-width: 1200px) 25vw, 20vw"
                             className="object-cover transition-transform duration-700 group-hover:scale-110" 
                         />
                     </div>
@@ -61,7 +61,7 @@ export default function AgentCard({ name, label = "Persona", image, className = 
             <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
         </div>
             <div className="px-1 pb-1 text-center">
-                <h3 className="text-[11px] md:text-xs font-sans font-medium text-[#c5a059]/80 uppercase tracking-[0.16em] leading-relaxed group-hover:text-[#e4c476] transition-colors">
+                <h3 className="text-[9px] sm:text-[11px] md:text-xs font-sans font-medium text-[#c5a059]/80 uppercase tracking-[0.06em] sm:tracking-[0.16em] leading-tight sm:leading-relaxed group-hover:text-[#e4c476] transition-colors">
                     {displayName}
                 </h3>
             </div>

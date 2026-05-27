@@ -1,7 +1,7 @@
-import AgentCard from "../components/AgentCard";
-import MedievalButton from "../components/MedievalButton";
+import CardCollectionGrid from "../components/CardCollectionGrid";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
+import { ENTITIES } from "../data/entities";
 
 const AGENTS = [
     "Adjunto", "Advogado", "Aprovisionador", "Arauto", "Arqueólogo", "Artista", "Astrônomo", "Autor",
@@ -12,8 +12,6 @@ const AGENTS = [
     "Mentorzinho", "Mestre", "Mordomo", "Narrador", "Orquestrador-Arquiteto", "Princesa", "Promotor", "Psicólogo",
     "Sócio", "Sombra", "Terapeuta", "Treinador", "Vazio", "Vidente", "Vigia", "Vingador"
 ];
-
-import { ENTITIES } from "../data/entities";
 
 export default function AgentsPage() {
     return (
@@ -35,20 +33,13 @@ export default function AgentsPage() {
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Agentes Ativos no Sistema</p>
                     </header>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-6">
-                        {AGENTS.map((name) => {
-                            const slug = name.toLowerCase().replace(/\s+/g, '-');
-                            const entity = ENTITIES[slug];
-                            return (
-                                <AgentCard
-                                    key={name}
-                                    name={name}
-                                    image={entity?.image}
-                                    href={`/agents/${slug}`}
-                                />
-                            );
-                        })}
-                    </div>
+                    <CardCollectionGrid
+                        collection="personas"
+                        items={AGENTS.map((name) => ({
+                            name,
+                            image: ENTITIES[name.toLowerCase().replace(/\s+/g, "-")]?.image
+                        }))}
+                    />
                 </div>
             </section>
 
