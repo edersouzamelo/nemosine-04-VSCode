@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import AgentCard from "./AgentCard";
 import { CardCollection, useLanguage } from "./LanguageProvider";
 
@@ -182,7 +181,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                             />
                         </div>
                         {!isCustom && (
-                            <Link
+                            <a
                                 href={item.href}
                                 aria-label={`Abrir ${name}`}
                                 className="absolute inset-0 z-10 touch-manipulation rounded-lg"
@@ -196,7 +195,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                                 >
                                     <span className="material-icons text-base">drag_indicator</span>
                                 </span>
-                                <Link
+                                <a
                                     href={item.href}
                                     aria-label={`Abrir ${name}`}
                                     onPointerDown={(event) => event.stopPropagation()}
@@ -204,7 +203,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                                     className="absolute bottom-8 right-1 z-30 flex h-8 w-8 touch-manipulation items-center justify-center rounded-full border border-[#c5a059]/40 bg-black/80 text-[#c5a059] shadow-md hover:border-[#c5a059]"
                                 >
                                     <span className="material-icons text-sm">open_in_new</span>
-                                </Link>
+                                </a>
                             </>
                         )}
                     </div>
