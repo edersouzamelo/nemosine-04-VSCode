@@ -6,6 +6,7 @@ export type AppLanguage = "pt-BR" | "es" | "en";
 export type AppTheme = "dark" | "light";
 export type CardCollection = "personas" | "places";
 export type CardOrderMode = "original" | "popular" | "random" | "custom";
+export type NemosineLevel = "Peregrino" | "Vassalo" | "Regente" | "Soberano";
 
 type CardOrders = Record<CardCollection, string[]>;
 type CardUsage = Record<CardCollection, Record<string, number>>;
@@ -93,6 +94,7 @@ const translations = {
         collapseMenu: "Recolher menu",
         expandMenu: "Mostrar menu",
         cardOrder: "Ordem das cartas",
+        levels: "NÍVEIS",
         orderOriginal: "Ordem original",
         orderPopular: "Mais usados",
         orderRandom: "Aleatório",
@@ -118,7 +120,7 @@ const translations = {
         onboardingTitle: "Primeros pasos en Nemosine", close: "Cerrar",
         conversationWith: "Conversación con",
         collapseMenu: "Ocultar menu", expandMenu: "Mostrar menu",
-        cardOrder: "Orden de cartas", orderOriginal: "Orden original",
+        cardOrder: "Orden de cartas", levels: "NIVELES", orderOriginal: "Orden original",
         orderPopular: "Mas usados", orderRandom: "Aleatorio",
         orderCustom: "Personalizado", dragCardsHint: "Arrastra la tarjeta; usa el icono para abrir",
     },
@@ -141,7 +143,7 @@ const translations = {
         onboardingTitle: "Getting started with Nemosine", close: "Close",
         conversationWith: "Conversation with",
         collapseMenu: "Hide menu", expandMenu: "Show menu",
-        cardOrder: "Card order", orderOriginal: "Original order",
+        cardOrder: "Card order", levels: "LEVELS", orderOriginal: "Original order",
         orderPopular: "Most used", orderRandom: "Random",
         orderCustom: "Custom", dragCardsHint: "Drag the card; use the icon to open",
     }
@@ -155,6 +157,8 @@ type LanguageContextValue = {
     setTheme: (theme: AppTheme) => void;
     cardOrderMode: CardOrderMode;
     setCardOrderMode: (mode: CardOrderMode) => void;
+    level: NemosineLevel;
+    setLevel: (level: NemosineLevel) => void;
     getOrderedCards: (collection: CardCollection, originalOrder: string[]) => string[];
     setCustomCardOrder: (collection: CardCollection, names: string[]) => void;
     ensureRandomCardOrder: (collection: CardCollection, names: string[]) => void;
@@ -169,6 +173,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [language, setLanguageState] = useState<AppLanguage>("pt-BR");
     const [theme, setThemeState] = useState<AppTheme>("dark");
     const [cardOrderMode, setCardOrderModeState] = useState<CardOrderMode>("original");
+    const [level, setLevelState] = useState<NemosineLevel>("Peregrino");
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
@@ -195,6 +200,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         const storedMode = window.localStorage.getItem("nemosine-card-order") as CardOrderMode | null;
         if (storedMode === "original" || storedMode === "popular" || storedMode === "random" || storedMode === "custom") {
             setCardOrderModeState(storedMode);
+        }
+        const storedLevel = window.localStorage.getItem("nemosine-level") as NemosineLevel | null;
+        if (storedLevel === "Peregrino" || storedLevel === "Vassalo" || storedLevel === "Regente" || storedLevel === "Soberano") {
+            setLevelState(storedLevel);
         }
 
         const readStoredObject = <T,>(key: string, fallback: T): T => {
@@ -227,6 +236,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const setCardOrderMode = (mode: CardOrderMode) => {
         setCardOrderModeState(mode);
         window.localStorage.setItem("nemosine-card-order", mode);
+    };
+
+    const setLevel = (nextLevel: NemosineLevel) => {
+        setLevelState(nextLevel);
+        window.localStorage.setItem("nemosine-level", nextLevel);
     };
 
     const mergeCardOrder = (savedOrder: string[], originalOrder: string[]) => [
@@ -298,6 +312,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setTheme,
         cardOrderMode,
         setCardOrderMode,
+        level,
+        setLevel,
         getOrderedCards,
         setCustomCardOrder,
         ensureRandomCardOrder,
@@ -305,7 +321,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         recordCardUse,
         t: (key: TranslationKey) => translations[language][key],
         entityName: (name: string) => language === "pt-BR" ? name : translatedPersonaNames[language][name] || name
-    }), [language, theme, cardOrderMode, customCardOrders, randomCardOrders, cardUsage]);
+    }), [language, theme, cardOrderMode, level, customCardOrders, randomCardOrders, cardUsage]);
 
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

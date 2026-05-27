@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
-import type { AppLanguage, AppTheme, CardOrderMode } from "./LanguageProvider";
+import type { AppLanguage, AppTheme, CardOrderMode, NemosineLevel } from "./LanguageProvider";
 
 interface NavbarProps {
     mobileCollapsible?: boolean;
@@ -15,7 +15,7 @@ interface NavbarProps {
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
-    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, clearRandomCardOrders, t } = useLanguage();
+    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
@@ -148,6 +148,21 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                         </span>
                                     )}
                                 </label>
+                                <div className="mt-4 text-[10px] uppercase tracking-widest text-[#c5a059]/70">
+                                    {t("levels")}
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                        {(["Peregrino", "Vassalo", "Regente", "Soberano"] as NemosineLevel[]).map((option) => (
+                                            <button
+                                                key={option}
+                                                type="button"
+                                                onClick={() => setLevel(option)}
+                                                className={`rounded border px-2 py-2 text-xs normal-case tracking-normal transition-colors ${level === option ? "border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
+                                            >
+                                                {option}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
