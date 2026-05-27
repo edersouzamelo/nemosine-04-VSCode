@@ -54,11 +54,11 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         <>
             <div className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
                 <header className={`site-navbar relative z-[101] border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-4 sm:px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
-                    <Link href="/agents" className="flex items-center hover:opacity-80 transition-opacity">
+                    <Link href="/agents" className="flex shrink-0 items-center hover:opacity-80 transition-opacity">
                         <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                     </Link>
 
-                    <nav className="relative z-[102] flex flex-wrap justify-center items-center gap-1 sm:gap-4 md:gap-6 sm:justify-start w-full max-w-full overflow-x-auto">
+                    <nav className="relative z-[102] flex w-full max-w-full flex-wrap items-center justify-center gap-1 overflow-x-auto sm:gap-4 sm:justify-start md:min-w-0 md:flex-1 md:gap-3 lg:gap-6">
                     {navItems.map((item, index) => {
                         const isActive = pathname === item.href;
                         return (
@@ -81,7 +81,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     })}
                 </nav>
 
-                <div className="flex gap-4 items-center">
+                <div className="flex shrink-0 items-center gap-4">
                     <div className="relative" ref={settingsRef}>
                         <button
                             type="button"
@@ -152,18 +152,18 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                         )}
                     </div>
 
-                    <div className="relative" ref={menuRef}>
+                    <div className="relative shrink-0" ref={menuRef}>
                         <button
                             onClick={() => {
                                 setMenuOpen((open) => !open);
                                 setSettingsOpen(false);
                             }}
-                            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                            className="flex shrink-0 items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
                         >
                             <img
                                 src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "U")}&background=c5a059&color=000`}
                                 alt="User"
-                                className="w-8 h-8 rounded-full border-2 border-[#c5a059]/50 hover:border-[#c5a059] transition-colors"
+                                className="h-8 w-8 min-w-8 shrink-0 rounded-full border-2 border-[#c5a059]/50 object-cover hover:border-[#c5a059] transition-colors"
                             />
                         </button>
 
