@@ -15,6 +15,15 @@ interface MedievalChatProps {
     onNewChat: () => void;
 }
 
+const FEMININE_PLACES_PT = new Set([
+    "Masmorra",
+    "Biblioteca",
+    "Galeria",
+    "Oficina",
+    "Sala do Trono",
+    "Ponte"
+]);
+
 function getMessageText(message: UIMessage): string {
     return message.parts
         ? message.parts.filter(part => part.type === "text").map(part => part.text).join("")
@@ -77,7 +86,21 @@ function RichAssistantMessage({ content }: { content: string }) {
 
 export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
     const { language, t } = useLanguage();
-    const conversationLabel = placeId ? `${personaId} em ${placeId}` : personaId;
+    const placeArticle = placeId && FEMININE_PLACES_PT.has(placeId) ? "na" : "no";
+    const conversationTitle = !placeId
+        ? `${t("conversationWith")} ${personaId}`
+        : language === "pt-BR"
+            ? `Conversa ${placeArticle} ${placeId} com ${personaId}`
+            : language === "es"
+                ? `Conversación en ${placeId} con ${personaId}`
+                : `Conversation in ${placeId} with ${personaId}`;
+    const journeyInvitation = !placeId
+        ? `${t("startJourney")} ${personaId}`
+        : language === "pt-BR"
+            ? `Inicie uma nova jornada ${placeArticle} ${placeId} com ${personaId}`
+            : language === "es"
+                ? `Inicia un nuevo viaje en ${placeId} con ${personaId}`
+                : `Begin a new journey in ${placeId} with ${personaId}`;
     const [threadTitle, setThreadTitle] = useState("");
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [input, setInput] = useState("");
@@ -241,7 +264,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         const loadThread = async () => {
             if (!currentThreadId) {
                 setMessages([]);
-                setThreadTitle(`${t("conversationWith")} ${conversationLabel}`);
+                setThreadTitle(conversationTitle);
                 setLastLoadedThreadId(null);
                 return;
             }
@@ -272,7 +295,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             }
         };
         loadThread();
-    }, [currentThreadId, personaId, placeId, conversationLabel, setMessages, lastLoadedThreadId, messages.length, t]);
+    }, [currentThreadId, personaId, placeId, conversationTitle, setMessages, lastLoadedThreadId, messages.length, t]);
 
     const handleTitleUpdate = async () => {
         setIsEditingTitle(false);
@@ -340,7 +363,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         <div className="w-16 h-16 rounded-full border border-[#c5a059]/20 flex items-center justify-center">
                             <span className="text-3xl">✦</span>
                         </div>
-                        <p className="text-sm font-serif italic">{t("startJourney")} {personaId}...</p>
+                        <p className="text-sm font-serif italic">{journeyInvitation}...</p>
                     </div>
                 )}
 
