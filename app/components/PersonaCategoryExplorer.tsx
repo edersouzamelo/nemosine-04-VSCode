@@ -9,14 +9,19 @@ interface PersonaItem {
     href: string;
 }
 
-type PersonaCategory = "strategic" | "symbolic" | "operational" | "emotional";
+type PersonaCategory = "all" | "strategic" | "symbolic" | "operational" | "emotional";
 
 const categories: Array<{
     id: PersonaCategory;
     label: string;
     description: string;
-    names: string[];
+    names?: string[];
 }> = [
+    {
+        id: "all",
+        label: "Todos",
+        description: "Todas as vozes disponíveis no sistema."
+    },
     {
         id: "strategic",
         label: "Estratégicas",
@@ -48,13 +53,15 @@ export default function PersonaCategoryExplorer({ items }: { items: PersonaItem[
     const itemMap = useMemo(() => new Map(items.map((item) => [item.name, item])), [items]);
     const allNames = useMemo(() => items.map((item) => item.name), [items]);
     const category = categories.find((option) => option.id === activeCategory) || categories[0];
-    const visibleItems = category.names
-        .map((name) => itemMap.get(name))
-        .filter((item): item is PersonaItem => Boolean(item));
+    const visibleItems = category.id === "all"
+        ? items
+        : (category.names || [])
+            .map((name) => itemMap.get(name))
+            .filter((item): item is PersonaItem => Boolean(item));
 
     return (
         <>
-            <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-5">
                 {categories.map((option) => (
                     <button
                         key={option.id}
