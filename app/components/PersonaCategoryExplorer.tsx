@@ -18,11 +18,6 @@ const categories: Array<{
     names?: string[];
 }> = [
     {
-        id: "all",
-        label: "Todos",
-        description: "Todas as vozes disponíveis no sistema."
-    },
-    {
         id: "strategic",
         label: "Estratégicas",
         description: "Direção, decisão e perspectiva.",
@@ -42,9 +37,14 @@ const categories: Array<{
     },
     {
         id: "emotional",
-        label: "Emocionais / Psicodinâmicas",
+        label: "Emocionais",
         description: "Escuta, conflito e transformação interna.",
         names: ["Confessor 2.0", "Psicólogo", "Custódio", "Desejo", "Dor", "Fúria", "Inimigo", "Exorcista", "Coveiro", "Terapeuta", "Espião", "Burguês", "Arqueólogo", "Mentorzinho", "Vazio", "Vingador"]
+    },
+    {
+        id: "all",
+        label: "Todos",
+        description: "Todas as vozes disponíveis no sistema."
     }
 ];
 
