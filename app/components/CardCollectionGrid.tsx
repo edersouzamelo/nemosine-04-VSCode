@@ -168,16 +168,26 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                         onPointerUp={isCustom ? finishDrag : undefined}
                         onPointerCancel={isCustom ? finishDrag : undefined}
                         onContextMenu={isCustom ? (event) => event.preventDefault() : undefined}
-                        style={{ animationDelay: isReordering ? `${Math.min(displayNames.indexOf(name), 15) * 22}ms` : undefined }}
-                        className={`relative transition-[transform,filter,opacity] duration-200 ${isCustom ? "touch-none select-none cursor-grab active:cursor-grabbing" : ""} ${isReordering ? "card-shuffle-motion" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
+                        className={`group relative transition-[transform,filter,opacity] duration-200 ${isCustom ? "touch-none select-none cursor-grab active:cursor-grabbing" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
                     >
-                        <AgentCard
-                            name={name}
-                            label={collection === "places" ? "Lugar" : "Persona"}
-                            image={item.image}
-                            href={isCustom ? undefined : item.href}
-                            className={collection === "places" ? "aspect-[4/7]" : ""}
-                        />
+                        <div
+                            className={isReordering ? "card-shuffle-motion" : ""}
+                            style={{ animationDelay: isReordering ? `${Math.min(displayNames.indexOf(name), 15) * 22}ms` : undefined }}
+                        >
+                            <AgentCard
+                                name={name}
+                                label={collection === "places" ? "Lugar" : "Persona"}
+                                image={item.image}
+                                className={collection === "places" ? "aspect-[4/7]" : ""}
+                            />
+                        </div>
+                        {!isCustom && (
+                            <Link
+                                href={item.href}
+                                aria-label={`Abrir ${name}`}
+                                className="absolute inset-0 z-10 touch-manipulation rounded-lg"
+                            />
+                        )}
                         {isCustom && (
                             <>
                                 <span
