@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 
 export default function TimekeeperWidget() {
     const [time, setTime] = useState(new Date());
-    const [position, setPosition] = useState({ x: -1, y: 96 }); // Initial position (handled in useEffect for window.width)
+    const [position, setPosition] = useState({ x: -1, y: 96 }); // Initial position is resolved once the viewport is available.
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
@@ -12,9 +12,12 @@ export default function TimekeeperWidget() {
 
     useEffect(() => {
         setMounted(true);
-        // Set initial position to right side if not set
+        // Keep the floating clock clear of the expanded desktop/tablet navigation.
         if (position.x === -1) {
-            setPosition({ x: window.innerWidth - 200, y: 96 });
+            setPosition({
+                x: Math.max(12, window.innerWidth - 200),
+                y: window.innerWidth >= 1024 ? 144 : 96
+            });
         }
     }, []);
 
@@ -103,32 +106,38 @@ export default function TimekeeperWidget() {
                 ))}
 
                 {/* Roman Numerals (Simplified for 12, 3, 6, 9) */}
-                <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[#c5a059] font-serif text-xs font-bold">XII</div>
-                <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[#c5a059] font-serif text-xs font-bold">VI</div>
-                <div className="absolute left-1 top-1/2 -translate-y-1/2 text-[#c5a059] font-serif text-xs font-bold">IX</div>
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 text-[#c5a059] font-serif text-xs font-bold">III</div>
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[#c5a059] font-serif text-xs font-bold">XII</div>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[#c5a059] font-serif text-xs font-bold">VI</div>
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#c5a059] font-serif text-xs font-bold">IX</div>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c5a059] font-serif text-xs font-bold">III</div>
 
                 {/* Hands */}
                 {/* Hour Hand */}
                 <div
-                    className="absolute top-1/2 left-1/2 w-1 h-10 bg-[#c5a059] origin-bottom -translate-x-1/2 -translate-y-full rounded-full shadow-lg"
-                    style={{ transform: `translate(-50%, -100%) rotate(${hourAngle}deg)`, height: '30%' }}
-                ></div>
+                    className="absolute inset-0 z-10"
+                    style={{ transform: `rotate(${hourAngle}deg)` }}
+                >
+                    <div className="absolute bottom-1/2 left-1/2 h-[29%] w-1 -translate-x-1/2 rounded-full bg-[#c5a059] shadow-lg" />
+                </div>
 
                 {/* Minute Hand */}
                 <div
-                    className="absolute top-1/2 left-1/2 w-0.5 h-14 bg-[#e1e1e6] origin-bottom -translate-x-1/2 -translate-y-full rounded-full shadow-lg opacity-80"
-                    style={{ transform: `translate(-50%, -100%) rotate(${minuteAngle}deg)`, height: '40%' }}
-                ></div>
+                    className="absolute inset-0 z-20"
+                    style={{ transform: `rotate(${minuteAngle}deg)` }}
+                >
+                    <div className="absolute bottom-1/2 left-1/2 h-[39%] w-0.5 -translate-x-1/2 rounded-full bg-[#e1e1e6]/80 shadow-lg" />
+                </div>
 
                 {/* Second Hand */}
                 <div
-                    className="absolute top-1/2 left-1/2 w-0.5 h-16 bg-red-900/80 origin-bottom -translate-x-1/2 -translate-y-full rounded-full"
-                    style={{ transform: `translate(-50%, -100%) rotate(${secondAngle}deg)`, height: '45%' }}
-                ></div>
+                    className="absolute inset-0 z-30"
+                    style={{ transform: `rotate(${secondAngle}deg)` }}
+                >
+                    <div className="absolute bottom-1/2 left-1/2 h-[43%] w-px -translate-x-1/2 rounded-full bg-red-700/85" />
+                </div>
 
                 {/* Center Cap */}
-                <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-[#c5a059] rounded-full -translate-x-1/2 -translate-y-1/2 shadow-md"></div>
+                <div className="absolute top-1/2 left-1/2 z-40 w-3 h-3 border border-[#e2bf74] bg-[#c5a059] rounded-full -translate-x-1/2 -translate-y-1/2 shadow-md"></div>
             </div>
 
             {/* Calendar Container */}
