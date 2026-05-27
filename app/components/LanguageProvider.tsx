@@ -50,6 +50,7 @@ const translatedPersonaNames: Record<Exclude<AppLanguage, "pt-BR">, Record<strin
 
 const translations = {
     "pt-BR": {
+        start: "Início",
         personas: "Personas",
         places: "Lugares da Mente",
         constitution: "Constituição",
@@ -99,6 +100,7 @@ const translations = {
         dragCardsHint: "Arraste pelas alças nas grades",
     },
     es: {
+        start: "Inicio",
         personas: "Personas", places: "Lugares de la Mente",
         constitution: "Constitución", games: "Juegos", community: "Comunidad Nemosine",
         mySpace: "Mi Espacio", adminPanel: "Panel Admin",
@@ -121,6 +123,7 @@ const translations = {
         orderCustom: "Personalizado", dragCardsHint: "Arrastra usando las asas de las tarjetas",
     },
     en: {
+        start: "Home",
         personas: "Personas", places: "Places of the Mind",
         constitution: "Constitution", games: "Games", community: "Nemosine Community",
         mySpace: "My Space", adminPanel: "Admin Panel",

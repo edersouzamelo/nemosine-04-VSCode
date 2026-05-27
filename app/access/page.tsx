@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 
 export default function AccessPage() {
   const router = useRouter();
-  const [callbackUrl, setCallbackUrl] = useState("/space");
+  const [callbackUrl, setCallbackUrl] = useState("/agents");
   const [registering, setRegistering] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

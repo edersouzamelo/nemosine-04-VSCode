@@ -333,14 +333,18 @@ body {
 }
 
 .light-theme .bg-\[\#050507\],
+.light-theme .bg-\[\#06070a\],
 .light-theme .bg-\[\#0a0a0c\],
+.light-theme .bg-\[\#0c0d11\],
 .light-theme .bg-\[\#0a0a0a\],
 .light-theme .bg-\[\#111\] {
   background-color: #f7f3ec !important;
 }
 
 .light-theme .bg-black\/20,
+.light-theme .bg-black\/25,
 .light-theme .bg-black\/30,
+.light-theme .bg-black\/35,
 .light-theme .bg-black\/40,
 .light-theme .bg-black\/50,
 .light-theme .bg-black\/60,
@@ -351,7 +355,14 @@ body {
 
 .light-theme .text-\[\#e1e1e6\],
 .light-theme .text-\[\#E5D0A1\],
+.light-theme .text-\[\#eee8dc\],
+.light-theme .text-\[\#e7d4aa\],
+.light-theme .text-\[\#f1ece3\],
+.light-theme [class*="text-[#d7d1c8]"],
+.light-theme [class*="text-[#e5ddd0]"],
+.light-theme [class*="text-[#ded6c8]"],
 .light-theme .text-\[\#f0ebe3\],
+.light-theme .text-white,
 .light-theme [class*="text-white/"] {
   color: #3b332a !important;
 }
@@ -375,6 +386,43 @@ body {
 .light-theme footer {
   background-color: rgba(239, 231, 218, 0.82) !important;
   color: #645748 !important;
+}
+
+.light-theme .onboarding-page {
+  background-color: #f7f3ec !important;
+  color: #302a22 !important;
+}
+
+.light-theme .onboarding-ambient {
+  background: radial-gradient(circle at 50% 20%, rgba(114, 85, 44, 0.11), transparent 38%),
+    linear-gradient(180deg, #fbf8f2 0%, #f7f3ec 60%, #ede5d9 100%) !important;
+}
+
+.light-theme .onboarding-image {
+  opacity: 0.035 !important;
+  mix-blend-mode: multiply;
+}
+
+.light-theme .onboarding-card,
+.light-theme .video-card {
+  background-color: rgba(255, 252, 247, 0.88) !important;
+  border-color: rgba(122, 91, 48, 0.18) !important;
+  box-shadow: 0 18px 55px rgba(65, 48, 28, 0.08);
+}
+
+.light-theme .onboarding-heading,
+.light-theme .onboarding-body {
+  color: #302a22 !important;
+}
+
+.light-theme .onboarding-input {
+  background-color: rgba(247, 243, 236, 0.92) !important;
+  color: #302a22 !important;
+}
+
+.light-theme .onboarding-input::placeholder,
+.light-theme [class*="placeholder:text-white"]::placeholder {
+  color: rgba(72, 62, 50, 0.52) !important;
 }
 
 .light-theme .login-screen .text-primary,

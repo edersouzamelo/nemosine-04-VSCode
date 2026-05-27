@@ -69,6 +69,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     }, []);
 
     const navItems = [
+        { name: t("start"), href: "/inicio" },
         { name: t("personas"), href: "/agents" },
         { name: t("places"), href: "/places" },
         { name: t("constitution"), href: "/constitution" },
@@ -86,7 +87,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         <>
             <div className={`site-navbar-wrapper relative z-20 overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
                 <header className={`site-navbar relative border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
-                    <Link href="/space" className="flex items-center hover:opacity-80 transition-opacity">
+                    <Link href="/agents" className="flex items-center hover:opacity-80 transition-opacity">
                         <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                     </Link>
 
