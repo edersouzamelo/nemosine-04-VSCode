@@ -27,10 +27,10 @@ export default function PlacesPage() {
                         if (a === "Não-Lugar") return 1;
                         if (b === "Não-Lugar") return -1;
                         return 0;
-                    }).map((name) => ({
-                        name,
-                        image: ENTITIES[name.toLowerCase().replace(/\s+/g, "-")]?.image
-                    }))} />
+                    }).map((name) => {
+                        const slug = name.toLowerCase().replace(/\s+/g, "-");
+                        return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };
+                    })} />
                 </div>
             </section>
 

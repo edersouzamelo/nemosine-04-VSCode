@@ -7,6 +7,7 @@ import { CardCollection, useLanguage } from "./LanguageProvider";
 interface CardItem {
     name: string;
     image?: string;
+    href: string;
 }
 
 interface CardCollectionGridProps {
@@ -76,8 +77,8 @@ export default function CardCollectionGrid({ collection, items }: CardCollection
     return (
         <div className="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-4 md:gap-6">
             {displayNames.map((name) => {
-                const slug = name.toLowerCase().replace(/\s+/g, "-");
                 const item = itemsByName.get(name);
+                if (!item) return null;
                 return (
                     <div
                         key={name}
@@ -87,8 +88,8 @@ export default function CardCollectionGrid({ collection, items }: CardCollection
                         <AgentCard
                             name={name}
                             label={collection === "places" ? "Lugar" : "Persona"}
-                            image={item?.image}
-                            href={`/agents/${slug}`}
+                            image={item.image}
+                            href={item.href}
                             className={collection === "places" ? "aspect-[4/7]" : ""}
                         />
                         {isCustom && (

@@ -35,10 +35,10 @@ export default function AgentsPage() {
 
                     <CardCollectionGrid
                         collection="personas"
-                        items={AGENTS.map((name) => ({
-                            name,
-                            image: ENTITIES[name.toLowerCase().replace(/\s+/g, "-")]?.image
-                        }))}
+                        items={AGENTS.map((name) => {
+                            const slug = name.toLowerCase().replace(/\s+/g, "-");
+                            return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };
+                        })}
                     />
                 </div>
             </section>
