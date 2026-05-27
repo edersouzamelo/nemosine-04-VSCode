@@ -8,14 +8,19 @@ import { useLanguage } from "./LanguageProvider";
 import type { AppLanguage, AppTheme } from "./LanguageProvider";
 import OnboardingVideo from "./OnboardingVideo";
 
-export default function Navbar() {
+interface NavbarProps {
+    mobileCollapsible?: boolean;
+    defaultMobileCollapsed?: boolean;
+}
+
+export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
     const { language, setLanguage, theme, setTheme, t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [videoOpenSignal, setVideoOpenSignal] = useState(0);
-    const [navbarHidden, setNavbarHidden] = useState(false);
+    const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
     const menuRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
     const lastScrollRef = useRef(0);
@@ -71,10 +76,16 @@ export default function Navbar() {
         { name: t("community"), href: "https://linktr.ee/nemosinenous" },
     ];
 
+    const toggleMobileCollapse = () => {
+        setMenuOpen(false);
+        setSettingsOpen(false);
+        setNavbarHidden((hidden) => !hidden);
+    };
+
     return (
         <>
-            <div className={`site-navbar-wrapper relative z-20 overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0' : 'max-h-[220px]'}`}>
-                <header className={`site-navbar relative border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${navbarHidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+            <div className={`site-navbar-wrapper relative z-20 overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
+                <header className={`site-navbar relative border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
                     <Link href="/space" className="flex items-center hover:opacity-80 transition-opacity">
                         <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                     </Link>
@@ -206,8 +217,32 @@ export default function Navbar() {
                         )}
                     </div>
                 </div>
+                {mobileCollapsible && (
+                    <button
+                        type="button"
+                        onClick={toggleMobileCollapse}
+                        aria-label={t("collapseMenu")}
+                        className="absolute bottom-1 left-1/2 -translate-x-1/2 lg:hidden flex items-center justify-center h-7 w-14 rounded-t-xl border border-b-0 border-[#c5a059]/30 bg-black/60 text-[#c5a059]/75 hover:text-[#c5a059]"
+                    >
+                        <svg className="w-4 h-4 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                )}
                 </header>
             </div>
+            {mobileCollapsible && navbarHidden && (
+                <button
+                    type="button"
+                    onClick={toggleMobileCollapse}
+                    aria-label={t("expandMenu")}
+                    className="absolute top-0 left-1/2 -translate-x-1/2 z-30 lg:hidden flex items-center justify-center h-8 w-16 rounded-b-xl border border-t-0 border-[#c5a059]/40 bg-[#0a0a0c]/95 text-[#c5a059] shadow-lg"
+                >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            )}
             <OnboardingVideo openSignal={videoOpenSignal} />
         </>
     );

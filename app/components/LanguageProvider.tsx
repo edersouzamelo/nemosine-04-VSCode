@@ -81,6 +81,8 @@ const translations = {
         onboardingTitle: "Primeiros passos no Nemosine",
         close: "Fechar",
         conversationWith: "Conversa com",
+        collapseMenu: "Recolher menu",
+        expandMenu: "Mostrar menu",
     },
     es: {
         personas: "Personas", places: "Lugares de la Mente",
@@ -99,6 +101,7 @@ const translations = {
         identification: "Identificación", protocol: "Protocolo y Guion",
         onboardingTitle: "Primeros pasos en Nemosine", close: "Cerrar",
         conversationWith: "Conversación con",
+        collapseMenu: "Ocultar menu", expandMenu: "Mostrar menu",
     },
     en: {
         personas: "Personas", places: "Places of the Mind",
@@ -117,6 +120,7 @@ const translations = {
         identification: "Identification", protocol: "Protocol & Script",
         onboardingTitle: "Getting started with Nemosine", close: "Close",
         conversationWith: "Conversation with",
+        collapseMenu: "Hide menu", expandMenu: "Show menu",
     }
 } as const;
 

@@ -54,25 +54,25 @@ export default function AgentDetailPage() {
     };
 
     return (
-        <main className="relative h-screen bg-[#050507] text-[#e1e1e6] flex flex-col overflow-hidden">
+        <main className="relative h-[100dvh] bg-[#050507] text-[#e1e1e6] flex flex-col overflow-hidden">
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0">
                 <div className="absolute inset-0 bg-black/80 z-10 backdrop-blur-[4px]"></div>
                 <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center opacity-10 mix-blend-screen"></div>
             </div>
 
-            <div className="navbar-container relative z-20 overflow-hidden transition-all duration-300">
-                <Navbar />
+            <div className="navbar-container relative z-20 overflow-visible transition-all duration-300">
+                <Navbar mobileCollapsible defaultMobileCollapsed />
             </div>
 
             {/* CONTENT LAYOUT - Mobile First */}
             <div className="relative z-10 flex-1 flex flex-col lg:flex-row overflow-hidden gap-0">
 
                 {/* TOP: PERSONA IMAGE (Mobile) & RETRACTABLE MEMORIES */}
-                <div className="lg:hidden flex flex-col h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-4 space-y-4">
+                <div className="lg:hidden flex items-center h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-2 gap-2">
                     {/* Small Image for Mobile */}
                     <div
-                        className="relative w-20 h-20 glass-medieval overflow-hidden group cursor-pointer rounded-lg shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)] self-center"
+                        className="relative w-12 h-12 glass-medieval overflow-hidden group cursor-pointer rounded-lg shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
                         onClick={toggleAudio}
                     >
                         {entity.audio && (
@@ -116,7 +116,7 @@ export default function AgentDetailPage() {
                     </div>
 
                     {/* Memories in Retractable Panel (Mobile) */}
-                    <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
+                    <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="flex-1 min-w-0">
                         <ChatHistoryList
                             personaId={entity.name}
                             currentThreadId={currentThreadId}
@@ -185,7 +185,7 @@ export default function AgentDetailPage() {
                 </div>
 
                 {/* CENTER/RIGHT: CHAT (The Main Focus - ~60%) */}
-                <div className="flex-1 p-4 lg:p-6 flex flex-col w-full h-full overflow-hidden">
+                <div className="flex-1 min-h-0 p-2 sm:p-4 lg:p-6 flex flex-col w-full overflow-hidden">
                     <MedievalChat
                         personaId={entity.name}
                         currentThreadId={currentThreadId}
