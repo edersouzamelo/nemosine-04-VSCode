@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { UIMessage, DefaultChatTransport } from "ai";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useLanguage } from "./LanguageProvider";
 
 interface MedievalChatProps {
@@ -10,6 +12,66 @@ interface MedievalChatProps {
     currentThreadId: string | null;
     onThreadCreated: (threadId: string) => void;
     onNewChat: () => void;
+}
+
+function getMessageText(message: UIMessage): string {
+    return message.parts
+        ? message.parts.filter(part => part.type === "text").map(part => part.text).join("")
+        : (message as UIMessage & { content?: string }).content || "";
+}
+
+function RichAssistantMessage({ content }: { content: string }) {
+    return (
+        <Markdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+                p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+                strong: ({ children }) => <strong className="font-semibold text-[#ecd49c]">{children}</strong>,
+                em: ({ children }) => <em className="italic text-[#eee2c9]">{children}</em>,
+                h1: ({ children }) => <h1 className="mb-3 mt-1 font-serif text-xl font-semibold text-[#ecd49c]">{children}</h1>,
+                h2: ({ children }) => <h2 className="mb-2 mt-4 font-serif text-lg font-semibold text-[#ecd49c]">{children}</h2>,
+                h3: ({ children }) => <h3 className="mb-2 mt-3 font-semibold text-[#ecd49c]">{children}</h3>,
+                ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
+                ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
+                li: ({ children }) => <li className="pl-1 leading-relaxed">{children}</li>,
+                blockquote: ({ children }) => (
+                    <blockquote className="my-3 border-l-2 border-[#c5a059]/55 pl-3 italic text-[#d6cdbd]">
+                        {children}
+                    </blockquote>
+                ),
+                a: ({ children, href }) => (
+                    <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#e0bb69] underline decoration-[#c5a059]/50 underline-offset-2 hover:text-[#efd18b]"
+                    >
+                        {children}
+                    </a>
+                ),
+                code: ({ children }) => (
+                    <code className="rounded bg-white/10 px-1 py-0.5 font-mono text-[0.92em] text-[#f0ddaf]">
+                        {children}
+                    </code>
+                ),
+                pre: ({ children }) => (
+                    <pre className="my-3 overflow-x-auto rounded-lg border border-[#c5a059]/15 bg-black/50 p-3 text-sm">
+                        {children}
+                    </pre>
+                ),
+                hr: () => <hr className="my-4 border-[#c5a059]/20" />,
+                table: ({ children }) => (
+                    <div className="my-3 overflow-x-auto">
+                        <table className="min-w-full border-collapse text-sm">{children}</table>
+                    </div>
+                ),
+                th: ({ children }) => <th className="border border-[#c5a059]/20 px-2 py-1 text-left text-[#ecd49c]">{children}</th>,
+                td: ({ children }) => <td className="border border-[#c5a059]/15 px-2 py-1">{children}</td>
+            }}
+        >
+            {content}
+        </Markdown>
+    );
 }
 
 export default function MedievalChat({ personaId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
@@ -281,12 +343,14 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                         key={msg.id}
                         className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
-                        <div className={`chat-readable max-w-[92%] p-3 shadow-[0_4px_16px_rgba(0,0,0,0.12)] whitespace-pre-wrap ${msg.role === "user"
-                            ? "bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#f0ebe3] rounded-2xl rounded-tr-sm"
-                            : "bg-[#0a0a0c] border border-[#c5a059]/10 text-[#e1e1e6] rounded-2xl rounded-tl-sm"
+                        <div className={`chat-readable max-w-[92%] p-3 shadow-[0_4px_16px_rgba(0,0,0,0.12)] ${msg.role === "user"
+                            ? "whitespace-pre-wrap bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#f0ebe3] rounded-2xl rounded-tr-sm"
+                            : "chat-rich-assistant bg-[#0a0a0c] border border-[#c5a059]/10 text-[#e1e1e6] rounded-2xl rounded-tl-sm"
                             }`}
                         >
-                            {cleanContent(msg.parts ? msg.parts.filter(p => p.type === 'text').map(p => (p as any).text).join('\n') : (msg as any).content || '')}
+                            {msg.role === "assistant"
+                                ? <RichAssistantMessage content={cleanContent(getMessageText(msg))} />
+                                : cleanContent(getMessageText(msg))}
                         </div>
                     </div>
                 )))}
