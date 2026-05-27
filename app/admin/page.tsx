@@ -101,11 +101,11 @@ export default function AdminPage() {
       <Navbar />
 
       <section className="relative z-10 p-4 md:p-8 lg:p-12 max-w-[1400px] mx-auto">
-        <header className="mb-10">
-          <h1 className="text-3xl font-serif text-[#c5a059] uppercase tracking-tight">
+        <header className="mb-12 text-center">
+          <h1 className="text-4xl font-serif text-[#c5a059] mb-2 uppercase tracking-tight">
             Painel do Criador
           </h1>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40 mt-1">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">
             Monitoramento do Sistema Nemosine Nous
           </p>
         </header>

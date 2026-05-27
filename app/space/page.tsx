@@ -22,7 +22,10 @@ export default async function SpacePage() {
             <Navbar />
 
             <section className="relative z-10 flex-1 px-5 py-8 sm:p-12 max-w-4xl mx-auto w-full">
-                <h1 className="text-4xl font-serif text-[#c5a059] mb-8 uppercase tracking-tight">Espaço Local</h1>
+                <header className="mb-12 text-center">
+                    <h1 className="text-4xl font-serif text-[#c5a059] mb-2 uppercase tracking-tight">Meu Espaço</h1>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Área privada e integrações pessoais</p>
+                </header>
 
                 <div className="bg-black/40 border border-[#c5a059]/20 p-5 sm:p-8 rounded-lg backdrop-blur-md">
                     <p className="text-xl mb-4">Bem-vindo, {session.user?.name || session.user?.email}</p>
