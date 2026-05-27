@@ -33,6 +33,7 @@ export default function InicioPage() {
   const router = useRouter();
   const [need, setNeed] = useState("");
   const [sensitiveRoute, setSensitiveRoute] = useState<{ href: string; name: string } | null>(null);
+  const [isRouting, setIsRouting] = useState(false);
 
   const continueToRoute = (href: string, name: string) => {
     const text = need.trim();
@@ -47,9 +48,24 @@ export default function InicioPage() {
     router.push(href);
   };
 
-  const handleStart = (event: FormEvent) => {
+  const handleStart = async (event: FormEvent) => {
     event.preventDefault();
-    const destination = routeInitialIntent(need);
+    setIsRouting(true);
+    let destination = routeInitialIntent(need);
+    try {
+      const response = await fetch("/api/onboarding-route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ need })
+      });
+      if (response.ok) {
+        destination = await response.json();
+      }
+    } catch {
+      // Local routing remains available when the orchestration service is unavailable.
+    } finally {
+      setIsRouting(false);
+    }
     if (destination.requiresNotice) {
       setSensitiveRoute({ href: destination.href, name: destination.entityName });
       return;
@@ -69,10 +85,6 @@ export default function InicioPage() {
 
       <section className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center px-5 py-9 sm:px-8 sm:py-12">
         <div className="onboarding-card w-full rounded-[28px] border border-[#c5a059]/15 bg-black/30 px-6 py-9 text-center shadow-[0_24px_90px_rgba(0,0,0,0.45)] backdrop-blur-md sm:px-14 sm:py-12">
-          <p className="mb-7 text-[10px] uppercase tracking-[0.42em] text-[#c5a059]/70">
-            Narrador
-          </p>
-
           <h1 className="onboarding-heading font-serif text-4xl tracking-[0.12em] text-[#e7d4aa] sm:text-6xl">
             Nemosine Nous
           </h1>
@@ -96,9 +108,10 @@ export default function InicioPage() {
             />
             <button
               type="submit"
-              className="w-full rounded-2xl bg-[#c5a059] px-5 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-[#111013] transition-colors hover:bg-[#d4b46f]"
+              disabled={isRouting}
+              className="w-full rounded-2xl bg-[#c5a059] px-5 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-[#111013] transition-colors hover:bg-[#d4b46f] disabled:cursor-wait disabled:opacity-70"
             >
-              Começar
+              {isRouting ? "Conduzindo..." : "Começar"}
             </button>
           </form>
 

@@ -11,7 +11,7 @@ const openai = new OpenAI({
 
 type ResponseLanguage = "pt-BR" | "es" | "en";
 
-export async function buildSystemPrompt(userId: string, personaId: string, language: ResponseLanguage = "pt-BR"): Promise<string> {
+export async function buildSystemPrompt(userId: string, personaId: string, language: ResponseLanguage = "pt-BR", placeId?: string): Promise<string> {
     // 1. Retrieve Persona Data
     const personaData = Object.values(ENTITIES).find((p: any) => p.name === personaId);
     if (!personaData) {
@@ -19,10 +19,19 @@ export async function buildSystemPrompt(userId: string, personaId: string, langu
     }
 
     // 2. Fetch User Memories
-    const isPrivateSpace = isPrivateMemorySpace(personaId);
+    const placeData = placeId
+        ? Object.values(ENTITIES).find((entity) => entity.name === placeId && entity.type === 'place')
+        : undefined;
+    const memoryScope = isPrivateMemorySpace(personaId)
+        ? personaId
+        : placeData && isPrivateMemorySpace(placeData.name) ? placeData.name : personaId;
+    const placeDescription = placeData
+        ? (placeData.prompt || placeData.transcription).replace(/^Você é /, "O cenário ativo é ")
+        : "";
+    const isPrivateSpace = isPrivateMemorySpace(memoryScope);
     const [memories, conversationEpisodes] = await Promise.all([
-        getUserMemories(userId, personaId),
-        getVisibleConversationEpisodes(userId, personaId)
+        getUserMemories(userId, memoryScope),
+        getVisibleConversationEpisodes(userId, memoryScope)
     ]);
     const memoryContext = memories.length > 0
         ? `\n[MEMÓRIA DE LONGO PRAZO DO USUÁRIO]\n${isPrivateSpace
@@ -51,6 +60,13 @@ Não alegue desconhecimento total se as seções de memória ou episódios conti
         en: "English"
     }[language];
     const languageConstraint = `\n[IDIOMA DA INTERAÇÃO]\nResponda em ${languageName}, salvo se o usuário pedir expressamente outro idioma nesta mensagem.`;
+    const placeConstraint = placeData ? `
+[LUGAR DA MENTE ATIVO: ${placeData.name}]
+Você é ${personaId}, convocado para conversar com o usuário dentro de ${placeData.name}. O Lugar é ambiente simbólico, não uma persona nem uma voz interlocutora: jamais responda como se você fosse o Lugar, jamais negue a possibilidade de uma persona estar nele e jamais afirme que o espaço fala por si.
+Incorpore este ambiente à interação quando isso enriquecer a experiência: descreva presença, gestos, objetos, atmosfera, deslocamentos ou efeitos simbólicos coerentes com ${placeData.name}, preservando integralmente sua própria voz e função.
+A função e a paisagem conceitual deste Lugar são:
+${placeDescription}
+` : "";
 
     // Inject Constitution and System Context
     let dynamicContext = "";
@@ -107,6 +123,7 @@ ${CONSTITUTION_TEXT}
 
 ${dynamicContext}
 ========================================
+${placeConstraint}
 ${memoryContext}
 ${episodeContext}
 ${sharedContextInstruction}

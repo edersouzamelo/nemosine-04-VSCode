@@ -9,6 +9,7 @@ import { useLanguage } from "./LanguageProvider";
 
 interface MedievalChatProps {
     personaId: string;
+    placeId?: string;
     currentThreadId: string | null;
     onThreadCreated: (threadId: string) => void;
     onNewChat: () => void;
@@ -74,8 +75,9 @@ function RichAssistantMessage({ content }: { content: string }) {
     );
 }
 
-export default function MedievalChat({ personaId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
+export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
     const { language, t } = useLanguage();
+    const conversationLabel = placeId ? `${personaId} em ${placeId}` : personaId;
     const [threadTitle, setThreadTitle] = useState("");
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [input, setInput] = useState("");
@@ -116,11 +118,15 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
                     if (typeof init.body === 'string') {
                         const bodyObj = JSON.parse(init.body);
                         bodyObj.personaId = personaId;
+                        bodyObj.placeId = placeId;
                         bodyObj.threadId = currentThreadIdRef.current || undefined;
                         bodyObj.language = language;
                         init.body = JSON.stringify(bodyObj);
                     } else if (init.body instanceof FormData) {
                         init.body.append('personaId', personaId);
+                        if (placeId) {
+                            init.body.append('placeId', placeId);
+                        }
                         init.body.append('language', language);
                         if (currentThreadIdRef.current) {
                             init.body.append('threadId', currentThreadIdRef.current);
@@ -137,10 +143,10 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             }
             return res;
         }
-    }), [personaId, onThreadCreated, language]);
+    }), [personaId, placeId, onThreadCreated, language]);
 
     const { messages, sendMessage, status, setMessages, error, clearError } = useChat({
-        id: personaId,
+        id: placeId ? `${personaId}@${placeId}` : personaId,
         transport
     });
 
@@ -235,7 +241,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
         const loadThread = async () => {
             if (!currentThreadId) {
                 setMessages([]);
-                setThreadTitle(`${t("conversationWith")} ${personaId}`);
+                setThreadTitle(`${t("conversationWith")} ${conversationLabel}`);
                 setLastLoadedThreadId(null);
                 return;
             }
@@ -266,7 +272,7 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
             }
         };
         loadThread();
-    }, [currentThreadId, personaId, setMessages, lastLoadedThreadId, messages.length, t]);
+    }, [currentThreadId, personaId, placeId, conversationLabel, setMessages, lastLoadedThreadId, messages.length, t]);
 
     const handleTitleUpdate = async () => {
         setIsEditingTitle(false);

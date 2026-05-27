@@ -165,22 +165,12 @@ export const getUserMemories = async (userId: string, targetPersonaId: string): 
 };
 
 export const getVisibleConversationEpisodes = async (userId: string, targetPersonaId: string): Promise<string[]> => {
-    const visibleSources = isPrivateMemorySpace(targetPersonaId)
-        ? [
-            { personaId: { notIn: [...PRIVATE_MEMORY_SPACES] } },
-            { personaId: targetPersonaId }
-        ]
-        : [
-            { personaId: { notIn: [...PRIVATE_MEMORY_SPACES] } }
-        ];
-
     const threads = await prisma.thread.findMany({
         where: {
-            userId,
-            OR: visibleSources
+            userId
         },
         orderBy: { updatedAt: 'desc' },
-        take: 8,
+        take: 30,
         include: {
             messages: {
                 orderBy: { timestamp: 'desc' },
@@ -190,7 +180,15 @@ export const getVisibleConversationEpisodes = async (userId: string, targetPerso
     });
 
     return threads
+        .filter((thread) => {
+            if (!isPrivateMemorySpace(thread.personaId)) return true;
+            if (!isPrivateMemorySpace(targetPersonaId)) return false;
+            return thread.personaId === targetPersonaId
+                || thread.personaId.startsWith(`${targetPersonaId} @ `)
+                || thread.personaId.endsWith(` @ ${targetPersonaId}`);
+        })
         .filter(thread => thread.messages.length > 0)
+        .slice(0, 8)
         .map(thread => {
             const excerpt = [...thread.messages]
                 .reverse()

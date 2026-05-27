@@ -10,7 +10,7 @@ export interface EntityData {
     prompt?: string;
 }
 
-const PERSONAS = [
+export const PERSONAS = [
     "Adjunto", "Advogado", "Aprovisionador", "Arauto", "Arqueólogo", "Artista", "Astrônomo", "Autor",
     "Bobo da Corte", "Bruto", "Bruxo", "Burguês", "Cientista", "Cigana", "Comandante", "Confessor 2.0",
     "Coveiro", "Curador", "Custódio", "Desejo", "Dor", "Engenheiro", "Espelho", "Espião",

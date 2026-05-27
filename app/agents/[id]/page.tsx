@@ -12,7 +12,7 @@ import PrivateSpaceNotice from "@/app/components/PrivateSpaceNotice";
 import ExternalConnectionsPanel from "@/app/components/ExternalConnectionsPanel";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useParams } from "next/navigation";
-import { ENTITIES } from "../../data/entities";
+import { ENTITIES, PERSONAS } from "../../data/entities";
 
 export default function AgentDetailPage() {
     const params = useParams();
@@ -22,6 +22,7 @@ export default function AgentDetailPage() {
     const audioRef = React.useRef<HTMLAudioElement | null>(null);
     const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
     const [refreshHistory, setRefreshHistory] = useState(0);
+    const [summonedPersona, setSummonedPersona] = useState("");
 
     const entity = ENTITIES[id];
 
@@ -32,6 +33,10 @@ export default function AgentDetailPage() {
     // One visit should count once even when preferences rerender the provider.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
+
+    React.useEffect(() => {
+        setCurrentThreadId(null);
+    }, [id, summonedPersona]);
 
     if (!entity) {
         return (
@@ -47,8 +52,12 @@ export default function AgentDetailPage() {
         );
     }
 
+    const activePersonaName = entity.type === "place" ? summonedPersona : entity.name;
+    const conversationScope = entity.type === "place" && activePersonaName
+        ? `${activePersonaName} @ ${entity.name}`
+        : activePersonaName;
     const requiresPrivacyNotice =
-        entity.name === "Confessor 2.0" || entity.name === "Porão";
+        entity.name === "Confessor 2.0" || entity.name === "Porão" || activePersonaName === "Confessor 2.0";
 
     const toggleAudio = () => {
         if (!audioRef.current || !entity.audio) return;
@@ -126,12 +135,16 @@ export default function AgentDetailPage() {
 
                     {/* Memories in Retractable Panel (Mobile) */}
                     <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="flex-1 min-w-0">
-                        <ChatHistoryList
-                            personaId={entity.name}
-                            currentThreadId={currentThreadId}
-                            onSelectThread={setCurrentThreadId}
-                            refreshTrigger={refreshHistory}
-                        />
+                        {conversationScope ? (
+                            <ChatHistoryList
+                                personaId={conversationScope}
+                                currentThreadId={currentThreadId}
+                                onSelectThread={setCurrentThreadId}
+                                refreshTrigger={refreshHistory}
+                            />
+                        ) : (
+                            <p className="mt-3 text-xs italic text-[#c5a059]/60">Convoque uma persona para iniciar uma memória neste lugar.</p>
+                        )}
                     </CollapsiblePanel>
                 </div>
 
@@ -184,29 +197,66 @@ export default function AgentDetailPage() {
 
                     {/* Desktop Memories Panel */}
                     <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
-                        <ChatHistoryList
-                            personaId={entity.name}
-                            currentThreadId={currentThreadId}
-                            onSelectThread={setCurrentThreadId}
-                            refreshTrigger={refreshHistory}
-                        />
+                        {conversationScope ? (
+                            <ChatHistoryList
+                                personaId={conversationScope}
+                                currentThreadId={currentThreadId}
+                                onSelectThread={setCurrentThreadId}
+                                refreshTrigger={refreshHistory}
+                            />
+                        ) : (
+                            <p className="mt-3 text-xs italic text-[#c5a059]/60">Convoque uma persona para iniciar uma memória neste lugar.</p>
+                        )}
                     </CollapsiblePanel>
                 </div>
 
                 {/* CENTER/RIGHT: CHAT (The Main Focus - ~60%) */}
                 <div className="flex-1 min-h-0 p-2 sm:p-4 lg:p-6 flex flex-col w-full overflow-hidden">
-                    <ExternalConnectionsPanel personaName={entity.name} />
-                    <MedievalChat
-                        personaId={entity.name}
-                        currentThreadId={currentThreadId}
-                        onThreadCreated={(id) => {
-                            setCurrentThreadId(id);
-                            setRefreshHistory(prev => prev + 1);
-                        }}
-                        onNewChat={() => setCurrentThreadId(null)}
-                    />
+                    {entity.type === "place" && (
+                        <div className="mb-2 shrink-0 rounded-xl border border-[#c5a059]/20 bg-black/35 p-3 sm:mb-4 sm:p-4">
+                            <label htmlFor="summoned-persona" className="mb-2 block text-[10px] uppercase tracking-[0.28em] text-[#c5a059]/75">
+                                Convocar uma persona em {entity.name}
+                            </label>
+                            <select
+                                id="summoned-persona"
+                                value={summonedPersona}
+                                onChange={(event) => setSummonedPersona(event.target.value)}
+                                className="w-full rounded-lg border border-[#c5a059]/25 bg-[#0a0a0c] px-3 py-2.5 font-serif text-sm text-[#e1e1e6] outline-none focus:border-[#c5a059]/60"
+                            >
+                                <option value="">Escolha quem o acompanhará neste lugar...</option>
+                                {PERSONAS.map((persona) => (
+                                    <option key={persona} value={persona}>{persona}</option>
+                                ))}
+                            </select>
+                            <p className="mt-2 text-xs italic text-[#c5a059]/55">
+                                O lugar oferece a atmosfera; a persona convocada oferece a voz.
+                            </p>
+                        </div>
+                    )}
+                    {activePersonaName ? (
+                        <>
+                            <ExternalConnectionsPanel personaName={activePersonaName} />
+                            <MedievalChat
+                                key={conversationScope}
+                                personaId={activePersonaName}
+                                placeId={entity.type === "place" ? entity.name : undefined}
+                                currentThreadId={currentThreadId}
+                                onThreadCreated={(id) => {
+                                    setCurrentThreadId(id);
+                                    setRefreshHistory(prev => prev + 1);
+                                }}
+                                onNewChat={() => setCurrentThreadId(null)}
+                            />
+                        </>
+                    ) : (
+                        <div className="flex flex-1 items-center justify-center rounded-xl border border-[#c5a059]/10 bg-black/20 p-8 text-center">
+                            <p className="max-w-md font-serif text-sm italic leading-7 text-[#c5a059]/65">
+                                Você entrou em {entity.name}. Escolha uma persona para que sua voz se manifeste neste ambiente.
+                            </p>
+                        </div>
+                    )}
                     {/* Special Widget for Arauto */}
-                    {entity.name.toLowerCase() === 'arauto' && <TimekeeperWidget />}
+                    {activePersonaName.toLowerCase() === 'arauto' && <TimekeeperWidget />}
                     {requiresPrivacyNotice && <PrivateSpaceNotice spaceName={entity.name} />}
                 </div>
 

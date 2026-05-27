@@ -14,6 +14,17 @@ const hasTerms = (text: string, terms: string[]) => terms.some((term) => text.in
 export function routeInitialIntent(input: string): OnboardingDestination {
     const text = normalizeInput(input.trim());
 
+    // The onboarding entry behaves as a compact orchestrator: embodied needs
+    // should reach the specialist before falling back to a narrative welcome.
+    if (hasTerms(text, ["emagrecer", "perder peso", "perda de peso", "dieta", "alimentacao", "nutricao", "nutrir", "caloria", "suplementacao", "comer melhor", "massa muscular"])) {
+        return { href: "/agents/aprovisionador", entityName: "Aprovisionador" };
+    }
+    if (hasTerms(text, ["treino", "treinar", "academia", "exercicio", "musculacao", "correr", "corrida", "performance fisica", "condicionamento"])) {
+        return { href: "/agents/treinador", entityName: "Treinador" };
+    }
+    if (hasTerms(text, ["saude", "sintoma", "dor fisica", "exame", "diagnostico", "doenca", "medicamento", "medico"])) {
+        return { href: "/agents/médico", entityName: "Médico" };
+    }
     if (hasTerms(text, ["intimo", "segredo", "vergonha", "confissao", "sensivel"])) {
         return { href: "/agents/confessor-2.0", entityName: "Confessor 2.0", requiresNotice: true };
     }

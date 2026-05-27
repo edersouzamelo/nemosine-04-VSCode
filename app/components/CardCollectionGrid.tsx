@@ -31,23 +31,41 @@ export default function CardCollectionGrid({ collection, items, orderUniverse }:
     const orderedNames = completeOrderedNames.filter((name) => visibleNames.has(name));
     const [draggingName, setDraggingName] = useState<string | null>(null);
     const [draftOrder, setDraftOrder] = useState<string[]>(orderedNames);
-    const [isReordering, setIsReordering] = useState(false);
+    const [isReordering, setIsReordering] = useState(true);
     const previousModeRef = useRef(cardOrderMode);
+    const motionTimeoutRef = useRef<number | null>(null);
     const previousPositionsRef = useRef<Map<string, DOMRect> | null>(null);
     const cardNodesRef = useRef<Map<string, HTMLDivElement>>(new Map());
     const isCustom = cardOrderMode === "custom";
+
+    const playCardMotion = () => {
+        setIsReordering(true);
+        if (motionTimeoutRef.current) {
+            window.clearTimeout(motionTimeoutRef.current);
+        }
+        motionTimeoutRef.current = window.setTimeout(() => setIsReordering(false), 780);
+    };
+
+    useEffect(() => {
+        playCardMotion();
+        return () => {
+            if (motionTimeoutRef.current) window.clearTimeout(motionTimeoutRef.current);
+        };
+    // Run the deal-in motion each time a collection module is opened.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collection]);
 
     useEffect(() => {
         if (cardOrderMode === "random") {
             ensureRandomCardOrder(collection, orderingNames);
         }
         if (previousModeRef.current !== cardOrderMode) {
-            setIsReordering(true);
-            const timeoutId = window.setTimeout(() => setIsReordering(false), 780);
+            playCardMotion();
             previousModeRef.current = cardOrderMode;
-            return () => window.clearTimeout(timeoutId);
         }
         previousModeRef.current = cardOrderMode;
+    // playCardMotion deliberately restarts the visual effect on mode changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cardOrderMode, collection, ensureRandomCardOrder, orderingNames]);
 
     useEffect(() => {

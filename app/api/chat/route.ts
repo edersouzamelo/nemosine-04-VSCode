@@ -14,6 +14,8 @@ import { auth } from '@/auth';
 import { streamText } from 'ai';
 import { openai as vercelOpenai } from '@ai-sdk/openai';
 import { buildSystemPrompt } from '@/app/lib/nemosine/llm_client';
+import { ENTITIES } from '@/app/data/entities';
+import { isPrivateMemorySpace } from '@/app/lib/nemosine/privacy';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -39,11 +41,23 @@ export async function POST(req: NextRequest) {
 
         const t0 = Date.now();
         const body = await req.json();
-        const { messages, personaId, threadId, language } = body;
+        const { messages, personaId, placeId, threadId, language } = body;
 
         if (!Array.isArray(messages) || messages.length === 0 || typeof personaId !== 'string' || !personaId.trim()) {
             return NextResponse.json({ error: 'Invalid request format or missing personaId' }, { status: 400 });
         }
+        const activePersona = Object.values(ENTITIES).find((entity) => entity.name === personaId && entity.type === 'persona');
+        const activePlace = typeof placeId === 'string' && placeId.trim()
+            ? Object.values(ENTITIES).find((entity) => entity.name === placeId && entity.type === 'place')
+            : undefined;
+        if (!activePersona || (placeId && !activePlace)) {
+            return NextResponse.json({ error: 'Invalid persona or place context' }, { status: 400 });
+        }
+        const normalizedPlaceId = activePlace?.name;
+        const conversationScope = normalizedPlaceId ? `${personaId} @ ${normalizedPlaceId}` : personaId;
+        const memoryScope = isPrivateMemorySpace(personaId)
+            ? personaId
+            : normalizedPlaceId && isPrivateMemorySpace(normalizedPlaceId) ? normalizedPlaceId : personaId;
 
         const lastMessage = messages[messages.length - 1];
         let userText = lastMessage.parts
@@ -113,7 +127,7 @@ export async function POST(req: NextRequest) {
 
         if (typeof threadId !== 'string' || !threadId) {
             const newTitle = userText.length > 30 ? `${userText.substring(0, 30).trim()}...` : userText;
-            const thread = await createThread(userId, personaId, newTitle);
+            const thread = await createThread(userId, conversationScope, newTitle);
             activeThreadId = thread.id;
             priorHistory = thread.messages;
         } else {
@@ -121,7 +135,7 @@ export async function POST(req: NextRequest) {
             if (!thread) {
                 return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
             }
-            if (thread.personaId !== personaId) {
+            if (thread.personaId !== conversationScope) {
                 return NextResponse.json({ error: 'Thread does not belong to this persona' }, { status: 403 });
             }
             activeThreadId = thread.id;
@@ -131,8 +145,8 @@ export async function POST(req: NextRequest) {
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
         const [, , systemPrompt] = await Promise.all([
             addMessageToThread(userId, activeThreadId, 'user', userText),
-            retainConversationEpisode(userId, personaId, userText),
-            buildSystemPrompt(userId, personaId, selectedLanguage)
+            retainConversationEpisode(userId, memoryScope, userText),
+            buildSystemPrompt(userId, personaId, selectedLanguage, normalizedPlaceId)
         ]);
         const history = [
             ...priorHistory,
@@ -158,7 +172,7 @@ export async function POST(req: NextRequest) {
                 const memoryMatches = [...text.matchAll(/\[MEMORY:\s*([^\]\r\n]{1,1000})\]/gi)];
 
                 for (const match of memoryMatches.slice(0, 3)) {
-                    await addUserMemory(userId, match[1], personaId);
+                    await addUserMemory(userId, match[1], memoryScope);
                 }
 
                 if (memoryMatches.length > 0) {
