@@ -67,7 +67,7 @@ export default function PersonaCategoryExplorer({ items }: { items: PersonaItem[
                 ))}
             </div>
             <p className="mb-7 text-center text-sm italic text-[#c5a059]/58">{category.description}</p>
-            <CardCollectionGrid collection="personas" items={visibleItems} orderUniverse={allNames} />
+            <CardCollectionGrid collection="personas" items={visibleItems} orderUniverse={allNames} motionKey={activeCategory} />
         </>
     );
 }

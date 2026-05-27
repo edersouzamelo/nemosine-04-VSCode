@@ -14,9 +14,10 @@ interface CardCollectionGridProps {
     collection: CardCollection;
     items: CardItem[];
     orderUniverse?: string[];
+    motionKey?: string;
 }
 
-export default function CardCollectionGrid({ collection, items, orderUniverse }: CardCollectionGridProps) {
+export default function CardCollectionGrid({ collection, items, orderUniverse, motionKey }: CardCollectionGridProps) {
     const {
         cardOrderMode,
         ensureRandomCardOrder,
@@ -51,9 +52,9 @@ export default function CardCollectionGrid({ collection, items, orderUniverse }:
         return () => {
             if (motionTimeoutRef.current) window.clearTimeout(motionTimeoutRef.current);
         };
-    // Run the deal-in motion each time a collection module is opened.
+    // Run the deal-in motion when a module opens or its visible group changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [collection]);
+    }, [collection, motionKey]);
 
     useEffect(() => {
         if (cardOrderMode === "random") {
