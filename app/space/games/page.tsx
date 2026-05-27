@@ -1,24 +1,20 @@
-import { Geist } from "next/font/google";
 import Link from "next/link";
 import MedievalButton from "@/app/components/MedievalButton";
 import Navbar from "@/app/components/Navbar";
 import InstitutionalFooter from "@/app/components/InstitutionalFooter";
 
-const geistSans = Geist({
-    variable: "--font-geist-sans",
-    subsets: ["latin"],
-});
-
 export default function GamesHubPage() {
     return (
-        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className}`}>
+        <main className="min-h-screen bg-[#050507] text-[#e1e1e6]">
             <div className="sticky top-0 z-50">
                 <Navbar />
             </div>
             <div className="max-w-7xl mx-auto p-8 pt-12 min-h-[calc(100vh-220px)]">
-                <header className="mb-12 border-b border-[#C5A059]/30 pb-6">
-                    <h1 className="text-4xl medieval-header text-[#C5A059] mb-2">Jogos</h1>
-                    <p className="text-gray-400">Um espaço para descanso e reflexão através das cartas.</p>
+                <header className="mb-12 text-center">
+                    <h1 className="mb-2 font-serif text-4xl uppercase tracking-tight text-[#c5a059]">Jogos</h1>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">
+                        Um espaço para descanso e reflexão através das cartas
+                    </p>
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
