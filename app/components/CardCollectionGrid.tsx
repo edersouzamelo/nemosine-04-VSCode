@@ -31,7 +31,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse }:
     const orderedNames = completeOrderedNames.filter((name) => visibleNames.has(name));
     const [draggingName, setDraggingName] = useState<string | null>(null);
     const [draftOrder, setDraftOrder] = useState<string[]>(orderedNames);
-    const [isShuffling, setIsShuffling] = useState(false);
+    const [isReordering, setIsReordering] = useState(false);
     const previousModeRef = useRef(cardOrderMode);
     const previousPositionsRef = useRef<Map<string, DOMRect> | null>(null);
     const cardNodesRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -40,12 +40,12 @@ export default function CardCollectionGrid({ collection, items, orderUniverse }:
     useEffect(() => {
         if (cardOrderMode === "random") {
             ensureRandomCardOrder(collection, orderingNames);
-            if (previousModeRef.current !== "random") {
-                setIsShuffling(true);
-                const timeoutId = window.setTimeout(() => setIsShuffling(false), 780);
-                previousModeRef.current = cardOrderMode;
-                return () => window.clearTimeout(timeoutId);
-            }
+        }
+        if (previousModeRef.current !== cardOrderMode) {
+            setIsReordering(true);
+            const timeoutId = window.setTimeout(() => setIsReordering(false), 780);
+            previousModeRef.current = cardOrderMode;
+            return () => window.clearTimeout(timeoutId);
         }
         previousModeRef.current = cardOrderMode;
     }, [cardOrderMode, collection, ensureRandomCardOrder, orderingNames]);
@@ -139,8 +139,8 @@ export default function CardCollectionGrid({ collection, items, orderUniverse }:
                             if (node) cardNodesRef.current.set(name, node);
                             else cardNodesRef.current.delete(name);
                         }}
-                        style={{ animationDelay: isShuffling ? `${Math.min(displayNames.indexOf(name), 15) * 22}ms` : undefined }}
-                        className={`relative transition-[transform,filter,opacity] duration-200 ${isShuffling ? "card-shuffle-motion" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
+                        style={{ animationDelay: isReordering ? `${Math.min(displayNames.indexOf(name), 15) * 22}ms` : undefined }}
+                        className={`relative transition-[transform,filter,opacity] duration-200 ${isReordering ? "card-shuffle-motion" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
                     >
                         <AgentCard
                             name={name}
