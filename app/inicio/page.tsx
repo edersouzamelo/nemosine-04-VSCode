@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import InstitutionalFooter from "../components/InstitutionalFooter";
 import Navbar from "../components/Navbar";
 import { routeInitialIntent } from "../lib/onboardingRouting";
 
@@ -85,8 +86,12 @@ export default function InicioPage() {
 
       <section className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center px-5 py-9 sm:px-8 sm:py-12">
         <div className="onboarding-card w-full rounded-[28px] border border-[#c5a059]/15 bg-black/30 px-6 py-9 text-center shadow-[0_24px_90px_rgba(0,0,0,0.45)] backdrop-blur-md sm:px-14 sm:py-12">
-          <h1 className="onboarding-heading font-serif text-4xl tracking-[0.12em] text-[#e7d4aa] sm:text-6xl">
-            Nemosine Nous
+          <h1 className="flex justify-center">
+            <img
+              src="/assets/nemosine-logo.png"
+              alt="Nemosine Nous"
+              className="h-24 w-auto object-contain sm:h-32"
+            />
           </h1>
           <h2 className="onboarding-heading mt-5 font-serif text-xl text-[#f1ece3] sm:text-2xl">
             Organize sua mente por vozes.
@@ -177,6 +182,8 @@ export default function InicioPage() {
           </div>
         </div>
       )}
+
+      <InstitutionalFooter />
     </main>
   );
 }
