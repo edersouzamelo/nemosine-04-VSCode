@@ -52,28 +52,28 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
 
     return (
         <>
-            <div className={`site-navbar-wrapper relative z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
-                <header className={`site-navbar relative border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
+            <div className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
+                <header className={`site-navbar relative z-[101] border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-4 sm:px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
                     <Link href="/agents" className="flex items-center hover:opacity-80 transition-opacity">
                         <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                     </Link>
 
-                    <nav className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 sm:justify-start w-full max-w-full overflow-x-auto">
+                    <nav className="relative z-[102] flex flex-wrap justify-center items-center gap-1 sm:gap-4 md:gap-6 sm:justify-start w-full max-w-full overflow-x-auto">
                     {navItems.map((item, index) => {
                         const isActive = pathname === item.href;
                         return (
                             <React.Fragment key={item.href}>
                                 {index > 0 && <div className="hidden sm:block h-4 w-[1px] bg-[#c5a059]/10" />}
                                 {item.href.startsWith("http") ? (
-                                    <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300 whitespace-nowrap">
+                                    <a href={item.href} target="_blank" rel="noopener noreferrer" className="relative z-[103] inline-flex min-h-10 touch-manipulation select-none items-center rounded-lg px-2 text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300 whitespace-nowrap">
                                         {item.name}
                                     </a>
                                 ) : (
-                                    <Link href={item.href} className="flex flex-col items-center group whitespace-nowrap">
+                                    <Link href={item.href} className="relative z-[103] flex min-h-10 touch-manipulation select-none flex-col justify-center items-center rounded-lg px-2 group whitespace-nowrap">
                                         <span className={`text-[11px] uppercase tracking-[0.2em] font-bold transition-all duration-300 ${isActive ? "text-[#c5a059]" : "text-[#c5a059]/40 group-hover:text-[#c5a059]/80"}`}>
                                             {item.name}
                                         </span>
-                                        {isActive && <div className="h-[2px] w-full bg-[#c5a059] mt-1 shadow-[0_0_10px_rgba(197,160,89,0.8)]"></div>}
+                                        {isActive && <div className="absolute bottom-1 left-2 right-2 h-[2px] bg-[#c5a059] shadow-[0_0_10px_rgba(197,160,89,0.8)]"></div>}
                                     </Link>
                                 )}
                             </React.Fragment>
