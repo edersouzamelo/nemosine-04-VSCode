@@ -21,6 +21,11 @@ const introductoryVideos = [
     title: "Por que ele é assim",
     href: "https://www.youtube.com/watch?v=HiK2IUreYM0",
     thumbnail: "https://img.youtube.com/vi/HiK2IUreYM0/hqdefault.jpg"
+  },
+  {
+    title: "Trailer",
+    href: "https://www.youtube.com/watch?v=J6P2EmmubAo",
+    thumbnail: "https://img.youtube.com/vi/J6P2EmmubAo/hqdefault.jpg"
   }
 ];
 
@@ -105,7 +110,7 @@ export default function InicioPage() {
           </Link>
         </div>
 
-        <div className="mt-6 grid w-full grid-cols-3 gap-2 sm:gap-4">
+        <div className="mt-6 grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
           {introductoryVideos.map((video) => (
             <a
               key={video.href}

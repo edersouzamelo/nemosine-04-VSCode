@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
 import type { AppLanguage, AppTheme, CardOrderMode } from "./LanguageProvider";
-import OnboardingVideo from "./OnboardingVideo";
 
 interface NavbarProps {
     mobileCollapsible?: boolean;
@@ -19,12 +18,9 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, clearRandomCardOrders, t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [videoOpenSignal, setVideoOpenSignal] = useState(0);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
     const menuRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
-    const lastScrollRef = useRef(0);
-    const ticking = useRef(false);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -37,35 +33,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // Handle navbar hide on scroll (mobile only)
-    useEffect(() => {
-        const handleScroll = () => {
-            if (!ticking.current) {
-                window.requestAnimationFrame(() => {
-                    const currentScroll = window.scrollY || document.documentElement.scrollTop;
-
-                    // Only on mobile (< 1024px)
-                    if (window.innerWidth < 1024) {
-                        if (currentScroll > lastScrollRef.current + 10) {
-                            // Scrolling down
-                            setNavbarHidden(true);
-                        } else if (currentScroll < lastScrollRef.current - 10) {
-                            // Scrolling up
-                            setNavbarHidden(false);
-                        }
-                    }
-
-                    lastScrollRef.current = currentScroll;
-                    ticking.current = false;
-                });
-                ticking.current = true;
-            }
-        };
-
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
     const navItems = [
@@ -210,15 +177,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                     <Link href="/space" onClick={() => setMenuOpen(false)} className="block px-4 py-2.5 text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
                                         {t("mySpace")}
                                     </Link>
-                                    <button
-                                        onClick={() => {
-                                            setMenuOpen(false);
-                                            setVideoOpenSignal((signal) => signal + 1);
-                                        }}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5"
-                                    >
-                                        {t("video")}
-                                    </button>
                                     {session?.user?.email === "edersouzamelo@gmail.com" && (
                                         <Link href="/admin" onClick={() => setMenuOpen(false)} className="block px-4 py-2.5 text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
                                             {t("adminPanel")}
@@ -266,7 +224,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     </svg>
                 </button>
             )}
-            <OnboardingVideo openSignal={videoOpenSignal} />
         </>
     );
 }

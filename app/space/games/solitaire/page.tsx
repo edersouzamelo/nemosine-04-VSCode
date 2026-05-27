@@ -250,18 +250,18 @@ export default function SolitairePage() {
 
 
     return (
-        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} overflow-hidden select-none`}>
+        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} overflow-x-hidden select-none`}>
             <div className="sticky top-0 z-50">
                 <Navbar />
             </div>
-            <div className="p-4">
+            <div className="p-2 sm:p-4">
             {/* Header */}
-            <div className="flex justify-between items-center mb-4 max-w-6xl mx-auto border-b border-[#333] pb-2">
-                <div className="flex items-center gap-4">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4 max-w-6xl mx-auto border-b border-[#333] pb-2">
+                <div className="flex items-center gap-2 sm:gap-4">
                     <Link href="/space/games" className="text-gray-500 hover:text-[#C5A059] text-sm">← Sair</Link>
                     <h1 className="text-xl medieval-header text-[#C5A059]">Paciência Nemosine</h1>
                 </div>
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-2 sm:gap-4 items-center">
                     <span className="text-[#C5A059] text-sm animate-pulse">{message}</span>
                     <MedievalButton onClick={startNewGame} className="text-xs px-4 py-1">Reiniciar</MedievalButton>
                 </div>
@@ -270,11 +270,11 @@ export default function SolitairePage() {
             <div className="max-w-6xl mx-auto min-h-[80vh]">
 
                 {/* Top Area */}
-                <div className="flex justify-between mb-8">
+                <div className="flex justify-between gap-2 mb-6 sm:mb-8">
 
                     {/* Stock & Waste */}
-                    <div className="flex gap-4">
-                        <div className="w-24 h-36 rounded-lg border border-[#333] bg-[#111] cursor-pointer hover:border-[#C5A059] transition-colors relative" onClick={handleStockClick}>
+                    <div className="flex gap-1 sm:gap-4">
+                        <div className="w-[clamp(2.35rem,12vw,6rem)] aspect-[2/3] rounded-lg border border-[#333] bg-[#111] cursor-pointer hover:border-[#C5A059] transition-colors relative" onClick={handleStockClick}>
                             {stock.length > 0 ? (
                                 <img src={BACK_OF_CARD_IMAGE} className="w-full h-full object-cover rounded-lg" />
                             ) : (
@@ -283,7 +283,7 @@ export default function SolitairePage() {
                             <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs text-gray-600">Monte</span>
                         </div>
 
-                        <div className="w-24 h-36 rounded-lg border border-[#333] relative">
+                        <div className="w-[clamp(2.35rem,12vw,6rem)] aspect-[2/3] rounded-lg border border-[#333] relative">
                             {waste.map((card, idx) => (
                                 <div key={card.id}
                                     className={`absolute inset-0 cursor-pointer ${selected?.card.id === card.id ? 'ring-2 ring-[#C5A059] scale-105 z-10' : ''}`}
@@ -300,10 +300,10 @@ export default function SolitairePage() {
                     </div>
 
                     {/* Foundations */}
-                    <div className="flex gap-4">
+                    <div className="flex gap-1 sm:gap-4">
                         {foundations.map((pile, idx) => (
                             <div key={idx}
-                                className={`w-24 h-36 rounded-lg border border-[#333] bg-[#050505] flex items-center justify-center relative cursor-pointer ${selected?.card.id === pile[pile.length - 1]?.id ? 'ring-2 ring-[#C5A059]' : ''}`}
+                                className={`w-[clamp(2.35rem,12vw,6rem)] aspect-[2/3] rounded-lg border border-[#333] bg-[#050505] flex items-center justify-center relative cursor-pointer ${selected?.card.id === pile[pile.length - 1]?.id ? 'ring-2 ring-[#C5A059]' : ''}`}
                                 onClick={() => {
                                     if (pile.length > 0) handleCardClick(pile[pile.length - 1], { type: 'foundation', index: idx });
                                     else handleEmptyFoundationClick(idx);
@@ -326,15 +326,15 @@ export default function SolitairePage() {
                 </div>
 
                 {/* Tableau */}
-                <div className="flex justify-between">
+                <div className="grid grid-cols-7 gap-1 sm:gap-4">
                     {tableau.map((col, colIdx) => (
-                        <div key={colIdx} className="w-24 min-h-[400px] relative" onClick={() => col.length === 0 && handleEmptyTableauClick(colIdx)}>
+                        <div key={colIdx} className="min-h-[300px] sm:min-h-[400px] relative" onClick={() => col.length === 0 && handleEmptyTableauClick(colIdx)}>
                             {col.map((card, cardIdx) => (
                                 <div key={card.id}
                                     className={`absolute w-full transition-all duration-300 cursor-pointer hover:brightness-110 
                                          ${selected?.card.id === card.id ? 'ring-2 ring-[#C5A059] z-50 scale-105' : 'z-auto'}
                                      `}
-                                    style={{ top: `${cardIdx * 30}px` }}
+                                    style={{ top: `calc(${cardIdx} * clamp(18px, 7vw, 30px))` }}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleCardClick(card, { type: 'tableau', index: colIdx });
@@ -353,7 +353,7 @@ export default function SolitairePage() {
                             ))}
                             {col.length === 0 && (
                                 <div
-                                    className="w-full h-36 rounded-lg border border-dashed border-[#333] flex items-center justify-center"
+                                    className="w-full aspect-[2/3] rounded-lg border border-dashed border-[#333] flex items-center justify-center"
                                     onDragOver={handleDragOver}
                                     onDrop={(e) => handleDropOnEmptyTableau(e, colIdx)}
                                 >

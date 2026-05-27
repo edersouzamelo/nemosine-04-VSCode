@@ -28,7 +28,7 @@ const personaConnections: Record<string, ConnectionDefinition[]> = {
         { id: "linkedin", label: "LinkedIn", owner: "Mentor", purpose: "trajetória profissional" }
     ],
     Mordomo: [
-        { id: "open-banking", label: "Open Banking", owner: "Mordomo", purpose: "vida financeira" }
+        { id: "open-finance", label: "Open Finance", owner: "Mordomo", purpose: "vida financeira" }
     ]
 };
 
