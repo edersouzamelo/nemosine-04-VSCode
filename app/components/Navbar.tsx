@@ -66,10 +66,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     </Link>
 
                     <nav className="relative z-[102] order-2 flex w-full max-w-full flex-wrap items-center justify-center gap-1 overflow-x-auto sm:gap-4 md:order-3 md:basis-full md:justify-center md:gap-4 xl:order-2 xl:min-w-0 xl:flex-1 xl:basis-auto xl:justify-start xl:gap-4 2xl:gap-6">
-                    {[...navItems, ...(isAuthenticated ? [
-                        { name: t("mySpace"), href: "/space" },
-                        ...(isAdmin ? [{ name: t("adminPanel"), href: "/admin" }] : []),
-                    ] : [])].map((item, index) => {
+                    {navItems.map((item, index) => {
                         const isActive = pathname === item.href;
                         return (
                             <React.Fragment key={item.href}>
@@ -266,42 +263,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     </div>
                 </div>
             )}
-            {isAuthenticated && (
-                <nav
-                    aria-label="Acesso rápido mobile"
-                    className="fixed bottom-3 left-3 right-3 z-[9999] grid grid-cols-2 gap-2 sm:hidden"
-                >
-                    <MobileDirectLink href="/space" label={t("mySpace")} />
-                    {isAdmin ? (
-                        <MobileDirectLink href="/admin" label={t("adminPanel")} />
-                    ) : (
-                        <MobileDirectLink href="/agents" label={t("personas")} />
-                    )}
-                </nav>
-            )}
         </>
-    );
-}
-
-function MobileDirectLink({ href, label }: { href: string; label: string }) {
-    const navigate = () => {
-        window.location.href = href;
-    };
-
-    return (
-        <a
-            href={href}
-            onPointerUp={(event) => {
-                event.preventDefault();
-                navigate();
-            }}
-            onClick={(event) => {
-                event.preventDefault();
-                navigate();
-            }}
-            className="flex min-h-12 items-center justify-center rounded-lg border border-[#c5a059]/45 bg-[#0a0a0c]/95 px-3 text-center text-[11px] font-bold uppercase tracking-[0.16em] text-[#c5a059] shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl"
-        >
-            {label}
-        </a>
     );
 }
