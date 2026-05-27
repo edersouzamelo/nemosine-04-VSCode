@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
+import ExternalConnectionsPanel from "../components/ExternalConnectionsPanel";
 
 export default async function SpacePage() {
     const session = await auth();
@@ -20,10 +21,10 @@ export default async function SpacePage() {
 
             <Navbar />
 
-            <section className="relative z-10 flex-1 p-12 max-w-4xl mx-auto w-full">
+            <section className="relative z-10 flex-1 px-5 py-8 sm:p-12 max-w-4xl mx-auto w-full">
                 <h1 className="text-4xl font-serif text-[#c5a059] mb-8 uppercase tracking-tight">Espaço Local</h1>
 
-                <div className="bg-black/40 border border-[#c5a059]/20 p-8 rounded-lg backdrop-blur-md">
+                <div className="bg-black/40 border border-[#c5a059]/20 p-5 sm:p-8 rounded-lg backdrop-blur-md">
                     <p className="text-xl mb-4">Bem-vindo, {session.user?.name || session.user?.email}</p>
                     <p className="text-white/60 text-sm mb-6">
                         Este é o seu espaço privado no Sistema Nemosine. Aqui você poderá gerenciar seus dados e interações.
@@ -36,6 +37,8 @@ export default async function SpacePage() {
                         </div>
                         {/* More widgets can go here */}
                     </div>
+
+                    <ExternalConnectionsPanel variant="space" />
                 </div>
             </section>
             <InstitutionalFooter />

@@ -9,6 +9,7 @@ import ChatHistoryList from "@/app/components/ChatHistoryList";
 import MedievalChat from "@/app/components/MedievalChat";
 import TimekeeperWidget from "@/app/components/TimekeeperWidget";
 import PrivateSpaceNotice from "@/app/components/PrivateSpaceNotice";
+import ExternalConnectionsPanel from "@/app/components/ExternalConnectionsPanel";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useParams } from "next/navigation";
 import { ENTITIES } from "../../data/entities";
@@ -194,6 +195,7 @@ export default function AgentDetailPage() {
 
                 {/* CENTER/RIGHT: CHAT (The Main Focus - ~60%) */}
                 <div className="flex-1 min-h-0 p-2 sm:p-4 lg:p-6 flex flex-col w-full overflow-hidden">
+                    <ExternalConnectionsPanel personaName={entity.name} />
                     <MedievalChat
                         personaId={entity.name}
                         currentThreadId={currentThreadId}
