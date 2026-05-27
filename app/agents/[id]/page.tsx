@@ -16,7 +16,7 @@ import { ENTITIES, PERSONAS } from "../../data/entities";
 
 export default function AgentDetailPage() {
     const params = useParams();
-    const { t, recordCardUse } = useLanguage();
+    const { t, entityName, recordCardUse } = useLanguage();
     const id = decodeURIComponent(params.id as string);
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = React.useRef<HTMLAudioElement | null>(null);
@@ -52,6 +52,7 @@ export default function AgentDetailPage() {
         );
     }
 
+    const displayedEntityName = entityName(entity.name);
     const activePersonaName = entity.type === "place" ? summonedPersona : entity.name;
     const conversationScope = entity.type === "place" && activePersonaName
         ? `${activePersonaName} @ ${entity.name}`
@@ -111,7 +112,7 @@ export default function AgentDetailPage() {
                             <div className="absolute inset-0 w-full h-full overflow-hidden">
                                 <Image
                                     src={entity.landscapeImage || entity.image || ''}
-                                    alt={entity.name}
+                                    alt={displayedEntityName}
                                     fill
                                     className={`object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
                                 />
@@ -173,7 +174,7 @@ export default function AgentDetailPage() {
                             <div className="absolute inset-0 w-full h-full overflow-hidden">
                                 <Image
                                     src={entity.landscapeImage || entity.image || ''}
-                                    alt={entity.name}
+                                    alt={displayedEntityName}
                                     fill
                                     className={`object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
                                 />
@@ -215,7 +216,7 @@ export default function AgentDetailPage() {
                     {entity.type === "place" && (
                         <div className="mb-2 shrink-0 rounded-xl border border-[#c5a059]/20 bg-black/35 p-3 sm:mb-4 sm:p-4">
                             <label htmlFor="summoned-persona" className="mb-2 block text-[10px] uppercase tracking-[0.28em] text-[#c5a059]/75">
-                                Convocar uma persona em {entity.name}
+                                Convocar uma persona em {displayedEntityName}
                             </label>
                             <select
                                 id="summoned-persona"
@@ -225,7 +226,7 @@ export default function AgentDetailPage() {
                             >
                                 <option value="">Escolha quem o acompanhará neste lugar...</option>
                                 {PERSONAS.map((persona) => (
-                                    <option key={persona} value={persona}>{persona}</option>
+                                    <option key={persona} value={persona}>{entityName(persona)}</option>
                                 ))}
                             </select>
                             <p className="mt-2 text-xs italic text-[#c5a059]/55">
@@ -251,13 +252,13 @@ export default function AgentDetailPage() {
                     ) : (
                         <div className="flex flex-1 items-center justify-center rounded-xl border border-[#c5a059]/10 bg-black/20 p-8 text-center">
                             <p className="max-w-md font-serif text-sm italic leading-7 text-[#c5a059]/65">
-                                Você entrou em {entity.name}. Escolha uma persona para que sua voz se manifeste neste ambiente.
+                                Você entrou em {displayedEntityName}. Escolha uma persona para que sua voz se manifeste neste ambiente.
                             </p>
                         </div>
                     )}
                     {/* Special Widget for Arauto */}
                     {activePersonaName.toLowerCase() === 'arauto' && <TimekeeperWidget />}
-                    {requiresPrivacyNotice && <PrivateSpaceNotice spaceName={entity.name} />}
+                    {requiresPrivacyNotice && <PrivateSpaceNotice spaceName={displayedEntityName} />}
                 </div>
 
                 {/* RIGHT: LATERAL PANEL DETAILS */}
@@ -267,7 +268,7 @@ export default function AgentDetailPage() {
                         <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
                             {t("identification")}
                         </span>
-                        <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{entity.name}</h2>
+                        <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{displayedEntityName}</h2>
                         <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
                         <p className="text-xl font-serif text-[#c5a059] italic">
                             "{entity.phrase}"

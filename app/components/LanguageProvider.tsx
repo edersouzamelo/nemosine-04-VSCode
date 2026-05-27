@@ -19,7 +19,7 @@ const translatedPersonaNames: Record<Exclude<AppLanguage, "pt-BR">, Record<strin
         Adjunto: "Ayudante", Advogado: "Abogado", Aprovisionador: "Aprovisionador", Arauto: "Heraldo",
         Arqueólogo: "Arqueólogo", Artista: "Artista", Astrônomo: "Astrónomo", Autor: "Autor",
         "Bobo da Corte": "Bufón de la Corte", Bruto: "Bruto", Bruxo: "Brujo", Burguês: "Burgués",
-        Cientista: "Científico", Cigana: "Gitana", Comandante: "Comandante", "Confessor 2.0": "Confesor 2.0",
+        Cientista: "Científico", Cigana: "Gitana", Comandante: "Comandante", "Confessor 2.0": "Confesor",
         Coveiro: "Sepulturero", Curador: "Curador", Custódio: "Custodio", Desejo: "Deseo", Dor: "Dolor",
         Engenheiro: "Ingeniero", Espelho: "Espejo", Espião: "Espía", Estrategista: "Estratega",
         Executor: "Ejecutor", Exorcista: "Exorcista", Fantasma: "Fantasma", Filósofo: "Filósofo",
@@ -35,7 +35,7 @@ const translatedPersonaNames: Record<Exclude<AppLanguage, "pt-BR">, Record<strin
         Adjunto: "Aide", Advogado: "Lawyer", Aprovisionador: "Provisioner", Arauto: "Herald",
         Arqueólogo: "Archaeologist", Artista: "Artist", Astrônomo: "Astronomer", Autor: "Author",
         "Bobo da Corte": "Court Jester", Bruto: "Brute", Bruxo: "Sorcerer", Burguês: "Bourgeois",
-        Cientista: "Scientist", Cigana: "Fortune Teller", Comandante: "Commander", "Confessor 2.0": "Confessor 2.0",
+        Cientista: "Scientist", Cigana: "Fortune Teller", Comandante: "Commander", "Confessor 2.0": "Confessor",
         Coveiro: "Gravedigger", Curador: "Curator", Custódio: "Custodian", Desejo: "Desire", Dor: "Pain",
         Engenheiro: "Engineer", Espelho: "Mirror", Espião: "Spy", Estrategista: "Strategist",
         Executor: "Executor", Exorcista: "Exorcist", Fantasma: "Ghost", Filósofo: "Philosopher",
@@ -320,7 +320,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         clearRandomCardOrders,
         recordCardUse,
         t: (key: TranslationKey) => translations[language][key],
-        entityName: (name: string) => language === "pt-BR" ? name : translatedPersonaNames[language][name] || name
+        entityName: (name: string) => name === "Confessor 2.0"
+            ? language === "es" ? "Confesor" : "Confessor"
+            : language === "pt-BR" ? name : translatedPersonaNames[language][name] || name
     }), [language, theme, cardOrderMode, level, customCardOrders, randomCardOrders, cardUsage]);
 
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;

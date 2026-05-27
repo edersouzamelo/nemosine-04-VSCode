@@ -85,22 +85,23 @@ function RichAssistantMessage({ content }: { content: string }) {
 }
 
 export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
-    const { language, t } = useLanguage();
+    const { language, t, entityName } = useLanguage();
+    const displayedPersonaName = entityName(personaId);
     const placeArticle = placeId && FEMININE_PLACES_PT.has(placeId) ? "na" : "no";
     const conversationTitle = !placeId
-        ? `${t("conversationWith")} ${personaId}`
+        ? `${t("conversationWith")} ${displayedPersonaName}`
         : language === "pt-BR"
-            ? `Conversa ${placeArticle} ${placeId} com ${personaId}`
+            ? `Conversa ${placeArticle} ${placeId} com ${displayedPersonaName}`
             : language === "es"
-                ? `Conversación en ${placeId} con ${personaId}`
-                : `Conversation in ${placeId} with ${personaId}`;
+                ? `Conversación en ${placeId} con ${displayedPersonaName}`
+                : `Conversation in ${placeId} with ${displayedPersonaName}`;
     const journeyInvitation = !placeId
-        ? `${t("startJourney")} ${personaId}`
+        ? `${t("startJourney")} ${displayedPersonaName}`
         : language === "pt-BR"
-            ? `Inicie uma nova jornada ${placeArticle} ${placeId} com ${personaId}`
+            ? `Inicie uma nova jornada ${placeArticle} ${placeId} com ${displayedPersonaName}`
             : language === "es"
-                ? `Inicia un nuevo viaje en ${placeId} con ${personaId}`
-                : `Begin a new journey in ${placeId} with ${personaId}`;
+                ? `Inicia un nuevo viaje en ${placeId} con ${displayedPersonaName}`
+                : `Begin a new journey in ${placeId} with ${displayedPersonaName}`;
     const [threadTitle, setThreadTitle] = useState("");
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [input, setInput] = useState("");

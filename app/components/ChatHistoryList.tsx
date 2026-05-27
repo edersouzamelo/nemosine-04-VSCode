@@ -17,7 +17,7 @@ interface ChatHistoryListProps {
 }
 
 export default function ChatHistoryList({ personaId, onSelectThread, currentThreadId, refreshTrigger }: ChatHistoryListProps) {
-    const { t } = useLanguage();
+    const { t, entityName } = useLanguage();
     const [threads, setThreads] = useState<ChatThread[]>([]);
 
     useEffect(() => {
@@ -52,7 +52,7 @@ export default function ChatHistoryList({ personaId, onSelectThread, currentThre
                                 : "text-[#e1e1e6]/60 hover:text-[#c5a059] hover:bg-[#c5a059]/5"
                             }`}
                     >
-                        {thread.title}
+                        {thread.title.replaceAll("Confessor 2.0", entityName("Confessor 2.0"))}
                     </button>
                 ))}
             </div>
