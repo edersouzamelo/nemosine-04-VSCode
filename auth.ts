@@ -17,7 +17,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // JWT keeps the existing credential flow while the adapter persists linked OAuth accounts.
   session: { strategy: "jwt" },
   pages: {
-    signIn: "/", // O grimório agora é a página principal
+    signIn: "/access",
   },
   secret: process.env.AUTH_SECRET,
   debug: process.env.NODE_ENV === "development",

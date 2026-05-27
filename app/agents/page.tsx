@@ -1,4 +1,4 @@
-import CardCollectionGrid from "../components/CardCollectionGrid";
+import PersonaCategoryExplorer from "../components/PersonaCategoryExplorer";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
 import { ENTITIES } from "../data/entities";
@@ -33,8 +33,7 @@ export default function AgentsPage() {
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Agentes Ativos no Sistema</p>
                     </header>
 
-                    <CardCollectionGrid
-                        collection="personas"
+                    <PersonaCategoryExplorer
                         items={AGENTS.map((name) => {
                             const slug = name.toLowerCase().replace(/\s+/g, "-");
                             return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };

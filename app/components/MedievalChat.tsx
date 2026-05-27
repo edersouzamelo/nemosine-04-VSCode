@@ -19,6 +19,20 @@ export default function MedievalChat({ personaId, currentThreadId, onThreadCreat
     const [input, setInput] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    useEffect(() => {
+        try {
+            const stored = window.localStorage.getItem("nemosine-onboarding-entry");
+            if (!stored) return;
+            const entry = JSON.parse(stored) as { destination?: string; text?: string };
+            if (entry.destination === personaId && entry.text?.trim()) {
+                setInput(entry.text.trim());
+                window.localStorage.removeItem("nemosine-onboarding-entry");
+            }
+        } catch {
+            window.localStorage.removeItem("nemosine-onboarding-entry");
+        }
+    }, [personaId]);
+
     // Feature: Speech to Text & File Upload
     const [isListening, setIsListening] = useState(false);
     const recognitionRef = useRef<any>(null);

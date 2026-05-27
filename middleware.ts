@@ -6,7 +6,9 @@ const { auth } = NextAuth(authConfig);
 
 export default auth((req) => {
     if (!req.auth) {
-        return NextResponse.redirect(new URL("/", req.nextUrl));
+        const accessUrl = new URL("/access", req.nextUrl);
+        accessUrl.searchParams.set("callbackUrl", `${req.nextUrl.pathname}${req.nextUrl.search}`);
+        return NextResponse.redirect(accessUrl);
     }
 });
 

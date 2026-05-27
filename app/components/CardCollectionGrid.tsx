@@ -13,9 +13,10 @@ interface CardItem {
 interface CardCollectionGridProps {
     collection: CardCollection;
     items: CardItem[];
+    orderUniverse?: string[];
 }
 
-export default function CardCollectionGrid({ collection, items }: CardCollectionGridProps) {
+export default function CardCollectionGrid({ collection, items, orderUniverse }: CardCollectionGridProps) {
     const {
         cardOrderMode,
         ensureRandomCardOrder,
@@ -23,8 +24,11 @@ export default function CardCollectionGrid({ collection, items }: CardCollection
         setCustomCardOrder
     } = useLanguage();
     const names = useMemo(() => items.map((item) => item.name), [items]);
+    const orderingNames = orderUniverse || names;
+    const visibleNames = useMemo(() => new Set(names), [names]);
     const itemsByName = useMemo(() => new Map(items.map((item) => [item.name, item])), [items]);
-    const orderedNames = getOrderedCards(collection, names);
+    const completeOrderedNames = getOrderedCards(collection, orderingNames);
+    const orderedNames = completeOrderedNames.filter((name) => visibleNames.has(name));
     const [draggingName, setDraggingName] = useState<string | null>(null);
     const [draftOrder, setDraftOrder] = useState<string[]>(orderedNames);
     const [isShuffling, setIsShuffling] = useState(false);
@@ -35,7 +39,7 @@ export default function CardCollectionGrid({ collection, items }: CardCollection
 
     useEffect(() => {
         if (cardOrderMode === "random") {
-            ensureRandomCardOrder(collection, names);
+            ensureRandomCardOrder(collection, orderingNames);
             if (previousModeRef.current !== "random") {
                 setIsShuffling(true);
                 const timeoutId = window.setTimeout(() => setIsShuffling(false), 780);
@@ -44,7 +48,7 @@ export default function CardCollectionGrid({ collection, items }: CardCollection
             }
         }
         previousModeRef.current = cardOrderMode;
-    }, [cardOrderMode, collection, ensureRandomCardOrder, names]);
+    }, [cardOrderMode, collection, ensureRandomCardOrder, orderingNames]);
 
     useEffect(() => {
         if (!draggingName) {
@@ -108,7 +112,17 @@ export default function CardCollectionGrid({ collection, items }: CardCollection
 
     const finishDrag = () => {
         if (!draggingName) return;
-        setCustomCardOrder(collection, draftOrder);
+        if (orderingNames.length === names.length) {
+            setCustomCardOrder(collection, draftOrder);
+        } else {
+            const reorderedVisibleNames = draftOrder[Symbol.iterator]();
+            const mergedOrder = completeOrderedNames.map((name) => {
+                if (!visibleNames.has(name)) return name;
+                const nextName = reorderedVisibleNames.next();
+                return nextName.done ? name : nextName.value;
+            });
+            setCustomCardOrder(collection, mergedOrder);
+        }
         setDraggingName(null);
     };
 
