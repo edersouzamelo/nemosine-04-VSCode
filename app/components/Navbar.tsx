@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
 import type { AppLanguage, AppTheme, CardOrderMode, NemosineLevel } from "./LanguageProvider";
+import { isAdminEmail } from "../lib/accessControl";
 
 interface NavbarProps {
     mobileCollapsible?: boolean;
@@ -14,17 +15,22 @@ interface NavbarProps {
 
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
     const menuRef = useRef<HTMLDivElement>(null);
+    const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+            if (
+                menuRef.current
+                && !menuRef.current.contains(event.target as Node)
+                && !userDropdownRef.current?.contains(event.target as Node)
+            ) {
                 setMenuOpen(false);
             }
             if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
@@ -49,7 +55,8 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         setSettingsOpen(false);
         setNavbarHidden((hidden) => !hidden);
     };
-
+    const isAuthenticated = status === "authenticated" && Boolean(session?.user);
+    const isAdmin = isAdminEmail(session?.user?.email);
     return (
         <>
             <div className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
@@ -59,7 +66,10 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     </Link>
 
                     <nav className="relative z-[102] order-2 flex w-full max-w-full flex-wrap items-center justify-center gap-1 overflow-x-auto sm:gap-4 md:order-3 md:basis-full md:justify-center md:gap-4 xl:order-2 xl:min-w-0 xl:flex-1 xl:basis-auto xl:justify-start xl:gap-4 2xl:gap-6">
-                    {navItems.map((item, index) => {
+                    {[...navItems, ...(isAuthenticated ? [
+                        { name: t("mySpace"), href: "/space" },
+                        ...(isAdmin ? [{ name: t("adminPanel"), href: "/admin" }] : []),
+                    ] : [])].map((item, index) => {
                         const isActive = pathname === item.href;
                         return (
                             <React.Fragment key={item.href}>
@@ -170,10 +180,14 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     <div className="relative shrink-0" ref={menuRef}>
                         <button
                             onClick={() => {
+                                if (!isAuthenticated) return;
                                 setMenuOpen((open) => !open);
                                 setSettingsOpen(false);
                             }}
+                            disabled={!isAuthenticated}
                             className="flex shrink-0 items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                            aria-label={isAuthenticated ? "Abrir menu do usuário" : "Usuário não autenticado"}
+                            aria-expanded={menuOpen}
                         >
                             <img
                                 src={session?.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session?.user?.name || "U")}&background=c5a059&color=000`}
@@ -182,35 +196,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                             />
                         </button>
 
-                        {menuOpen && (
-                            <div className="site-dropdown absolute right-0 top-12 z-[110] w-64 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl overflow-hidden">
-                                <div className="px-4 py-3 border-b border-[#c5a059]/10">
-                                    <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
-                                    <p className="text-xs text-white/40 truncate">{session?.user?.email}</p>
-                                </div>
-                                <div className="py-1">
-                                    <Link href="/space" onClick={() => setMenuOpen(false)} className="block px-4 py-2.5 text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                        {t("mySpace")}
-                                    </Link>
-                                    {session?.user?.email === "edersouzamelo@gmail.com" && (
-                                        <Link href="/admin" onClick={() => setMenuOpen(false)} className="block px-4 py-2.5 text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                            {t("adminPanel")}
-                                        </Link>
-                                    )}
-                                </div>
-                                <div className="border-t border-[#c5a059]/10 py-1">
-                                    <button
-                                        onClick={() => {
-                                            setMenuOpen(false);
-                                            signOut({ redirectTo: "/access" });
-                                        }}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-red-400/80 hover:text-red-400 hover:bg-red-500/5"
-                                    >
-                                        {t("logout")}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
                 {mobileCollapsible && (
@@ -239,6 +224,84 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     </svg>
                 </button>
             )}
+            {menuOpen && isAuthenticated && (
+                <div className="fixed inset-0 z-[1000] sm:pointer-events-none">
+                    <button
+                        type="button"
+                        aria-label="Fechar menu do usuário"
+                        onClick={() => setMenuOpen(false)}
+                        className="absolute inset-0 h-full w-full cursor-default bg-transparent sm:hidden"
+                    />
+                    <div
+                        ref={userDropdownRef}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        className="site-dropdown pointer-events-auto absolute right-4 top-24 w-[min(16rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#c5a059]/30 bg-[#0a0a0c]/95 shadow-2xl backdrop-blur-xl sm:right-8 sm:top-20 sm:w-64"
+                    >
+                        <div className="px-4 py-3 border-b border-[#c5a059]/10">
+                            <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
+                            <p className="text-xs text-white/40 truncate">{session?.user?.email}</p>
+                        </div>
+                        <div className="py-1">
+                            <a href="/space" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                {t("mySpace")}
+                            </a>
+                            {isAdmin && (
+                                <a href="/admin" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                    {t("adminPanel")}
+                                </a>
+                            )}
+                        </div>
+                        <div className="border-t border-[#c5a059]/10 py-1">
+                            <button
+                                onClick={() => {
+                                    setMenuOpen(false);
+                                    signOut({ redirectTo: "/access" });
+                                }}
+                                className="w-full text-left px-4 py-2.5 text-sm text-red-400/80 hover:text-red-400 hover:bg-red-500/5"
+                            >
+                                {t("logout")}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isAuthenticated && (
+                <nav
+                    aria-label="Acesso rápido mobile"
+                    className="fixed bottom-3 left-3 right-3 z-[9999] grid grid-cols-2 gap-2 sm:hidden"
+                >
+                    <MobileDirectLink href="/space" label={t("mySpace")} />
+                    {isAdmin ? (
+                        <MobileDirectLink href="/admin" label={t("adminPanel")} />
+                    ) : (
+                        <MobileDirectLink href="/agents" label={t("personas")} />
+                    )}
+                </nav>
+            )}
         </>
+    );
+}
+
+function MobileDirectLink({ href, label }: { href: string; label: string }) {
+    const navigate = () => {
+        window.location.href = href;
+    };
+
+    return (
+        <a
+            href={href}
+            onPointerUp={(event) => {
+                event.preventDefault();
+                navigate();
+            }}
+            onClick={(event) => {
+                event.preventDefault();
+                navigate();
+            }}
+            className="flex min-h-12 items-center justify-center rounded-lg border border-[#c5a059]/45 bg-[#0a0a0c]/95 px-3 text-center text-[11px] font-bold uppercase tracking-[0.16em] text-[#c5a059] shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        >
+            {label}
+        </a>
     );
 }

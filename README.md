@@ -67,6 +67,7 @@ O **Nemosine** é uma interface avançada de chat e exploração simbólica, pro
     https://seu-dominio/api/auth/callback/google
     ```
     Contas Google com e-mail verificado são associadas automaticamente a uma conta Nemosine existente com o mesmo e-mail.
+    Para a integração com Google Agenda, habilite a Google Calendar API no mesmo projeto do Google Cloud. O app solicita o escopo `https://www.googleapis.com/auth/calendar.readonly` e usa os tokens OAuth salvos pelo NextAuth para listar os próximos compromissos em `/space`.
 
 4.  **Rodar o Servidor de Desenvolvimento:**
     ```bash

@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { PrismaClient } from "@prisma/client";
+import { isAdminEmail } from "@/app/lib/accessControl";
 
 const prisma = new PrismaClient();
-
-// Email do criador — único com acesso ao painel admin
-const ADMIN_EMAIL = "edersouzamelo@gmail.com";
 
 export async function GET() {
   try {
     const session = await auth();
-    if (!session?.user?.email || session.user.email.trim().toLowerCase() !== ADMIN_EMAIL) {
+    if (!isAdminEmail(session?.user?.email)) {
       return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     }
 

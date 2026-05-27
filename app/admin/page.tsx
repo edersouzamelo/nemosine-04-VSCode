@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
+import { isAdminEmail } from "../lib/accessControl";
 
 interface AdminMetrics {
   totalUsers: number;
@@ -40,7 +41,11 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/");
+      router.push("/access?callbackUrl=/admin");
+      return;
+    }
+    if (status === "authenticated" && !isAdminEmail(session?.user?.email)) {
+      router.push("/space");
       return;
     }
     if (status === "authenticated") {

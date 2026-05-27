@@ -5,6 +5,18 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
 import bcrypt from "bcryptjs"
 
+const GOOGLE_AUTHORIZATION_PARAMS = {
+  scope: [
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/calendar.readonly",
+  ].join(" "),
+  access_type: "offline",
+  include_granted_scopes: "true",
+  response_type: "code",
+}
+
 class InvalidLoginError extends CredentialsSignin {
   code = "Email ou senha incorretos"
 }
@@ -25,6 +37,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      authorization: {
+        params: GOOGLE_AUTHORIZATION_PARAMS,
+      },
       // Link only identities whose email ownership Google has confirmed.
       allowDangerousEmailAccountLinking: true,
       profile(profile) {

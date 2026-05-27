@@ -8,7 +8,7 @@ export default async function SpacePage() {
     const session = await auth();
 
     if (!session?.user) {
-        redirect("/");
+        redirect("/access?callbackUrl=/space");
     }
 
     return (

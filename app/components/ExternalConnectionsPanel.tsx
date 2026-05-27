@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { signIn, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 
 interface ConnectionDefinition {
     id: string;
@@ -8,6 +9,22 @@ interface ConnectionDefinition {
     owner: string;
     purpose: string;
 }
+
+interface CalendarStatus {
+    connected: boolean;
+    hasGoogleAccount: boolean;
+    hasCalendarScope: boolean;
+}
+
+interface CalendarEvent {
+    id: string;
+    summary: string;
+    start: string;
+    end: string;
+    htmlLink?: string;
+}
+
+const GOOGLE_CALENDAR_SCOPE = "openid email profile https://www.googleapis.com/auth/calendar.readonly";
 
 const personaConnections: Record<string, ConnectionDefinition[]> = {
     Arauto: [
@@ -43,12 +60,72 @@ export default function ExternalConnectionsPanel({
     personaName,
     variant = "chat"
 }: ExternalConnectionsPanelProps) {
+    const { status } = useSession();
     const [selected, setSelected] = useState<ConnectionDefinition | null>(null);
+    const [calendarStatus, setCalendarStatus] = useState<CalendarStatus | null>(null);
+    const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+    const [calendarLoading, setCalendarLoading] = useState(false);
+    const [calendarError, setCalendarError] = useState("");
     const connections = variant === "space"
         ? allConnections
         : personaConnections[personaName || ""] || [];
+    const hasCalendarConnection = connections.some((connection) => connection.id === "google-calendar");
+
+    useEffect(() => {
+        if (status !== "authenticated" || !hasCalendarConnection) return;
+        refreshCalendarState();
+    }, [status, hasCalendarConnection]);
 
     if (!connections.length) return null;
+
+    async function refreshCalendarState() {
+        setCalendarLoading(true);
+        setCalendarError("");
+        try {
+            const statusResponse = await fetch("/api/google/calendar/status");
+            if (!statusResponse.ok) throw new Error("Não foi possível verificar a conexão com Google Agenda.");
+            const nextStatus = await statusResponse.json();
+            setCalendarStatus(nextStatus);
+
+            if (nextStatus.connected) {
+                const eventsResponse = await fetch("/api/google/calendar/events");
+                const eventsData = await eventsResponse.json();
+                if (!eventsResponse.ok) throw new Error(eventsData.error || "Não foi possível ler a Agenda Google.");
+                setCalendarEvents(eventsData.events ?? []);
+            } else {
+                setCalendarEvents([]);
+            }
+        } catch (error) {
+            setCalendarError(error instanceof Error ? error.message : "Erro ao consultar a Agenda Google.");
+        } finally {
+            setCalendarLoading(false);
+        }
+    }
+
+    async function connectGoogleCalendar() {
+        if (calendarStatus?.hasGoogleAccount && !calendarStatus.connected) {
+            await fetch("/api/google/calendar/reconnect", { method: "POST" });
+        }
+
+        await signIn(
+            "google",
+            { redirectTo: window.location.pathname },
+            {
+                scope: GOOGLE_CALENDAR_SCOPE,
+                access_type: "offline",
+                prompt: "consent",
+                include_granted_scopes: "true",
+                response_type: "code",
+            }
+        );
+    }
+
+    function openConnection(connection: ConnectionDefinition) {
+        setSelected(connection);
+        if (connection.id === "google-calendar") {
+            refreshCalendarState();
+        }
+    }
 
     return (
         <>
@@ -62,7 +139,7 @@ export default function ExternalConnectionsPanel({
                             <ConnectionButton
                                 key={connection.id}
                                 connection={connection}
-                                onClick={() => setSelected(connection)}
+                                onClick={() => openConnection(connection)}
                             />
                         ))}
                     </div>
@@ -88,7 +165,7 @@ export default function ExternalConnectionsPanel({
                                 <p className="mb-4 mt-1 text-xs text-white/48">{connection.purpose}</p>
                                 <ConnectionButton
                                     connection={connection}
-                                    onClick={() => setSelected(connection)}
+                                    onClick={() => openConnection(connection)}
                                     wide
                                 />
                             </div>
@@ -111,16 +188,30 @@ export default function ExternalConnectionsPanel({
                         <h3 className="mt-3 font-serif text-2xl text-[#e7d4aa]">
                             Conectar {selected.label}
                         </h3>
-                        <p className="mt-4 text-sm leading-6 text-[#ded6c8]/72">
-                            A autorização segura para esta conexão ainda será configurada. Nenhum dado foi compartilhado ou sincronizado.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setSelected(null)}
-                            className="mt-6 w-full rounded-xl bg-[#c5a059] px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] text-black"
-                        >
-                            Entendi
-                        </button>
+                        {selected.id === "google-calendar" ? (
+                            <GoogleCalendarDialog
+                                status={calendarStatus}
+                                events={calendarEvents}
+                                loading={calendarLoading}
+                                error={calendarError}
+                                onConnect={connectGoogleCalendar}
+                                onRefresh={refreshCalendarState}
+                                onClose={() => setSelected(null)}
+                            />
+                        ) : (
+                            <>
+                                <p className="mt-4 text-sm leading-6 text-[#ded6c8]/72">
+                                    A autorização segura para esta conexão ainda será configurada. Nenhum dado foi compartilhado ou sincronizado.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelected(null)}
+                                    className="mt-6 w-full rounded-xl bg-[#c5a059] px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] text-black"
+                                >
+                                    Entendi
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
@@ -147,4 +238,88 @@ function ConnectionButton({
             Conectar {connection.label}
         </button>
     );
+}
+
+function GoogleCalendarDialog({
+    status,
+    events,
+    loading,
+    error,
+    onConnect,
+    onRefresh,
+    onClose
+}: {
+    status: CalendarStatus | null;
+    events: CalendarEvent[];
+    loading: boolean;
+    error: string;
+    onConnect: () => void;
+    onRefresh: () => void;
+    onClose: () => void;
+}) {
+    const connected = Boolean(status?.connected);
+
+    return (
+        <div className="mt-4">
+            <p className="text-sm leading-6 text-[#ded6c8]/72">
+                {connected
+                    ? "Agenda autorizada. Estes são os próximos compromissos disponíveis para leitura pelo Nemosine."
+                    : "Autorize a leitura da sua Agenda Google para que o Arauto possa consultar compromissos e prazos."}
+            </p>
+
+            {error && (
+                <p className="mt-4 rounded-lg border border-red-500/30 bg-red-950/30 px-3 py-2 text-xs text-red-200">
+                    {error}
+                </p>
+            )}
+
+            {connected && (
+                <div className="mt-5 max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {loading && <p className="text-sm text-[#c5a059]/70">Consultando agenda...</p>}
+                    {!loading && events.length === 0 && (
+                        <p className="text-sm text-white/45">Nenhum compromisso futuro encontrado.</p>
+                    )}
+                    {!loading && events.map((event) => (
+                        <a
+                            key={event.id}
+                            href={event.htmlLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block rounded-lg border border-[#c5a059]/12 bg-black/25 px-3 py-2 transition-colors hover:border-[#c5a059]/40"
+                        >
+                            <span className="block text-sm text-[#eee8dc]">{event.summary}</span>
+                            <span className="mt-1 block text-[11px] text-[#c5a059]/65">
+                                {formatCalendarDate(event.start)}
+                            </span>
+                        </a>
+                    ))}
+                </div>
+            )}
+
+            <div className="mt-6 flex gap-3">
+                <button
+                    type="button"
+                    onClick={connected ? onRefresh : onConnect}
+                    className="flex-1 rounded-xl bg-[#c5a059] px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-black"
+                >
+                    {connected ? "Atualizar" : "Autorizar Google"}
+                </button>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-xl border border-[#c5a059]/25 px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#c5a059]"
+                >
+                    Fechar
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function formatCalendarDate(value: string) {
+    if (!value) return "Sem horário definido";
+    return new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: value.includes("T") ? "short" : undefined,
+    }).format(new Date(value));
 }
