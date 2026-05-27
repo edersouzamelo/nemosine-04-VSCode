@@ -16,6 +16,11 @@ interface CalendarStatus {
     hasCalendarScope: boolean;
 }
 
+interface ConnectionState {
+    connected: boolean;
+    loading?: boolean;
+}
+
 interface CalendarEvent {
     id: string;
     summary: string;
@@ -127,6 +132,17 @@ export default function ExternalConnectionsPanel({
         }
     }
 
+    function getConnectionState(connection: ConnectionDefinition): ConnectionState {
+        if (connection.id === "google-calendar") {
+            return {
+                connected: Boolean(calendarStatus?.connected),
+                loading: calendarLoading && !calendarStatus,
+            };
+        }
+
+        return { connected: false };
+    }
+
     return (
         <>
             {variant === "chat" ? (
@@ -139,6 +155,7 @@ export default function ExternalConnectionsPanel({
                             <ConnectionButton
                                 key={connection.id}
                                 connection={connection}
+                                state={getConnectionState(connection)}
                                 onClick={() => openConnection(connection)}
                             />
                         ))}
@@ -165,6 +182,7 @@ export default function ExternalConnectionsPanel({
                                 <p className="mb-4 mt-1 text-xs text-white/48">{connection.purpose}</p>
                                 <ConnectionButton
                                     connection={connection}
+                                    state={getConnectionState(connection)}
                                     onClick={() => openConnection(connection)}
                                     wide
                                 />
@@ -221,21 +239,30 @@ export default function ExternalConnectionsPanel({
 
 function ConnectionButton({
     connection,
+    state,
     onClick,
     wide = false
 }: {
     connection: ConnectionDefinition;
+    state: ConnectionState;
     onClick: () => void;
     wide?: boolean;
 }) {
+    const connected = state.connected;
+    const loading = state.loading;
+
     return (
         <button
             type="button"
             onClick={onClick}
-            className={`${wide ? "w-full justify-center" : "shrink-0"} inline-flex items-center gap-1.5 rounded-lg border border-[#c5a059]/22 bg-[#c5a059]/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#c5a059]/80 transition-colors hover:border-[#c5a059]/55 hover:bg-[#c5a059]/12`}
+            className={`${wide ? "w-full justify-center" : "shrink-0"} inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors ${connected
+                ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200 hover:border-emerald-200/65 hover:bg-emerald-400/15"
+                : "border-[#c5a059]/22 bg-[#c5a059]/[0.06] text-[#c5a059]/80 hover:border-[#c5a059]/55 hover:bg-[#c5a059]/12"
+            }`}
+            aria-label={`${connected ? "Sincronizado" : "Conectar"} ${connection.label}`}
         >
-            <span className="material-icons text-sm">link</span>
-            Conectar {connection.label}
+            <span className="material-icons text-sm">{connected ? "check_circle" : "link"}</span>
+            {loading ? "Verificando..." : connected ? "Sincronizado" : `Conectar ${connection.label}`}
         </button>
     );
 }
