@@ -16,7 +16,7 @@ interface NavbarProps {
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
-    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, t } = useLanguage();
+    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, clearRandomCardOrders, t } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [videoOpenSignal, setVideoOpenSignal] = useState(0);
@@ -162,7 +162,11 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                     {t("cardOrder")}
                                     <select
                                         value={cardOrderMode}
-                                        onChange={(event) => setCardOrderMode(event.target.value as CardOrderMode)}
+                                        onChange={(event) => {
+                                            const mode = event.target.value as CardOrderMode;
+                                            if (mode === "random") clearRandomCardOrders();
+                                            setCardOrderMode(mode);
+                                        }}
                                         className="theme-control mt-2 w-full rounded border border-[#c5a059]/30 bg-black px-3 py-2 text-sm text-[#e1e1e6]"
                                     >
                                         <option value="original">{t("orderOriginal")}</option>

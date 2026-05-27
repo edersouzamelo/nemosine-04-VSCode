@@ -155,6 +155,7 @@ type LanguageContextValue = {
     getOrderedCards: (collection: CardCollection, originalOrder: string[]) => string[];
     setCustomCardOrder: (collection: CardCollection, names: string[]) => void;
     ensureRandomCardOrder: (collection: CardCollection, names: string[]) => void;
+    clearRandomCardOrders: () => void;
     recordCardUse: (collection: CardCollection, name: string) => void;
     t: (key: TranslationKey) => string;
     entityName: (name: string) => string;
@@ -268,6 +269,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         });
     };
 
+    const clearRandomCardOrders = () => {
+        setRandomCardOrders(emptyCardOrders);
+        window.localStorage.removeItem("nemosine-random-card-orders");
+    };
+
     const recordCardUse = (collection: CardCollection, name: string) => {
         setCardUsage((current) => {
             const next = {
@@ -292,6 +298,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         getOrderedCards,
         setCustomCardOrder,
         ensureRandomCardOrder,
+        clearRandomCardOrders,
         recordCardUse,
         t: (key: TranslationKey) => translations[language][key],
         entityName: (name: string) => language === "pt-BR" ? name : translatedPersonaNames[language][name] || name
