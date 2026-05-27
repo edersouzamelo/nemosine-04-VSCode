@@ -1,124 +1,251 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import MedievalButton from "../components/MedievalButton";
+import { LanguageSelector, useLanguage } from "../components/LanguageProvider";
 
 export default function AccessPage() {
   const router = useRouter();
+  const { t, theme, setTheme } = useLanguage();
   const [callbackUrl, setCallbackUrl] = useState("/agents");
-  const [registering, setRegistering] = useState(false);
+  const [showGrimoire, setShowGrimoire] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const target = new URLSearchParams(window.location.search).get("callbackUrl");
-    if (target?.startsWith("/") && !target.startsWith("//")) setCallbackUrl(target);
+    if (target?.startsWith("/") && !target.startsWith("//")) {
+      setCallbackUrl(target);
+    }
   }, []);
 
-  const handleCredentials = async (event: FormEvent) => {
-    event.preventDefault();
-    setLoading(true);
+  const handleGoogleAuth = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
     setError("");
 
     try {
-      if (registering) {
+      await signIn("google", { redirectTo: callbackUrl });
+    } catch {
+      setError("Não foi possível iniciar o acesso com Google.");
+      setIsLoading(false);
+    }
+  };
+
+  const handleAuth = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!email || !password || isLoading) return;
+    setIsLoading(true);
+    setError("");
+
+    try {
+      if (isRegistering) {
         const registration = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, email, password })
         });
+        const data = await registration.json();
         if (!registration.ok) {
-          const data = await registration.json();
           setError(data.message || "Não foi possível criar sua conta.");
-          setLoading(false);
+          setIsLoading(false);
           return;
         }
       }
 
-      const result = await signIn("credentials", { redirect: false, email, password });
+      const result = await signIn("credentials", {
+        redirect: false,
+        email,
+        password
+      });
+
       if (result?.error) {
         setError("E-mail ou senha incorretos.");
-        setLoading(false);
+        setIsLoading(false);
         return;
       }
       router.push(callbackUrl);
     } catch {
       setError("Não foi possível concluir o acesso agora.");
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#06070a] px-5 py-10 text-[#eee8dc]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(197,160,89,0.12),transparent_38%),linear-gradient(180deg,#0c0e13,#040508)]" />
-      <div className="relative w-full max-w-md rounded-[26px] border border-[#c5a059]/18 bg-black/35 p-7 shadow-2xl backdrop-blur-md sm:p-9">
-        <Link href="/" className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/65">Nemosine Nous</Link>
-        <h1 className="mt-7 font-serif text-2xl text-[#e7d4aa]">
-          {registering ? "Criar acesso" : "Continuar sua entrada"}
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-[#d7d1c8]/68">
-          {registering ? "Crie sua conta para iniciar sua jornada." : "Acesse para continuar ao espaço indicado."}
-        </p>
-
-        <button
-          type="button"
-          onClick={() => signIn("google", { redirectTo: callbackUrl })}
-          className="mt-7 w-full rounded-xl border border-[#c5a059]/25 bg-white/[0.03] px-4 py-3 text-sm text-[#e8dfd1] transition-colors hover:border-[#c5a059]/55"
-        >
-          Continuar com Google
-        </button>
-
-        <form onSubmit={handleCredentials} className="mt-5 space-y-3">
-          {registering && (
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-              placeholder="Como deseja ser chamado?"
-              className="w-full rounded-xl border border-[#c5a059]/16 bg-black/30 px-4 py-3 outline-none placeholder:text-white/30 focus:border-[#c5a059]/55"
-            />
-          )}
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            placeholder="E-mail"
-            className="w-full rounded-xl border border-[#c5a059]/16 bg-black/30 px-4 py-3 outline-none placeholder:text-white/30 focus:border-[#c5a059]/55"
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            placeholder="Senha"
-            className="w-full rounded-xl border border-[#c5a059]/16 bg-black/30 px-4 py-3 outline-none placeholder:text-white/30 focus:border-[#c5a059]/55"
-          />
-          {error && <p className="rounded-xl border border-red-500/30 bg-red-950/30 p-3 text-sm text-red-200">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-[#c5a059] px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] text-black disabled:opacity-50"
+    <main className="relative min-h-[100dvh] overflow-hidden">
+      {!showGrimoire && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black animate-fade-in">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 h-full w-full object-cover opacity-60"
           >
-            {loading ? "Processando..." : "Continuar"}
-          </button>
-        </form>
-        <button
-          type="button"
-          onClick={() => {
-            setRegistering((current) => !current);
-            setError("");
-          }}
-          className="mt-5 w-full text-xs text-[#c5a059]/68 hover:text-[#c5a059]"
-        >
-          {registering ? "Já possui acesso? Entrar" : "Primeiro acesso? Criar conta"}
-        </button>
-      </div>
+            <source src="/assets/background.mp4" type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-[#1a0f0a]/25 to-black/80" />
+          <div className="relative z-10 mt-16 flex flex-col items-center gap-6 px-6 text-center animate-fade-in">
+            <img
+              src="/assets/nemosine-logo.png"
+              alt="Nemosine Nous"
+              className="h-auto w-full max-w-3xl object-contain drop-shadow-[0_0_25px_rgba(197,160,89,0.4)]"
+            />
+            <div onClick={() => setShowGrimoire(true)} className="cursor-pointer">
+              <MedievalButton className="px-12 py-4 text-lg">
+                {t("enter")}
+              </MedievalButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGrimoire && (
+        <div className="login-screen absolute inset-0 z-40 flex items-center justify-center overflow-y-auto bg-background-light p-4 font-serif text-stone-800 transition-colors duration-500 dark:bg-background-dark dark:text-stone-200">
+          <div className="fixed inset-0 pointer-events-none opacity-20 dark:opacity-40">
+            <img
+              alt="Paisagem do castelo mental"
+              className="h-full w-full object-cover mix-blend-overlay"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAf4KTqlc_zrjm3r5WSX6BLbpWo7nCC8Mb6B2-6czh6WCjOMAgK6wmjnbJRJJk3n4P_jkvym2qFJNbq-6np4-GFZ8UahS9tt4eSCYG-icUeZF9nEXFGaWXtTviDaATpaBg3MlKOg3gKbsxlMo4dqr_uYaOeAaSh2eAz6g9Vmu_czi1yNPOl8oWghUNmore69ir2POv86ulmjwkdtctqXm1pNp72YBikSg8hKT3i8uPVJpPNwAoWOb0DkG0s9J-pY0HSH0YdUpMJ91Tp"
+            />
+          </div>
+
+          <div className="relative z-10 w-full max-w-md animate-fade-in py-4">
+            <div className="grimoire-border overflow-hidden rounded-lg bg-parchment p-1 dark:bg-parchment-dark">
+              <div className="parchment-texture filigree relative flex min-h-[500px] flex-col justify-between px-7 py-9 sm:px-8 sm:py-11">
+                <span className="material-icons absolute left-2 top-2 text-3xl text-primary opacity-60">auto_awesome</span>
+                <span className="material-icons absolute right-2 top-2 scale-x-[-1] text-3xl text-primary opacity-60">auto_awesome</span>
+
+                <div className="space-y-5 text-center">
+                  <header>
+                    <h1 className="gold-glow font-display mb-2 text-2xl uppercase tracking-widest text-primary md:text-3xl">
+                      Nemosine Nous
+                    </h1>
+                    <div className="mx-auto h-px w-24 bg-primary opacity-40" />
+                  </header>
+                  <div className="flex justify-center">
+                    <LanguageSelector dark={theme === "dark"} />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="font-display text-xl italic text-stone-900 dark:text-stone-100 md:text-2xl">
+                      {isRegistering ? t("registerTitle") : t("loginTitle")}
+                    </h2>
+                    <p className="text-sm italic text-stone-600 dark:text-stone-400">
+                      {isRegistering ? t("registerPrompt") : t("loginPrompt")}
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleAuth} className="space-y-5 pt-3">
+                    {error && (
+                      <div className="border border-red-500/50 bg-red-900/30 p-3 text-sm text-red-200">
+                        {error}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleGoogleAuth}
+                      disabled={isLoading}
+                      className="font-display flex w-full cursor-pointer items-center justify-center gap-3 border border-primary/40 bg-white/50 px-6 py-3 text-sm tracking-widest text-stone-900 shadow-sm transition-all duration-300 hover:border-primary hover:bg-white/80 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950/40 dark:text-stone-100 dark:hover:bg-stone-950/70"
+                    >
+                      <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 18 18">
+                        <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.23-.16-1.8H9v3.4h4.84a4.14 4.14 0 0 1-1.8 2.72v2.25h2.92c1.7-1.57 2.68-3.88 2.68-6.57Z" />
+                        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.25c-.81.54-1.84.86-3.04.86-2.35 0-4.34-1.58-5.05-3.72H.93v2.32A9 9 0 0 0 9 18Z" />
+                        <path fill="#FBBC05" d="M3.95 10.71A5.42 5.42 0 0 1 3.67 9c0-.6.1-1.17.28-1.71V4.97H.93A9 9 0 0 0 0 9c0 1.45.35 2.82.93 4.03l3.02-2.32Z" />
+                        <path fill="#EA4335" d="M9 3.57c1.32 0 2.5.45 3.44 1.34l2.58-2.58C13.46.88 11.43 0 9 0A9 9 0 0 0 .93 4.97l3.02 2.32C4.66 5.15 6.65 3.57 9 3.57Z" />
+                      </svg>
+                      <span>{isLoading ? t("processing") : t("continueWithGoogle")}</span>
+                    </button>
+
+                    <div className="flex items-center gap-3 text-[10px] tracking-widest text-primary/60">
+                      <div className="h-px flex-1 bg-primary/20" />
+                      <span>{t("or")}</span>
+                      <div className="h-px flex-1 bg-primary/20" />
+                    </div>
+
+                    {isRegistering && (
+                      <LoginInput value={name} onChange={setName} placeholder={t("namePlaceholder")} disabled={isLoading} />
+                    )}
+                    <LoginInput value={email} onChange={setEmail} placeholder="seu-email@dominio.com" type="email" disabled={isLoading} />
+                    <LoginInput value={password} onChange={setPassword} placeholder={t("passwordPlaceholder")} type="password" disabled={isLoading} />
+
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="font-display group/btn relative w-full cursor-pointer overflow-hidden border border-primary/50 bg-stone-900 px-6 py-4 tracking-widest text-primary shadow-lg transition-all duration-500 hover:bg-primary hover:text-stone-900 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950"
+                    >
+                      <span className="relative z-10">{isLoading ? t("processing") : t("continue")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => {
+                        setIsRegistering((current) => !current);
+                        setError("");
+                      }}
+                      className="text-xs uppercase tracking-widest text-primary/60 transition-colors hover:text-primary disabled:opacity-50"
+                    >
+                      {isRegistering ? t("haveAccess") : t("register")}
+                    </button>
+                  </form>
+                </div>
+
+                <footer className="relative z-10 mt-auto pt-7 text-center">
+                  <p className="text-[10px] uppercase tracking-tighter text-stone-500 dark:text-stone-600">
+                    Ao prosseguir, você concorda com as <br />
+                    <span className="underline">Leis de Serviço do Sistema</span>
+                  </p>
+                </footer>
+              </div>
+            </div>
+          </div>
+
+          <div className="fixed right-6 top-6 z-20">
+            <button
+              className="cursor-pointer p-2 text-primary/60 transition-colors hover:text-primary"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              aria-label="Alternar tema"
+            >
+              <span className="material-icons">settings_brightness</span>
+            </button>
+          </div>
+        </div>
+      )}
     </main>
+  );
+}
+
+function LoginInput({
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  disabled
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: string;
+  disabled: boolean;
+}) {
+  return (
+    <div className="relative">
+      <input
+        className="peer w-full border-x-0 border-b-2 border-t-0 border-primary/30 bg-transparent py-3 text-lg text-stone-900 transition-all duration-300 placeholder:italic placeholder:text-stone-500/50 focus:border-primary focus:ring-0 dark:text-stone-100"
+        placeholder={placeholder}
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required
+        disabled={disabled}
+      />
+      <div className="absolute bottom-0 left-0 h-0.5 w-0 bg-primary transition-all duration-500 peer-focus:w-full" />
+    </div>
   );
 }

@@ -187,7 +187,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                     <button
                                         onClick={() => {
                                             setMenuOpen(false);
-                                            signOut({ callbackUrl: "/" });
+                                            signOut({ redirectTo: "/access" });
                                         }}
                                         className="w-full text-left px-4 py-2.5 text-sm text-red-400/80 hover:text-red-400 hover:bg-red-500/5"
                                     >
