@@ -17,6 +17,7 @@ export default function OraclePage() {
     const [currentCard, setCurrentCard] = useState<Card | null>(null);
     const [isFlipped, setIsFlipped] = useState(false);
     const [isShuffling, setIsShuffling] = useState(false);
+    const shuffleDuration = 1120;
 
     const getPersonaSlug = (name: string) => {
         if (name === 'Bobo') return 'bobo-da-corte';
@@ -29,7 +30,7 @@ export default function OraclePage() {
         setIsFlipped(false);
         setIsShuffling(true);
 
-        // Simulate shuffling time
+        // Keep the draw hidden while the physical shuffle motion plays.
         setTimeout(() => {
             const shuffled = shuffleDeck(DECK);
             const randomCard = shuffled[0];
@@ -38,7 +39,7 @@ export default function OraclePage() {
 
             // Auto flip after shuffle
             setTimeout(() => setIsFlipped(true), 100);
-        }, 800);
+        }, shuffleDuration);
     };
 
     return (
@@ -59,9 +60,25 @@ export default function OraclePage() {
                 <p className="text-gray-400 max-w-md mx-auto">Concentre-se em uma questão e retire uma carta.</p>
             </div>
 
-            <div className="relative w-64 h-96 cursor-pointer group" style={{ perspective: '1000px' }} onClick={!isFlipped ? drawCard : undefined}>
+            <div
+                className="oracle-deck relative isolate w-64 h-96 cursor-pointer group"
+                style={{ perspective: '1000px' }}
+                onClick={!isFlipped ? drawCard : undefined}
+                aria-busy={isShuffling}
+            >
+                {isShuffling && (
+                    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                        <div className="oracle-shuffle-card oracle-shuffle-card-left">
+                            <img src={BACK_OF_CARD_IMAGE} alt="" className="h-full w-full rounded-xl object-cover" />
+                        </div>
+                        <div className="oracle-shuffle-card oracle-shuffle-card-right">
+                            <img src={BACK_OF_CARD_IMAGE} alt="" className="h-full w-full rounded-xl object-cover" />
+                        </div>
+                        <div className="oracle-shuffle-glow" />
+                    </div>
+                )}
                 <div
-                    className="relative w-full h-full transition-transform duration-700"
+                    className={`relative w-full h-full transition-transform duration-700 ${isShuffling ? "oracle-shuffle-main" : ""}`}
                     style={{
                         transformStyle: 'preserve-3d',
                         transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
@@ -109,7 +126,7 @@ export default function OraclePage() {
 
             <div className="mt-12 opacity-80">
                 <MedievalButton onClick={drawCard} disabled={isShuffling}>
-                    {isShuffling ? "Consultando..." : "Nova Tiragem"}
+                    {isShuffling ? "Embaralhando..." : "Nova Tiragem"}
                 </MedievalButton>
             </div>
 
