@@ -97,7 +97,7 @@ const translations = {
         orderPopular: "Mais usados",
         orderRandom: "Aleatório",
         orderCustom: "Personalizado",
-        dragCardsHint: "Arraste pelas alças nas grades",
+        dragCardsHint: "Arraste a carta inteira; use o ícone para abrir",
     },
     es: {
         start: "Inicio",
@@ -120,7 +120,7 @@ const translations = {
         collapseMenu: "Ocultar menu", expandMenu: "Mostrar menu",
         cardOrder: "Orden de cartas", orderOriginal: "Orden original",
         orderPopular: "Mas usados", orderRandom: "Aleatorio",
-        orderCustom: "Personalizado", dragCardsHint: "Arrastra usando las asas de las tarjetas",
+        orderCustom: "Personalizado", dragCardsHint: "Arrastra la tarjeta; usa el icono para abrir",
     },
     en: {
         start: "Home",
@@ -143,7 +143,7 @@ const translations = {
         collapseMenu: "Hide menu", expandMenu: "Show menu",
         cardOrder: "Card order", orderOriginal: "Original order",
         orderPopular: "Most used", orderRandom: "Random",
-        orderCustom: "Custom", dragCardsHint: "Drag using the card handles",
+        orderCustom: "Custom", dragCardsHint: "Drag the card; use the icon to open",
     }
 } as const;
 

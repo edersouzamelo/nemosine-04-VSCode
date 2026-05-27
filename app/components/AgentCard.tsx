@@ -17,7 +17,7 @@ export default function AgentCard({ name, label = "Persona", image, className = 
     const { entityName } = useLanguage();
     const displayName = entityName(name);
     const cardContent = (
-        <div className="group flex h-full flex-col gap-2 cursor-pointer">
+        <div className="group flex h-full select-none flex-col gap-2 cursor-pointer">
         <div className={`relative aspect-[3/4.35] overflow-hidden glass-medieval transition-all duration-500 md:group-hover:scale-[1.03] md:group-hover:z-10 ${className}`}>
             {/* Card Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-end p-4">
@@ -37,6 +37,7 @@ export default function AgentCard({ name, label = "Persona", image, className = 
                         <Image 
                             src={image} 
                             alt={displayName}
+                            draggable={false}
                             fill
                             sizes="(max-width: 640px) 25vw, (max-width: 768px) 33vw, (max-width: 1200px) 25vw, 20vw"
                             className="object-cover transition-transform duration-700 group-hover:scale-110" 

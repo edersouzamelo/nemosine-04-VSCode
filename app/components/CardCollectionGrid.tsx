@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import AgentCard from "./AgentCard";
 import { CardCollection, useLanguage } from "./LanguageProvider";
 
@@ -103,7 +104,8 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
         );
     };
 
-    const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>, name: string) => {
+    const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>, name: string) => {
+        if (!isCustom) return;
         event.preventDefault();
         event.stopPropagation();
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -111,8 +113,9 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
         setDraggingName(name);
     };
 
-    const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
         if (!draggingName) return;
+        event.preventDefault();
         const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-card-name]");
         const targetName = target?.dataset.cardName;
         if (!targetName || targetName === draggingName) return;
@@ -129,8 +132,10 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
         });
     };
 
-    const finishDrag = () => {
+    const finishDrag = (event?: React.PointerEvent<HTMLDivElement>) => {
         if (!draggingName) return;
+        event?.preventDefault();
+        event?.stopPropagation();
         if (orderingNames.length === names.length) {
             setCustomCardOrder(collection, draftOrder);
         } else {
@@ -158,28 +163,39 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                             if (node) cardNodesRef.current.set(name, node);
                             else cardNodesRef.current.delete(name);
                         }}
+                        onPointerDown={isCustom ? (event) => handlePointerDown(event, name) : undefined}
+                        onPointerMove={isCustom ? handlePointerMove : undefined}
+                        onPointerUp={isCustom ? finishDrag : undefined}
+                        onPointerCancel={isCustom ? finishDrag : undefined}
+                        onContextMenu={isCustom ? (event) => event.preventDefault() : undefined}
                         style={{ animationDelay: isReordering ? `${Math.min(displayNames.indexOf(name), 15) * 22}ms` : undefined }}
-                        className={`relative transition-[transform,filter,opacity] duration-200 ${isReordering ? "card-shuffle-motion" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
+                        className={`relative transition-[transform,filter,opacity] duration-200 ${isCustom ? "touch-none select-none cursor-grab active:cursor-grabbing" : ""} ${isReordering ? "card-shuffle-motion" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
                     >
                         <AgentCard
                             name={name}
                             label={collection === "places" ? "Lugar" : "Persona"}
                             image={item.image}
-                            href={item.href}
+                            href={isCustom ? undefined : item.href}
                             className={collection === "places" ? "aspect-[4/7]" : ""}
                         />
                         {isCustom && (
-                            <button
-                                type="button"
-                                aria-label={`Mover ${name}`}
-                                onPointerDown={(event) => handlePointerDown(event, name)}
-                                onPointerMove={handlePointerMove}
-                                onPointerUp={finishDrag}
-                                onPointerCancel={finishDrag}
-                                className={`absolute right-1 top-1 z-20 flex h-7 w-7 touch-none items-center justify-center rounded-full border bg-black/75 text-[#c5a059] shadow-md cursor-grab active:cursor-grabbing transition-all ${draggingName === name ? "border-[#c5a059] bg-[#c5a059] text-black scale-110" : "border-[#c5a059]/40"}`}
-                            >
-                                <span className="material-icons text-base">drag_indicator</span>
-                            </button>
+                            <>
+                                <span
+                                    aria-hidden="true"
+                                    className={`pointer-events-none absolute right-1 top-1 z-20 flex h-8 w-8 items-center justify-center rounded-full border bg-black/75 text-[#c5a059] shadow-md transition-all ${draggingName === name ? "border-[#c5a059] bg-[#c5a059] text-black scale-110" : "border-[#c5a059]/40"}`}
+                                >
+                                    <span className="material-icons text-base">drag_indicator</span>
+                                </span>
+                                <Link
+                                    href={item.href}
+                                    aria-label={`Abrir ${name}`}
+                                    onPointerDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="absolute bottom-8 right-1 z-30 flex h-8 w-8 touch-manipulation items-center justify-center rounded-full border border-[#c5a059]/40 bg-black/80 text-[#c5a059] shadow-md hover:border-[#c5a059]"
+                                >
+                                    <span className="material-icons text-sm">open_in_new</span>
+                                </Link>
+                            </>
                         )}
                     </div>
                 );
