@@ -85,7 +85,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
 
     return (
         <>
-            <div className={`site-navbar-wrapper relative z-20 overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
+            <div className={`site-navbar-wrapper relative z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
                 <header className={`site-navbar relative border-b border-[#c5a059]/20 bg-black/40 backdrop-blur-md px-8 py-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300 ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
                     <Link href="/agents" className="flex items-center hover:opacity-80 transition-opacity">
                         <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
@@ -119,7 +119,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                         <button
                             type="button"
                             onClick={() => {
-                                setSettingsOpen(!settingsOpen);
+                                setSettingsOpen((open) => !open);
                                 setMenuOpen(false);
                             }}
                             className="settings-trigger flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] font-bold text-[#c5a059]/70 hover:text-[#c5a059] transition-colors"
@@ -130,7 +130,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                         </button>
 
                         {settingsOpen && (
-                            <div className="site-dropdown absolute right-0 top-10 w-72 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl p-4 z-50">
+                            <div className="site-dropdown absolute right-0 top-10 z-[110] w-72 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl p-4">
                                 <label className="block text-[10px] uppercase tracking-widest text-[#c5a059]/70">
                                     {t("language")}
                                     <select
@@ -188,7 +188,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     <div className="relative" ref={menuRef}>
                         <button
                             onClick={() => {
-                                setMenuOpen(!menuOpen);
+                                setMenuOpen((open) => !open);
                                 setSettingsOpen(false);
                             }}
                             className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
@@ -201,7 +201,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                         </button>
 
                         {menuOpen && (
-                            <div className="site-dropdown absolute right-0 top-12 w-64 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl overflow-hidden z-50">
+                            <div className="site-dropdown absolute right-0 top-12 z-[110] w-64 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl overflow-hidden">
                                 <div className="px-4 py-3 border-b border-[#c5a059]/10">
                                     <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
                                     <p className="text-xs text-white/40 truncate">{session?.user?.email}</p>
@@ -259,7 +259,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     type="button"
                     onClick={toggleMobileCollapse}
                     aria-label={t("expandMenu")}
-                    className="absolute top-0 left-1/2 -translate-x-1/2 z-30 lg:hidden flex items-center justify-center h-8 w-16 rounded-b-xl border border-t-0 border-[#c5a059]/40 bg-[#0a0a0c]/95 text-[#c5a059] shadow-lg"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 z-[110] lg:hidden flex items-center justify-center h-8 w-16 rounded-b-xl border border-t-0 border-[#c5a059]/40 bg-[#0a0a0c]/95 text-[#c5a059] shadow-lg"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

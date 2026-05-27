@@ -58,7 +58,7 @@ export default function InicioPage() {
       <div className="onboarding-ambient absolute inset-x-0 bottom-0 h-[42vh] opacity-25 bg-[radial-gradient(ellipse_at_bottom,rgba(70,64,59,0.42),transparent_65%)]" />
       <div className="onboarding-image absolute inset-0 opacity-[0.06] bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600')] bg-cover bg-center mix-blend-screen" />
 
-      <div className="relative z-10">
+      <div className="relative z-[100]">
         <Navbar />
       </div>
 
