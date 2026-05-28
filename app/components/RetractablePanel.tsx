@@ -9,7 +9,7 @@ interface RetractablePanelProps {
 }
 
 export default function RetractablePanel({ title, children, secondaryAction }: RetractablePanelProps) {
-    const [position, setPosition] = useState({ x: 0, y: 192 }); // Initial top-48
+    const [position, setPosition] = useState({ x: 0, y: 232 });
     const [isOpen, setIsOpen] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -47,7 +47,7 @@ export default function RetractablePanel({ title, children, secondaryAction }: R
             let newY = e.clientY - dragOffset.y;
 
             // Constrain to window bounds
-            const maxX = window.innerWidth - 60; // Button width approx
+            const maxX = window.innerWidth - 48;
             const maxY = window.innerHeight - 100;
 
             if (newX < 0) newX = 0;
@@ -82,7 +82,7 @@ export default function RetractablePanel({ title, children, secondaryAction }: R
                     left: position.x,
                     position: 'fixed'
                 }}
-                className={`z-40 flex w-16 flex-col items-stretch gap-2 transition-transform duration-75 ${isOpen ? 'translate-x-[100%] opacity-0' : 'translate-x-0 opacity-100'}`}
+                className={`z-40 flex w-12 flex-col items-stretch gap-2 transition-transform duration-75 ${isOpen ? 'translate-x-[100%] opacity-0' : 'translate-x-0 opacity-100'}`}
             >
                 <div
                     onMouseDown={handleMouseDown}
@@ -95,9 +95,9 @@ export default function RetractablePanel({ title, children, secondaryAction }: R
                         }
                         setIsOpen(true);
                     }}
-                    className="flex min-h-32 w-16 cursor-move items-center justify-center rounded-lg bg-[#c5a059] px-2 py-3 text-black shadow-[0_0_15px_rgba(197,160,89,0.3)] active:cursor-grabbing hover:scale-105"
+                    className="flex min-h-32 w-12 cursor-move items-center justify-center rounded-lg border border-[#c5a059]/30 bg-black/55 px-1.5 py-3 text-[#c5a059]/80 shadow-[0_0_12px_rgba(0,0,0,0.35)] transition-colors active:cursor-grabbing hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
                 >
-                    <div className="writing-vertical-rl pointer-events-none select-none text-[10px] font-bold uppercase tracking-widest text-orientation-mixed">
+                    <div className="writing-vertical-rl pointer-events-none select-none text-[9px] font-bold uppercase tracking-widest text-orientation-mixed">
                         {title}
                     </div>
                 </div>

@@ -54,7 +54,7 @@ export default function FavoritePersonaButton({ personaName }: { personaName: st
                 type="button"
                 onClick={toggleFavorite}
                 disabled={loading}
-                className={`flex min-h-32 w-16 items-center justify-center rounded-lg border px-2 py-3 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors disabled:cursor-wait disabled:opacity-60 ${favorite
+                className={`flex min-h-32 w-12 items-center justify-center rounded-lg border px-1.5 py-3 text-[9px] font-bold uppercase tracking-[0.18em] transition-colors disabled:cursor-wait disabled:opacity-60 ${favorite
                     ? "border-rose-300/35 bg-rose-400/10 text-rose-200 hover:border-rose-200/65"
                     : "border-[#c5a059]/30 bg-black/55 text-[#c5a059]/80 hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
                 }`}
