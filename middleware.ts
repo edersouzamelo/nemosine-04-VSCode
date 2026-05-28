@@ -12,11 +12,14 @@ export default auth((req) => {
         return NextResponse.redirect(accessUrl);
     }
 
-    if (req.nextUrl.pathname.startsWith("/admin") && !isAdminEmail(req.auth.user?.email)) {
+    if (
+        (req.nextUrl.pathname.startsWith("/admin") || req.nextUrl.pathname.startsWith("/developer/messages"))
+        && !isAdminEmail(req.auth.user?.email)
+    ) {
         return NextResponse.redirect(new URL("/space", req.nextUrl));
     }
 });
 
 export const config = {
-    matcher: ["/admin/:path*", "/agents/:path*", "/inicio/:path*", "/places/:path*", "/space/:path*"],
+    matcher: ["/admin/:path*", "/agents/:path*", "/developer/messages/:path*", "/inicio/:path*", "/places/:path*", "/space/:path*"],
 };

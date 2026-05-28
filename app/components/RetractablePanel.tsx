@@ -5,9 +5,10 @@ import React, { useState, useEffect, useRef } from "react";
 interface RetractablePanelProps {
     title: string;
     children: React.ReactNode;
+    secondaryAction?: React.ReactNode;
 }
 
-export default function RetractablePanel({ title, children }: RetractablePanelProps) {
+export default function RetractablePanel({ title, children, secondaryAction }: RetractablePanelProps) {
     const [position, setPosition] = useState({ x: 0, y: 192 }); // Initial top-48
     const [isOpen, setIsOpen] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -76,43 +77,31 @@ export default function RetractablePanel({ title, children }: RetractablePanelPr
         <>
             {/* Draggable Toggle Button */}
             <div
-                onMouseDown={handleMouseDown}
-                onMouseUp={() => {
-                    // Calculate distance moved
-                    // We need to track where we started vs where we ended
-                    // Better approach: toggle 'isDragging' only after movement threshold.
-                    // But simple fix for now:
-                    // The onClick below fires AFTER mouseUp. 
-                    // We need to ensure 'onClick' knows if we dragged.
-                    // Current logic relies on 'hasDragged' ref which is set in MouseMove.
-                    // But MouseUp sets isDragging=false.
-                    // Let's rely on a small timeout or just ensure hasDragged is checked correctly.
-                }}
-                onClick={(e) => {
-                    // If we moved significantly, it's a drag.
-                    // We can check if 'hasDragged.current' is true. 
-                    // ISSUE: hasDragged might be getting reset? 
-                    // Let's look at useEffect: it doesn't reset hasDragged.
-                    // Ah, handleMouseDown should reset it.
-                    if (hasDragged.current) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        // Reset for next time
-                        hasDragged.current = false;
-                        return;
-                    }
-                    setIsOpen(true);
-                }}
                 style={{
                     top: position.y,
                     left: position.x,
                     position: 'fixed'
                 }}
-                className={`z-40 bg-[#c5a059] text-black p-3 rounded-lg shadow-[0_0_15px_rgba(197,160,89,0.3)] transition-transform duration-75 cursor-move active:cursor-grabbing hover:scale-105 ${isOpen ? 'translate-x-[100%] opacity-0' : 'translate-x-0 opacity-100'}`}
+                className={`z-40 flex w-14 flex-col items-stretch gap-2 transition-transform duration-75 ${isOpen ? 'translate-x-[100%] opacity-0' : 'translate-x-0 opacity-100'}`}
             >
-                <div className="writing-vertical-rl text-[10px] uppercase font-bold tracking-widest text-orientation-mixed pointer-events-none select-none">
-                    {title}
+                <div
+                    onMouseDown={handleMouseDown}
+                    onClick={(e) => {
+                        if (hasDragged.current) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            hasDragged.current = false;
+                            return;
+                        }
+                        setIsOpen(true);
+                    }}
+                    className="bg-[#c5a059] text-black p-3 rounded-lg shadow-[0_0_15px_rgba(197,160,89,0.3)] cursor-move active:cursor-grabbing hover:scale-105"
+                >
+                    <div className="writing-vertical-rl text-[10px] uppercase font-bold tracking-widest text-orientation-mixed pointer-events-none select-none">
+                        {title}
+                    </div>
                 </div>
+                {secondaryAction}
                 {/* Drag Handle Icon (Optional visual cue) */}
                 <div className="absolute -top-2 -left-2 text-[#c5a059] bg-black rounded-full p-1 opacity-0 hover:opacity-100 transition-opacity">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

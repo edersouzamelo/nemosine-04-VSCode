@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CardCollectionGrid from "./CardCollectionGrid";
 
 interface PersonaItem {
@@ -9,7 +9,7 @@ interface PersonaItem {
     href: string;
 }
 
-type PersonaCategory = "all" | "strategic" | "symbolic" | "operational" | "emotional";
+type PersonaCategory = "favorites" | "all" | "strategic" | "symbolic" | "operational" | "emotional";
 
 const categories: Array<{
     id: PersonaCategory;
@@ -17,6 +17,11 @@ const categories: Array<{
     description: string;
     names?: string[];
 }> = [
+    {
+        id: "favorites",
+        label: "Favoritos",
+        description: "Até 12 personas escolhidas por você."
+    },
     {
         id: "strategic",
         label: "Estratégicas",
@@ -58,11 +63,29 @@ export default function PersonaCategoryExplorer({
     initialCategory?: PersonaCategory;
 }) {
     const [activeCategory, setActiveCategory] = useState<PersonaCategory>(initialCategory);
+    const [favoriteNames, setFavoriteNames] = useState<string[]>([]);
     const itemMap = useMemo(() => new Map(items.map((item) => [item.name, item])), [items]);
     const allNames = useMemo(() => items.map((item) => item.name), [items]);
     const category = categories.find((option) => option.id === activeCategory) || categories[0];
+    useEffect(() => {
+        if (!showCategories) return;
+        const loadFavorites = () => fetch("/api/favorites/personas")
+            .then((response) => response.ok ? response.json() : { favorites: [] })
+            .then((data) => setFavoriteNames(Array.isArray(data.favorites) ? data.favorites : []))
+            .catch(() => setFavoriteNames([]));
+        loadFavorites();
+        window.addEventListener("nemosine:favorites-updated", loadFavorites);
+
+        return () => window.removeEventListener("nemosine:favorites-updated", loadFavorites);
+    }, [showCategories]);
+
     const visibleItems = !showCategories || category.id === "all"
         ? items
+        : category.id === "favorites"
+            ? favoriteNames
+                .slice(0, 12)
+                .map((name) => itemMap.get(name))
+                .filter((item): item is PersonaItem => Boolean(item))
         : (category.names || [])
             .map((name) => itemMap.get(name))
             .filter((item): item is PersonaItem => Boolean(item));
@@ -71,7 +94,7 @@ export default function PersonaCategoryExplorer({
         <>
             {showCategories && (
                 <>
-                    <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-5">
+                    <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-6">
                         {categories.map((option) => (
                             <button
                                 key={option.id}
@@ -84,6 +107,11 @@ export default function PersonaCategoryExplorer({
                         ))}
                     </div>
                     <p className="mb-7 text-center text-sm italic text-[#c5a059]/58">{category.description}</p>
+                    {category.id === "favorites" && visibleItems.length === 0 && (
+                        <p className="mb-7 text-center text-xs uppercase tracking-[0.22em] text-[#c5a059]/35">
+                            Nenhuma persona favorita ainda.
+                        </p>
+                    )}
                 </>
             )}
             <CardCollectionGrid collection="personas" items={visibleItems} orderUniverse={allNames} motionKey={activeCategory} />

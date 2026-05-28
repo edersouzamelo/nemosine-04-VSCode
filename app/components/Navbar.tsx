@@ -248,6 +248,14 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                     {t("adminPanel")}
                                 </a>
                             )}
+                            <a href="/developer" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                Fale com o desenvolvedor
+                            </a>
+                            {isAdmin && (
+                                <a href="/developer/messages" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                    Mensagens ao desenvolvedor
+                                </a>
+                            )}
                         </div>
                         <div className="border-t border-[#c5a059]/10 py-1">
                             <button
