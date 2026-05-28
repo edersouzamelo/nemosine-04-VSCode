@@ -46,9 +46,9 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         { name: t("start"), href: "/inicio" },
         { name: t("personas"), href: "/agents" },
         ...(level === "Soberano" ? [{ name: t("places"), href: "/places" }] : []),
-        { name: t("constitution"), href: "/constitution" },
-        { name: t("games"), href: "/space/games" },
         { name: t("travessia"), href: "/space/travessia" },
+        { name: t("games"), href: "/space/games" },
+        { name: t("constitution"), href: "/constitution" },
     ];
 
     const toggleMobileCollapse = () => {
@@ -196,25 +196,25 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                         onPointerDown={(event) => event.stopPropagation()}
                                         className="site-dropdown absolute right-0 top-10 z-[110] w-[min(16rem,calc(100vw-2rem))] sm:w-64 overflow-hidden rounded-lg border border-stone-200 dark:border-[#c5a059]/30 bg-[#0a0a0c]/95 shadow-2xl backdrop-blur-xl p-0"
                                     >
-                                        <div className="px-4 py-3 border-b border-stone-200 dark:border-[#c5a059]/10">
-                                            <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
-                                            <p className="text-xs text-stone-500 dark:text-white/40 truncate">{session?.user?.email}</p>
-                                            <RelicPhrase className="mt-2 block truncate text-[11px] italic text-emerald-600 dark:text-emerald-300/75" />
+                                        <div className="px-4 py-3.5 border-b border-stone-200 dark:border-[#c5a059]/10">
+                                            <p className="text-[10px] uppercase tracking-widest font-bold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
+                                            <p className="text-[9px] uppercase tracking-widest text-stone-500 dark:text-white/40 truncate mt-1">{session?.user?.email}</p>
+                                            <RelicPhrase className="mt-2 block truncate text-[9px] uppercase tracking-widest italic text-emerald-600 dark:text-emerald-300/75" />
                                         </div>
                                         <div className="py-1">
-                                            <a href="/space" className="block w-full px-4 py-3 text-left text-sm text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                            <a href="/space" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                 {t("mySpace")}
                                             </a>
-                                            <a href="/developer" className="block w-full px-4 py-3 text-left text-sm text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                            <a href="/developer" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                 Fale com o desenvolvedor
                                             </a>
                                             {isAdmin && (
-                                                <a href="/admin" className="block w-full px-4 py-3 text-left text-sm text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                                <a href="/admin" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                     👑 {t("adminPanel")}
                                                 </a>
                                             )}
                                             {isAdmin && (
-                                                <a href="/developer/messages" className="block w-full px-4 py-3 text-left text-sm text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                                <a href="/developer/messages" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                     👑 Mensagens ao desenvolvedor
                                                 </a>
                                             )}
@@ -225,7 +225,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                                     setMenuOpen(false);
                                                     signOut({ redirectTo: "/access" });
                                                 }}
-                                                className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400/80 hover:text-red-700 hover:bg-red-500/5 font-medium"
+                                                className="w-full text-left px-4 py-3 text-[10px] uppercase tracking-widest font-bold text-red-600 dark:text-red-400/80 hover:text-red-700 hover:bg-red-500/5 transition-colors"
                                             >
                                                 {t("logout")}
                                             </button>
@@ -271,57 +271,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                 </button>
-            )}
-            {menuOpen && isAuthenticated && (
-                <div className="fixed inset-0 z-[1000] sm:pointer-events-none">
-                    <button
-                        type="button"
-                        aria-label="Fechar menu do usuário"
-                        onClick={() => setMenuOpen(false)}
-                        className="absolute inset-0 h-full w-full cursor-default bg-transparent sm:hidden"
-                    />
-                    <div
-                        ref={userDropdownRef}
-                        onMouseDown={(event) => event.stopPropagation()}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        className="site-dropdown pointer-events-auto absolute right-4 top-24 w-[min(16rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[#c5a059]/30 bg-[#0a0a0c]/95 shadow-2xl backdrop-blur-xl sm:right-8 sm:top-20 sm:w-64"
-                    >
-                        <div className="px-4 py-3 border-b border-[#c5a059]/10">
-                            <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
-                            <p className="text-xs text-white/40 truncate">{session?.user?.email}</p>
-                            <RelicPhrase className="mt-2 block truncate text-[11px] italic text-emerald-300/75" />
-                        </div>
-                        <div className="py-1">
-                            <a href="/space" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                {t("mySpace")}
-                            </a>
-                            <a href="/developer" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                Fale com o desenvolvedor
-                            </a>
-                            {isAdmin && (
-                                <a href="/admin" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                    👑 {t("adminPanel")}
-                                </a>
-                            )}
-                            {isAdmin && (
-                                <a href="/developer/messages" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                    👑 Mensagens ao desenvolvedor
-                                </a>
-                            )}
-                        </div>
-                        <div className="border-t border-[#c5a059]/10 py-1">
-                            <button
-                                onClick={() => {
-                                    setMenuOpen(false);
-                                    signOut({ redirectTo: "/access" });
-                                }}
-                                className="w-full text-left px-4 py-2.5 text-sm text-red-400/80 hover:text-red-400 hover:bg-red-500/5"
-                            >
-                                {t("logout")}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             )}
         </>
     );

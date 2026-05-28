@@ -38,7 +38,7 @@ export default function TravessiaPage() {
 
                     {/* Description */}
                     <p className="font-body text-[#e1e1e6]/80 text-xl leading-relaxed italic max-w-lg mx-auto mb-10">
-                        "Prepare-se para a travessia mística entre os limites da mente. Um novo portal de exploração cognitiva está sendo canalizado pelas forças do Codex."
+                        "Prepare-se para a travessia entre os limites da mente. Um novo portal de exploração cognitiva está sendo canalizado pelas forças do Codex."
                     </p>
 
                     {/* Navigation */}
