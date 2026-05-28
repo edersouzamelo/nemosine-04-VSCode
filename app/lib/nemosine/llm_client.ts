@@ -4,6 +4,7 @@ import { SessionState, PersonaState } from './types';
 import { CONSTITUTION_TEXT, CODEX_NOUS_TEXT, ATLAS_NOUS_TEXT } from '@/app/data/system_context';
 import { getUserMemories, getVisibleConversationEpisodes } from './session_store';
 import { isPrivateMemorySpace } from './privacy';
+import { getVisibleUserSources } from '@/app/lib/sourceStore';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -29,9 +30,10 @@ export async function buildSystemPrompt(userId: string, personaId: string, langu
         ? (placeData.prompt || placeData.transcription).replace(/^Você é /, "O cenário ativo é ")
         : "";
     const isPrivateSpace = isPrivateMemorySpace(memoryScope);
-    const [memories, conversationEpisodes] = await Promise.all([
+    const [memories, conversationEpisodes, userSources] = await Promise.all([
         getUserMemories(userId, memoryScope),
-        getVisibleConversationEpisodes(userId, memoryScope)
+        getVisibleConversationEpisodes(userId, memoryScope),
+        getVisibleUserSources(userId, memoryScope)
     ]);
     const memoryContext = memories.length > 0
         ? `\n[MEMÓRIA DE LONGO PRAZO DO USUÁRIO]\n${isPrivateSpace
@@ -40,6 +42,9 @@ export async function buildSystemPrompt(userId: string, personaId: string, langu
         : "";
     const episodeContext = conversationEpisodes.length > 0
         ? `\n[EPISÓDIOS RECENTES COMPARTILHADOS]\nVocê pode reconhecer fatos e temas tratados recentemente pelo usuário com outras perspectivas. Responda pela sua própria função, sem alegar que participou da conversa original.\n${conversationEpisodes.join('\n\n')}\n`
+        : "";
+    const sourceContext = userSources.length > 0
+        ? `\n[FONTES PERSISTENTES DO USUÁRIO]\nO usuário anexou documentos como fontes permanentes do sistema. Use esse conteúdo como contexto de apoio, sem fingir certeza maior do que a fonte permite. Quando o tema for médico, jurídico, financeiro ou sensível, trate o material como informação para interpretação e organização, não como diagnóstico ou decisão profissional definitiva.\n${userSources.join('\n\n')}\n`
         : "";
     const sharedContextInstruction = `
 [USO DO CONTEXTO COMPARTILHADO]
@@ -126,6 +131,7 @@ ${dynamicContext}
 ${placeConstraint}
 ${memoryContext}
 ${episodeContext}
+${sourceContext}
 ${sharedContextInstruction}
 ${memoryInstruction}
 ${embodimentConstraint}

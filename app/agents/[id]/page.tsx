@@ -12,6 +12,7 @@ import PrivateSpaceNotice from "@/app/components/PrivateSpaceNotice";
 import ExternalConnectionsPanel from "@/app/components/ExternalConnectionsPanel";
 import FavoritePersonaButton from "@/app/components/FavoritePersonaButton";
 import SharePersonaButton from "@/app/components/SharePersonaButton";
+import SourcesPanelButton from "@/app/components/SourcesPanelButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useParams } from "next/navigation";
 import { ENTITIES, PERSONAS } from "../../data/entities";
@@ -269,6 +270,7 @@ export default function AgentDetailPage() {
                     secondaryAction={entity.type === "persona" ? (
                         <>
                             <FavoritePersonaButton personaName={entity.name} />
+                            <SourcesPanelButton personaName={entity.name} />
                             <SharePersonaButton title={displayedEntityName} />
                         </>
                     ) : <SharePersonaButton title={displayedEntityName} />}
