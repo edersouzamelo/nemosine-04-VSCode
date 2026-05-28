@@ -23,7 +23,13 @@ function isSocialPreviewBot(userAgent: string | null) {
 }
 
 export default auth((req) => {
-    if (req.nextUrl.pathname.startsWith("/agents/") && isSocialPreviewBot(req.headers.get("user-agent"))) {
+    if (
+        req.nextUrl.pathname.startsWith("/agents/")
+        && (
+            isSocialPreviewBot(req.headers.get("user-agent"))
+            || req.nextUrl.pathname.endsWith("/opengraph-image")
+        )
+    ) {
         return NextResponse.next();
     }
 
