@@ -21,7 +21,16 @@ export async function generateMetadata({ params }: AgentLayoutProps): Promise<Me
         };
     }
 
-    const image = new URL(`/api/og/persona/${encodeURIComponent(slug)}`, appUrl).toString();
+    let filename = entity.name;
+    if (entity.name === "Bobo da Corte") filename = "Bobo";
+    if (entity.name === "Confessor 2.0") filename = "Confessor";
+    if (entity.name === "Orquestrador-Arquiteto") filename = "Orquestrador";
+
+    const imagePath = entity.type === "place"
+        ? `/places/${filename}.png`
+        : `/agents/${filename}.png`;
+
+    const image = new URL(imagePath, appUrl).toString();
     const title = `${entity.name} | Nemosine`;
     const description = entity.phrase || "Persona do Sistema Nemosine Nous.";
     const url = new URL(`/agents/${encodeURIComponent(slug)}`, appUrl).toString();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import MedievalButton from "@/app/components/MedievalButton";
 import Navbar from "@/app/components/Navbar";
@@ -72,6 +72,7 @@ const UPCOMING_GAMES = [
 
 export default function GamesHubPage() {
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [copiedText, setCopiedText] = useState(false);
 
     const scrollLeft = () => {
         if (scrollRef.current) {
@@ -83,6 +84,30 @@ export default function GamesHubPage() {
         if (scrollRef.current) {
             scrollRef.current.scrollBy({ left: 360, behavior: "smooth" });
         }
+    };
+
+    const shareGame = async (event: React.MouseEvent, title: string, path: string) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const url = new URL(path, window.location.origin).toString();
+        const payload = {
+            title: `${title} | Nemosine`,
+            text: `Venha jogar o jogo "${title}" no Sistema Nemosine Nous!`,
+            url,
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(payload);
+                return;
+            } catch {
+                // Fail-safe to clipboard copy
+            }
+        }
+
+        await navigator.clipboard?.writeText(url);
+        setCopiedText(true);
+        setTimeout(() => setCopiedText(false), 2200);
     };
 
     return (
@@ -150,9 +175,19 @@ export default function GamesHubPage() {
                                                 {game.description}
                                             </p>
                                         </div>
-                                        <MedievalButton className="w-full text-xs tracking-widest py-3 mt-4">
-                                            Jogar
-                                        </MedievalButton>
+                                        <div className="flex gap-3 mt-4">
+                                            <MedievalButton className="flex-1 text-xs tracking-widest py-3">
+                                                Jogar
+                                            </MedievalButton>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => shareGame(e, game.title, game.href)}
+                                                className="w-12 h-12 rounded-lg border border-[#c5a059]/30 bg-black/40 hover:bg-[#c5a059]/10 text-[#c5a059] flex items-center justify-center transition-all shrink-0 cursor-pointer"
+                                                title="Compartilhar"
+                                            >
+                                                <span className="material-icons text-base">share</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </Link>
@@ -188,9 +223,19 @@ export default function GamesHubPage() {
                                                 {game.description}
                                             </p>
                                         </div>
-                                        <MedievalButton disabled variant="secondary" className="w-full text-xs tracking-widest py-3 mt-4 opacity-40 cursor-not-allowed border-[#333] text-stone-500 hover:bg-transparent hover:border-[#333] hover:text-stone-500">
-                                            Em Breve
-                                        </MedievalButton>
+                                        <div className="flex gap-3 mt-4">
+                                            <MedievalButton disabled variant="secondary" className="flex-1 text-xs tracking-widest py-3 opacity-40 cursor-not-allowed border-[#333] text-stone-500 hover:bg-transparent hover:border-[#333] hover:text-stone-500">
+                                                Em Breve
+                                            </MedievalButton>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => shareGame(e, game.title, "/space/games")}
+                                                className="w-12 h-12 rounded-lg border border-[#c5a059]/20 bg-black/40 hover:bg-[#c5a059]/10 text-[#c5a059]/75 flex items-center justify-center transition-all shrink-0 cursor-pointer"
+                                                title="Compartilhar"
+                                            >
+                                                <span className="material-icons text-base">share</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -198,6 +243,11 @@ export default function GamesHubPage() {
                     </div>
                 </div>
             </div>
+            {copiedText && (
+                <p className="fixed bottom-5 left-1/2 z-[60] max-w-[min(90vw,360px)] -translate-x-1/2 rounded-lg border border-emerald-300/30 bg-[#08120c]/95 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-2xl">
+                    Link do jogo copiado!
+                </p>
+            )}
             <InstitutionalFooter />
         </main>
     );
