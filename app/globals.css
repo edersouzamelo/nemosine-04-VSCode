@@ -55,6 +55,14 @@ body {
   background-attachment: fixed;
 }
 
+.writing-vertical-rl {
+  writing-mode: vertical-rl;
+}
+
+.text-orientation-mixed {
+  text-orientation: mixed;
+}
+
 /* Medieval Gothic Aesthetics */
 .medieval-border {
   border: 2px solid var(--border-gold);

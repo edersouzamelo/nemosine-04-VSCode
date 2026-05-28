@@ -9,7 +9,7 @@ interface PersonaItem {
     href: string;
 }
 
-type PersonaCategory = "favorites" | "all" | "strategic" | "symbolic" | "operational" | "emotional";
+type PersonaCategory = "strategic" | "symbolic" | "operational" | "emotional" | "all" | "favorites";
 
 const categories: Array<{
     id: PersonaCategory;
@@ -17,11 +17,6 @@ const categories: Array<{
     description: string;
     names?: string[];
 }> = [
-    {
-        id: "favorites",
-        label: "Favoritos",
-        description: "Até 12 personas escolhidas por você."
-    },
     {
         id: "strategic",
         label: "Estratégicas",
@@ -48,8 +43,13 @@ const categories: Array<{
     },
     {
         id: "all",
-        label: "Todos",
+        label: "Todas",
         description: "Todas as vozes disponíveis no sistema."
+    },
+    {
+        id: "favorites",
+        label: "Favoritas",
+        description: "Até 12 personas escolhidas por você."
     }
 ];
 
@@ -67,6 +67,7 @@ export default function PersonaCategoryExplorer({
     const itemMap = useMemo(() => new Map(items.map((item) => [item.name, item])), [items]);
     const allNames = useMemo(() => items.map((item) => item.name), [items]);
     const category = categories.find((option) => option.id === activeCategory) || categories[0];
+
     useEffect(() => {
         if (!showCategories) return;
         const loadFavorites = () => fetch("/api/favorites/personas")

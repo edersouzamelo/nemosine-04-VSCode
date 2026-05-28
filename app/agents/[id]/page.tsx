@@ -11,6 +11,7 @@ import TimekeeperWidget from "@/app/components/TimekeeperWidget";
 import PrivateSpaceNotice from "@/app/components/PrivateSpaceNotice";
 import ExternalConnectionsPanel from "@/app/components/ExternalConnectionsPanel";
 import FavoritePersonaButton from "@/app/components/FavoritePersonaButton";
+import SharePersonaButton from "@/app/components/SharePersonaButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useParams } from "next/navigation";
 import { ENTITIES, PERSONAS } from "../../data/entities";
@@ -265,7 +266,12 @@ export default function AgentDetailPage() {
                 {/* RIGHT: LATERAL PANEL DETAILS */}
                 <RetractablePanel
                     title={entity.type === 'place' ? t("dossierPlace") : t("dossierAgent")}
-                    secondaryAction={entity.type === "persona" ? <FavoritePersonaButton personaName={entity.name} /> : undefined}
+                    secondaryAction={entity.type === "persona" ? (
+                        <>
+                            <FavoritePersonaButton personaName={entity.name} />
+                            <SharePersonaButton title={displayedEntityName} />
+                        </>
+                    ) : <SharePersonaButton title={displayedEntityName} />}
                 >
                     {/* Identity Card */}
                     <div className="space-y-2">

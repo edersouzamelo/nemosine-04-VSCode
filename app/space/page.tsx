@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
 import ExternalConnectionsPanel from "../components/ExternalConnectionsPanel";
+import SpaceStatusCards from "../components/SpaceStatusCards";
 
 export default async function SpacePage() {
     const session = await auth();
@@ -33,13 +34,7 @@ export default async function SpacePage() {
                         Este é o seu espaço privado no Sistema Nemosine. Aqui você poderá gerenciar seus dados e interações.
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="p-6 border border-[#c5a059]/10 rounded bg-black/20">
-                            <h3 className="text-[#c5a059] font-bold mb-2 uppercase text-xs tracking-widest">Status</h3>
-                            <p className="text-green-400 text-sm">Conectado via {session.user?.email}</p>
-                        </div>
-                        {/* More widgets can go here */}
-                    </div>
+                    <SpaceStatusCards email={session.user?.email} />
 
                     <ExternalConnectionsPanel variant="space" />
                 </div>

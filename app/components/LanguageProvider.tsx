@@ -58,7 +58,7 @@ const translations = {
         games: "Jogos",
         community: "Comunidade Nemosine",
         mySpace: "Meu Espaço",
-        adminPanel: "Painel Admin",
+        adminPanel: "Painel do Criador",
         video: "Vídeo",
         language: "Idioma",
         settings: "Configurações",
@@ -173,7 +173,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [language, setLanguageState] = useState<AppLanguage>("pt-BR");
     const [theme, setThemeState] = useState<AppTheme>("dark");
     const [cardOrderMode, setCardOrderModeState] = useState<CardOrderMode>("original");
-    const [level, setLevelState] = useState<NemosineLevel>("Soberano");
+    const [level, setLevelState] = useState<NemosineLevel>("Peregrino");
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);

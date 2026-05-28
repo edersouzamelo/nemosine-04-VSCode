@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
 import type { AppLanguage, AppTheme, CardOrderMode, NemosineLevel } from "./LanguageProvider";
 import { isAdminEmail } from "../lib/accessControl";
+import RelicPhrase from "./RelicPhrase";
 
 interface NavbarProps {
     mobileCollapsible?: boolean;
@@ -238,22 +239,23 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                         <div className="px-4 py-3 border-b border-[#c5a059]/10">
                             <p className="text-sm font-semibold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
                             <p className="text-xs text-white/40 truncate">{session?.user?.email}</p>
+                            <RelicPhrase className="mt-2 block truncate text-[11px] italic text-emerald-300/75" />
                         </div>
                         <div className="py-1">
                             <a href="/space" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
                                 {t("mySpace")}
                             </a>
-                            {isAdmin && (
-                                <a href="/admin" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                    {t("adminPanel")}
-                                </a>
-                            )}
                             <a href="/developer" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
                                 Fale com o desenvolvedor
                             </a>
                             {isAdmin && (
+                                <a href="/admin" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
+                                    👑 {t("adminPanel")}
+                                </a>
+                            )}
+                            {isAdmin && (
                                 <a href="/developer/messages" className="block w-full px-4 py-3 text-left text-sm text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5">
-                                    Mensagens ao desenvolvedor
+                                    👑 Mensagens ao desenvolvedor
                                 </a>
                             )}
                         </div>

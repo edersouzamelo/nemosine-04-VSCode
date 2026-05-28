@@ -82,7 +82,7 @@ export default function RetractablePanel({ title, children, secondaryAction }: R
                     left: position.x,
                     position: 'fixed'
                 }}
-                className={`z-40 flex w-14 flex-col items-stretch gap-2 transition-transform duration-75 ${isOpen ? 'translate-x-[100%] opacity-0' : 'translate-x-0 opacity-100'}`}
+                className={`z-40 flex w-16 flex-col items-stretch gap-2 transition-transform duration-75 ${isOpen ? 'translate-x-[100%] opacity-0' : 'translate-x-0 opacity-100'}`}
             >
                 <div
                     onMouseDown={handleMouseDown}
@@ -95,9 +95,9 @@ export default function RetractablePanel({ title, children, secondaryAction }: R
                         }
                         setIsOpen(true);
                     }}
-                    className="bg-[#c5a059] text-black p-3 rounded-lg shadow-[0_0_15px_rgba(197,160,89,0.3)] cursor-move active:cursor-grabbing hover:scale-105"
+                    className="flex min-h-32 w-16 cursor-move items-center justify-center rounded-lg bg-[#c5a059] px-2 py-3 text-black shadow-[0_0_15px_rgba(197,160,89,0.3)] active:cursor-grabbing hover:scale-105"
                 >
-                    <div className="writing-vertical-rl text-[10px] uppercase font-bold tracking-widest text-orientation-mixed pointer-events-none select-none">
+                    <div className="writing-vertical-rl pointer-events-none select-none text-[10px] font-bold uppercase tracking-widest text-orientation-mixed">
                         {title}
                     </div>
                 </div>
