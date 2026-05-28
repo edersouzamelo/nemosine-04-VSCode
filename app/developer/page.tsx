@@ -63,8 +63,8 @@ export default function DeveloperContactPage() {
             Envie sugestões, relatos de erro, ideias de integração ou feedback sobre sua experiência com o Nemosine.
           </p>
           <div className="mt-6 grid gap-2 text-sm">
-            <a href="https://linktr.ee/nemosinenous" target="_blank" rel="noopener noreferrer" className="text-[#c5a059] hover:text-[#e6c97a]">
-              Links pessoais e projeto
+            <a href="https://ufmt.academia.edu/EdervaldoMelo" target="_blank" rel="noopener noreferrer" className="text-[#c5a059] hover:text-[#e6c97a]">
+              Entenda de onde veio essa bagunça
             </a>
           </div>
         </aside>
