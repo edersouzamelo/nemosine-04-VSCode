@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 
+const PERSONA_PREVIEW_VERSION = "persona-og-v2";
+
 export default function SharePersonaButton({ title }: { title: string }) {
     const [copied, setCopied] = useState(false);
 
     async function share() {
-        const url = window.location.href;
+        const shareUrl = new URL(window.location.href);
+        shareUrl.searchParams.set("preview", PERSONA_PREVIEW_VERSION);
+        const url = shareUrl.toString();
         const payload = {
             title,
             text: `Conheça ${title} no Nemosine.`,
