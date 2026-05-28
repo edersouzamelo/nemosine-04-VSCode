@@ -48,7 +48,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         ...(level === "Soberano" ? [{ name: t("places"), href: "/places" }] : []),
         { name: t("constitution"), href: "/constitution" },
         { name: t("games"), href: "/space/games" },
-        { name: t("community"), href: "https://linktr.ee/nemosinenous" },
     ];
 
     const toggleMobileCollapse = () => {
