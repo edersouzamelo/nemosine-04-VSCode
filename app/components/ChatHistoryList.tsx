@@ -17,7 +17,7 @@ interface ChatHistoryListProps {
 }
 
 export default function ChatHistoryList({ personaId, onSelectThread, currentThreadId, refreshTrigger }: ChatHistoryListProps) {
-    const { t, entityName } = useLanguage();
+    const { entityName } = useLanguage();
     const [threads, setThreads] = useState<ChatThread[]>([]);
 
     useEffect(() => {
@@ -39,9 +39,6 @@ export default function ChatHistoryList({ personaId, onSelectThread, currentThre
 
     return (
         <div className="mt-6 w-full">
-            <h3 className="text-[10px] uppercase tracking-[0.2em] text-[#c5a059]/60 font-serif mb-3 border-b border-[#c5a059]/20 pb-1">
-                {t("recentMemories")}
-            </h3>
             <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/30">
                 {threads.map(thread => (
                     <button
