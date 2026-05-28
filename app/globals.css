@@ -622,11 +622,6 @@ body {
    Nemosine Singularity Immersive Mode Styles
    ========================================== */
 
-/* 1. Hide Navbar under active Singularity */
-.is-singularity-active .site-navbar-wrapper {
-  display: none !important;
-}
-
 /* 2. Slow down all transitions and animations */
 .is-singularity-active * {
   transition-duration: 900ms !important;
