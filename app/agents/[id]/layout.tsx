@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { ENTITIES } from "@/app/data/entities";
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://nemosine-04-vs-code.vercel.app");
+
 type AgentLayoutProps = {
     children: React.ReactNode;
     params: Promise<{ id: string }>;
@@ -18,10 +21,11 @@ export async function generateMetadata({ params }: AgentLayoutProps): Promise<Me
         };
     }
 
-    const image = entity.landscapeImage || entity.image || "/assets/nemosine-cube-v2.png";
+    const imagePath = entity.landscapeImage || entity.image || "/assets/nemosine-cube-v2.png";
+    const image = new URL(imagePath, appUrl).toString();
     const title = `${entity.name} | Nemosine`;
     const description = entity.phrase || "Persona do Sistema Nemosine Nous.";
-    const url = `/agents/${encodeURIComponent(slug)}`;
+    const url = new URL(`/agents/${encodeURIComponent(slug)}`, appUrl).toString();
 
     return {
         title,
@@ -38,6 +42,9 @@ export async function generateMetadata({ params }: AgentLayoutProps): Promise<Me
             images: [
                 {
                     url: image,
+                    width: 1200,
+                    height: 630,
+                    type: "image/png",
                     alt: entity.name,
                 },
             ],

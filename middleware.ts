@@ -5,7 +5,28 @@ import { isAdminEmail } from "./app/lib/accessControl";
 
 const { auth } = NextAuth(authConfig);
 
+const SOCIAL_PREVIEW_BOTS = [
+    "facebookexternalhit",
+    "facebot",
+    "whatsapp",
+    "telegrambot",
+    "twitterbot",
+    "linkedinbot",
+    "slackbot",
+    "discordbot",
+    "pinterest",
+];
+
+function isSocialPreviewBot(userAgent: string | null) {
+    const normalized = (userAgent || "").toLowerCase();
+    return SOCIAL_PREVIEW_BOTS.some((bot) => normalized.includes(bot));
+}
+
 export default auth((req) => {
+    if (req.nextUrl.pathname.startsWith("/agents/") && isSocialPreviewBot(req.headers.get("user-agent"))) {
+        return NextResponse.next();
+    }
+
     if (!req.auth) {
         const accessUrl = new URL("/access", req.nextUrl);
         accessUrl.searchParams.set("callbackUrl", `${req.nextUrl.pathname}${req.nextUrl.search}`);
