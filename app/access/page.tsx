@@ -9,7 +9,7 @@ import { LanguageSelector, useLanguage } from "../components/LanguageProvider";
 export default function AccessPage() {
   const router = useRouter();
   const { t, theme, setTheme } = useLanguage();
-  const [callbackUrl, setCallbackUrl] = useState("/agents");
+  const [callbackUrl, setCallbackUrl] = useState("/inicio");
   const [showGrimoire, setShowGrimoire] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [name, setName] = useState("");

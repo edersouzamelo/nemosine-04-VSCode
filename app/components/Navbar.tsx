@@ -25,6 +25,20 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
 
+    const [singularity, setSingularity] = useState<"on" | "off">("off");
+
+    useEffect(() => {
+        const stored = window.localStorage.getItem("nemosine-singularity") as "on" | "off" | null;
+        if (stored === "on" || stored === "off") {
+            setSingularity(stored);
+        }
+    }, []);
+
+    const handleSingularityChange = (val: "on" | "off") => {
+        setSingularity(val);
+        window.localStorage.setItem("nemosine-singularity", val);
+    };
+
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (
@@ -48,6 +62,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         ...(level === "Soberano" ? [{ name: t("places"), href: "/places" }] : []),
         { name: t("constitution"), href: "/constitution" },
         { name: t("games"), href: "/space/games" },
+        { name: t("travessia"), href: "/space/travessia" },
     ];
 
     const toggleMobileCollapse = () => {
@@ -164,6 +179,22 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                                 type="button"
                                                 onClick={() => setLevel(option)}
                                                 className={`rounded border px-2 py-2 text-xs normal-case tracking-normal transition-colors ${level === option ? "border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
+                                            >
+                                                {option}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 text-[10px] uppercase tracking-widest text-[#c5a059]/70">
+                                    Singularidade
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                        {(["off", "on"] as const).map((option) => (
+                                            <button
+                                                key={option}
+                                                type="button"
+                                                onClick={() => handleSingularityChange(option)}
+                                                className={`rounded border px-2 py-2 text-xs uppercase tracking-widest transition-colors ${singularity === option ? "selected border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
                                             >
                                                 {option}
                                             </button>
