@@ -21,6 +21,8 @@ export default function OraclePage() {
 
     const getPersonaSlug = (name: string) => {
         if (name === 'Bobo') return 'bobo-da-corte';
+        if (name === 'Confessor') return 'confessor-2.0';
+        if (name === 'Orquestrador') return 'orquestrador-arquiteto';
         return name.toLowerCase().replace(/\s+/g, '-');
     };
 

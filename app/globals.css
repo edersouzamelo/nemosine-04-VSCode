@@ -63,6 +63,45 @@ body {
   text-orientation: mixed;
 }
 
+.side-action-button {
+  border: 1px solid rgba(197, 160, 89, 0.3);
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(197, 160, 89, 0.82);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.35);
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.side-action-button:hover {
+  border-color: rgba(197, 160, 89, 0.62);
+  background: rgba(197, 160, 89, 0.1);
+  color: rgba(226, 198, 138, 0.95);
+}
+
+.side-action-button.is-favorite {
+  border-color: rgba(253, 164, 175, 0.36);
+  background: rgba(251, 113, 133, 0.1);
+  color: rgb(254, 205, 211);
+}
+
+.light-theme .side-action-button {
+  border-color: rgba(122, 91, 48, 0.28);
+  background: rgba(255, 252, 247, 0.88);
+  color: #72552c;
+  box-shadow: 0 8px 22px rgba(65, 48, 28, 0.1);
+}
+
+.light-theme .side-action-button:hover {
+  border-color: rgba(122, 91, 48, 0.5);
+  background: rgba(138, 106, 66, 0.1);
+  color: #5e421c;
+}
+
+.light-theme .side-action-button.is-favorite {
+  border-color: rgba(159, 57, 75, 0.25);
+  background: rgba(159, 57, 75, 0.08);
+  color: #8d2f42;
+}
+
 /* Medieval Gothic Aesthetics */
 .medieval-border {
   border: 2px solid var(--border-gold);

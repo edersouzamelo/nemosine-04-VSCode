@@ -54,12 +54,12 @@ export default function FavoritePersonaButton({ personaName }: { personaName: st
                 type="button"
                 onClick={toggleFavorite}
                 disabled={loading}
-                className={`flex min-h-32 w-12 items-center justify-center rounded-lg border px-1.5 py-3 text-[9px] font-bold uppercase tracking-[0.18em] transition-colors disabled:cursor-wait disabled:opacity-60 ${favorite
-                    ? "border-rose-300/35 bg-rose-400/10 text-rose-200 hover:border-rose-200/65"
-                    : "border-[#c5a059]/30 bg-black/55 text-[#c5a059]/80 hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
+                className={`side-action-button flex min-h-36 w-12 items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 text-[8px] font-bold uppercase tracking-[0.18em] disabled:cursor-wait disabled:opacity-60 ${favorite
+                    ? "is-favorite"
+                    : ""
                 }`}
             >
-                <span className="writing-vertical-rl text-orientation-mixed">
+                <span className="writing-vertical-rl whitespace-nowrap text-orientation-mixed">
                     {loading ? "Verificando..." : favorite ? "Favorito ❤️" : "Favoritar"}
                 </span>
             </button>

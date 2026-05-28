@@ -95,9 +95,9 @@ export default function RetractablePanel({ title, children, secondaryAction }: R
                         }
                         setIsOpen(true);
                     }}
-                    className="flex min-h-32 w-12 cursor-move items-center justify-center rounded-lg border border-[#c5a059]/30 bg-black/55 px-1.5 py-3 text-[#c5a059]/80 shadow-[0_0_12px_rgba(0,0,0,0.35)] transition-colors active:cursor-grabbing hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
+                    className="side-action-button flex min-h-36 w-12 cursor-move items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 active:cursor-grabbing"
                 >
-                    <div className="writing-vertical-rl pointer-events-none select-none text-[9px] font-bold uppercase tracking-widest text-orientation-mixed">
+                    <div className="writing-vertical-rl pointer-events-none select-none whitespace-nowrap text-[8px] font-bold uppercase tracking-widest text-orientation-mixed">
                         {title}
                     </div>
                 </div>

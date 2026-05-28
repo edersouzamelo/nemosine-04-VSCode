@@ -32,9 +32,9 @@ export default function SharePersonaButton({ title }: { title: string }) {
             <button
                 type="button"
                 onClick={share}
-                className="flex min-h-32 w-12 items-center justify-center rounded-lg border border-[#c5a059]/30 bg-black/55 px-1.5 py-3 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/80 transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
+                className="side-action-button flex min-h-36 w-12 items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 text-[8px] font-bold uppercase tracking-[0.18em]"
             >
-                <span className="writing-vertical-rl text-orientation-mixed">Compartilhar</span>
+                <span className="writing-vertical-rl whitespace-nowrap text-orientation-mixed">Compartilhar</span>
             </button>
             {copied && (
                 <p className="fixed bottom-5 left-1/2 z-[60] max-w-[min(90vw,360px)] -translate-x-1/2 rounded-lg border border-emerald-300/30 bg-[#08120c]/95 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-2xl">

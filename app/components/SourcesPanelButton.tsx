@@ -65,9 +65,9 @@ export default function SourcesPanelButton({ personaName }: { personaName: strin
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="flex min-h-32 w-12 items-center justify-center rounded-lg border border-[#c5a059]/30 bg-black/55 px-1.5 py-3 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/80 transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
+                className="side-action-button flex min-h-36 w-12 items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 text-[8px] font-bold uppercase tracking-[0.18em]"
             >
-                <span className="writing-vertical-rl text-orientation-mixed">Fontes</span>
+                <span className="writing-vertical-rl whitespace-nowrap text-orientation-mixed">Fontes</span>
             </button>
 
             <div className={`fixed top-0 right-0 z-50 h-full w-full max-w-[420px] transform border-l border-[#c5a059]/30 bg-[#050507]/95 shadow-2xl backdrop-blur-xl transition-transform duration-500 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
