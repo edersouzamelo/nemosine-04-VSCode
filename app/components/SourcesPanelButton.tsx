@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type SourceItem = {
     id: string;
@@ -16,12 +17,17 @@ export default function SourcesPanelButton({ personaName }: { personaName: strin
     const [sources, setSources] = useState<SourceItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
+    const [mounted, setMounted] = useState(false);
 
     async function loadSources() {
         const response = await fetch("/api/sources");
         const data = await response.json();
         setSources(data.sources || []);
     }
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         if (open) {
@@ -60,17 +66,9 @@ export default function SourcesPanelButton({ personaName }: { personaName: strin
         await loadSources();
     }
 
-    return (
+    const panel = (
         <>
-            <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="side-action-button flex min-h-36 w-12 items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 text-[8px] font-bold uppercase tracking-[0.18em]"
-            >
-                <span className="writing-vertical-rl whitespace-nowrap text-orientation-mixed">Fontes</span>
-            </button>
-
-            <div className={`fixed top-0 right-0 z-50 h-full w-full max-w-[420px] transform border-l border-[#c5a059]/30 bg-[#050507]/95 shadow-2xl backdrop-blur-xl transition-transform duration-500 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
+            <div className={`fixed right-0 top-0 z-50 h-full w-full max-w-[420px] transform border-l border-[#c5a059]/30 bg-[#050507]/95 shadow-2xl backdrop-blur-xl transition-transform duration-500 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
                 <button
                     type="button"
                     onClick={() => setOpen(false)}
@@ -150,6 +148,20 @@ export default function SourcesPanelButton({ personaName }: { personaName: strin
                     onClick={() => setOpen(false)}
                 />
             )}
+        </>
+    );
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => setOpen(true)}
+                className="side-action-button flex min-h-36 w-12 items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 text-[8px] font-bold uppercase tracking-[0.18em]"
+            >
+                <span className="writing-vertical-rl whitespace-nowrap text-orientation-mixed">Fontes</span>
+            </button>
+
+            {mounted ? createPortal(panel, document.body) : null}
         </>
     );
 }
