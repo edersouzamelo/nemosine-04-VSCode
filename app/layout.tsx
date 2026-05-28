@@ -12,7 +12,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://nemosine-04-vs-code.vercel.app");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: "Nemosine | Sistema Nous",
   description: "Sistema de Cartas das Personas de Nemosine Nous",
   manifest: "/manifest.json",
