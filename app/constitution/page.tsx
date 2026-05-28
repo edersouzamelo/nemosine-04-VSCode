@@ -20,7 +20,7 @@ export default function ConstitutionPage() {
 
                     {/* Header */}
                     <div className="text-center mb-12 border-b-2 border-[#8b6f47] pb-8">
-                        <h1 className="text-4xl md:text-6xl font-black uppercase tracking-wider text-[#4a3b2a] mb-2" style={{ fontFamily: 'Times New Roman, serif' }}>
+                        <h1 className="text-4xl md:text-5xl font-display uppercase tracking-widest text-[#4a3b2a] mb-2">
                             Constituição Nemosínica
                         </h1>
                         <p className="text-sm uppercase tracking-[0.3em] text-[#6d5a42]">Sistema Nemosine Nous</p>

@@ -17,27 +17,13 @@ interface NavbarProps {
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session, status } = useSession();
-    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t } = useLanguage();
+    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
     const menuRef = useRef<HTMLDivElement>(null);
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
-
-    const [singularity, setSingularity] = useState<"on" | "off">("off");
-
-    useEffect(() => {
-        const stored = window.localStorage.getItem("nemosine-singularity") as "on" | "off" | null;
-        if (stored === "on" || stored === "off") {
-            setSingularity(stored);
-        }
-    }, []);
-
-    const handleSingularityChange = (val: "on" | "off") => {
-        setSingularity(val);
-        window.localStorage.setItem("nemosine-singularity", val);
-    };
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -193,7 +179,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                             <button
                                                 key={option}
                                                 type="button"
-                                                onClick={() => handleSingularityChange(option)}
+                                                onClick={() => setSingularity(option)}
                                                 className={`rounded border px-2 py-2 text-xs uppercase tracking-widest transition-colors ${singularity === option ? "selected border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
                                             >
                                                 {option}

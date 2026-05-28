@@ -160,6 +160,8 @@ type LanguageContextValue = {
     setCardOrderMode: (mode: CardOrderMode) => void;
     level: NemosineLevel;
     setLevel: (level: NemosineLevel) => void;
+    singularity: "on" | "off";
+    setSingularity: (value: "on" | "off") => void;
     getOrderedCards: (collection: CardCollection, originalOrder: string[]) => string[];
     setCustomCardOrder: (collection: CardCollection, names: string[]) => void;
     ensureRandomCardOrder: (collection: CardCollection, names: string[]) => void;
@@ -175,6 +177,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [theme, setThemeState] = useState<AppTheme>("dark");
     const [cardOrderMode, setCardOrderModeState] = useState<CardOrderMode>("original");
     const [level, setLevelState] = useState<NemosineLevel>("Peregrino");
+    const [singularity, setSingularityState] = useState<"on" | "off">("off");
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
@@ -205,6 +208,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         const storedLevel = window.localStorage.getItem("nemosine-level") as NemosineLevel | null;
         if (storedLevel === "Peregrino" || storedLevel === "Vassalo" || storedLevel === "Regente" || storedLevel === "Soberano") {
             setLevelState(storedLevel);
+        }
+        const storedSingularity = window.localStorage.getItem("nemosine-singularity") as "on" | "off" | null;
+        if (storedSingularity === "on" || storedSingularity === "off") {
+            setSingularityState(storedSingularity);
+            document.documentElement.classList.toggle("is-singularity", storedSingularity === "on");
         }
 
         const readStoredObject = <T,>(key: string, fallback: T): T => {
@@ -242,6 +250,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const setLevel = (nextLevel: NemosineLevel) => {
         setLevelState(nextLevel);
         window.localStorage.setItem("nemosine-level", nextLevel);
+    };
+
+    const setSingularity = (nextSingularity: "on" | "off") => {
+        setSingularityState(nextSingularity);
+        window.localStorage.setItem("nemosine-singularity", nextSingularity);
+        document.documentElement.classList.toggle("is-singularity", nextSingularity === "on");
     };
 
     const mergeCardOrder = (savedOrder: string[], originalOrder: string[]) => [
@@ -315,6 +329,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setCardOrderMode,
         level,
         setLevel,
+        singularity,
+        setSingularity,
         getOrderedCards,
         setCustomCardOrder,
         ensureRandomCardOrder,
@@ -324,7 +340,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         entityName: (name: string) => name === "Confessor 2.0"
             ? language === "es" ? "Confesor" : "Confessor"
             : language === "pt-BR" ? name : translatedPersonaNames[language][name] || name
-    }), [language, theme, cardOrderMode, level, customCardOrders, randomCardOrders, cardUsage]);
+    }), [language, theme, cardOrderMode, level, singularity, customCardOrders, randomCardOrders, cardUsage]);
 
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
