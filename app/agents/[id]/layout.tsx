@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: AgentLayoutProps): Promise<Me
         };
     }
 
-    const image = new URL(`/agents/${encodeURIComponent(slug)}/opengraph-image`, appUrl).toString();
+    const image = new URL(`/api/og/persona/${encodeURIComponent(slug)}`, appUrl).toString();
     const title = `${entity.name} | Nemosine`;
     const description = entity.phrase || "Persona do Sistema Nemosine Nous.";
     const url = new URL(`/agents/${encodeURIComponent(slug)}`, appUrl).toString();

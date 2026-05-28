@@ -2,21 +2,15 @@ import { ImageResponse } from "next/og";
 import { ENTITIES } from "@/app/data/entities";
 
 export const runtime = "edge";
-export const alt = "Nemosine";
-export const size = {
-    width: 1200,
-    height: 630,
-};
-export const contentType = "image/png";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL
     || "https://nemosine-04-vs-code.vercel.app";
 
-type Props = {
+type RouteContext = {
     params: Promise<{ id: string }>;
 };
 
-export default async function Image({ params }: Props) {
+export async function GET(_request: Request, { params }: RouteContext) {
     const { id } = await params;
     const slug = decodeURIComponent(id);
     const entity = ENTITIES[slug];
@@ -112,6 +106,12 @@ export default async function Image({ params }: Props) {
                 </div>
             </div>
         ),
-        size
+        {
+            width: 1200,
+            height: 630,
+            headers: {
+                "Cache-Control": "public, max-age=31536000, immutable",
+            },
+        }
     );
 }
