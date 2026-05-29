@@ -86,7 +86,7 @@ export default function AccessPage() {
             loop
             muted
             playsInline
-            className="absolute inset-0 h-full w-full object-cover opacity-60"
+            className="absolute inset-0 h-full w-full object-cover opacity-60 animate-fade-in-slow"
           >
             <source src="/assets/background.mp4" type="video/mp4" />
           </video>
@@ -95,7 +95,7 @@ export default function AccessPage() {
             <img
               src="/assets/nemosine-logo.png"
               alt="Nemosine Nous"
-              className="h-auto w-full max-w-3xl object-contain drop-shadow-[0_0_25px_rgba(197,160,89,0.4)]"
+              className="h-auto w-full max-w-3xl object-contain drop-shadow-[0_0_25px_rgba(197,160,89,0.4)] animate-fade-in-slow"
             />
             <div onClick={() => setShowGrimoire(true)} className="cursor-pointer">
               <MedievalButton className="px-12 py-4 text-lg">

@@ -17,7 +17,7 @@ interface NavbarProps {
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session, status } = useSession();
-    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity, fontSize, setFontSize } = useLanguage();
+    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity, fontSize, setFontSize, cognitiveMode, setCognitiveMode } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
@@ -165,18 +165,19 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                             <div className="mt-2 grid grid-cols-3 gap-1.5">
                                                 <button
                                                     type="button"
-                                                    className="rounded border border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059] py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight h-11"
+                                                    onClick={() => setCognitiveMode("symbolic")}
+                                                    className={`rounded border py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight h-11 transition-all ${cognitiveMode === "symbolic" ? "border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/10 text-white/40 hover:border-[#c5a059]/40 hover:bg-white/5 cursor-pointer"}`}
                                                 >
                                                     <span>{t("modeSymbolic")}</span>
-                                                    <span className="text-[6.5px] opacity-70 mt-0.5">({t("current")})</span>
+                                                    {cognitiveMode === "symbolic" && <span className="text-[6.5px] opacity-70 mt-0.5">({t("current")})</span>}
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    disabled
-                                                    className="rounded border border-[#c5a059]/10 text-white/30 py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight cursor-not-allowed h-11 opacity-60"
+                                                    onClick={() => setCognitiveMode("sober")}
+                                                    className={`rounded border py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight h-11 transition-all ${cognitiveMode === "sober" ? "border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/10 text-white/40 hover:border-[#c5a059]/40 hover:bg-white/5 cursor-pointer"}`}
                                                 >
                                                     <span>{t("modeSober")}</span>
-                                                    <span className="text-[6.5px] opacity-90 text-amber-500 mt-0.5">{t("soon")}</span>
+                                                    {cognitiveMode === "sober" && <span className="text-[6.5px] opacity-70 mt-0.5">({t("current")})</span>}
                                                 </button>
                                                 <button
                                                     type="button"

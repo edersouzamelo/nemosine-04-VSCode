@@ -9,6 +9,7 @@ export type AppFontSize = "small" | "medium" | "large";
 export type CardCollection = "personas" | "places";
 export type CardOrderMode = "original" | "popular" | "random" | "custom";
 export type NemosineLevel = "Peregrino" | "Vassalo" | "Regente" | "Soberano";
+export type CognitiveMode = "symbolic" | "sober";
 
 type CardOrders = Record<CardCollection, string[]>;
 type CardUsage = Record<CardCollection, Record<string, number>>;
@@ -47,6 +48,173 @@ const translatedPersonaNames: Partial<Record<AppLanguage, Record<string, string>
         Narrador: "Narrator", "Orquestrador-Arquiteto": "Orchestrator-Architect", Princesa: "Princess",
         Promotor: "Prosecutor", Psicólogo: "Psychologist", Sócio: "Partner", Sombra: "Shadow",
         Vigia: "Watchman", Vingador: "Avenger"
+    }
+};
+
+const soberTranslations: Partial<Record<AppLanguage, Record<string, string>>> = {
+    "pt-BR": {
+        personas: "Agentes de Análise",
+        places: "Módulos de Contexto",
+        constitution: "Diretrizes & Políticas",
+        travessia: "Progresso e Metas",
+        dominios: "Workspace",
+        mySpace: "Painel Pessoal",
+        logout: "Desconectar Sessão",
+        dossierAgent: "Especificações do Agente",
+        dossierPlace: "Especificações do Módulo",
+        identification: "Parâmetros do Agente",
+        protocol: "Prompt de Sistema",
+        onboardingTitle: "Configuração do Workspace",
+        welcomeTitle: "Centralize seus processos e modelos.",
+        welcomeSubtitle: "Um workspace integrado de agentes inteligentes e produtividade cognitiva para otimizar sua clareza e tomada de decisão.",
+        welcomeHelper: "Selecione o módulo de foco ou o perfil ideal para iniciar.",
+        recentMemories: "Registro de Histórico",
+        newChat: "Nova Sessão",
+        startJourney: "Iniciar sessão com",
+    },
+    "pt-PT": {
+        personas: "Agentes de Análise",
+        places: "Módulos de Contexto",
+        constitution: "Diretrizes & Políticas",
+        travessia: "Progresso e Metas",
+        dominios: "Workspace",
+        mySpace: "Painel Pessoal",
+        logout: "Desligar Sessão",
+        dossierAgent: "Especificações do Agente",
+        dossierPlace: "Especificações do Módulo",
+        identification: "Parâmetros do Agente",
+        protocol: "Prompt de Sistema",
+        onboardingTitle: "Configuração do Workspace",
+        welcomeTitle: "Centralize os seus processos e modelos.",
+        welcomeSubtitle: "Um workspace integrado de agentes inteligentes e produtividade cognitiva para otimizar a sua clareza e tomada de decisão.",
+        welcomeHelper: "Selecione o módulo de foco ou o perfil ideal para iniciar.",
+        recentMemories: "Registo de Histórico",
+        newChat: "Nova Sessão",
+        startJourney: "Iniciar sessão com",
+    },
+    "es": {
+        personas: "Agentes de Análisis",
+        places: "Módulos de Contexto",
+        constitution: "Políticas y Reglas",
+        travessia: "Progreso y Metas",
+        dominios: "Workspace",
+        mySpace: "Panel Personal",
+        logout: "Cerrar Sesión",
+        dossierAgent: "Especificación del Agente",
+        dossierPlace: "Especificación del Módulo",
+        identification: "Parámetros del Agente",
+        protocol: "Prompt de Sistema",
+        onboardingTitle: "Configuración del Workspace",
+        welcomeTitle: "Centralice sus procesos y modelos.",
+        welcomeSubtitle: "Un workspace integrado con agentes inteligentes y productividad cognitiva para optimizar su claridad y toma de decisiones.",
+        welcomeHelper: "Seleccione el módulo operativo o el perfil ideal para comenzar.",
+        recentMemories: "Historial de Interacciones",
+        newChat: "Nueva Sesión",
+        startJourney: "Iniciar sesión con",
+    },
+    "en": {
+        personas: "Analysis Agents",
+        places: "Context Modules",
+        constitution: "Policies & Rules",
+        travessia: "Progress & Goals",
+        dominios: "Workspace",
+        mySpace: "Personal Dashboard",
+        logout: "Disconnect Session",
+        dossierAgent: "Agent Specification",
+        dossierPlace: "Module Specification",
+        identification: "Agent Parameters",
+        protocol: "System Prompt",
+        onboardingTitle: "Workspace Setup",
+        welcomeTitle: "Centralize your processes and models.",
+        welcomeSubtitle: "An integrated workspace with intelligent agents and cognitive productivity to optimize your clarity and decision-making.",
+        welcomeHelper: "Select the operational module or the ideal profile to begin.",
+        recentMemories: "Interaction History",
+        newChat: "New Session",
+        startJourney: "Start session with",
+    }
+};
+
+const soberEntityNames: Partial<Record<AppLanguage, Record<string, string>>> = {
+    "pt-BR": {
+        "Não-Lugar": "Área Neutra",
+        "Labirinto": "Resolução de Paradoxos",
+        "Arquivo": "Arquivo Histórico",
+        "Porão": "Análise de Hábitos",
+        "Masmorra": "Contenção de Crises",
+        "Biblioteca": "Base de Conhecimento",
+        "Claustro": "Recalibração Somática",
+        "Galeria": "Registro de Aprendizados",
+        "Oficina": "Laboratório de Execução",
+        "Teatro": "Simulação Comportamental",
+        "Mercado Real": "Avaliação de Valor",
+        "Núcleo": "Alinhamento de Decisão",
+        "Tribunal": "Auditoria de Integridade",
+        "Jardim": "Maturador de Projetos",
+        "Observatório": "Auditoria Geral",
+        "Mosteiro": "Regeneração Operacional",
+        "Portal": "Simulador de Longo Prazo",
+        "Torreão": "Regulação Atmosférica",
+        "Campanário": "Sincronização de Informação",
+        "Sala do Trono": "Soberania Consciente",
+        "Ponte": "Conexão de Processos",
+        "Solar": "Tradução de Intuições",
+        "Bobo da Corte": "Análise de Sarcasmo",
+        "Confessor 2.0": "Gestão de Culpa",
+        "Orquestrador-Arquiteto": "Planejador de Arquitetura",
+    },
+    "es": {
+        "Não-Lugar": "Área Neutra",
+        "Labirinto": "Resolución de Paradojas",
+        "Arquivo": "Archivo Histórico",
+        "Porão": "Análisis de Hábitos",
+        "Masmorra": "Control de Crisis",
+        "Biblioteca": "Base de Conocimiento",
+        "Claustro": "Recalibración Somática",
+        "Galeria": "Registro de Aprendizajes",
+        "Oficina": "Laboratorio de Ejecución",
+        "Teatro": "Simulación de Conducta",
+        "Mercado Real": "Evaluación de Valor",
+        "Núcleo": "Alineación de Decisiones",
+        "Tribunal": "Auditoría de Integridad",
+        "Jardim": "Incubadora de Proyectos",
+        "Observatório": "Auditoría General",
+        "Mosteiro": "Reinicio Operativo",
+        "Portal": "Simulador de Largo Plazo",
+        "Torreão": "Regulación de Atmósfera",
+        "Campanário": "Sincronización de Información",
+        "Sala do Trono": "Soberanía Consciente",
+        "Ponte": "Conexión de Procesos",
+        "Solar": "Traducción de Intuiciones",
+        "Bobo da Corte": "Análisis de Sarcasmo",
+        "Confessor 2.0": "Gestión de Culpa",
+        "Orquestrador-Arquiteto": "Planificador de Arquitectura",
+    },
+    "en": {
+        "Não-Lugar": "Neutral Area",
+        "Labirinto": "Paradox Resolution",
+        "Arquivo": "Historical Archive",
+        "Porão": "Habits Analysis",
+        "Masmorra": "Crisis Control",
+        "Biblioteca": "Knowledge Base",
+        "Claustro": "Somatic Recalibration",
+        "Galeria": "Learning Gallery",
+        "Oficina": "Execution Lab",
+        "Teatro": "Behavioral Simulation",
+        "Mercado Real": "Valuation Assessment",
+        "Núcleo": "Decision Alignment",
+        "Tribunal": "Integrity Audit",
+        "Jardim": "Project Incubator",
+        "Observatório": "General Audit",
+        "Mosteiro": "Operational Reset",
+        "Portal": "Long-term Simulator",
+        "Torreão": "Atmosphere Regulation",
+        "Campanário": "Information Sync",
+        "Sala do Trono": "Conscious Sovereignty",
+        "Ponte": "Process Connection",
+        "Solar": "Intuition Translation",
+        "Bobo da Corte": "Sarcasm Analysis",
+        "Confessor 2.0": "Guilt Management",
+        "Orquestrador-Arquiteto": "Architecture Planner",
     }
 };
 
@@ -957,6 +1125,8 @@ type LanguageContextValue = {
     setLevel: (level: NemosineLevel) => void;
     singularity: "on" | "off";
     setSingularity: (value: "on" | "off") => void;
+    cognitiveMode: CognitiveMode;
+    setCognitiveMode: (mode: CognitiveMode) => void;
     getOrderedCards: (collection: CardCollection, originalOrder: string[]) => string[];
     setCustomCardOrder: (collection: CardCollection, names: string[]) => void;
     ensureRandomCardOrder: (collection: CardCollection, names: string[]) => void;
@@ -974,6 +1144,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [cardOrderMode, setCardOrderModeState] = useState<CardOrderMode>("original");
     const [level, setLevelState] = useState<NemosineLevel>("Peregrino");
     const [singularity, setSingularityState] = useState<"on" | "off">("off");
+    const [cognitiveMode, setCognitiveModeState] = useState<CognitiveMode>("symbolic");
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
@@ -1069,6 +1240,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             setFontSizeState(storedFontSize);
             document.documentElement.setAttribute("data-fontsize", storedFontSize);
         }
+        const storedCognitiveMode = window.localStorage.getItem("nemosine-cognitive-mode") as CognitiveMode | null;
+        if (storedCognitiveMode === "symbolic" || storedCognitiveMode === "sober") {
+            setCognitiveModeState(storedCognitiveMode);
+            document.documentElement.classList.toggle("sober-mode", storedCognitiveMode === "sober");
+        }
 
         const readStoredObject = <T,>(key: string, fallback: T): T => {
             try {
@@ -1097,6 +1273,12 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         document.documentElement.classList.toggle("light-theme", nextTheme === "light");
         document.documentElement.classList.toggle("luanova-theme", nextTheme === "luanova");
         document.documentElement.classList.toggle("crepusculo-theme", nextTheme === "crepusculo");
+    };
+
+    const setCognitiveMode = (nextMode: CognitiveMode) => {
+        setCognitiveModeState(nextMode);
+        window.localStorage.setItem("nemosine-cognitive-mode", nextMode);
+        document.documentElement.classList.toggle("sober-mode", nextMode === "sober");
     };
 
     const setCardOrderMode = (mode: CardOrderMode) => {
@@ -1196,16 +1378,29 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setLevel,
         singularity,
         setSingularity,
+        cognitiveMode,
+        setCognitiveMode,
         getOrderedCards,
         setCustomCardOrder,
         ensureRandomCardOrder,
         clearRandomCardOrders,
         recordCardUse,
-        t: (key: TranslationKey) => translations[language][key],
-        entityName: (name: string) => name === "Confessor 2.0"
-            ? language === "es" ? "Confesor" : "Confessor"
-            : language === "pt-BR" ? name : (translatedPersonaNames[language]?.[name] || name)
-    }), [language, theme, fontSize, cardOrderMode, level, singularity, customCardOrders, randomCardOrders, cardUsage]);
+        t: (key: TranslationKey) => {
+            const val = translations[language]?.[key] || `[${key}]`;
+            if (cognitiveMode === "sober") {
+                return soberTranslations[language]?.[key] || val;
+            }
+            return val;
+        },
+        entityName: (name: string) => {
+            if (cognitiveMode === "sober") {
+                return soberEntityNames[language]?.[name] || name;
+            }
+            return name === "Confessor 2.0"
+                ? language === "es" ? "Confesor" : "Confessor"
+                : language === "pt-BR" ? name : (translatedPersonaNames[language]?.[name] || name);
+        }
+    }), [language, theme, fontSize, cardOrderMode, level, singularity, cognitiveMode, customCardOrders, randomCardOrders, cardUsage]);
 
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

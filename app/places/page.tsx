@@ -10,7 +10,7 @@ import { useLanguage } from "../components/LanguageProvider";
 import AgentCard from "../components/AgentCard";
 
 export default function PlacesPage() {
-    const { language, entityName } = useLanguage();
+    const { language, entityName, t } = useLanguage();
     const [carouselMode, setCarouselMode] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -53,14 +53,16 @@ export default function PlacesPage() {
                 <section className="relative z-10 p-4 md:p-8 lg:p-12">
                     <div className="max-w-[1600px] mx-auto">
                         <header className="mb-12 text-center relative flex flex-col items-center justify-center">
-                            <h2 className="text-4xl font-display text-[#c5a059] mb-2 uppercase tracking-widest">Lugares da Mente</h2>
-                            <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Cenários de Processamento Cognitivo</p>
+                            <h2 className="text-4xl font-display text-[#c5a059] mb-2 uppercase tracking-widest">{t("places")}</h2>
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">
+                                {language.startsWith("pt") ? "Cenários de Processamento Cognitivo" : language === "es" ? "Escenarios de Procesamiento Cognitivo" : "Cognitive Processing Scenarios"}
+                            </p>
                             
                             <div className="absolute right-0 bottom-0 pr-2">
                                 <button
                                     type="button"
                                     onClick={() => setCarouselMode(!carouselMode)}
-                                    title={carouselMode ? (language.startsWith("pt") ? "Ver em Grade" : "View in Grid") : (language.startsWith("pt") ? "Ver em Carrossel" : "View in Carousel")}
+                                    title={carouselMode ? (language.startsWith("pt") ? "Ver em Grade" : language === "es" ? "Ver en Cuadrícula" : "View in Grid") : (language.startsWith("pt") ? "Ver em Carrossel" : language === "es" ? "Ver en Carrusel" : "View in Carousel")}
                                     className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
                                 >
                                     <span className="material-icons text-xl">{carouselMode ? "grid_on" : "view_carousel"}</span>
@@ -105,6 +107,8 @@ export default function PlacesPage() {
                                                 href={item.href}
                                                 label="Lugar"
                                                 className="aspect-[4/7]"
+                                                flipOnMount={true}
+                                                index={placesItems.indexOf(item)}
                                             />
                                         </div>
                                     ))}
@@ -119,7 +123,7 @@ export default function PlacesPage() {
                 {/* Footer */}
                 <footer className="relative z-20 p-8 border-t border-[#c5a059]/10 bg-black/60 text-center">
                     <p className="text-[10px] medieval-text-gold opacity-40 italic">
-                        "Cada lugar abriga um segredo, e cada segredo é uma chave para o entendimento."
+                        {language.startsWith("pt") ? '"Cada lugar abriga um segredo, e cada segredo é uma chave para o entendimento."' : language === "es" ? '"Cada lugar alberga un secreto, y cada secreto es una llave para el entendimiento."' : '"Each place harbors a secret, and each secret is a key to understanding."'}
                     </p>
                 </footer>
                 <InstitutionalFooter />

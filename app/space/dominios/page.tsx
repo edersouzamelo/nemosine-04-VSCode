@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "../../components/LanguageProvider";
 import Navbar from "../../components/Navbar";
 import InstitutionalFooter from "../../components/InstitutionalFooter";
+import PushToggle from "../../components/PushToggle";
 
 interface DomainApp {
     id: string;
@@ -102,12 +103,20 @@ export default function DominiosHubPage() {
     // PWA Standalone Detection & Helper Guide States
     const [isPwaStandalone, setIsPwaStandalone] = useState(false);
     const [showPwaInstallGuide, setShowPwaInstallGuide] = useState(false);
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
     useEffect(() => {
         if (typeof window !== "undefined") {
             const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
             setIsPwaStandalone(standalone);
         }
+
+        const handleBeforeInstall = (e: Event) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        };
+        window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+        return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
     }, []);
 
 
@@ -121,7 +130,7 @@ export default function DominiosHubPage() {
     const [newEventDate, setNewEventDate] = useState("");
     const [newEventType, setNewEventType] = useState("Compromisso");
     const [newEventNote, setNewEventNote] = useState("");
-    const [agendaViewMode, setAgendaViewMode] = useState<"day" | "week" | "month" | "year">("week");
+    const [agendaViewMode, setAgendaViewMode] = useState<"day" | "week" | "month" | "year">("month");
     const [selectedDate, setSelectedDate] = useState<string>("");
     const [activeEditEvent, setActiveEditEvent] = useState<AgendaEvent | null>(null);
     const [notifiedEvents, setNotifiedEvents] = useState<Record<string, boolean>>({});
@@ -229,9 +238,9 @@ export default function DominiosHubPage() {
             const todaysExpanded = expandRecurringEvents(agendaEvents, startRange, endRange);
 
             todaysExpanded.forEach(ev => {
-                const notifMin = ev.notificationMinutes !== undefined && ev.notificationMinutes !== null ? Number(ev.notificationMinutes) : 0;
+                const notifMin = ev.notificationMinutes !== undefined && ev.notificationMinutes !== null ? Number(ev.notificationMinutes) : -1;
                 const hasSound = !!ev.notificationSound;
-                if (notifMin === 0 && !hasSound) return;
+                if (notifMin === -1 && !hasSound) return;
 
                 const [sh, sm] = (ev.startTime || "00:00").split(':').map(Number);
                 const eventTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm);
@@ -239,7 +248,8 @@ export default function DominiosHubPage() {
                 const diffMs = eventTime.getTime() - now.getTime();
                 const diffMin = Math.ceil(diffMs / 60000);
 
-                if (diffMin >= 0 && diffMin <= notifMin) {
+                const maxDiff = notifMin === -1 ? 0 : notifMin;
+                if (diffMin >= 0 && diffMin <= maxDiff) {
                     const trackingId = `${ev.id}-${ev.date}-${sh}-${sm}`;
                     
                     if (!notifiedEvents[trackingId]) {
@@ -249,13 +259,17 @@ export default function DominiosHubPage() {
                             playCelestialChime();
                         }
 
-                        if (notifMin > 0) {
+                        if (notifMin >= 0) {
+                            const bodyText = notifMin === 0
+                                ? `Seu compromisso "${ev.title}" está começando agora (${ev.startTime})!`
+                                : `Seu compromisso "${ev.title}" começa em ${diffMin} minutos às ${ev.startTime}.`;
+
                             fetch('/api/push/send', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     title: `🔔 Lembrete: ${ev.title}`,
-                                    body: `Seu compromisso "${ev.title}" começa em ${diffMin} minutos às ${ev.startTime}.`,
+                                    body: bodyText,
                                     url: '/space/dominios'
                                 })
                             }).catch(err => console.error("Falha ao enviar push:", err));
@@ -1140,7 +1154,16 @@ export default function DominiosHubPage() {
         return (
             <button
                 type="button"
-                onClick={() => setShowPwaInstallGuide(true)}
+                onClick={async () => {
+                    if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        const { outcome } = await deferredPrompt.userChoice;
+                        console.log(`PWA native install outcome: ${outcome}`);
+                        setDeferredPrompt(null);
+                    } else {
+                        setShowPwaInstallGuide(true);
+                    }
+                }}
                 className="flex items-center gap-1 px-1.5 py-0.5 border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 rounded text-[#c5a059] text-[7px] xs:text-[7.5px] uppercase font-bold tracking-wider transition-colors cursor-pointer"
             >
                 <span className="material-icons text-[8.5px] xs:text-[9px]">install_mobile</span>
@@ -1267,7 +1290,7 @@ export default function DominiosHubPage() {
                 color: "#c5a059",
                 recurrence: "none",
                 notificationMinutes: 0,
-                notificationSound: false
+                notificationSound: true
             });
         };
 
@@ -1357,6 +1380,7 @@ export default function DominiosHubPage() {
                         <h3 className="font-display text-xs font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
                             <span>📅 Agenda do Arauto</span>
                             {renderPwaInstallBadge()}
+                            <PushToggle compact={true} />
                         </h3>
                         {/* Day/Week/Month/Year Switch */}
                         <div className="flex bg-[#121118] border border-[#c5a059]/20 rounded p-0.5 max-w-[200px] xs:max-w-full overflow-x-auto">
@@ -1792,11 +1816,12 @@ export default function DominiosHubPage() {
                                     <div className="flex items-center justify-between">
                                         <label className="text-[7.5px] uppercase font-bold text-stone-300">Lembrete Notificação Push</label>
                                         <select
-                                            value={activeEditEvent.notificationMinutes || 0}
+                                            value={activeEditEvent.notificationMinutes === undefined || activeEditEvent.notificationMinutes === null ? 0 : activeEditEvent.notificationMinutes}
                                             onChange={(e) => setActiveEditEvent({ ...activeEditEvent, notificationMinutes: Number(e.target.value) })}
                                             className="bg-black border border-[#c5a059]/20 rounded px-1.5 py-0.5 text-[8.5px] text-[#eae3d5] focus:outline-none"
                                         >
-                                            <option value={0}>Sem lembrete</option>
+                                            <option value={-1}>Sem lembrete</option>
+                                            <option value={0}>No momento do evento</option>
                                             <option value={5}>5 minutos antes</option>
                                             <option value={10}>10 minutos antes</option>
                                             <option value={15}>15 minutos antes</option>
@@ -2645,7 +2670,7 @@ export default function DominiosHubPage() {
                     src={src} 
                     className="w-full h-full border-0 rounded-xl"
                     title="Sovereign App"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation allow-top-navigation-by-user-activation"
                 />
             </div>
         );
@@ -2757,7 +2782,9 @@ export default function DominiosHubPage() {
                         <p className="font-body text-base italic text-[#c5a059]/60 max-w-xl mx-auto leading-relaxed">
                             {language.startsWith("pt") 
                                 ? "Ative os canais da sua mente e navegue pelos domínios e aplicativos integrados que regem o seu próprio metasistema de consciência." 
-                                : "Activate the channels of your mind and navigate the integrated domains and applications governing your own metasystem of consciousness."}
+                                : language === "es"
+                                    ? "Active los canales de su mente y navegue por los dominios y aplicaciones integrados que rigen su propio metasistema de conciencia."
+                                    : "Activate the channels of your mind and navigate the integrated domains and applications governing your own metasystem of consciousness."}
                         </p>
                     </header>
                 )}
@@ -2779,7 +2806,7 @@ export default function DominiosHubPage() {
                                         Sovereign OS
                                     </h2>
                                     <p className="text-[7.5px] uppercase tracking-widest text-[#eee8dc]/40">
-                                        {language.startsWith("pt") ? "Metasistema da Mente" : "Metasystem of the Mind"}
+                                        {language.startsWith("pt") ? "Metasistema da Mente" : language === "es" ? "Metasistema de la Mente" : "Metasystem of the Mind"}
                                     </p>
                                 </div>
                             </div>
@@ -2823,7 +2850,7 @@ export default function DominiosHubPage() {
                                             onClick={() => setSelectedApp(null)}
                                             className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-6 py-2 rounded-xl font-display text-[9px] uppercase tracking-widest text-[#fde68a] hover:text-white transition-all font-semibold"
                                         >
-                                            {language.startsWith("pt") ? "← Retornar ao OS" : "← Return to OS"}
+                                            {language.startsWith("pt") ? "← Retornar ao OS" : language === "es" ? "← Retornar al OS" : "← Return to OS"}
                                         </button>
                                     </div>
                                 </div>
@@ -2876,7 +2903,7 @@ export default function DominiosHubPage() {
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[10px] uppercase tracking-widest text-[#c5a059] font-bold">Apps Recentes</span>
+                                        <span className="text-[10px] uppercase tracking-widest text-[#c5a059] font-bold">{language.startsWith("pt") ? "Apps Recentes" : language === "es" ? "Aplicaciones Recientes" : "Recent Apps"}</span>
                                         <button type="button" onClick={() => setShowRecents(false)} className="text-stone-500 hover:text-stone-300 text-lg cursor-pointer">×</button>
                                     </div>
                                     {appHistory.length === 0 ? (
@@ -2912,7 +2939,7 @@ export default function DominiosHubPage() {
                                             onClick={() => { setAppHistory([]); setShowRecents(false); }}
                                             className="mt-auto text-[9px] uppercase tracking-wider text-stone-600 hover:text-red-400 cursor-pointer transition-colors text-center"
                                         >
-                                            Limpar Histórico
+                                            {language.startsWith("pt") ? "Limpar Histórico" : language === "es" ? "Limpiar Historial" : "Clear History"}
                                         </button>
                                     )}
                                 </div>
@@ -2998,11 +3025,11 @@ export default function DominiosHubPage() {
                                     ) : selectedApp && currentApp ? (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in py-1 text-left overflow-y-auto pr-0.5">
                                             {renderUnifiedApp(selectedApp, true)}
-                                            <button type="button" onClick={() => setSelectedApp(null)} className="w-full border border-[#c5a059]/40 bg-[#c5a059]/10 px-3 py-2 rounded-lg font-display text-[8px] uppercase tracking-wider text-[#fde68a] mt-3 cursor-pointer">Fechar App</button>
+                                            <button type="button" onClick={() => setSelectedApp(null)} className="w-full border border-[#c5a059]/40 bg-[#c5a059]/10 px-3 py-2 rounded-lg font-display text-[8px] uppercase tracking-wider text-[#fde68a] mt-3 cursor-pointer">{language.startsWith("pt") ? "Fechar App" : language === "es" ? "Cerrar App" : "Close App"}</button>
                                         </div>
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-3">
-                                            <p className="font-display text-[8px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-4">Grimório de Bolso</p>
+                                            <p className="font-display text-[8px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-4">{language.startsWith("pt") ? "Grimório de Bolso" : language === "es" ? "Grimorio de Bolsillo" : "Pocket Grimoire"}</p>
                                             <div className="grid grid-cols-4 gap-x-2 gap-y-3 px-1 overflow-y-auto pr-0.5 flex-1">
                                                 {getOrderedDomains().map((app) => (
                                                     <div
@@ -3079,11 +3106,11 @@ export default function DominiosHubPage() {
                                     ) : selectedApp && currentApp ? (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in py-2 text-left overflow-y-auto pr-0.5">
                                             {renderUnifiedApp(selectedApp, false)}
-                                            <button type="button" onClick={() => setSelectedApp(null)} className="w-full border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-4 py-2.5 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a] mt-3 cursor-pointer">← Fechar Aplicativo</button>
+                                            <button type="button" onClick={() => setSelectedApp(null)} className="w-full border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-4 py-2.5 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a] mt-3 cursor-pointer">{language.startsWith("pt") ? "← Fechar Aplicativo" : language === "es" ? "← Cerrar Aplicativo" : "← Close Application"}</button>
                                         </div>
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-4">
-                                            <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-6">Grimório de Bolso - Modo Tablet</p>
+                                            <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-6">{language.startsWith("pt") ? "Grimório de Bolso - Modo Tablet" : language === "es" ? "Grimorio de Bolsillo - Modo Tablet" : "Pocket Grimoire - Tablet Mode"}</p>
                                             <div className="grid grid-cols-4 gap-x-3 gap-y-4 px-4 overflow-y-auto pr-0.5 flex-1">
                                                 {getOrderedDomains().map((app) => (
                                                     <div
@@ -3163,12 +3190,12 @@ export default function DominiosHubPage() {
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in py-2 max-w-xl mx-auto w-full text-left overflow-y-auto pr-0.5">
                                             {renderUnifiedApp(selectedApp, false)}
                                             <div className="pt-4 flex justify-end">
-                                                <button type="button" onClick={() => setSelectedApp(null)} className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-6 py-2 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a] mt-3">← Fechar Domínio</button>
+                                                <button type="button" onClick={() => setSelectedApp(null)} className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-6 py-2 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a] mt-3">{language.startsWith("pt") ? "← Fechar Domínio" : language === "es" ? "← Cerrar Dominio" : "← Close Domain"}</button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-2">
-                                            <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-8">Grimório de Mesa - Sovereign Workspace</p>
+                                            <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-8">{language.startsWith("pt") ? "Grimório de Mesa - Sovereign Workspace" : language === "es" ? "Grimorio de Mesa - Sovereign Workspace" : "Desktop Grimoire - Sovereign Workspace"}</p>
                                             
                                             {/* Desktop app icon grid with drag & drop */}
                                             <div className="grid grid-cols-6 gap-3 px-4 overflow-y-auto pr-0.5 flex-1">
@@ -3270,7 +3297,7 @@ export default function DominiosHubPage() {
                                 onClick={() => setContextMenuApp(null)}
                                 className="w-full mt-3 text-[10px] uppercase tracking-widest text-stone-600 hover:text-stone-400 cursor-pointer py-1 transition-colors"
                             >
-                                Cancelar
+                                {language.startsWith("pt") ? "Cancelar" : language === "es" ? "Cancelar" : "Cancel"}
                             </button>
                         </div>
                     </div>

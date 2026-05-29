@@ -479,14 +479,7 @@ body {
   color: #302a22 !important;
 }
 
-.light-theme main > .fixed.inset-0 {
-  opacity: 0.22;
-}
-
-.light-theme main > .fixed.inset-0 > .absolute {
-  background-color: rgba(247, 243, 236, 0.82) !important;
-  backdrop-filter: blur(1px);
-}
+/* Removed to prevent conflicting with robust semantical theme overlays */
 
 .light-theme .site-navbar {
   background-color: rgba(251, 248, 242, 0.92) !important;
@@ -840,6 +833,10 @@ body {
   animation: fade-in 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
+.animate-fade-in-slow {
+  animation: fade-in 1.5s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
 /* ==========================================
    Classes Estruturais de Fundo Semânticas (Nemosine)
    ========================================== */
@@ -901,13 +898,136 @@ body {
   color: #302a22 !important;
 }
 .light-theme .nemosine-bg-overlay {
-  background-color: rgba(255, 252, 247, 0.84) !important;
+  background-color: rgba(255, 252, 247, 0.38) !important;
 }
 .light-theme .nemosine-mental-castle-bg {
   background-image: url("/assets/dawn_morning_sky.png") !important;
   background-color: #f7f3ec !important;
-  opacity: 0.55 !important;
+  opacity: 0.85 !important;
   mix-blend-mode: multiply !important;
 }
+
+/* ==========================================
+   Modo Sóbrio (Estética Clean Notion-Like)
+   ========================================== */
+
+/* Reset de Fontes e Tipografia Inter */
+.sober-mode,
+.sober-mode body,
+.sober-mode button,
+.sober-mode input,
+.sober-mode select,
+.sober-mode textarea,
+.sober-mode .medieval-text-gold,
+.sober-mode [class*="font-display"],
+.sober-mode [class*="font-body"],
+.sober-mode h1,
+.sober-mode h2,
+.sober-mode h3,
+.sober-mode h4,
+.sober-mode h5,
+.sober-mode div,
+.sober-mode span,
+.sober-mode p {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+}
+
+.sober-mode .medieval-text-gold,
+.sober-mode [class*="medieval-text-gold"],
+.sober-mode h1,
+.sober-mode h2,
+.sober-mode h3 {
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+/* Paleta de Cores e Temas Sóbrios */
+.sober-mode,
+html.sober-mode {
+  --background: #09090b !important;
+  --foreground: #f4f4f5 !important;
+  --border-gold: #27272a !important;
+}
+
+html.sober-mode.light-theme,
+.light-theme.sober-mode,
+.light-theme .sober-mode {
+  --background: #ffffff !important;
+  --foreground: #18181b !important;
+  --border-gold: #e4e4e7 !important;
+}
+
+/* Resets de planos de fundo para visual limpo */
+.sober-mode .nemosine-mental-castle-bg {
+  background-image: none !important;
+  background-color: var(--background) !important;
+  opacity: 1 !important;
+}
+.sober-mode .nemosine-bg-overlay {
+  background-color: var(--background) !important;
+  backdrop-filter: none !important;
+  opacity: 1 !important;
+}
+.sober-mode .nemosine-main-container {
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+/* Ocultar texturas de pergaminho e elementos rústicos */
+.sober-mode .glass-medieval,
+.sober-mode [class*="glass-medieval"] {
+  background: var(--background) !important;
+  border-color: var(--border-gold) !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+}
+
+.sober-mode .medieval-border {
+  border: 1px solid var(--border-gold) !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+}
+
+/* Ajustes de Cores de Textos Gold */
+.sober-mode .medieval-text-gold,
+.sober-mode [class*="medieval-text-gold"],
+.sober-mode label[class*="text-[#c5a059]"],
+.sober-mode span[class*="text-[#c5a059]"],
+.sober-mode p[class*="text-[#c5a059]"] {
+  color: var(--foreground) !important;
+  opacity: 0.9;
+}
+
+/* Botões e Inputs no Estilo Notion */
+.sober-mode button,
+.sober-mode select,
+.sober-mode input,
+.sober-mode textarea {
+  border-radius: 6px !important;
+  border-color: var(--border-gold) !important;
+  box-shadow: none !important;
+}
+
+.sober-mode select {
+  background-image: none !important;
+}
+
+/* Remover decorações e frames dourados */
+.sober-mode [class*="border-[#c5a059]"] {
+  border-color: var(--border-gold) !important;
+}
+.sober-mode [class*="bg-[#c5a059]"] {
+  background-color: var(--border-gold) !important;
+  color: var(--foreground) !important;
+}
+
+.sober-mode .relic-phrase-container {
+  display: none !important;
+}
+
+.sober-mode .card-shuffle-motion {
+  animation: none !important;
+}
+
 
 

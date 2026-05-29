@@ -183,6 +183,8 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                                 label={collection === "places" ? "Lugar" : "Persona"}
                                 image={item.image}
                                 className={collection === "places" ? "aspect-[4/7]" : ""}
+                                flipOnMount={collection === "places"}
+                                index={displayNames.indexOf(name)}
                             />
                         </div>
                         {!isCustom && (

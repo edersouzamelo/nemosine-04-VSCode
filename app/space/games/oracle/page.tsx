@@ -117,18 +117,37 @@ export default function OraclePage() {
                         style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                     >
                         {currentCard ? (
-                            <Link href={`/agents/${getPersonaSlug(currentCard.name)}`} className="w-full h-full relative group/card block">
-                                <img src={currentCard.imagePath} alt={currentCard.name} className="w-full h-full object-contain p-2" />
-                                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 z-10">
-                                    <span className="bg-black/90 text-[#C5A059] px-4 py-2 rounded-full text-xs font-bold border border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.5)]">
-                                        Falar com {currentCard.name}
-                                    </span>
-                                </div>
-                                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 text-center">
-                                    <h2 className="text-2xl font-bold text-[#C5A059] drop-shadow-md group-hover/card:text-white transition-colors">{currentCard.name}</h2>
-                                    <p className="text-xs text-gray-300 uppercase tracking-widest">{currentCard.suit} {currentCard.rank}</p>
-                                </div>
-                            </Link>
+                            isEmbedded ? (
+                                <a 
+                                    href={`/agents/${getPersonaSlug(currentCard.name)}`} 
+                                    target="_top" 
+                                    className="w-full h-full relative group/card block"
+                                >
+                                    <img src={currentCard.imagePath} alt={currentCard.name} className="w-full h-full object-contain p-2" />
+                                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 z-10">
+                                        <span className="bg-black/90 text-[#C5A059] px-4 py-2 rounded-full text-xs font-bold border border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.5)]">
+                                            Falar com {currentCard.name}
+                                        </span>
+                                    </div>
+                                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 text-center">
+                                        <h2 className="text-2xl font-bold text-[#C5A059] drop-shadow-md group-hover/card:text-white transition-colors">{currentCard.name}</h2>
+                                        <p className="text-xs text-gray-300 uppercase tracking-widest">{currentCard.suit} {currentCard.rank}</p>
+                                    </div>
+                                </a>
+                            ) : (
+                                <Link href={`/agents/${getPersonaSlug(currentCard.name)}`} className="w-full h-full relative group/card block">
+                                    <img src={currentCard.imagePath} alt={currentCard.name} className="w-full h-full object-contain p-2" />
+                                    <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 z-10">
+                                        <span className="bg-black/90 text-[#C5A059] px-4 py-2 rounded-full text-xs font-bold border border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.5)]">
+                                            Falar com {currentCard.name}
+                                        </span>
+                                    </div>
+                                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4 text-center">
+                                        <h2 className="text-2xl font-bold text-[#C5A059] drop-shadow-md group-hover/card:text-white transition-colors">{currentCard.name}</h2>
+                                        <p className="text-xs text-gray-300 uppercase tracking-widest">{currentCard.suit} {currentCard.rank}</p>
+                                    </div>
+                                </Link>
+                            )
                         ) : (
                             <div className="w-full h-full bg-gray-900"></div>
                         )}

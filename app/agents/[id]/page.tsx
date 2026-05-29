@@ -17,9 +17,29 @@ import { useLanguage } from "@/app/components/LanguageProvider";
 import { useParams } from "next/navigation";
 import { ENTITIES, PERSONAS } from "../../data/entities";
 
+const soberEmojis: Record<string, string> = {
+    "Não-Lugar": "🌌", "Labirinto": "🌀", "Arquivo": "📁", "Porão": "🕳️", "Masmorra": "⛓️", 
+    "Biblioteca": "📚", "Claustro": "🧘", "Galeria": "🖼️", "Oficina": "🛠️", "Teatro": "🎭", 
+    "Mercado Real": "⚖️", "Núcleo": "🧬", "Tribunal": "🏛️", "Jardim": "🌳", "Observatório": "🔭", 
+    "Mosteiro": "🕯️", "Portal": "🚪", "Torreão": "🏰", "Campanário": "🔔", "Sala do Trono": "👑", 
+    "Ponte": "🌉", "Solar": "☀️",
+    "Adjunto": "💼", "Advogado": "⚖️", "Aprovisionador": "🔋", "Arauto": "📢", "Arqueólogo": "🔍", 
+    "Artista": "🎨", "Astrônomo": "🌌", "Autor": "✍️", "Bobo da Corte": "🃏", "Bruto": "🛡️", 
+    "Bruxo": "🧪", "Burguês": "💰", "Cientista": "🔬", "Cigana": "🔮", "Comandante": "🎖️", 
+    "Confessor 2.0": "🕯️", "Coveiro": "⚰️", "Curador": "📋", "Custódio": "🔑", "Desejo": "⚡", 
+    "Dor": "🩸", "Engenheiro": "⚙️", "Espelho": "🪞", "Espião": "🕵️", "Estrategista": "♟️", 
+    "Executor": "🔨", "Exorcista": "✝️", "Fantasma": "👻", "Filósofo": "📖", "Fúria": "🔥", 
+    "Guardião": "🏰", "Guru": "🕉️", "Herdeiro": "👑", "Inimigo": "⚔️", "Instrutor": "🎓", 
+    "Juiz": "⚖️", "Louco": "🤪", "Luz": "💡", "Médico": "🩺", "Mentor": "🧠", "Mentorzinho": "🧒", 
+    "Mestre": "🎖️", "Mordomo": "🤵", "Narrador": "🎙️", "Orquestrador-Arquiteto": "🏛️", 
+    "Princesa": "👸", "Promotor": "⚖️", "Psicólogo": "🗣️", "Sócio": "🤝", "Sombra": "👤", 
+    "Terapeuta": "🛋️", "Treinador": "🏋️", "Vazio": "🕳️", "Vidente": "🔮", "Vigia": "👁️", 
+    "Vingador": "⚔️"
+};
+
 export default function AgentDetailPage() {
     const params = useParams();
-    const { t, entityName, recordCardUse } = useLanguage();
+    const { t, entityName, recordCardUse, cognitiveMode } = useLanguage();
     const id = decodeURIComponent(params.id as string);
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = React.useRef<HTMLAudioElement | null>(null);
@@ -93,49 +113,71 @@ export default function AgentDetailPage() {
                 {/* TOP: PERSONA IMAGE (Mobile) & RETRACTABLE MEMORIES */}
                 <div className="lg:hidden flex items-center h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-2 gap-2">
                     {/* Small Image for Mobile */}
-                    <div
-                        className="relative w-12 h-12 glass-medieval overflow-hidden group cursor-pointer rounded-lg shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
-                        onClick={toggleAudio}
-                    >
-                        {entity.audio && (
-                            <audio
-                                ref={audioRef}
-                                src={entity.audio}
-                                onEnded={() => setIsPlaying(false)}
-                                onPause={() => setIsPlaying(false)}
-                                onPlay={() => setIsPlaying(true)}
-                                onError={(e) => {
-                                    e.preventDefault();
-                                    setIsPlaying(false);
-                                }}
-                            />
-                        )}
-
-                        {(entity.landscapeImage || entity.image) && (
-                            <div className="absolute inset-0 w-full h-full overflow-hidden">
-                                <Image
-                                    src={entity.landscapeImage || entity.image || ''}
-                                    alt={displayedEntityName}
-                                    fill
-                                    className={`object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
+                    {cognitiveMode === "sober" ? (
+                        <div 
+                            className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-2xl shrink-0 cursor-pointer shadow-sm select-none"
+                            onClick={toggleAudio}
+                        >
+                            {entity.audio && (
+                                <audio
+                                    ref={audioRef}
+                                    src={entity.audio}
+                                    onEnded={() => setIsPlaying(false)}
+                                    onPause={() => setIsPlaying(false)}
+                                    onPlay={() => setIsPlaying(true)}
+                                    onError={(e) => {
+                                        e.preventDefault();
+                                        setIsPlaying(false);
+                                    }}
                                 />
-                            </div>
-                        )}
+                            )}
+                            {soberEmojis[entity.name] || "👤"}
+                        </div>
+                    ) : (
+                        <div
+                            className={`relative w-12 ${entity.type === "place" ? "aspect-[3/4.35]" : "aspect-square"} glass-medieval overflow-hidden group cursor-pointer rounded-lg shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)]`}
+                            onClick={toggleAudio}
+                        >
+                            {entity.audio && (
+                                <audio
+                                    ref={audioRef}
+                                    src={entity.audio}
+                                    onEnded={() => setIsPlaying(false)}
+                                    onPause={() => setIsPlaying(false)}
+                                    onPlay={() => setIsPlaying(true)}
+                                    onError={(e) => {
+                                        e.preventDefault();
+                                        setIsPlaying(false);
+                                    }}
+                                />
+                            )}
 
-                        {/* Audio Indicator */}
-                        <div className="absolute bottom-1 right-1 z-20">
-                            {isPlaying ? (
-                                <div className="flex gap-0.5 items-end h-4 bg-black/60 p-1 rounded text-[#c5a059] text-xs">
-                                    <div className="w-0.5 h-2 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
-                                    <div className="w-0.5 h-3 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
-                                </div>
-                            ) : (
-                                <div className="bg-black/60 p-1 rounded text-[#c5a059] opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                            {(entity.landscapeImage || entity.image) && (
+                                <div className="absolute inset-0 w-full h-full overflow-hidden">
+                                    <Image
+                                        src={entity.landscapeImage || entity.image || ''}
+                                        alt={displayedEntityName}
+                                        fill
+                                        className={`object-cover transition-transform duration-700 ${entity.type === "place" ? "scale-[1.15]" : ""} ${isPlaying ? 'scale-[1.08] opacity-80' : 'group-hover:scale-[1.08]'}`}
+                                    />
                                 </div>
                             )}
+
+                            {/* Audio Indicator */}
+                            <div className="absolute bottom-1 right-1 z-20">
+                                {isPlaying ? (
+                                    <div className="flex gap-0.5 items-end h-4 bg-black/60 p-1 rounded text-[#c5a059] text-xs">
+                                        <div className="w-0.5 h-2 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
+                                        <div className="w-0.5 h-3 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-black/60 p-1 rounded text-[#c5a059] opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Memories in Retractable Panel (Mobile) */}
                     <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="flex-1 min-w-0">
@@ -155,49 +197,71 @@ export default function AgentDetailPage() {
                 {/* LEFT: LARGE IMAGE & MEMORIES (Desktop Only) */}
                 <div className="hidden lg:flex lg:w-1/4 p-6 flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20 gap-6">
                     {/* Desktop Image */}
-                    <div
-                        className="relative w-full aspect-square max-w-[220px] glass-medieval overflow-hidden group cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-lg shrink-0"
-                        onClick={toggleAudio}
-                    >
-                        {entity.audio && (
-                            <audio
-                                ref={audioRef}
-                                src={entity.audio}
-                                onEnded={() => setIsPlaying(false)}
-                                onPause={() => setIsPlaying(false)}
-                                onPlay={() => setIsPlaying(true)}
-                                onError={(e) => {
-                                    e.preventDefault();
-                                    setIsPlaying(false);
-                                }}
-                            />
-                        )}
-
-                        {(entity.landscapeImage || entity.image) && (
-                            <div className="absolute inset-0 w-full h-full overflow-hidden">
-                                <Image
-                                    src={entity.landscapeImage || entity.image || ''}
-                                    alt={displayedEntityName}
-                                    fill
-                                    className={`object-cover transition-transform duration-700 ${isPlaying ? 'scale-105 opacity-80' : 'group-hover:scale-105'}`}
+                    {cognitiveMode === "sober" ? (
+                        <div 
+                            className="w-[180px] h-[180px] rounded-2xl bg-[#fafafa] dark:bg-[#121214] border border-zinc-200 dark:border-zinc-850 flex items-center justify-center text-7xl cursor-pointer shadow-sm select-none shrink-0"
+                            onClick={toggleAudio}
+                        >
+                            {entity.audio && (
+                                <audio
+                                    ref={audioRef}
+                                    src={entity.audio}
+                                    onEnded={() => setIsPlaying(false)}
+                                    onPause={() => setIsPlaying(false)}
+                                    onPlay={() => setIsPlaying(true)}
+                                    onError={(e) => {
+                                        e.preventDefault();
+                                        setIsPlaying(false);
+                                    }}
                                 />
-                            </div>
-                        )}
+                            )}
+                            {soberEmojis[entity.name] || "👤"}
+                        </div>
+                    ) : (
+                        <div
+                            className={`relative w-full ${entity.type === "place" ? "aspect-[3/4.35]" : "aspect-square"} max-w-[220px] glass-medieval overflow-hidden group cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-lg shrink-0`}
+                            onClick={toggleAudio}
+                        >
+                            {entity.audio && (
+                                <audio
+                                    ref={audioRef}
+                                    src={entity.audio}
+                                    onEnded={() => setIsPlaying(false)}
+                                    onPause={() => setIsPlaying(false)}
+                                    onPlay={() => setIsPlaying(true)}
+                                    onError={(e) => {
+                                        e.preventDefault();
+                                        setIsPlaying(false);
+                                    }}
+                                />
+                            )}
 
-                        <div className="absolute bottom-4 right-4 z-20">
-                            {isPlaying ? (
-                                <div className="flex gap-1 items-end h-6 bg-black/60 p-2 rounded-lg backdrop-blur text-[#c5a059]">
-                                    <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
-                                    <div className="w-1 h-6 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
-                                    <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
-                                </div>
-                            ) : (
-                                <div className="bg-black/60 p-2 rounded-full text-[#c5a059] opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                            {(entity.landscapeImage || entity.image) && (
+                                <div className="absolute inset-0 w-full h-full overflow-hidden">
+                                    <Image
+                                        src={entity.landscapeImage || entity.image || ''}
+                                        alt={displayedEntityName}
+                                        fill
+                                        className={`object-cover transition-transform duration-700 ${entity.type === "place" ? "scale-[1.15]" : ""} ${isPlaying ? 'scale-[1.08] opacity-80' : 'group-hover:scale-[1.08]'}`}
+                                    />
                                 </div>
                             )}
+
+                            <div className="absolute bottom-4 right-4 z-20">
+                                {isPlaying ? (
+                                    <div className="flex gap-1 items-end h-6 bg-black/60 p-2 rounded-lg backdrop-blur text-[#c5a059]">
+                                        <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
+                                        <div className="w-1 h-6 bg-[#c5a059] animate-[bounce_0.8s_infinite]"></div>
+                                        <div className="w-1 h-3 bg-[#c5a059] animate-[bounce_0.6s_infinite]"></div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-black/60 p-2 rounded-full text-[#c5a059] opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Desktop Memories Panel */}
                     <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
