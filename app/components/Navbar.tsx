@@ -257,21 +257,21 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                             <RelicPhrase className="mt-2 block truncate text-[9px] uppercase tracking-widest italic text-emerald-600 dark:text-emerald-300/75" />
                                         </div>
                                         <div className="py-1">
-                                            <a href="/space" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
+                                            <Link href="/space" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                 {t("mySpace")}
-                                            </a>
-                                            <a href="/developer" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
+                                            </Link>
+                                            <Link href="/developer" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                 Fale com o desenvolvedor
-                                            </a>
+                                            </Link>
                                             {isAdmin && (
-                                                <a href="/admin" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
+                                                <Link href="/admin" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                     👑 {t("adminPanel")}
-                                                </a>
+                                                </Link>
                                             )}
                                             {isAdmin && (
-                                                <a href="/developer/messages" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
+                                                <Link href="/developer/messages" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                     👑 Mensagens ao desenvolvedor
-                                                </a>
+                                                </Link>
                                             )}
                                         </div>
                                         <div className="border-t border-stone-200 dark:border-[#c5a059]/10 py-1">
@@ -302,12 +302,12 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                             {item.name}
                                         </a>
                                     ) : (
-                                        <a href={item.href} className="relative z-[103] flex min-h-10 touch-manipulation select-none flex-col justify-center items-center rounded-lg px-2 group whitespace-nowrap">
+                                        <Link href={item.href} className="relative z-[103] flex min-h-10 touch-manipulation select-none flex-col justify-center items-center rounded-lg px-2 group whitespace-nowrap">
                                             <span className={`text-[11px] uppercase tracking-[0.2em] font-bold transition-all duration-300 ${isActive ? "text-[#c5a059]" : "text-[#c5a059]/40 group-hover:text-[#c5a059]/80"}`}>
                                                 {item.name}
                                             </span>
                                             {isActive && <div className="absolute bottom-1 left-2 right-2 h-[2px] bg-[#c5a059] shadow-[0_0_10px_rgba(197,160,89,0.8)]"></div>}
-                                        </a>
+                                        </Link>
                                     )}
                                 </React.Fragment>
                             );
