@@ -47,7 +47,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         { name: t("personas"), href: "/agents" },
         ...(level === "Soberano" ? [{ name: t("places"), href: "/places" }] : []),
         { name: t("travessia"), href: "/space/travessia" },
-        { name: t("games"), href: "/space/games" },
         { name: t("dominios"), href: "/space/dominios" },
         { name: t("constitution"), href: "/constitution" },
     ];

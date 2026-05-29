@@ -92,6 +92,12 @@ const PIECE_NAMES_EN: Record<PieceType, string> = {
 
 export default function ChessGamePage() {
     const { t, language } = useLanguage();
+    const [isEmbedded, setIsEmbedded] = useState(false);
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            setIsEmbedded(window.location.search.includes("embed=true") || window.self !== window.top);
+        }
+    }, []);
 
     const [board, setBoard] = useState<(Piece | null)[][]>(INITIAL_BOARD);
     const [selectedSquare, setSelectedSquare] = useState<SquareCoord | null>(null);
@@ -847,10 +853,12 @@ export default function ChessGamePage() {
     };
 
     return (
-        <main className={`min-h-screen bg-[#050507] text-[#e1e1e6] relative overflow-hidden transition-all duration-300 ${timeWarpActive ? "blur-[1.5px] scale-[0.99] duration-75" : ""}`}>
-            <div className="sticky top-0 z-50">
-                <Navbar />
-            </div>
+        <main className={`min-h-screen bg-[#050507] text-[#e1e1e6] relative overflow-hidden transition-all duration-300 ${timeWarpActive ? "blur-[1.5px] scale-[0.99] duration-75" : ""} ${isEmbedded ? "p-0 overflow-y-auto" : ""}`}>
+            {!isEmbedded && (
+                <div className="sticky top-0 z-50">
+                    <Navbar />
+                </div>
+            )}
 
             {/* Timeless background graphics */}
             <div className="fixed inset-0 z-0 pointer-events-none">
@@ -1047,11 +1055,13 @@ export default function ChessGamePage() {
                             <MedievalButton onClick={resetGame} variant="secondary" className="text-[10px] tracking-wider py-2.5 px-6">
                                 {isPt ? "Reiniciar Tabuleiro" : "Reset Board"}
                             </MedievalButton>
-                            <Link href="/space/games">
-                                <MedievalButton variant="secondary" className="text-[10px] tracking-wider py-2.5 px-6">
-                                    {isPt ? "Voltar ao Hub" : "Back to Hub"}
-                                </MedievalButton>
-                            </Link>
+                            {!isEmbedded && (
+                                <Link href="/space/games">
+                                    <MedievalButton variant="secondary" className="text-[10px] tracking-wider py-2.5 px-6">
+                                        {isPt ? "Voltar ao Hub" : "Back to Hub"}
+                                    </MedievalButton>
+                                </Link>
+                            )}
                         </div>
                     </div>
 
@@ -1161,7 +1171,7 @@ export default function ChessGamePage() {
                 </div>
             </div>
 
-            <InstitutionalFooter />
+            {!isEmbedded && <InstitutionalFooter />}
         </main>
     );
 }

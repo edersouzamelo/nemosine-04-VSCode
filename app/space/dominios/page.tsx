@@ -543,6 +543,45 @@ export default function DominiosHubPage() {
             emoji: "⚕️",
             developer: "Médico Nous",
             version: "v1.1.5"
+        },
+        {
+            id: "oracle",
+            title: language.startsWith("pt") ? "Oráculo de Personas" : language === "es" ? "Oráculo de Personas" : "Persona Oracle",
+            label: language.startsWith("pt") ? "Oráculo" : language === "es" ? "Oráculo" : "Oracle",
+            description: language.startsWith("pt")
+                ? "Concentre-se em uma questão existencial e retire uma carta de Persona no oráculo de autoconhecimento."
+                : language === "es"
+                    ? "Concéntrate en una pregunta existencial y saca una carta de Persona en el oráculo del autoconocimiento."
+                    : "Focus on an existential question and draw a Persona card from the self-knowledge oracle.",
+            emoji: "🔮",
+            developer: "Conselho de Nous",
+            version: "v1.0.0"
+        },
+        {
+            id: "solitaire",
+            title: language.startsWith("pt") ? "Paciência Nemosine" : language === "es" ? "Solitario Nemosine" : "Nemosine Solitaire",
+            label: language.startsWith("pt") ? "Paciência" : language === "es" ? "Solitario" : "Solitaire",
+            description: language.startsWith("pt")
+                ? "Organize o grimório de cartas sagradas e treine seu foco mental e resiliência."
+                : language === "es"
+                    ? "Organiza el grimorio de cartas sagradas y entrena tu enfoque mental y resiliencia."
+                    : "Organize the grimoire of sacred cards and train your mental focus and resilience.",
+            emoji: "🃏",
+            developer: "Conselho de Nous",
+            version: "v1.0.0"
+        },
+        {
+            id: "chess",
+            title: language.startsWith("pt") ? "Xadrez do Inimigo" : language === "es" ? "Ajedrez del Enemigo" : "Enemy Chess",
+            label: language.startsWith("pt") ? "Xadrez" : language === "es" ? "Ajedrez" : "Chess",
+            description: language.startsWith("pt")
+                ? "Enfrente as sombras da sua própria dúvida em um duelo de pura estratégia medieval contra a inteligência artificial."
+                : language === "es"
+                    ? "Enfréntate a las sombras de tu propia duda en un duelo de pura estrategia medieval contra la inteligencia artificial."
+                    : "Face the shadows of your own doubt in a duel of pure medieval strategy against artificial intelligence.",
+            emoji: "♟️",
+            developer: "Inimigo Oculto",
+            version: "v1.0.0"
         }
     ];
 
@@ -1418,6 +1457,19 @@ export default function DominiosHubPage() {
         );
     };
 
+    const renderIFrameApp = (src: string, compact: boolean) => {
+        return (
+            <div className={`w-full flex-1 flex flex-col rounded-xl overflow-hidden border border-[#c5a059]/20 bg-black/60 shadow-inner ${compact ? "h-[300px] min-h-[300px]" : "h-[500px] min-h-[400px] sm:min-h-[480px] md:min-h-[520px]"}`}>
+                <iframe 
+                    src={src} 
+                    className="w-full h-full border-0 rounded-xl"
+                    title="Sovereign App"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                />
+            </div>
+        );
+    };
+
     const renderUnifiedApp = (appId: string, compact: boolean) => {
         switch (appId) {
             case "arauto":
@@ -1430,6 +1482,12 @@ export default function DominiosHubPage() {
                 return renderMordomoApp();
             case "medico":
                 return renderMedicoApp();
+            case "oracle":
+                return renderIFrameApp("/space/games/oracle?embed=true", compact);
+            case "solitaire":
+                return renderIFrameApp("/space/games/solitaire?embed=true", compact);
+            case "chess":
+                return renderIFrameApp("/space/games/chess?embed=true", compact);
             default:
                 return (
                     <div className="text-center py-10">

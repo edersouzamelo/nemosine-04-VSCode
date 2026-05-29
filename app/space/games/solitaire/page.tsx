@@ -17,6 +17,13 @@ type CardLocation = { type: 'stock' | 'waste' | 'foundation' | 'tableau', index:
 type MinCard = Card & { faceUp: boolean };
 
 export default function SolitairePage() {
+    const [isEmbedded, setIsEmbedded] = useState(false);
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            setIsEmbedded(window.location.search.includes("embed=true") || window.self !== window.top);
+        }
+    }, []);
+
     const [stock, setStock] = useState<MinCard[]>([]);
     const [waste, setWaste] = useState<MinCard[]>([]);
     const [foundations, setFoundations] = useState<MinCard[][]>([[], [], [], []]); // 4 piles
@@ -250,15 +257,19 @@ export default function SolitairePage() {
 
 
     return (
-        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} overflow-x-hidden select-none`}>
-            <div className="sticky top-0 z-50">
-                <Navbar />
-            </div>
+        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} overflow-x-hidden select-none ${isEmbedded ? "p-0 overflow-y-auto" : ""}`}>
+            {!isEmbedded && (
+                <div className="sticky top-0 z-50">
+                    <Navbar />
+                </div>
+            )}
             <div className="p-2 sm:p-4">
             {/* Header */}
             <div className="flex flex-wrap justify-between items-center gap-2 mb-4 max-w-6xl mx-auto border-b border-[#333] pb-2">
                 <div className="flex items-center gap-2 sm:gap-4">
-                    <Link href="/space/games" className="text-gray-500 hover:text-[#C5A059] text-sm">← Sair</Link>
+                    {!isEmbedded && (
+                        <Link href="/space/games" className="text-gray-500 hover:text-[#C5A059] text-sm">← Sair</Link>
+                    )}
                     <h1 className="text-xl medieval-header text-[#C5A059]">Paciência Nemosine</h1>
                 </div>
                 <div className="flex gap-2 sm:gap-4 items-center">
@@ -366,7 +377,7 @@ export default function SolitairePage() {
 
             </div>
             </div>
-            <InstitutionalFooter />
+            {!isEmbedded && <InstitutionalFooter />}
         </main>
     );
 }

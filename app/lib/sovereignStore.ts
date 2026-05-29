@@ -115,6 +115,21 @@ async function ensureTravessiaTables() {
   `;
 }
 
+async function ensurePushSubscriptionsTable() {
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_push_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+}
+
 // ==========================================
 // AGENDA OPERATIONS
 // ==========================================
@@ -490,5 +505,83 @@ export async function saveUserRelic(userId: string, relic: UserRelic): Promise<v
   await prisma.$executeRaw`
     INSERT INTO sovereign_user_relics (id, user_id, name, description, origin, date_obtained)
     VALUES (${relic.id}, ${userId}, ${relic.name}, ${relic.description}, ${relic.origin}, ${relic.dateObtained})
+  `;
+}
+
+// ==========================================
+// PUSH SUBSCRIPTION OPERATIONS
+// ==========================================
+
+export interface PushSubscriptionData {
+  id: string;
+  userId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+}
+
+export async function savePushSubscription(
+  userId: string,
+  sub: { endpoint: string; p256dh: string; auth: string; userAgent?: string }
+): Promise<PushSubscriptionData> {
+  await ensurePushSubscriptionsTable();
+  const id = Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+  
+  // Upsert: se o endpoint já existe, atualiza auth/p256dh e updated_at
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, updated_at)
+    VALUES (${id}, ${userId}, ${sub.endpoint}, ${sub.p256dh}, ${sub.auth}, ${sub.userAgent ?? null}, NOW())
+    ON CONFLICT (endpoint) DO UPDATE
+    SET p256dh = ${sub.p256dh},
+        auth = ${sub.auth},
+        user_id = ${userId},
+        user_agent = ${sub.userAgent ?? null},
+        updated_at = NOW()
+  `;
+  
+  return { id, userId, ...sub };
+}
+
+export async function getPushSubscriptions(userId: string): Promise<PushSubscriptionData[]> {
+  await ensurePushSubscriptionsTable();
+  const rows = await prisma.$queryRaw<Array<any>>`
+    SELECT id, user_id, endpoint, p256dh, auth, user_agent
+    FROM sovereign_push_subscriptions
+    WHERE user_id = ${userId}
+    ORDER BY updated_at DESC
+  `;
+  return rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    endpoint: r.endpoint,
+    p256dh: r.p256dh,
+    auth: r.auth,
+    userAgent: r.user_agent,
+  }));
+}
+
+export async function getAllPushSubscriptions(): Promise<PushSubscriptionData[]> {
+  await ensurePushSubscriptionsTable();
+  const rows = await prisma.$queryRaw<Array<any>>`
+    SELECT id, user_id, endpoint, p256dh, auth, user_agent
+    FROM sovereign_push_subscriptions
+    ORDER BY updated_at DESC
+  `;
+  return rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    endpoint: r.endpoint,
+    p256dh: r.p256dh,
+    auth: r.auth,
+    userAgent: r.user_agent,
+  }));
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  await ensurePushSubscriptionsTable();
+  await prisma.$executeRaw`
+    DELETE FROM sovereign_push_subscriptions
+    WHERE endpoint = ${endpoint}
   `;
 }

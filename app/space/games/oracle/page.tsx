@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DECK, shuffleDeck, Card, BACK_OF_CARD_IMAGE } from "@/lib/deck";
 import MedievalButton from "@/app/components/MedievalButton";
 import Link from "next/link";
@@ -18,6 +18,13 @@ export default function OraclePage() {
     const [isFlipped, setIsFlipped] = useState(false);
     const [isShuffling, setIsShuffling] = useState(false);
     const shuffleDuration = 1120;
+
+    const [isEmbedded, setIsEmbedded] = useState(false);
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            setIsEmbedded(window.location.search.includes("embed=true") || window.self !== window.top);
+        }
+    }, []);
 
     const getPersonaSlug = (name: string) => {
         if (name === 'Bobo') return 'bobo-da-corte';
@@ -45,17 +52,21 @@ export default function OraclePage() {
     };
 
     return (
-        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className}`}>
-            <div className="sticky top-0 z-50">
-                <Navbar />
-            </div>
-            <div className="relative min-h-[calc(100vh-80px)] flex flex-col items-center justify-center p-4">
+        <main className={`min-h-screen bg-[#0a0a0a] text-[#E5D0A1] ${geistSans.className} ${isEmbedded ? "p-0 overflow-y-auto" : ""}`}>
+            {!isEmbedded && (
+                <div className="sticky top-0 z-50">
+                    <Navbar />
+                </div>
+            )}
+            <div className={`relative flex flex-col items-center justify-center p-4 ${isEmbedded ? "min-h-full py-6" : "min-h-[calc(100vh-80px)]"}`}>
 
-            <header className="absolute top-6 left-6 flex items-center gap-4">
-                <Link href="/space/games" className="text-gray-500 hover:text-[#C5A059] transition-colors">
-                    ← Voltar à Sala
-                </Link>
-            </header>
+            {!isEmbedded && (
+                <header className="absolute top-6 left-6 flex items-center gap-4">
+                    <Link href="/space/games" className="text-gray-500 hover:text-[#C5A059] transition-colors">
+                        ← Voltar à Sala
+                    </Link>
+                </header>
+            )}
 
             <div className="text-center mb-8 animate-fade-in">
                 <h1 className="text-3xl md:text-5xl medieval-header text-[#C5A059] mb-2">Oráculo dos Personas</h1>
@@ -133,7 +144,7 @@ export default function OraclePage() {
             </div>
 
             </div>
-            <InstitutionalFooter />
+            {!isEmbedded && <InstitutionalFooter />}
         </main>
     );
 }
