@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import MedievalButton from "../components/MedievalButton";
-import { LanguageSelector, useLanguage } from "../components/LanguageProvider";
+import { LanguageSelector, useLanguage, AppTheme } from "../components/LanguageProvider";
 
 export default function AccessPage() {
   const router = useRouter();
@@ -212,7 +212,11 @@ export default function AccessPage() {
           <div className="fixed right-6 top-6 z-20">
             <button
               className="cursor-pointer p-2 text-primary/60 transition-colors hover:text-primary"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onClick={() => {
+                const themes: AppTheme[] = ["dark", "light", "luanova", "crepusculo"];
+                const nextIdx = (themes.indexOf(theme) + 1) % themes.length;
+                setTheme(themes[nextIdx]);
+              }}
               aria-label="Alternar tema"
             >
               <span className="material-icons">settings_brightness</span>

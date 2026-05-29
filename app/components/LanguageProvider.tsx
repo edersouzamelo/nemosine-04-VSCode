@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export type AppLanguage = "pt-BR" | "pt-PT" | "en" | "es" | "fr" | "it" | "de" | "ar" | "zh" | "ja";
-export type AppTheme = "dark" | "light";
+export type AppTheme = "dark" | "light" | "luanova" | "crepusculo";
 export type AppFontSize = "small" | "medium" | "large";
 export type CardCollection = "personas" | "places";
 export type CardOrderMode = "original" | "popular" | "random" | "custom";
@@ -66,8 +66,10 @@ const translations = {
         language: "Idioma",
         settings: "Configurações",
         theme: "Temas",
-        lightTheme: "Claro",
-        darkTheme: "Escuro",
+        lightTheme: "Amanhecer",
+        darkTheme: "Eclipse",
+        luanovaTheme: "Lua-nova",
+        crepusculoTheme: "Crepúsculo",
         logout: "Sair do Grimório",
         enter: "Entrar",
         loginTitle: "Entrar no Grimório",
@@ -153,8 +155,10 @@ const translations = {
         language: "Idioma",
         settings: "Definições",
         theme: "Temas",
-        lightTheme: "Claro",
-        darkTheme: "Escuro",
+        lightTheme: "Amanhecer",
+        darkTheme: "Eclipse",
+        luanovaTheme: "Lua-nova",
+        crepusculoTheme: "Crepúsculo",
         logout: "Sair do Grimório",
         enter: "Entrar",
         loginTitle: "Entrar no Grimório",
@@ -240,8 +244,10 @@ const translations = {
         language: "Idioma",
         settings: "Configuración",
         theme: "Temas",
-        lightTheme: "Claro",
-        darkTheme: "Oscuro",
+        lightTheme: "Amanecer",
+        darkTheme: "Eclipse",
+        luanovaTheme: "Luna-nueva",
+        crepusculoTheme: "Crepúsculo",
         logout: "Salir del Grimorio",
         enter: "Entrar",
         loginTitle: "Entrar al Grimorio",
@@ -327,8 +333,10 @@ const translations = {
         language: "Language",
         settings: "Settings",
         theme: "Themes",
-        lightTheme: "Light",
-        darkTheme: "Dark",
+        lightTheme: "Dawn",
+        darkTheme: "Eclipse",
+        luanovaTheme: "New Moon",
+        crepusculoTheme: "Twilight",
         logout: "Leave the Grimoire",
         enter: "Enter",
         loginTitle: "Enter the Grimoire",
@@ -414,8 +422,10 @@ const translations = {
         language: "Langue",
         settings: "Paramètres",
         theme: "Thèmes",
-        lightTheme: "Clair",
-        darkTheme: "Sombre",
+        lightTheme: "Aube",
+        darkTheme: "Éclipse",
+        luanovaTheme: "Nouvelle Lune",
+        crepusculoTheme: "Crépuscule",
         logout: "Quitter le Grimoire",
         enter: "Entrer",
         loginTitle: "Entrer dans le Grimoire",
@@ -501,8 +511,10 @@ const translations = {
         language: "Lingua",
         settings: "Impostazioni",
         theme: "Temi",
-        lightTheme: "Chiaro",
-        darkTheme: "Scuro",
+        lightTheme: "Alba",
+        darkTheme: "Eclissi",
+        luanovaTheme: "Luna Nuova",
+        crepusculoTheme: "Crepuscolo",
         logout: "Esci dal Grimorio",
         enter: "Entra",
         loginTitle: "Entra nel Grimorio",
@@ -588,8 +600,10 @@ const translations = {
         language: "Sprache",
         settings: "Einstellungen",
         theme: "Themen",
-        lightTheme: "Hell",
-        darkTheme: "Dunkel",
+        lightTheme: "Morgendämmerung",
+        darkTheme: "Finsternis",
+        luanovaTheme: "Neumond",
+        crepusculoTheme: "Dämmerung",
         logout: "Das Grimonium verlassen",
         enter: "Eintreten",
         loginTitle: "In das Grimonium eintreten",
@@ -675,8 +689,10 @@ const translations = {
         language: "اللغة",
         settings: "الإعدادات",
         theme: "المواضيع",
-        lightTheme: "فاتح",
-        darkTheme: "داكن",
+        lightTheme: "فجر",
+        darkTheme: "كسوف",
+        luanovaTheme: "قمر جديد",
+        crepusculoTheme: "شفق",
         logout: "مغادرة الجريموار",
         enter: "دخول",
         loginTitle: "الدخول إلى الجريموار",
@@ -762,8 +778,10 @@ const translations = {
         language: "语言",
         settings: "设置",
         theme: "主题",
-        lightTheme: "浅色",
-        darkTheme: "深色",
+        lightTheme: "黎明",
+        darkTheme: "日食",
+        luanovaTheme: "新月",
+        crepusculoTheme: "黄昏",
         logout: "离开魔导书",
         enter: "进入",
         loginTitle: "进入魔导书",
@@ -849,8 +867,10 @@ const translations = {
         language: "言語",
         settings: "設定",
         theme: "テーマ",
-        lightTheme: "ライト",
-        darkTheme: "ダーク",
+        lightTheme: "夜明け",
+        darkTheme: "日食",
+        luanovaTheme: "新月",
+        crepusculoTheme: "黄昏",
         logout: "魔導書を閉じる",
         enter: "入る",
         loginTitle: "魔導書に入る",
@@ -1004,11 +1024,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        const storedTheme = window.localStorage.getItem("nemosine-theme");
-        const initialTheme: AppTheme = storedTheme === "light" ? "light" : "dark";
+        const storedTheme = window.localStorage.getItem("nemosine-theme") as AppTheme | null;
+        const initialTheme: AppTheme = (storedTheme === "light" || storedTheme === "luanova" || storedTheme === "crepusculo") ? storedTheme : "dark";
         setThemeState(initialTheme);
         document.documentElement.classList.toggle("dark", initialTheme === "dark");
         document.documentElement.classList.toggle("light-theme", initialTheme === "light");
+        document.documentElement.classList.toggle("luanova-theme", initialTheme === "luanova");
+        document.documentElement.classList.toggle("crepusculo-theme", initialTheme === "crepusculo");
     }, []);
 
     useEffect(() => {
@@ -1056,6 +1078,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         window.localStorage.setItem("nemosine-theme", nextTheme);
         document.documentElement.classList.toggle("dark", nextTheme === "dark");
         document.documentElement.classList.toggle("light-theme", nextTheme === "light");
+        document.documentElement.classList.toggle("luanova-theme", nextTheme === "luanova");
+        document.documentElement.classList.toggle("crepusculo-theme", nextTheme === "crepusculo");
     };
 
     const setCardOrderMode = (mode: CardOrderMode) => {

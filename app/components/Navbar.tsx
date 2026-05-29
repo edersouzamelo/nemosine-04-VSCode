@@ -107,14 +107,17 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                         <div className="mt-4 text-[10px] uppercase tracking-widest text-[#c5a059]/70">
                                             {t("theme")}
                                             <div className="mt-2 grid grid-cols-2 gap-2">
-                                                {(["light", "dark"] as AppTheme[]).map((option) => (
+                                                {(["light", "dark", "luanova", "crepusculo"] as AppTheme[]).map((option) => (
                                                     <button
                                                         key={option}
                                                         type="button"
                                                         onClick={() => setTheme(option)}
-                                                        className={`theme-choice rounded border px-2 py-2 text-xs transition-colors ${theme === option ? "selected border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
+                                                        className={`theme-choice rounded border px-1.5 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${theme === option ? "selected border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
                                                     >
-                                                        {option === "light" ? t("lightTheme") : t("darkTheme")}
+                                                        {option === "light" ? t("lightTheme") : 
+                                                         option === "dark" ? t("darkTheme") : 
+                                                         option === "luanova" ? t("luanovaTheme") : 
+                                                         t("crepusculoTheme")}
                                                     </button>
                                                 ))}
                                             </div>

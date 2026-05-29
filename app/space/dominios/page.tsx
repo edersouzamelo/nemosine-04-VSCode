@@ -109,7 +109,7 @@ export default function DominiosHubPage() {
     const [newEventDate, setNewEventDate] = useState("");
     const [newEventType, setNewEventType] = useState("Compromisso");
     const [newEventNote, setNewEventNote] = useState("");
-    const [agendaViewMode, setAgendaViewMode] = useState<"day" | "week">("week");
+    const [agendaViewMode, setAgendaViewMode] = useState<"day" | "week" | "month" | "year">("week");
     const [selectedDate, setSelectedDate] = useState<string>("");
     const [activeEditEvent, setActiveEditEvent] = useState<AgendaEvent | null>(null);
     const [notifiedEvents, setNotifiedEvents] = useState<Record<string, boolean>>({});
@@ -1120,6 +1120,34 @@ export default function DominiosHubPage() {
             return weekDays;
         };
 
+        const getMonthGridDays = (baseDateStr: string) => {
+            if (!baseDateStr) return [];
+            const [y, m, _d] = baseDateStr.split('-').map(Number);
+            const firstDayOfMonth = new Date(y, m - 1, 1);
+            const dayOfWeek = firstDayOfMonth.getDay();
+            const paddingDays = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            
+            const startGridDate = new Date(firstDayOfMonth);
+            startGridDate.setDate(firstDayOfMonth.getDate() - paddingDays);
+
+            const gridDays = [];
+            for (let i = 0; i < 42; i++) {
+                const current = new Date(startGridDate);
+                current.setDate(startGridDate.getDate() + i);
+                
+                const yearStr = current.getFullYear();
+                const monthStr = String(current.getMonth() + 1).padStart(2, '0');
+                const dayStr = String(current.getDate()).padStart(2, '0');
+                gridDays.push({
+                    dateStr: `${yearStr}-${monthStr}-${dayStr}`,
+                    label: current.getDate(),
+                    isCurrentMonth: current.getMonth() === m - 1,
+                    weekday: ["D", "S", "T", "Q", "Q", "S", "S"][current.getDay()],
+                });
+            }
+            return gridDays;
+        };
+
         const activeDays = agendaViewMode === "week" 
             ? getWeekDays(selectedDate)
             : [{
@@ -1129,9 +1157,39 @@ export default function DominiosHubPage() {
                 weekdayFull: selectedDate ? ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][new Date(selectedDate.split('-').map(Number)[0], selectedDate.split('-').map(Number)[1]-1, selectedDate.split('-').map(Number)[2]).getDay()] : "Segunda"
             }];
 
-        // Get visible range for expanding events
-        const startRange = activeDays[0] ? new Date(activeDays[0].dateStr + "T00:00:00") : new Date();
-        const endRange = activeDays[activeDays.length - 1] ? new Date(activeDays[activeDays.length - 1].dateStr + "T23:59:59") : new Date();
+        // Get visible range dynamically based on view mode for expanding events
+        let startRange: Date;
+        let endRange: Date;
+
+        if (agendaViewMode === "day") {
+            if (selectedDate) {
+                const [y, m, d] = selectedDate.split('-').map(Number);
+                startRange = new Date(y, m - 1, d, 0, 0, 0);
+                endRange = new Date(y, m - 1, d, 23, 59, 59);
+            } else {
+                const now = new Date();
+                startRange = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+                endRange = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            }
+        } else if (agendaViewMode === "week") {
+            const days = getWeekDays(selectedDate);
+            startRange = new Date(days[0].dateStr + "T00:00:00");
+            endRange = new Date(days[days.length - 1].dateStr + "T23:59:59");
+        } else if (agendaViewMode === "month") {
+            const gridDays = getMonthGridDays(selectedDate);
+            startRange = new Date(gridDays[0].dateStr + "T00:00:00");
+            endRange = new Date(gridDays[gridDays.length - 1].dateStr + "T23:59:59");
+        } else { // "year"
+            if (selectedDate) {
+                const [y] = selectedDate.split('-').map(Number);
+                startRange = new Date(y, 0, 1, 0, 0, 0);
+                endRange = new Date(y, 11, 31, 23, 59, 59);
+            } else {
+                const y = new Date().getFullYear();
+                startRange = new Date(y, 0, 1, 0, 0, 0);
+                endRange = new Date(y, 11, 31, 23, 59, 59);
+            }
+        }
         
         const expandedEvents = expandRecurringEvents(agendaEvents, startRange, endRange);
 
@@ -1194,6 +1252,10 @@ export default function DominiosHubPage() {
             const date = new Date(y, m - 1, d);
             if (agendaViewMode === "week") {
                 date.setDate(date.getDate() + (direction * 7));
+            } else if (agendaViewMode === "month") {
+                date.setMonth(date.getMonth() + direction);
+            } else if (agendaViewMode === "year") {
+                date.setFullYear(date.getFullYear() + direction);
             } else {
                 date.setDate(date.getDate() + direction);
             }
@@ -1224,6 +1286,9 @@ export default function DominiosHubPage() {
             if (!selectedDate) return "";
             const [y, m, d] = selectedDate.split('-').map(Number);
             const date = new Date(y, m - 1, d);
+            if (agendaViewMode === "year") {
+                return String(y);
+            }
             return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).toUpperCase();
         };
 
@@ -1233,8 +1298,8 @@ export default function DominiosHubPage() {
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-3 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                         <h3 className="font-display text-xs font-bold text-[#c5a059] uppercase tracking-wider">📅 Agenda do Arauto</h3>
-                        {/* Day/Week Switch */}
-                        <div className="flex bg-[#121118] border border-[#c5a059]/20 rounded p-0.5">
+                        {/* Day/Week/Month/Year Switch */}
+                        <div className="flex bg-[#121118] border border-[#c5a059]/20 rounded p-0.5 max-w-[200px] xs:max-w-full overflow-x-auto">
                             <button
                                 type="button"
                                 onClick={() => setAgendaViewMode("day")}
@@ -1248,6 +1313,20 @@ export default function DominiosHubPage() {
                                 className={`px-2 py-0.5 rounded text-[9px] uppercase tracking-wider transition-colors cursor-pointer ${agendaViewMode === "week" ? "bg-[#c5a059] text-black font-bold" : "text-stone-400 hover:text-stone-200"}`}
                             >
                                 Semana
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setAgendaViewMode("month")}
+                                className={`px-2 py-0.5 rounded text-[9px] uppercase tracking-wider transition-colors cursor-pointer ${agendaViewMode === "month" ? "bg-[#c5a059] text-black font-bold" : "text-stone-400 hover:text-stone-200"}`}
+                            >
+                                Mês
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setAgendaViewMode("year")}
+                                className={`px-2 py-0.5 rounded text-[9px] uppercase tracking-wider transition-colors cursor-pointer ${agendaViewMode === "year" ? "bg-[#c5a059] text-black font-bold" : "text-stone-400 hover:text-stone-200"}`}
+                            >
+                                Ano
                             </button>
                         </div>
                     </div>
@@ -1285,106 +1364,240 @@ export default function DominiosHubPage() {
 
                 {/* Calendar Core Grid */}
                 <div className="flex-1 flex flex-col min-h-0 bg-black/30 border border-[#c5a059]/10 rounded-xl overflow-hidden">
-                    {/* Columns header (STQQSSD) */}
-                    <div className="flex bg-[#121118] border-b border-[#c5a059]/20 p-1.5 text-center font-display text-[8.5px] uppercase font-bold text-[#c5a059]">
-                        {/* Hour column spacer */}
-                        <div className="w-9" />
-                        {/* Days list */}
-                        {activeDays.map((day) => {
-                            const isToday = new Date().toISOString().split('T')[0] === day.dateStr;
-                            return (
-                                <div key={day.dateStr} className="flex-1 flex flex-col items-center justify-center min-w-0">
-                                    <span className="text-[7.5px] text-stone-500 font-normal">
-                                        {agendaViewMode === "week" ? day.weekday : day.weekdayFull}
-                                    </span>
-                                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] mt-0.5 ${isToday ? "bg-[#c5a059] text-black font-extrabold shadow-[0_0_8px_#c5a059]" : "text-[#eae3d5]"}`}>
-                                        {day.label}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Scrollable Hourly Area */}
-                    <div className="flex-1 overflow-y-auto relative min-h-[300px] sm:min-h-[350px]">
-                        <div className="flex w-full relative">
-                            {/* Hours indicator column */}
-                            <div className="w-9 flex flex-col bg-black/40 border-r border-[#c5a059]/10 select-none">
-                                {hours.map((h) => (
-                                    <div key={h} className="h-[45px] text-right pr-1.5 text-[8.5px] text-stone-500 pt-1 border-b border-[#c5a059]/5 flex justify-end">
-                                        {String(h).padStart(2, '0')}:00
-                                    </div>
-                                ))}
+                    {(agendaViewMode === "day" || agendaViewMode === "week") && (
+                        <>
+                            {/* Columns header (STQQSSD) */}
+                            <div className="flex bg-[#121118] border-b border-[#c5a059]/20 p-1.5 text-center font-display text-[8.5px] uppercase font-bold text-[#c5a059]">
+                                {/* Hour column spacer */}
+                                <div className="w-9" />
+                                {/* Days list */}
+                                {activeDays.map((day) => {
+                                    const isToday = new Date().toISOString().split('T')[0] === day.dateStr;
+                                    return (
+                                        <div key={day.dateStr} className="flex-1 flex flex-col items-center justify-center min-w-0">
+                                            <span className="text-[7.5px] text-stone-500 font-normal">
+                                                {agendaViewMode === "week" ? day.weekday : day.weekdayFull}
+                                            </span>
+                                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] mt-0.5 ${isToday ? "bg-[#c5a059] text-black font-extrabold shadow-[0_0_8px_#c5a059]" : "text-[#eae3d5]"}`}>
+                                                {day.label}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
                             </div>
 
-                            {/* Main Columns Container */}
-                            <div className="flex-1 flex relative">
-                                {activeDays.map((day) => {
+                            {/* Scrollable Hourly Area */}
+                            <div className="flex-1 overflow-y-auto relative min-h-[300px] sm:min-h-[350px]">
+                                <div className="flex w-full relative">
+                                    {/* Hours indicator column */}
+                                    <div className="w-9 flex flex-col bg-black/40 border-r border-[#c5a059]/10 select-none">
+                                        {hours.map((h) => (
+                                            <div key={h} className="h-[45px] text-right pr-1.5 text-[8.5px] text-stone-500 pt-1 border-b border-[#c5a059]/5 flex justify-end">
+                                                {String(h).padStart(2, '0')}:00
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Main Columns Container */}
+                                    <div className="flex-1 flex relative">
+                                        {activeDays.map((day) => {
+                                            const dayEvents = expandedEvents.filter(ev => ev.date === day.dateStr);
+
+                                            return (
+                                                <div key={day.dateStr} className="flex-1 relative border-r border-[#c5a059]/5 min-w-[50px] last:border-r-0 select-none">
+                                                    {/* Hourly Cells for Clicking */}
+                                                    {hours.map((h) => (
+                                                        <div 
+                                                            key={h} 
+                                                            onClick={() => handleCellClick(day.dateStr, h)}
+                                                            className="h-[45px] border-b border-[#c5a059]/5 hover:bg-[#c5a059]/5 transition-colors cursor-pointer relative"
+                                                        />
+                                                    ))}
+
+                                                    {/* Render Event Blocks Absolutely */}
+                                                    {dayEvents.map((ev) => {
+                                                        const [startHour, startMin] = (ev.startTime || "00:00").split(':').map(Number);
+                                                        const [endHour, endMin] = (ev.endTime || "23:59").split(':').map(Number);
+                                                        
+                                                        const startMinutes = startHour * 60 + startMin;
+                                                        const endMinutes = endHour * 60 + endMin;
+                                                        
+                                                        // 45px per hour = 0.75px per minute
+                                                        const top = startMinutes * 0.75;
+                                                        const height = Math.max(20, (endMinutes - startMinutes) * 0.75);
+                                                        
+                                                        const eventColor = ev.color || "#c5a059";
+                                                        
+                                                        return (
+                                                            <div 
+                                                                key={ev.id} 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setActiveEditEvent({ ...ev });
+                                                                }}
+                                                                className={`absolute left-[3%] right-[3%] rounded p-1 text-[8.5px] overflow-hidden flex flex-col justify-between shadow-md border-l-[3px] select-none hover:scale-[1.03] hover:z-30 transition-all cursor-pointer ${ev.completed ? "opacity-40" : "opacity-90"}`}
+                                                                style={{ 
+                                                                    top: `${top}px`, 
+                                                                    height: `${height}px`,
+                                                                    backgroundColor: `${eventColor}1c`, 
+                                                                    borderColor: eventColor,
+                                                                    color: '#eae3d5'
+                                                                }}
+                                                            >
+                                                                <div className="font-semibold truncate">
+                                                                    {ev.title}
+                                                                </div>
+                                                                {height > 25 && (
+                                                                    <div className="text-[7px] text-stone-300 truncate opacity-90">
+                                                                        {ev.startTime} - {ev.endTime}
+                                                                    </div>
+                                                                )}
+                                                                {height > 40 && ev.note && (
+                                                                    <div className="text-[7px] italic text-stone-400 truncate opacity-80 mt-0.5">
+                                                                        {ev.note}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {agendaViewMode === "month" && (
+                        <div className="flex-1 flex flex-col min-h-0 bg-[#0b0a0f]/45">
+                            {/* Monthly Grid headers (Seg, Ter, Qua, Qui, Sex, Sáb, Dom) */}
+                            <div className="flex bg-[#121118] border-b border-[#c5a059]/20 p-1.5 text-center font-display text-[8.5px] uppercase font-bold text-[#c5a059]">
+                                {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((w) => (
+                                    <div key={w} className="flex-1">{w}</div>
+                                ))}
+                            </div>
+                            
+                            {/* Scrollable Month Days Grid */}
+                            <div className="flex-1 overflow-y-auto p-1.5 grid grid-cols-7 gap-1 min-h-[300px] sm:min-h-[350px]">
+                                {getMonthGridDays(selectedDate).map((day) => {
                                     const dayEvents = expandedEvents.filter(ev => ev.date === day.dateStr);
-
+                                    const isToday = new Date().toISOString().split('T')[0] === day.dateStr;
+                                    
                                     return (
-                                        <div key={day.dateStr} className="flex-1 relative border-r border-[#c5a059]/5 min-w-[50px] last:border-r-0 select-none">
-                                            {/* Hourly Cells for Clicking */}
-                                            {hours.map((h) => (
-                                                <div 
-                                                    key={h} 
-                                                    onClick={() => handleCellClick(day.dateStr, h)}
-                                                    className="h-[45px] border-b border-[#c5a059]/5 hover:bg-[#c5a059]/5 transition-colors cursor-pointer relative"
-                                                />
-                                            ))}
-
-                                            {/* Render Event Blocks Absolutely */}
-                                            {dayEvents.map((ev) => {
-                                                const [startHour, startMin] = (ev.startTime || "00:00").split(':').map(Number);
-                                                const [endHour, endMin] = (ev.endTime || "23:59").split(':').map(Number);
-                                                
-                                                const startMinutes = startHour * 60 + startMin;
-                                                const endMinutes = endHour * 60 + endMin;
-                                                
-                                                // 45px per hour = 0.75px per minute
-                                                const top = startMinutes * 0.75;
-                                                const height = Math.max(20, (endMinutes - startMinutes) * 0.75);
-                                                
-                                                const eventColor = ev.color || "#c5a059";
-                                                
-                                                return (
-                                                    <div 
-                                                        key={ev.id} 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setActiveEditEvent({ ...ev });
-                                                        }}
-                                                        className={`absolute left-[3%] right-[3%] rounded p-1 text-[8.5px] overflow-hidden flex flex-col justify-between shadow-md border-l-[3px] select-none hover:scale-[1.03] hover:z-30 transition-all cursor-pointer ${ev.completed ? "opacity-40" : "opacity-90"}`}
-                                                        style={{ 
-                                                            top: `${top}px`, 
-                                                            height: `${height}px`,
-                                                            backgroundColor: `${eventColor}1c`, 
-                                                            borderColor: eventColor,
-                                                            color: '#eae3d5'
-                                                        }}
-                                                    >
-                                                        <div className="font-semibold truncate">
+                                        <div 
+                                            key={day.dateStr} 
+                                            onClick={() => handleCellClick(day.dateStr, new Date().getHours())}
+                                            className={`min-h-[55px] sm:min-h-[65px] p-1 rounded-lg border border-[#c5a059]/10 flex flex-col justify-between hover:bg-[#c5a059]/5 transition-colors cursor-pointer relative bg-black/30 ${day.isCurrentMonth ? "" : "opacity-30"}`}
+                                        >
+                                            {/* Day number header */}
+                                            <div className="flex justify-between items-center select-none">
+                                                <span className={`text-[8.5px] font-bold ${isToday ? "bg-[#c5a059] text-black w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-[0_0_6px_#c5a059]" : "text-stone-400"}`}>
+                                                     {day.label}
+                                                </span>
+                                            </div>
+                                            
+                                            {/* Mini events list */}
+                                            <div className="flex-1 flex flex-col gap-0.5 mt-1 overflow-hidden">
+                                                {dayEvents.slice(0, 3).map((ev) => {
+                                                    const eventColor = ev.color || "#c5a059";
+                                                    return (
+                                                        <div 
+                                                            key={ev.id} 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setActiveEditEvent({ ...ev });
+                                                            }}
+                                                            className={`rounded px-1 py-0.5 text-[6.5px] truncate font-medium border-l-2 select-none hover:scale-[1.03] transition-all cursor-pointer ${ev.completed ? "opacity-30" : "opacity-90"}`}
+                                                            style={{ 
+                                                                backgroundColor: `${eventColor}1c`, 
+                                                                borderColor: eventColor,
+                                                                color: '#eae3d5'
+                                                            }}
+                                                        >
                                                             {ev.title}
                                                         </div>
-                                                        {height > 25 && (
-                                                            <div className="text-[7px] text-stone-300 truncate opacity-90">
-                                                                {ev.startTime} - {ev.endTime}
-                                                            </div>
-                                                        )}
-                                                        {height > 40 && ev.note && (
-                                                            <div className="text-[7px] italic text-stone-400 truncate opacity-80 mt-0.5">
-                                                                {ev.note}
-                                                            </div>
-                                                        )}
+                                                    );
+                                                })}
+                                                {dayEvents.length > 3 && (
+                                                    <div className="text-[6px] text-stone-500 font-bold pl-1">
+                                                        +{dayEvents.length - 3} mais
                                                     </div>
-                                                );
-                                            })}
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
                         </div>
-                    </div>
+                    )}
+
+                    {agendaViewMode === "year" && (
+                        <div className="flex-1 overflow-y-auto p-3 bg-[#0b0a0f]/45 min-h-[300px] sm:min-h-[350px]">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                {Array.from({ length: 12 }, (_, monthIdx) => {
+                                    const [y] = selectedDate.split('-').map(Number);
+                                    const monthDate = new Date(y, monthIdx, 1);
+                                    const monthName = monthDate.toLocaleDateString("pt-BR", { month: "long" }).toUpperCase();
+                                    
+                                    // Days in this month
+                                    const totalDays = new Date(y, monthIdx + 1, 0).getDate();
+                                    
+                                    // Padding start days to align Mon-Sun
+                                    const startDayOfWeek = new Date(y, monthIdx, 1).getDay();
+                                    const paddingCount = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+                                    
+                                    return (
+                                        <div key={monthIdx} className="bg-black/30 border border-[#c5a059]/10 rounded-xl p-2.5 flex flex-col">
+                                            <span className="font-display text-[8px] font-bold text-[#c5a059] mb-1.5 text-center tracking-wider block border-b border-[#c5a059]/10 pb-1">
+                                                {monthName}
+                                            </span>
+                                            
+                                            {/* Mini weekdays header */}
+                                            <div className="grid grid-cols-7 text-center text-[5.5px] font-bold text-stone-500 mb-1">
+                                                {["S", "T", "Q", "Q", "S", "S", "D"].map((d, i) => (
+                                                    <div key={i}>{d}</div>
+                                                ))}
+                                            </div>
+                                            
+                                            {/* Mini calendar grid */}
+                                            <div className="grid grid-cols-7 gap-0.5 text-center">
+                                                {/* Padding empty spaces */}
+                                                {Array.from({ length: paddingCount }, (_, i) => (
+                                                    <div key={`pad-${i}`} className="h-3 w-full" />
+                                                ))}
+                                                
+                                                {/* Days */}
+                                                {Array.from({ length: totalDays }, (_, i) => {
+                                                    const dayNum = i + 1;
+                                                    const dayStr = `${y}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                                                    
+                                                    const hasEvent = expandedEvents.some(ev => ev.date === dayStr);
+                                                    const isToday = new Date().toISOString().split('T')[0] === dayStr;
+                                                    
+                                                    return (
+                                                        <div 
+                                                            key={dayNum} 
+                                                            onClick={() => {
+                                                                setSelectedDate(dayStr);
+                                                                setAgendaViewMode("day");
+                                                            }}
+                                                            className={`h-3.5 w-full rounded flex items-center justify-center text-[6px] font-bold cursor-pointer relative hover:bg-[#c5a059]/30 transition-colors ${isToday ? "bg-[#c5a059] text-black" : "text-stone-300"}`}
+                                                        >
+                                                            {dayNum}
+                                                            {hasEvent && !isToday && (
+                                                                <span className="absolute bottom-0 w-[3px] h-[3px] rounded-full bg-amber-400 animate-pulse shadow-[0_0_2px_#fbbf24]" />
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Event Creation & Editing Modal */}

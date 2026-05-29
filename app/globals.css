@@ -34,6 +34,32 @@ html[data-fontsize="large"] {
   color-scheme: light;
 }
 
+.luanova-theme {
+  --background: #030712;
+  --foreground: #c9d1f5;
+  --border-gold: #4f73e6;
+  --portal-blue: #1e40af;
+  --portal-violet: #312e81;
+  --portal-core: #0c0f24;
+  --color-primary: #5076e6;
+  --color-background-light: #060b24;
+  --color-background-dark: #030614;
+  color-scheme: dark;
+}
+
+.crepusculo-theme {
+  --background: #160404;
+  --foreground: #fcd34d;
+  --border-gold: #f59e0b;
+  --portal-blue: #7a1e1e;
+  --portal-violet: #991b1b;
+  --portal-core: #270505;
+  --color-primary: #f59e0b;
+  --color-background-light: #240606;
+  --color-background-dark: #130202;
+  color-scheme: dark;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -693,4 +719,42 @@ body {
 
 .animate-fade-in {
   animation: fade-in 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+/* Starry sky overrides for Lua-nova theme */
+.luanova-theme [class*="bg-[url("],
+.luanova-theme div[class*="bg-[url('https://images.unsplash.com"],
+.luanova-theme main div[class*="bg-[url("] {
+  background-image: url("/assets/starry_sky.png") !important;
+  opacity: 0.32 !important;
+  mix-blend-mode: screen !important;
+}
+
+.luanova-theme .login-screen img[alt="Paisagem do castelo mental"] {
+  content: url("/assets/starry_sky.png") !important;
+  opacity: 0.45 !important;
+}
+
+.luanova-theme video {
+  opacity: 0.35 !important;
+  filter: hue-rotate(120deg) brightness(0.65) saturate(1.4) !important;
+}
+
+/* Sunset overrides for Crepúsculo theme */
+.crepusculo-theme [class*="bg-[url("],
+.crepusculo-theme div[class*="bg-[url('https://images.unsplash.com"],
+.crepusculo-theme main div[class*="bg-[url("] {
+  background-image: url("/assets/twilight_sunset.png") !important;
+  opacity: 0.28 !important;
+  mix-blend-mode: overlay !important;
+}
+
+.crepusculo-theme .login-screen img[alt="Paisagem do castelo mental"] {
+  content: url("/assets/twilight_sunset.png") !important;
+  opacity: 0.45 !important;
+}
+
+.crepusculo-theme video {
+  opacity: 0.4 !important;
+  filter: hue-rotate(320deg) brightness(0.65) saturate(1.7) !important;
 }
