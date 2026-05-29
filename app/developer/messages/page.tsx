@@ -30,10 +30,10 @@ export default function DeveloperMessagesPage() {
   }, []);
 
   return (
-    <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
+    <main className="nemosine-main-container relative min-h-screen">
       <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-[2px]" />
-        <div className="h-full w-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000')] bg-cover bg-center opacity-25 mix-blend-luminosity" />
+        <div className="nemosine-bg-overlay absolute inset-0 z-10 backdrop-blur-[2px]" />
+        <div className="nemosine-mental-castle-bg h-full w-full bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000')] bg-cover bg-center" />
       </div>
 
       <Navbar />

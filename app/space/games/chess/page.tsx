@@ -853,7 +853,7 @@ export default function ChessGamePage() {
     };
 
     return (
-        <main className={`min-h-screen bg-[#050507] text-[#e1e1e6] relative overflow-hidden transition-all duration-300 ${timeWarpActive ? "blur-[1.5px] scale-[0.99] duration-75" : ""} ${isEmbedded ? "p-0 overflow-y-auto" : ""}`}>
+        <main className={`nemosine-main-container min-h-screen relative overflow-hidden transition-all duration-300 ${timeWarpActive ? "blur-[1.5px] scale-[0.99] duration-75" : ""} ${isEmbedded ? "p-0 overflow-y-auto" : ""}`}>
             {!isEmbedded && (
                 <div className="sticky top-0 z-50">
                     <Navbar />
@@ -862,8 +862,8 @@ export default function ChessGamePage() {
 
             {/* Timeless background graphics */}
             <div className="fixed inset-0 z-0 pointer-events-none">
-                <div className="absolute inset-0 bg-black/80 z-10"></div>
-                <div className="w-full h-full bg-[#0e0c0f] bg-[url('https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2000')] bg-cover bg-center opacity-15 mix-blend-luminosity"></div>
+                <div className="nemosine-bg-overlay absolute inset-0 z-10"></div>
+                <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=2000')] bg-cover bg-center"></div>
             </div>
 
             <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 py-8 md:py-12 flex flex-col items-center">

@@ -542,11 +542,11 @@ export default function TravessiaPage() {
     const activeCasteDetails = CASTES.find(c => c.id === currentCaste) || CASTES[0];
 
     return (
-        <main className="min-h-screen bg-[#050507] text-[#e1e1e6] relative overflow-hidden flex flex-col justify-between select-none">
+        <main className="nemosine-main-container min-h-screen relative overflow-hidden flex flex-col justify-between select-none">
             {/* Ancient Atlas Atmosphere */}
             <div className="fixed inset-0 z-0 pointer-events-none">
-                <div className="absolute inset-0 bg-black/85 z-10 backdrop-blur-[1px]"></div>
-                <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2000')] bg-cover bg-center opacity-10 mix-blend-luminosity"></div>
+                <div className="nemosine-bg-overlay absolute inset-0 z-10 backdrop-blur-[1px]"></div>
+                <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2000')] bg-cover bg-center"></div>
             </div>
 
             <div className="sticky top-0 z-50">

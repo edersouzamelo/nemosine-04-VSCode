@@ -13,11 +13,11 @@ export default async function SpacePage() {
     }
 
     return (
-        <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6] flex flex-col">
+        <main className="nemosine-main-container relative min-h-screen flex flex-col">
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0">
-                <div className="absolute inset-0 bg-black/60 z-10 backdrop-blur-[2px]"></div>
-                <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000')] bg-cover bg-center opacity-30 mix-blend-luminosity"></div>
+                <div className="nemosine-bg-overlay absolute inset-0 z-10 backdrop-blur-[2px]"></div>
+                <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=2000')] bg-cover bg-center"></div>
             </div>
 
             <Navbar />

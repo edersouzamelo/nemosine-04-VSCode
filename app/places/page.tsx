@@ -37,12 +37,12 @@ export default function PlacesPage() {
 
     return (
         <PlacesLevelGate>
-            <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
+            <main className="nemosine-main-container relative min-h-screen">
                 {/* Dark Immersive Background */}
                 <div className="fixed inset-0 z-0">
-                    <div className="absolute inset-0 bg-black/60 z-10 backdrop-blur-[2px]"></div>
+                    <div className="nemosine-bg-overlay absolute inset-0 z-10 backdrop-blur-[2px]"></div>
                     {/* Immersive placeholder background */}
-                    <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1505664194779-8beaceb93744?q=80&w=2000')] bg-cover bg-center opacity-20 mix-blend-luminosity"></div>
+                    <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1505664194779-8beaceb93744?q=80&w=2000')] bg-cover bg-center"></div>
                 </div>
 
                 <Navbar />

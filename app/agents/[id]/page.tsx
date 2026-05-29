@@ -76,11 +76,11 @@ export default function AgentDetailPage() {
     };
 
     return (
-        <main className="relative h-[100dvh] bg-[#050507] text-[#e1e1e6] flex flex-col overflow-hidden">
+        <main className="nemosine-main-container relative h-[100dvh] flex flex-col overflow-hidden">
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0">
-                <div className="absolute inset-0 bg-black/80 z-10 backdrop-blur-[4px]"></div>
-                <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center opacity-10 mix-blend-screen"></div>
+                <div className="nemosine-bg-overlay absolute inset-0 z-10 backdrop-blur-[4px]"></div>
+                <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center"></div>
             </div>
 
             <div className="navbar-container relative z-20 overflow-visible transition-all duration-300">

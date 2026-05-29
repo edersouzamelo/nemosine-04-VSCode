@@ -80,7 +80,7 @@ export default function InicioPage() {
     <main className="onboarding-page relative min-h-[100dvh] overflow-hidden bg-[#06070a] text-[#eee8dc]">
       <div className="onboarding-ambient absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(197,160,89,0.12),transparent_34%),linear-gradient(180deg,#0c0e13_0%,#06070a_58%,#030407_100%)]" />
       <div className="onboarding-ambient absolute inset-x-0 bottom-0 h-[42vh] opacity-25 bg-[radial-gradient(ellipse_at_bottom,rgba(70,64,59,0.42),transparent_65%)]" />
-      <div className="onboarding-image absolute inset-0 opacity-[0.06] bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600')] bg-cover bg-center mix-blend-screen" />
+      <div className="onboarding-image nemosine-mental-castle-bg absolute inset-0 bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600')] bg-cover bg-center" />
 
       <div className="relative z-[100]">
         <Navbar />

@@ -2680,7 +2680,7 @@ export default function DominiosHubPage() {
     };
 
     return (
-        <main className="relative min-h-screen bg-[#050507] text-[#e1e1e6]">
+        <main className="nemosine-main-container relative min-h-screen">
             <style>{`
                 @keyframes phone-jiggle {
                     0% { transform: rotate(-0.8deg) translateY(0); }
@@ -2708,8 +2708,8 @@ export default function DominiosHubPage() {
 
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0 pointer-events-none">
-                <div className="absolute inset-0 bg-black/75 z-10 backdrop-blur-[2px]"></div>
-                <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=2000')] bg-cover bg-center opacity-20 mix-blend-luminosity"></div>
+                <div className="nemosine-bg-overlay absolute inset-0 z-10 backdrop-blur-[2px]"></div>
+                <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=2000')] bg-cover bg-center"></div>
             </div>
 
             {/* COLLAPSIBLE SLIDE-UP NAVBAR WITH TAB HANDLE (TIRINHA) */}
@@ -2768,7 +2768,7 @@ export default function DominiosHubPage() {
                     <div className="fixed inset-0 w-screen h-screen z-45 bg-[#07070a] flex flex-col justify-between p-6 sm:p-12 overflow-hidden select-none animate-fade-in">
                         {/* Immersive space wallpaper */}
                         <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
-                        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=2000')] bg-cover bg-center opacity-15 mix-blend-luminosity blur-md pointer-events-none"></div>
+                        <div className="nemosine-mental-castle-bg absolute inset-0 bg-cover bg-center blur-md pointer-events-none"></div>
 
                         {/* Top System Bar */}
                         <div className="relative z-10 flex justify-between items-center border-b border-[#c5a059]/10 pb-4">
@@ -2988,7 +2988,7 @@ export default function DominiosHubPage() {
                                 {/* Simulated Virtual Screen */}
                                 <div className="flex-1 rounded-[2rem] overflow-hidden relative bg-[#090a0f] flex flex-col justify-between p-4 border border-[#c5a059]/5 z-10 max-h-full">
                                     <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
-                                    <div className="absolute top-[-30%] left-[-30%] w-[160%] h-[160%] bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=600')] bg-cover bg-center opacity-10 blur-xl pointer-events-none"></div>
+                                    <div className="nemosine-mental-castle-bg absolute top-[-30%] left-[-30%] w-[160%] h-[160%] bg-cover bg-center blur-xl pointer-events-none"></div>
 
                                     {loadingApp ? (
                                         <div className="flex-1 flex flex-col items-center justify-center z-10 animate-fade-in">
@@ -3069,7 +3069,7 @@ export default function DominiosHubPage() {
                                 {/* Simulated Virtual Screen */}
                                 <div className="flex-1 rounded-[1.8rem] overflow-hidden relative bg-[#090a0f] flex flex-col justify-between p-5 border border-[#c5a059]/5 z-10 max-h-full">
                                     <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
-                                    <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=600')] bg-cover bg-center opacity-10 blur-xl pointer-events-none"></div>
+                                    <div className="nemosine-mental-castle-bg absolute inset-0 bg-cover bg-center blur-xl pointer-events-none"></div>
 
                                     {loadingApp ? (
                                         <div className="flex-1 flex flex-col items-center justify-center z-10 animate-fade-in">
@@ -3152,7 +3152,7 @@ export default function DominiosHubPage() {
                                 {/* Simulated Virtual Screen */}
                                 <div className="flex-1 rounded-b-[1.5rem] overflow-hidden relative bg-[#090a0f] flex flex-col justify-between p-6 border border-[#c5a059]/5 z-10 max-h-full">
                                     <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
-                                    <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=1000')] bg-cover bg-center opacity-10 blur-md pointer-events-none"></div>
+                                    <div className="nemosine-mental-castle-bg absolute inset-0 bg-cover bg-center blur-md pointer-events-none"></div>
 
                                     {loadingApp ? (
                                         <div className="flex-1 flex flex-col items-center justify-center z-10 animate-fade-in">

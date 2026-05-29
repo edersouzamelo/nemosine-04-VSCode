@@ -721,18 +721,39 @@ body {
   animation: fade-in 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
 }
 
+/* ==========================================
+   Classes Estruturais de Fundo Semânticas (Nemosine)
+   ========================================== */
+
+/* Eclipse (Padrão Dark Gold) */
+.nemosine-main-container {
+  background-color: #050507 !important;
+  color: #e1e1e6 !important;
+  transition: background-color 300ms ease, color 300ms ease;
+}
+.nemosine-bg-overlay {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  transition: background-color 300ms ease;
+}
+.nemosine-mental-castle-bg {
+  background-color: #0a0a0c !important;
+  opacity: 0.3 !important;
+  mix-blend-mode: luminosity !important;
+  transition: background-image 300ms ease, opacity 300ms ease, mix-blend-mode 300ms ease;
+}
+
 /* Starry sky overrides for Lua-nova theme */
-.luanova-theme [class*="bg-[url("],
-.luanova-theme div[class*="bg-[url('https://images.unsplash.com"],
-.luanova-theme main div[class*="bg-[url("] {
+.luanova-theme .nemosine-main-container {
+  background-color: #030712 !important;
+  color: #c9d1f5 !important;
+}
+.luanova-theme .nemosine-bg-overlay {
+  background-color: rgba(3, 7, 18, 0.6) !important;
+}
+.luanova-theme .nemosine-mental-castle-bg {
   background-image: url("/assets/starry_sky.png") !important;
   opacity: 0.32 !important;
   mix-blend-mode: screen !important;
-}
-
-.luanova-theme .login-screen img[alt="Paisagem do castelo mental"] {
-  content: url("/assets/starry_sky.png") !important;
-  opacity: 0.45 !important;
 }
 
 .luanova-theme video {
@@ -741,17 +762,17 @@ body {
 }
 
 /* Sunset overrides for Crepúsculo theme */
-.crepusculo-theme [class*="bg-[url("],
-.crepusculo-theme div[class*="bg-[url('https://images.unsplash.com"],
-.crepusculo-theme main div[class*="bg-[url("] {
+.crepusculo-theme .nemosine-main-container {
+  background-color: #160404 !important;
+  color: #fcd34d !important;
+}
+.crepusculo-theme .nemosine-bg-overlay {
+  background-color: rgba(22, 4, 4, 0.6) !important;
+}
+.crepusculo-theme .nemosine-mental-castle-bg {
   background-image: url("/assets/twilight_sunset.png") !important;
   opacity: 0.28 !important;
   mix-blend-mode: overlay !important;
-}
-
-.crepusculo-theme .login-screen img[alt="Paisagem do castelo mental"] {
-  content: url("/assets/twilight_sunset.png") !important;
-  opacity: 0.45 !important;
 }
 
 .crepusculo-theme video {
@@ -759,10 +780,15 @@ body {
   filter: hue-rotate(320deg) brightness(0.65) saturate(1.7) !important;
 }
 
-/* Dawn overrides for Amanhecer (light-theme) */
-.light-theme [class*="bg-[url("],
-.light-theme div[class*="bg-[url('https://images.unsplash.com"],
-.light-theme main div[class*="bg-[url("] {
+/* Dawn overrides for Dawn (light-theme) */
+.light-theme .nemosine-main-container {
+  background-color: #f7f3ec !important;
+  color: #302a22 !important;
+}
+.light-theme .nemosine-bg-overlay {
+  background-color: rgba(255, 252, 247, 0.84) !important;
+}
+.light-theme .nemosine-mental-castle-bg {
   background-image: url("/assets/dawn_morning_sky.png") !important;
   opacity: 0.55 !important;
   mix-blend-mode: multiply !important;
@@ -778,4 +804,3 @@ body {
   opacity: 0.22 !important;
   filter: hue-rotate(50deg) brightness(1.28) saturate(0.7) contrast(1.05) !important;
 }
-
