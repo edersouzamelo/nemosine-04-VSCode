@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import CardCollectionGrid from "../components/CardCollectionGrid";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
@@ -10,18 +10,20 @@ import { useLanguage } from "../components/LanguageProvider";
 import AgentCard from "../components/AgentCard";
 
 export default function PlacesPage() {
-    const { language } = useLanguage();
+    const { language, entityName } = useLanguage();
     const [carouselMode, setCarouselMode] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    const placesItems = [...PLACES].sort((a, b) => {
-        if (a === "Não-Lugar") return 1;
-        if (b === "Não-Lugar") return -1;
-        return 0;
-    }).map((name) => {
-        const slug = name.toLowerCase().replace(/\s+/g, "-");
-        return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };
-    });
+    const placesItems = useMemo(() => {
+        return [...PLACES].sort((a, b) => {
+            if (a === "Não-Lugar") return 1;
+            if (b === "Não-Lugar") return -1;
+            return 0;
+        }).map((name) => {
+            const slug = name.toLowerCase().replace(/\s+/g, "-");
+            return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };
+        });
+    }, []);
 
     const scrollLeft = () => {
         if (scrollRef.current) {
@@ -98,6 +100,7 @@ export default function PlacesPage() {
                                         <div key={item.name} className="shrink-0 w-[65vw] sm:w-[180px] md:w-[200px] max-w-[220px] snap-center">
                                             <AgentCard
                                                 name={item.name}
+                                                displayName={entityName(item.name)}
                                                 image={item.image}
                                                 href={item.href}
                                                 label="Lugar"

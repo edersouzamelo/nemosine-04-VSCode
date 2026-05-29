@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "./LanguageProvider";
 import PersonaCategoryExplorer from "./PersonaCategoryExplorer";
@@ -31,21 +31,25 @@ const VASSALO_AGENTS = [
 ];
 
 export default function PersonaLevelCollection({ items }: { items: PersonaItem[] }) {
-    const { level, language } = useLanguage();
+    const { level, language, entityName } = useLanguage();
     const [carouselMode, setCarouselMode] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    const allowedNames = level === "Peregrino"
-        ? PEREGRINO_AGENTS
-        : level === "Vassalo"
-            ? VASSALO_AGENTS
-            : null;
+    const allowedNames = useMemo(() => {
+        return level === "Peregrino"
+            ? PEREGRINO_AGENTS
+            : level === "Vassalo"
+                ? VASSALO_AGENTS
+                : null;
+    }, [level]);
             
-    const visibleItems = allowedNames
-        ? allowedNames
-            .map((name) => items.find((item) => item.name === name))
-            .filter((item): item is PersonaItem => Boolean(item))
-        : items;
+    const visibleItems = useMemo(() => {
+        return allowedNames
+            ? allowedNames
+                .map((name) => items.find((item) => item.name === name))
+                .filter((item): item is PersonaItem => Boolean(item))
+            : items;
+    }, [allowedNames, items]);
         
     const showCategories = level === "Regente" || level === "Soberano";
 
@@ -105,6 +109,7 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
                             <div key={item.name} className="shrink-0 w-[65vw] sm:w-[180px] md:w-[200px] max-w-[220px] snap-center">
                                 <AgentCard
                                     name={item.name}
+                                    displayName={entityName(item.name)}
                                     image={item.image}
                                     href={item.href}
                                     label="Persona"

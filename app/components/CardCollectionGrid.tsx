@@ -22,14 +22,15 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
         cardOrderMode,
         ensureRandomCardOrder,
         getOrderedCards,
-        setCustomCardOrder
+        setCustomCardOrder,
+        entityName
     } = useLanguage();
     const names = useMemo(() => items.map((item) => item.name), [items]);
-    const orderingNames = orderUniverse || names;
+    const orderingNames = useMemo(() => orderUniverse || names, [orderUniverse, names]);
     const visibleNames = useMemo(() => new Set(names), [names]);
     const itemsByName = useMemo(() => new Map(items.map((item) => [item.name, item])), [items]);
-    const completeOrderedNames = getOrderedCards(collection, orderingNames);
-    const orderedNames = completeOrderedNames.filter((name) => visibleNames.has(name));
+    const completeOrderedNames = useMemo(() => getOrderedCards(collection, orderingNames), [getOrderedCards, collection, orderingNames]);
+    const orderedNames = useMemo(() => completeOrderedNames.filter((name) => visibleNames.has(name)), [completeOrderedNames, visibleNames]);
     const [draggingName, setDraggingName] = useState<string | null>(null);
     const [draftOrder, setDraftOrder] = useState<string[]>(orderedNames);
     const [isReordering, setIsReordering] = useState(true);
@@ -71,9 +72,12 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
 
     useEffect(() => {
         if (!draggingName) {
-            setDraftOrder(orderedNames);
+            const isIdentical = draftOrder.length === orderedNames.length && draftOrder.every((val, index) => val === orderedNames[index]);
+            if (!isIdentical) {
+                setDraftOrder(orderedNames);
+            }
         }
-    }, [draggingName, orderedNames]);
+    }, [draggingName, orderedNames, draftOrder]);
 
     const displayNames = draggingName ? draftOrder : orderedNames;
 
@@ -175,6 +179,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                         >
                             <AgentCard
                                 name={name}
+                                displayName={entityName(name)}
                                 label={collection === "places" ? "Lugar" : "Persona"}
                                 image={item.image}
                                 className={collection === "places" ? "aspect-[4/7]" : ""}
