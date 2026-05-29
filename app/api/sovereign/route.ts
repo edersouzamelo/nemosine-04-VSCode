@@ -100,6 +100,32 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // Travessia Actions
+      case "get_travessia_data": {
+        const data = await db.getTravessiaData(userId);
+        return NextResponse.json(data);
+      }
+      case "update_caste": {
+        const { caste } = body;
+        await db.updateCaste(userId, caste);
+        return NextResponse.json({ ok: true });
+      }
+      case "unlock_region": {
+        const { regionId } = body;
+        await db.unlockRegion(userId, regionId);
+        return NextResponse.json({ ok: true });
+      }
+      case "save_boss_log": {
+        const { log } = body;
+        await db.saveBossLog(userId, log);
+        return NextResponse.json({ ok: true });
+      }
+      case "save_relic": {
+        const { relic } = body;
+        await db.saveUserRelic(userId, relic);
+        return NextResponse.json({ ok: true });
+      }
+
       default:
         return NextResponse.json({ error: `Invalid action: ${action}` }, { status: 400 });
     }

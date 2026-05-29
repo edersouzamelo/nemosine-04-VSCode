@@ -73,6 +73,48 @@ async function ensureMedicoTable() {
   `;
 }
 
+async function ensureTravessiaTables() {
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_user_caste (
+      user_id TEXT PRIMARY KEY,
+      caste TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_unlocked_regions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      region_id TEXT NOT NULL,
+      unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_user_relics (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      origin TEXT NOT NULL,
+      date_obtained TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_boss_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      crossing_id TEXT NOT NULL,
+      boss_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      context TEXT NOT NULL,
+      strategy TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+}
+
 // ==========================================
 // AGENDA OPERATIONS
 // ==========================================
@@ -323,5 +365,130 @@ export async function deleteMedicalDocument(userId: string, docId: string): Prom
   await prisma.$executeRaw`
     DELETE FROM sovereign_medico_documents
     WHERE id = ${docId} AND user_id = ${userId}
+  `;
+}
+
+// ==========================================
+// TRAVESSIA OPERATIONS
+// ==========================================
+
+export interface UserRelic {
+  id: string;
+  name: string;
+  description: string;
+  origin: string;
+  dateObtained: string;
+}
+
+export interface BossLog {
+  id: string;
+  crossingId: string;
+  bossId: string;
+  date: string;
+  context: string;
+  strategy: string;
+  outcome: string;
+}
+
+export async function getTravessiaData(userId: string) {
+  await ensureTravessiaTables();
+  
+  // 1. Get caste
+  const casteRows = await prisma.$queryRaw<Array<{ caste: string }>>`
+    SELECT caste
+    FROM sovereign_user_caste
+    WHERE user_id = ${userId}
+    LIMIT 1
+  `;
+  const caste = casteRows[0]?.caste || "Peregrino";
+
+  // 2. Get unlocked regions
+  const regionRows = await prisma.$queryRaw<Array<{ region_id: string }>>`
+    SELECT region_id
+    FROM sovereign_unlocked_regions
+    WHERE user_id = ${userId}
+  `;
+  const unlockedRegions = regionRows.map(r => r.region_id);
+
+  // 3. Get relics
+  const relicRows = await prisma.$queryRaw<Array<any>>`
+    SELECT id, name, description, origin, date_obtained
+    FROM sovereign_user_relics
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+  `;
+  const relics: UserRelic[] = relicRows.map(r => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    origin: r.origin,
+    dateObtained: r.date_obtained
+  }));
+
+  // 4. Get boss logs
+  const bossRows = await prisma.$queryRaw<Array<any>>`
+    SELECT id, crossing_id, boss_id, date, context, strategy, outcome
+    FROM sovereign_boss_logs
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+  `;
+  const bossLogs: BossLog[] = bossRows.map(r => ({
+    id: r.id,
+    crossingId: r.crossing_id,
+    bossId: r.boss_id,
+    date: r.date,
+    context: r.context,
+    strategy: r.strategy,
+    outcome: r.outcome
+  }));
+
+  return {
+    caste,
+    unlockedRegions,
+    relics,
+    bossLogs
+  };
+}
+
+export async function updateCaste(userId: string, caste: string): Promise<void> {
+  await ensureTravessiaTables();
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_user_caste (user_id, caste, updated_at)
+    VALUES (${userId}, ${caste}, NOW())
+    ON CONFLICT (user_id) DO UPDATE
+    SET caste = ${caste}, updated_at = NOW()
+  `;
+}
+
+export async function unlockRegion(userId: string, regionId: string): Promise<void> {
+  await ensureTravessiaTables();
+  const id = Math.random().toString(36).substring(2, 9);
+  
+  const existing = await prisma.$queryRaw<Array<any>>`
+    SELECT id FROM sovereign_unlocked_regions
+    WHERE user_id = ${userId} AND region_id = ${regionId}
+    LIMIT 1
+  `;
+  if (existing.length > 0) return;
+
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_unlocked_regions (id, user_id, region_id, unlocked_at)
+    VALUES (${id}, ${userId}, ${regionId}, NOW())
+  `;
+}
+
+export async function saveBossLog(userId: string, log: BossLog): Promise<void> {
+  await ensureTravessiaTables();
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_boss_logs (id, user_id, crossing_id, boss_id, date, context, strategy, outcome)
+    VALUES (${log.id}, ${userId}, ${log.crossingId}, ${log.bossId}, ${log.date}, ${log.context}, ${log.strategy}, ${log.outcome})
+  `;
+}
+
+export async function saveUserRelic(userId: string, relic: UserRelic): Promise<void> {
+  await ensureTravessiaTables();
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_user_relics (id, user_id, name, description, origin, date_obtained)
+    VALUES (${relic.id}, ${userId}, ${relic.name}, ${relic.description}, ${relic.origin}, ${relic.dateObtained})
   `;
 }
