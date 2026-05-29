@@ -14,6 +14,7 @@ interface DomainApp {
     emoji: string;
     developer: string;
     version: string;
+    comingSoon?: boolean;
 }
 
 // Interfaces for our interactive apps
@@ -643,6 +644,87 @@ export default function DominiosHubPage() {
             emoji: "♟️",
             developer: "Inimigo Oculto",
             version: "v1.0.0"
+        },
+        // ── Em breve ─────────────────────────────────────────────
+        {
+            id: "diario",
+            title: language.startsWith("pt") ? "Diário do Peregrino" : "Pilgrim's Diary",
+            label: language.startsWith("pt") ? "Diário" : "Diary",
+            description: language.startsWith("pt") ? "Registre a sua jornada interior em páginas de um diário encantado." : "Record your inner journey in the pages of an enchanted diary.",
+            emoji: "📖",
+            developer: "Scriptorium Nous",
+            version: "Em breve",
+            comingSoon: true
+        },
+        {
+            id: "habitos",
+            title: language.startsWith("pt") ? "Fábrica de Hábitos" : "Habit Forge",
+            label: language.startsWith("pt") ? "Hábitos" : "Habits",
+            description: language.startsWith("pt") ? "Forje rituais diários e construa hábitos com disciplina e consistência." : "Forge daily rituals and build habits with discipline and consistency.",
+            emoji: "🔄",
+            developer: "Arauto Nous",
+            version: "Em breve",
+            comingSoon: true
+        },
+        {
+            id: "mapa-estelar",
+            title: language.startsWith("pt") ? "Mapa Estelar" : "Star Map",
+            label: language.startsWith("pt") ? "Estelar" : "Stellar",
+            description: language.startsWith("pt") ? "Visualize sua constelação de objetivos, projetos e sonhos." : "Visualize your constellation of goals, projects and dreams.",
+            emoji: "🌟",
+            developer: "Observatório Nous",
+            version: "Em breve",
+            comingSoon: true
+        },
+        {
+            id: "mantras",
+            title: language.startsWith("pt") ? "Cantos de Nous" : "Nous Chants",
+            label: language.startsWith("pt") ? "Mantras" : "Chants",
+            description: language.startsWith("pt") ? "Sons e mantras medievais para concentração, meditação e criatividade." : "Medieval sounds and mantras for focus, meditation and creativity.",
+            emoji: "🎵",
+            developer: "Templo Nous",
+            version: "Em breve",
+            comingSoon: true
+        },
+        {
+            id: "dado",
+            title: language.startsWith("pt") ? "Dado de Destino" : "Destiny Dice",
+            label: language.startsWith("pt") ? "Dado" : "Dice",
+            description: language.startsWith("pt") ? "Quando a razão falha, que o destino decida. Role o dado sagrado." : "When reason fails, let fate decide. Roll the sacred die.",
+            emoji: "🎲",
+            developer: "Conselho de Nous",
+            version: "Em breve",
+            comingSoon: true
+        },
+        {
+            id: "palavras",
+            title: language.startsWith("pt") ? "Palavras do Templo" : "Temple Words",
+            label: language.startsWith("pt") ? "Palavras" : "Words",
+            description: language.startsWith("pt") ? "Desafios de palavras e enigmas linguísticos inspirados nos grimórios medievais." : "Word challenges and linguistic enigmas inspired by medieval grimoires.",
+            emoji: "🔠",
+            developer: "Conselho de Nous",
+            version: "Em breve",
+            comingSoon: true
+        },
+        {
+            id: "labirinto",
+            title: language.startsWith("pt") ? "Labirinto da Mente" : "Mind Labyrinth",
+            label: language.startsWith("pt") ? "Labirinto" : "Labyrinth",
+            description: language.startsWith("pt") ? "Navegue pelos corredores da consciência em um labirinto de puzzles e lógica." : "Navigate the corridors of consciousness in a labyrinth of puzzles and logic.",
+            emoji: "🌀",
+            developer: "Conselho de Nous",
+            version: "Em breve",
+            comingSoon: true
+        },
+        {
+            id: "tarot",
+            title: language.startsWith("pt") ? "Tarot de Nous" : "Nous Tarot",
+            label: "Tarot",
+            description: language.startsWith("pt") ? "Leituras de tarô arquetípico como espelho de autoconhecimento e reflexão." : "Archetypal tarot readings as a mirror for self-knowledge and reflection.",
+            emoji: "🃏",
+            developer: "Conselho de Nous",
+            version: "Em breve",
+            comingSoon: true
         }
     ];
 
@@ -654,6 +736,8 @@ export default function DominiosHubPage() {
 
     const handleAppClick = useCallback((appId: string) => {
         if (isDragging) return;
+        const app = DOMAINS.find(d => d.id === appId);
+        if (app?.comingSoon) return; // block coming-soon apps
         setLoadingApp(true);
         setSelectedApp(appId);
         setLoadingTextIndex(0);
@@ -1888,7 +1972,7 @@ export default function DominiosHubPage() {
                             ) : (
                                 /* Fullscreen Grid of apps */
                                 <div className="w-full flex flex-col justify-between py-6 relative">
-                                    <div className={`grid gap-8 w-full px-4 max-w-5xl mx-auto grid-cols-2 max-w-xs sm:grid-cols-5 sm:max-w-5xl`}>
+                                    <div className={`grid gap-5 w-full px-4 max-w-6xl mx-auto grid-cols-4 sm:grid-cols-6`}>
                                         {getOrderedDomains().map((app) => (
                                             <div
                                                 key={app.id}
@@ -1902,16 +1986,18 @@ export default function DominiosHubPage() {
                                                 onPointerMove={handlePointerMove}
                                                 onPointerUp={handlePointerUp}
                                                 onClick={() => !longPressActive.current && handleAppClick(app.id)}
-                                                className={`flex flex-col items-center group cursor-grab active:cursor-grabbing bg-black/40 border p-6 rounded-2xl transition-all duration-200 hover:shadow-[0_0_30px_rgba(197,160,89,0.15)] select-none touch-none
+                                                className={`flex flex-col items-center group bg-black/40 border p-4 rounded-2xl transition-all duration-200 select-none touch-none
+                                                    ${app.comingSoon ? "cursor-default opacity-60" : "cursor-grab active:cursor-grabbing hover:shadow-[0_0_30px_rgba(197,160,89,0.15)]"}
                                                     ${dragOverId === app.id && dragSourceId !== app.id ? "border-[#c5a059] shadow-[0_0_20px_rgba(197,160,89,0.4)] scale-105" : "border-[#c5a059]/20 hover:border-[#c5a059]"}
-                                                    ${dragSourceId === app.id ? "opacity-40 scale-95" : "opacity-100"}`}
+                                                    ${dragSourceId === app.id ? "opacity-40 scale-95" : ""}`}
                                                 style={{ touchAction: "none" }}
                                             >
-                                                <div className="app-icon-jiggle w-20 h-20 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 border-[#c5a059]/40 rounded-3xl flex items-center justify-center text-4xl shadow-[0_8px_20px_rgba(0,0,0,0.7)] transition-all duration-300 group-hover:scale-105 relative overflow-hidden mb-4">
+                                                <div className={`app-icon-jiggle w-16 h-16 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 rounded-3xl flex items-center justify-center text-3xl shadow-[0_8px_20px_rgba(0,0,0,0.7)] transition-all duration-300 group-hover:scale-105 relative overflow-hidden mb-2 ${app.comingSoon ? "border-stone-700/40 grayscale" : "border-[#c5a059]/40"}`}>
                                                     <div className="absolute inset-1.5 rounded-[1.2rem] border border-[#c5a059]/10"></div>
                                                     <span className="drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)] relative z-10">{app.emoji}</span>
+                                                    {app.comingSoon && <div className="absolute bottom-0 inset-x-0 flex justify-center pb-1"><span className="text-[5px] uppercase tracking-widest bg-stone-700/80 text-stone-300 px-1.5 py-0.5 rounded-full">Em breve</span></div>}
                                                 </div>
-                                                <span className="text-[10px] uppercase tracking-[0.2em] text-[#c5a059]/80 group-hover:text-[#fde68a] font-display text-center font-bold">
+                                                <span className={`text-[8px] uppercase tracking-[0.15em] font-display text-center font-bold ${app.comingSoon ? "text-stone-500" : "text-[#c5a059]/80 group-hover:text-[#fde68a]"}`}>
                                                     {app.label}
                                                 </span>
                                             </div>
@@ -2059,7 +2145,7 @@ export default function DominiosHubPage() {
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-3">
                                             <p className="font-display text-[8px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-4">Grimório de Bolso</p>
-                                            <div className="grid grid-cols-2 gap-x-3 gap-y-4 px-1 max-h-[300px] overflow-y-auto pr-0.5">
+                                            <div className="grid grid-cols-4 gap-x-2 gap-y-3 px-1 overflow-y-auto pr-0.5 flex-1">
                                                 {getOrderedDomains().map((app) => (
                                                     <div
                                                         key={app.id}
@@ -2073,15 +2159,17 @@ export default function DominiosHubPage() {
                                                         onPointerMove={handlePointerMove}
                                                         onPointerUp={handlePointerUp}
                                                         onClick={() => !longPressActive.current && handleAppClick(app.id)}
-                                                        className={`flex flex-col items-center group cursor-grab active:cursor-grabbing select-none touch-none transition-all duration-150
+                                                        className={`flex flex-col items-center group select-none touch-none transition-all duration-150
+                                                            ${app.comingSoon ? "cursor-default opacity-50" : "cursor-grab active:cursor-grabbing"}
                                                             ${dragOverId === app.id && dragSourceId !== app.id ? "scale-110" : ""}
-                                                            ${dragSourceId === app.id ? "opacity-40" : "opacity-100"}`}
+                                                            ${dragSourceId === app.id ? "opacity-40" : ""}`}
                                                         style={{ touchAction: "none" }}
                                                     >
-                                                        <div className="app-icon-jiggle w-14 h-14 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border border-[#c5a059]/30 rounded-xl flex items-center justify-center text-2xl relative shadow-md">
+                                                        <div className={`app-icon-jiggle w-11 h-11 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border rounded-xl flex items-center justify-center text-xl relative shadow-md overflow-hidden ${app.comingSoon ? "border-stone-700/30 grayscale" : "border-[#c5a059]/30"}`}>
                                                             <span>{app.emoji}</span>
+                                                            {app.comingSoon && <div className="absolute bottom-0 inset-x-0 flex justify-center"><span className="text-[4px] uppercase tracking-widest bg-stone-700/90 text-stone-400 px-1 py-0.5 w-full text-center">Em breve</span></div>}
                                                         </div>
-                                                        <span className="text-[7.5px] uppercase tracking-wider text-[#c5a059]/80 mt-1">{app.label}</span>
+                                                        <span className={`text-[6px] uppercase tracking-wider mt-1 ${app.comingSoon ? "text-stone-600" : "text-[#c5a059]/80"}`}>{app.label}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -2138,7 +2226,7 @@ export default function DominiosHubPage() {
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-4">
                                             <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-6">Grimório de Bolso - Modo Tablet</p>
-                                            <div className="grid grid-cols-3 gap-x-6 gap-y-6 px-4 max-h-[360px] overflow-y-auto pr-0.5">
+                                            <div className="grid grid-cols-4 gap-x-3 gap-y-4 px-4 overflow-y-auto pr-0.5 flex-1">
                                                 {getOrderedDomains().map((app) => (
                                                     <div
                                                         key={app.id}
@@ -2152,15 +2240,17 @@ export default function DominiosHubPage() {
                                                         onPointerMove={handlePointerMove}
                                                         onPointerUp={handlePointerUp}
                                                         onClick={() => !longPressActive.current && handleAppClick(app.id)}
-                                                        className={`flex flex-col items-center group cursor-grab active:cursor-grabbing select-none touch-none transition-all duration-150
+                                                        className={`flex flex-col items-center group select-none touch-none transition-all duration-150
+                                                            ${app.comingSoon ? "cursor-default opacity-50" : "cursor-grab active:cursor-grabbing"}
                                                             ${dragOverId === app.id && dragSourceId !== app.id ? "scale-110" : ""}
-                                                            ${dragSourceId === app.id ? "opacity-40" : "opacity-100"}`}
+                                                            ${dragSourceId === app.id ? "opacity-40" : ""}`}
                                                         style={{ touchAction: "none" }}
                                                     >
-                                                        <div className="app-icon-jiggle w-16 h-16 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 border-[#c5a059]/40 rounded-2xl flex items-center justify-center text-3xl shadow-md transition-all">
+                                                        <div className={`app-icon-jiggle w-14 h-14 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 rounded-2xl flex items-center justify-center text-2xl shadow-md transition-all relative overflow-hidden ${app.comingSoon ? "border-stone-700/30 grayscale" : "border-[#c5a059]/40"}`}>
                                                             <span>{app.emoji}</span>
+                                                            {app.comingSoon && <div className="absolute bottom-0 inset-x-0 flex justify-center"><span className="text-[5px] uppercase tracking-widest bg-stone-700/90 text-stone-400 px-1 py-0.5 w-full text-center">Em breve</span></div>}
                                                         </div>
-                                                        <span className="text-[9px] font-bold uppercase tracking-wider text-[#c5a059]/80 mt-2">{app.label}</span>
+                                                        <span className={`text-[7px] font-bold uppercase tracking-wider mt-1.5 ${app.comingSoon ? "text-stone-600" : "text-[#c5a059]/80"}`}>{app.label}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -2223,7 +2313,7 @@ export default function DominiosHubPage() {
                                             <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-8">Grimório de Mesa - Sovereign Workspace</p>
                                             
                                             {/* Desktop app icon grid with drag & drop */}
-                                            <div className="grid grid-cols-5 gap-4 px-4 max-h-[280px] overflow-y-auto pr-0.5">
+                                            <div className="grid grid-cols-6 gap-3 px-4 overflow-y-auto pr-0.5 flex-1">
                                                 {getOrderedDomains().map((app) => (
                                                     <div
                                                         key={app.id}
@@ -2237,18 +2327,20 @@ export default function DominiosHubPage() {
                                                         onPointerMove={handlePointerMove}
                                                         onPointerUp={handlePointerUp}
                                                         onClick={() => !longPressActive.current && handleAppClick(app.id)}
-                                                        className={`flex flex-col items-center group cursor-grab active:cursor-grabbing bg-black/30 border p-4 rounded-xl transition-all duration-200 select-none touch-none
+                                                        className={`flex flex-col items-center group bg-black/30 border p-3 rounded-xl transition-all duration-200 select-none touch-none
+                                                            ${app.comingSoon ? "cursor-default opacity-50" : "cursor-grab active:cursor-grabbing"}
                                                             ${dragOverId === app.id && dragSourceId !== app.id
                                                                 ? "border-[#c5a059] shadow-[0_0_20px_rgba(197,160,89,0.35)] scale-105"
-                                                                : "border-[#c5a059]/15 hover:border-[#c5a059]/60"}
+                                                                : app.comingSoon ? "border-stone-700/20" : "border-[#c5a059]/15 hover:border-[#c5a059]/60"}
                                                             ${dragSourceId === app.id ? "opacity-40 scale-95" : ""}`}
                                                         style={{ touchAction: "none" }}
                                                     >
-                                                        <div className="app-icon-jiggle w-16 h-16 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 border-[#c5a059]/40 rounded-2xl flex items-center justify-center text-3xl shadow-md transition-all mb-3 relative overflow-hidden">
+                                                        <div className={`app-icon-jiggle w-14 h-14 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 rounded-2xl flex items-center justify-center text-2xl shadow-md transition-all mb-2 relative overflow-hidden ${app.comingSoon ? "border-stone-700/30 grayscale" : "border-[#c5a059]/40"}`}>
                                                             <div className="absolute inset-1 rounded-[0.95rem] border border-[#c5a059]/10"></div>
                                                             <span className="drop-shadow-[0_4px_6px_rgba(0,0,0,0.4)]">{app.emoji}</span>
+                                                            {app.comingSoon && <div className="absolute bottom-0 inset-x-0 flex justify-center"><span className="text-[5px] uppercase tracking-widest bg-stone-700/90 text-stone-400 px-1 py-0.5 w-full text-center">Em breve</span></div>}
                                                         </div>
-                                                        <span className="text-[9px] font-bold uppercase tracking-widest text-[#c5a059]/80 group-hover:text-[#fde68a]">{app.label}</span>
+                                                        <span className={`text-[8px] font-bold uppercase tracking-widest ${app.comingSoon ? "text-stone-600" : "text-[#c5a059]/80 group-hover:text-[#fde68a]"}`}>{app.label}</span>
                                                     </div>
                                                 ))}
                                             </div>
