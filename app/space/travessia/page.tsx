@@ -298,9 +298,25 @@ export default function TravessiaPage() {
                 const data = await response.json();
                 setCurrentCaste(data.caste || "Peregrino");
                 
-                let loadedChapters = data.unlockedRegions || [];
-                if (loadedChapters.length === 0) {
-                    loadedChapters = ["capitulo_1"];
+                let loadedChapters: string[] = data.unlockedRegions || [];
+                
+                // Map old physical room IDs to new existential chapters for backwards compatibility
+                if (loadedChapters.includes("biblioteca") || loadedChapters.includes("claustro") || loadedChapters.includes("jardim") || loadedChapters.includes("tribunal")) {
+                    if (!loadedChapters.includes("capitulo_1")) loadedChapters.push("capitulo_1");
+                }
+                if (loadedChapters.includes("observatorio") || loadedChapters.includes("portal") || loadedChapters.includes("mosteiro")) {
+                    if (!loadedChapters.includes("capitulo_1")) loadedChapters.push("capitulo_1");
+                    if (!loadedChapters.includes("capitulo_2")) loadedChapters.push("capitulo_2");
+                }
+                if (loadedChapters.includes("sala_trono")) {
+                    if (!loadedChapters.includes("capitulo_1")) loadedChapters.push("capitulo_1");
+                    if (!loadedChapters.includes("capitulo_2")) loadedChapters.push("capitulo_2");
+                    if (!loadedChapters.includes("capitulo_3")) loadedChapters.push("capitulo_3");
+                    if (!loadedChapters.includes("capitulo_4")) loadedChapters.push("capitulo_4");
+                }
+                
+                if (loadedChapters.length === 0 || !loadedChapters.includes("capitulo_1")) {
+                    loadedChapters.push("capitulo_1");
                 }
                 
                 // Keep chapters unlocked in sync with Caste levels for seamless transition
@@ -333,7 +349,27 @@ export default function TravessiaPage() {
                 const fallbackCaste = localStorage.getItem("sovereign_caste") || "Peregrino";
                 setCurrentCaste(fallbackCaste);
                 
-                let loadedChapters = JSON.parse(localStorage.getItem("sovereign_unlocked_regions") || '["capitulo_1"]');
+                let loadedChapters: string[] = JSON.parse(localStorage.getItem("sovereign_unlocked_regions") || '["capitulo_1"]');
+                
+                // Map old physical room IDs to new existential chapters for backwards compatibility
+                if (loadedChapters.includes("biblioteca") || loadedChapters.includes("claustro") || loadedChapters.includes("jardim") || loadedChapters.includes("tribunal")) {
+                    if (!loadedChapters.includes("capitulo_1")) loadedChapters.push("capitulo_1");
+                }
+                if (loadedChapters.includes("observatorio") || loadedChapters.includes("portal") || loadedChapters.includes("mosteiro")) {
+                    if (!loadedChapters.includes("capitulo_1")) loadedChapters.push("capitulo_1");
+                    if (!loadedChapters.includes("capitulo_2")) loadedChapters.push("capitulo_2");
+                }
+                if (loadedChapters.includes("sala_trono")) {
+                    if (!loadedChapters.includes("capitulo_1")) loadedChapters.push("capitulo_1");
+                    if (!loadedChapters.includes("capitulo_2")) loadedChapters.push("capitulo_2");
+                    if (!loadedChapters.includes("capitulo_3")) loadedChapters.push("capitulo_3");
+                    if (!loadedChapters.includes("capitulo_4")) loadedChapters.push("capitulo_4");
+                }
+                
+                if (!loadedChapters.includes("capitulo_1")) {
+                    loadedChapters.push("capitulo_1");
+                }
+
                 if (fallbackCaste === "Vassalo" && !loadedChapters.includes("capitulo_2")) loadedChapters.push("capitulo_2");
                 if (fallbackCaste === "Regente") {
                     if (!loadedChapters.includes("capitulo_2")) loadedChapters.push("capitulo_2");
