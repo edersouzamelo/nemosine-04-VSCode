@@ -13,6 +13,14 @@
   color-scheme: dark;
 }
 
+html[data-fontsize="medium"] {
+  font-size: 18px;
+}
+
+html[data-fontsize="large"] {
+  font-size: 21px;
+}
+
 .light-theme {
   --background: #f7f3ec;
   --foreground: #302a22;
@@ -622,10 +630,20 @@ body {
    Nemosine Singularity Immersive Mode Styles
    ========================================== */
 
-/* 2. Slow down all transitions and animations */
-.is-singularity-active * {
+/* 2. Slow down all transitions and animations, but exclude continuous loop animations */
+.is-singularity-active *:not(.portal-ring):not(.portal-ring-outer):not(.animate-ping) {
   transition-duration: 900ms !important;
   animation-duration: 900ms !important;
+}
+
+/* Ensure portal rings maintain their slow, majestic rotation speeds even in animations/immersive mode */
+.is-singularity-active .portal-ring {
+  animation-duration: 15s !important;
+  transition-duration: 0s !important;
+}
+.is-singularity-active .portal-ring-outer {
+  animation-duration: 20s !important;
+  transition-duration: 0s !important;
 }
 
 /* 3. Slow fade-in transition for page container mounts */

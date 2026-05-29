@@ -28,7 +28,7 @@ export default function AgentsPage() {
             {/* Dashboard Grid */}
             <section className="relative z-10 p-4 md:p-8 lg:p-12">
                 <div className="max-w-[1600px] mx-auto">
-                    <header className="mb-12 text-center">
+                    <header className="mb-12 text-center pt-6 sm:pt-0">
                         <h2 className="text-4xl font-display text-[#c5a059] mb-2 uppercase tracking-widest">Personas</h2>
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">Agentes Ativos no Sistema</p>
                     </header>

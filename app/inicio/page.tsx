@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import InstitutionalFooter from "../components/InstitutionalFooter";
 import Navbar from "../components/Navbar";
 import { routeInitialIntent } from "../lib/onboardingRouting";
+import { useLanguage } from "../components/LanguageProvider";
 
 const introductoryVideos = [
   {
@@ -32,6 +33,7 @@ const introductoryVideos = [
 
 export default function InicioPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [need, setNeed] = useState("");
   const [sensitiveRoute, setSensitiveRoute] = useState<{ href: string; name: string } | null>(null);
   const [isRouting, setIsRouting] = useState(false);
@@ -85,46 +87,77 @@ export default function InicioPage() {
       </div>
 
       <section className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center px-5 py-9 sm:px-8 sm:py-12">
-        <div className="onboarding-card w-full rounded-[28px] border border-[#c5a059]/15 bg-black/30 px-6 py-9 text-center shadow-[0_24px_90px_rgba(0,0,0,0.45)] backdrop-blur-md sm:px-14 sm:py-12">
-          <h1 className="flex justify-center">
+        <div className="onboarding-card w-full rounded-[28px] border-2 border-[#c5a059]/35 bg-black/60 px-6 py-9 text-center shadow-[0_35px_100px_rgba(0,0,0,0.9),0_0_50px_rgba(197,160,89,0.08)] backdrop-blur-xl sm:px-14 sm:py-12 relative overflow-hidden">
+          {/* Inner Golden Sacred Frame */}
+          <div className="absolute inset-3 rounded-[20px] border border-[#c5a059]/15 pointer-events-none z-0" />
+          
+          {/* Elegant Medieval Gothic Ornaments */}
+          <div className="absolute top-5 left-5 w-8 h-8 border-t border-l border-[#c5a059]/50 pointer-events-none z-10" />
+          <div className="absolute top-5 right-5 w-8 h-8 border-t border-r border-[#c5a059]/50 pointer-events-none z-10" />
+          <div className="absolute bottom-5 left-5 w-8 h-8 border-b border-l border-[#c5a059]/50 pointer-events-none z-10" />
+          <div className="absolute bottom-5 right-5 w-8 h-8 border-b border-r border-[#c5a059]/50 pointer-events-none z-10" />
+
+          {/* Subtle gold circular blur behind logo */}
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-[#c5a059]/5 blur-3xl pointer-events-none" />
+
+          <h1 className="flex justify-center relative z-10">
             <img
               src="/assets/nemosine-logo.png"
               alt="Nemosine Nous"
-              className="h-24 w-auto object-contain sm:h-32"
+              className="h-24 w-auto object-contain sm:h-32 drop-shadow-[0_0_25px_rgba(197,160,89,0.3)]"
             />
           </h1>
-          <h2 className="onboarding-heading mt-5 font-serif text-xl text-[#f1ece3] sm:text-2xl">
-            Organize sua mente por vozes.
+          <h2 className="onboarding-heading mt-8 font-display text-3xl uppercase tracking-[0.18em] text-[#c5a059] sm:text-4xl drop-shadow-[0_2px_8px_rgba(197,160,89,0.4)] relative z-10">
+            {t("welcomeTitle")}
           </h2>
-          <p className="onboarding-body mx-auto mt-6 max-w-xl text-sm leading-7 text-[#d7d1c8]/78 sm:text-base">
-            Um sistema de personas para pensar melhor, decidir com mais clareza e transformar confusão em direção.
+          <p className="mx-auto mt-6 max-w-xl font-body text-xl font-light leading-relaxed text-[#eee8dc]/90 sm:text-2xl italic relative z-10">
+            {t("welcomeSubtitle")}
           </p>
-          <p className="mx-auto mt-7 max-w-xl text-sm italic text-[#c5a059]/78">
-            Entre pelo que você busca. O sistema encontra a voz certa.
+          <p className="mx-auto mt-4 max-w-xl font-display text-xs uppercase tracking-[0.25em] text-[#c5a059]/80 relative z-10">
+            {t("welcomeHelper")}
           </p>
 
-          <form onSubmit={handleStart} className="mx-auto mt-9 max-w-xl space-y-4">
+          <form onSubmit={handleStart} className="mx-auto mt-10 max-w-xl flex flex-col gap-5 relative z-10">
             <input
               type="text"
               value={need}
               onChange={(event) => setNeed(event.target.value)}
-              placeholder="O que você precisa agora?"
-              className="onboarding-input w-full rounded-2xl border border-[#c5a059]/20 bg-black/35 px-5 py-4 text-base text-[#f1ece3] outline-none transition-colors placeholder:text-[#b8ad97]/45 focus:border-[#c5a059]/60"
+              placeholder={t("searchPlaceholder")}
+              className="onboarding-input w-full rounded-xl border border-[#c5a059]/25 bg-black/55 px-5 py-4 font-body text-lg text-[#eee8dc] outline-none transition-all placeholder:text-[#b8ad97]/30 focus:border-[#c5a059]/60 focus:bg-black/75 shadow-[inset_0_2px_5px_rgba(0,0,0,0.7)]"
             />
-            <button
-              type="submit"
-              disabled={isRouting}
-              className="w-full rounded-2xl bg-[#c5a059] px-5 py-4 text-sm font-semibold uppercase tracking-[0.24em] text-[#111013] transition-colors hover:bg-[#d4b46f] disabled:cursor-wait disabled:opacity-70"
-            >
-              {isRouting ? "Conduzindo..." : "Começar"}
-            </button>
+            
+            <div className="relative group overflow-hidden rounded-xl border border-[#c5a059]/40 hover:border-[#c5a059]/85 shadow-[0_0_20px_rgba(197,160,89,0.1)] hover:shadow-[0_0_35px_rgba(197,160,89,0.3)] transition-all duration-300">
+              {/* Solemn Glow Behind */}
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-500/15 via-red-700/25 to-amber-500/15 opacity-70 blur-md group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              
+              <button
+                type="submit"
+                disabled={isRouting}
+                className="w-full relative px-8 py-5 font-display font-bold uppercase tracking-[0.35em] text-xs sm:text-sm bg-gradient-to-r from-[#6b1e0f] via-[#993b1b] to-[#6b1e0f] text-[#fde68a] hover:from-[#7f2412] hover:via-[#ad431f] hover:to-[#7f2412] hover:text-[#fffbeb] border-y-2 border-[#c5a059] transition-all duration-300 disabled:cursor-wait disabled:opacity-70 cursor-pointer shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-3 drop-shadow-[0_0_6px_rgba(253,230,138,0.4)]">
+                  <span className="text-sm sm:text-base animate-pulse">⚜️</span>
+                  {isRouting ? t("processing") : t("initiate")}
+                  <span className="text-sm sm:text-base animate-pulse">⚜️</span>
+                </span>
+                
+                {/* Decorative gold metal corners */}
+                <div className="absolute top-0.5 left-0.5 w-2 h-2 border-t-2 border-l-2 border-[#fde68a] opacity-60"></div>
+                <div className="absolute top-0.5 right-0.5 w-2 h-2 border-t-2 border-r-2 border-[#fde68a] opacity-60"></div>
+                <div className="absolute bottom-0.5 left-0.5 w-2 h-2 border-b-2 border-l-2 border-[#fde68a] opacity-60"></div>
+                <div className="absolute bottom-0.5 right-0.5 w-2 h-2 border-b-2 border-r-2 border-[#fde68a] opacity-60"></div>
+                
+                {/* Golden flare transition effect */}
+                <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-[#fde68a]/20 to-transparent"></div>
+              </button>
+            </div>
           </form>
 
           <Link
             href="/agents"
-            className="mt-7 inline-flex text-xs uppercase tracking-[0.2em] text-[#c5a059]/65 transition-colors hover:text-[#ddbd7a]"
+            className="mt-8 inline-flex font-display text-xs uppercase tracking-[0.25em] text-[#c5a059]/70 transition-all duration-300 hover:text-[#fde68a] hover:scale-105 relative z-10"
           >
-            Conhecer as personas
+            {t("explorePersonas")}
           </Link>
         </div>
 

@@ -115,7 +115,7 @@ export default function GamesHubPage() {
             <div className="sticky top-0 z-50">
                 <Navbar />
             </div>
-            <div className="max-w-7xl mx-auto p-8 pt-12 min-h-[calc(100vh-220px)] flex flex-col justify-center">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12 min-h-[calc(100vh-220px)] flex flex-col justify-center">
                 <header className="mb-12 text-center relative">
                     <h1 className="mb-2 font-display text-4xl uppercase tracking-widest text-[#c5a059]">Jogos</h1>
                     <p className="font-body text-base italic text-[#c5a059]/60">
@@ -124,7 +124,7 @@ export default function GamesHubPage() {
                 </header>
 
                 {/* Carousel Wrapper */}
-                <div className="relative group/carousel max-w-full px-4">
+                <div className="relative group/carousel max-w-full -mx-4 sm:mx-0">
                     {/* Navigation Buttons (desktop only) */}
                     <button
                         onClick={scrollLeft}
@@ -141,18 +141,19 @@ export default function GamesHubPage() {
                     >
                         <span className="text-xl">→</span>
                     </button>
-
+ 
                     {/* Horizontal Scroll Track */}
                     <div
                         ref={scrollRef}
-                        className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-8 pt-4 px-2 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                        className="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-8 pt-4 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                        style={{ paddingLeft: "calc(50% - 44vw)", paddingRight: "calc(50% - 44vw)" }}
                     >
                         {/* Active Games */}
                         {ACTIVE_GAMES.map((game) => (
                             <Link 
                                 key={game.id} 
                                 href={game.href} 
-                                className="group/card shrink-0 w-[290px] sm:w-[320px] md:w-[340px] snap-start"
+                            className="group/card shrink-0 w-[88vw] sm:w-[320px] md:w-[340px] max-w-[360px] snap-center"
                             >
                                 <div className="bg-[#0c0d11]/85 border border-[#c5a059]/30 rounded-xl overflow-hidden hover:border-[#C5A059] transition-all duration-300 hover:shadow-[0_0_30px_rgba(197,160,89,0.15)] h-[480px] flex flex-col relative">
                                     {/* Card Header Background */}
@@ -192,19 +193,19 @@ export default function GamesHubPage() {
                                 </div>
                             </Link>
                         ))}
-
+ 
                         {/* Upcoming Games */}
                         {UPCOMING_GAMES.map((game) => (
                             <div 
                                 key={game.id} 
-                                className="group/card shrink-0 w-[290px] sm:w-[320px] md:w-[340px] snap-start opacity-70 hover:opacity-95 transition-opacity duration-300"
+                                className="group/card shrink-0 w-[88vw] sm:w-[320px] md:w-[340px] max-w-[360px] snap-center opacity-70 hover:opacity-95 transition-opacity duration-300"
                             >
                                 <div className="bg-[#07070a]/60 border border-[#333]/60 rounded-xl overflow-hidden hover:border-[#c5a059]/20 transition-all duration-300 h-[480px] flex flex-col relative">
                                     {/* "Em Breve" Badge */}
                                     <span className="absolute top-4 right-4 z-20 bg-amber-500/10 border border-amber-500/40 text-amber-500 font-display text-[9px] tracking-widest uppercase px-2.5 py-1 rounded shadow-[0_0_10px_rgba(245,158,11,0.15)]">
                                         Em Breve
                                     </span>
-
+ 
                                     {/* Card Header Background (Grayscale & Slightly Faded) */}
                                     <div className="h-44 bg-black/80 relative flex items-center justify-center overflow-hidden border-b border-[#333]/20 grayscale">
                                         <div className="absolute inset-0 opacity-15 bg-[url('/assets/cards/Anverso%20padrão.png')] bg-cover bg-center"></div>

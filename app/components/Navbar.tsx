@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
-import type { AppLanguage, AppTheme, CardOrderMode, NemosineLevel } from "./LanguageProvider";
+import type { AppLanguage, AppTheme, CardOrderMode, NemosineLevel, AppFontSize } from "./LanguageProvider";
 import { isAdminEmail } from "../lib/accessControl";
 import RelicPhrase from "./RelicPhrase";
 
@@ -17,7 +17,7 @@ interface NavbarProps {
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session, status } = useSession();
-    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity } = useLanguage();
+    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity, fontSize, setFontSize } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
@@ -91,9 +91,16 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                                 onChange={(event) => setLanguage(event.target.value as AppLanguage)}
                                                 className="theme-control mt-2 w-full rounded border border-[#c5a059]/30 bg-black px-3 py-2 text-sm text-[#e1e1e6]"
                                             >
-                                                <option value="pt-BR">PT/BR</option>
-                                                <option value="es">ESP</option>
-                                                <option value="en">ENG</option>
+                                                <option value="pt-BR">🇧🇷 Português (BR)</option>
+                                                <option value="pt-PT">🇵🇹 Português (PT)</option>
+                                                <option value="en">🇬🇧 Inglês</option>
+                                                <option value="es">🇪🇸 Espanhol</option>
+                                                <option value="fr">🇫🇷 Francês</option>
+                                                <option value="it">🇮🇹 Italiano</option>
+                                                <option value="de">🇩🇪 Alemão</option>
+                                                <option value="ar">🇸🇦 Árabe</option>
+                                                <option value="zh">🇨🇳 Mandarim</option>
+                                                <option value="ja">🇯🇵 Japonês</option>
                                             </select>
                                         </label>
 
@@ -151,7 +158,36 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                         </div>
 
                                         <div className="mt-4 text-[10px] uppercase tracking-widest text-[#c5a059]/70">
-                                            Singularidade
+                                            {t("modes")}
+                                            <div className="mt-2 grid grid-cols-3 gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    className="rounded border border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059] py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight h-11"
+                                                >
+                                                    <span>{t("modeSymbolic")}</span>
+                                                    <span className="text-[6.5px] opacity-70 mt-0.5">({t("current")})</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    className="rounded border border-[#c5a059]/10 text-white/30 py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight cursor-not-allowed h-11 opacity-60"
+                                                >
+                                                    <span>{t("modeSober")}</span>
+                                                    <span className="text-[6.5px] opacity-90 text-amber-500 mt-0.5">{t("soon")}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    className="rounded border border-[#c5a059]/10 text-white/30 py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight cursor-not-allowed h-11 opacity-60"
+                                                >
+                                                    <span>{t("modeSystemic")}</span>
+                                                    <span className="text-[6.5px] opacity-90 text-amber-500 mt-0.5">{t("soon")}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 text-[10px] uppercase tracking-widest text-[#c5a059]/70">
+                                            {t("animations")}
                                             <div className="mt-2 grid grid-cols-2 gap-2">
                                                 {(["off", "on"] as const).map((option) => (
                                                     <button
@@ -161,6 +197,22 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                                         className={`rounded border px-2 py-2 text-xs uppercase tracking-widest transition-colors ${singularity === option ? "selected border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
                                                     >
                                                         {option}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 text-[10px] uppercase tracking-widest text-[#c5a059]/70">
+                                            {t("visualization")}
+                                            <div className="mt-2 grid grid-cols-3 gap-2">
+                                                {(["small", "medium", "large"] as AppFontSize[]).map((option) => (
+                                                    <button
+                                                        key={option}
+                                                        type="button"
+                                                        onClick={() => setFontSize(option)}
+                                                        className={`rounded border px-2 py-2 text-xs transition-colors ${fontSize === option ? "selected border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/20 text-white/70 hover:border-[#c5a059]/60"}`}
+                                                    >
+                                                        {option === "small" ? t("vizSmall") : option === "medium" ? t("vizMedium") : t("vizLarge")}
                                                     </button>
                                                 ))}
                                             </div>
