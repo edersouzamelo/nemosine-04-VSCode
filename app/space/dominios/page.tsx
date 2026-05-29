@@ -172,11 +172,18 @@ export default function DominiosHubPage() {
                     animation: phone-jiggle 0.28s ease-in-out infinite;
                 }
                 @keyframes scale-up {
-                    from { transform: translate(-50%, -50%) scale(0.92); opacity: 0; }
-                    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                    from { transform: scale(0.92); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
                 }
                 .animate-scale-up {
                     animation: scale-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                }
+                @keyframes fade-in {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                .animate-fade-in {
+                    animation: fade-in 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
                 }
             `}</style>
 
