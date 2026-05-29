@@ -23,8 +23,23 @@ export default function DominiosHubPage() {
     const [simulatedTime, setSimulatedTime] = useState("20:00");
     const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
     
+    // Collapsible Top Menu status (slides up and down with pulling handle)
+    const [showMenu, setShowMenu] = useState<boolean>(false);
+    
     // Active viewport device classification
     const [deviceType, setDeviceType] = useState<"phone" | "tablet" | "desktop">("desktop");
+
+    // Body overflow side-effect to disable scrollbars in fullscreen F11-style mode
+    useEffect(() => {
+        if (isFullscreen) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "unset";
+        }
+        return () => {
+            document.body.style.overflow = "unset";
+        };
+    }, [isFullscreen]);
 
     // Dynamic Clock inside status bar
     useEffect(() => {
@@ -156,6 +171,13 @@ export default function DominiosHubPage() {
                 .app-icon-jiggle:hover {
                     animation: phone-jiggle 0.28s ease-in-out infinite;
                 }
+                @keyframes scale-up {
+                    from { transform: translate(-50%, -50%) scale(0.92); opacity: 0; }
+                    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                }
+                .animate-scale-up {
+                    animation: scale-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                }
             `}</style>
 
             {/* Dark Immersive Background */}
@@ -164,13 +186,27 @@ export default function DominiosHubPage() {
                 <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=2000')] bg-cover bg-center opacity-20 mix-blend-luminosity"></div>
             </div>
 
-            <div className="sticky top-0 z-50">
+            {/* COLLAPSIBLE SLIDE-UP NAVBAR WITH TAB HANDLE (TIRINHA) */}
+            <div className={`fixed top-0 inset-x-0 z-50 transition-transform duration-500 ease-in-out transform 
+                ${showMenu ? "translate-y-0" : "-translate-y-full"}`}
+            >
                 <Navbar />
+                
+                {/* Pull-down notch tab handle (tirinha) */}
+                <div 
+                    onClick={() => setShowMenu(!showMenu)}
+                    className="absolute left-1/2 -translate-x-1/2 bottom-[-20px] w-24 h-5 rounded-b-xl border-x border-b border-[#c5a059]/40 bg-[#07070a]/95 flex items-center justify-center cursor-pointer hover:bg-[#c5a059]/10 hover:border-[#c5a059] transition-all z-50 select-none shadow-[0_4px_12px_rgba(0,0,0,0.6)]"
+                    title={showMenu ? (language.startsWith("pt") ? "Recolher Menu" : "Collapse Menu") : (language.startsWith("pt") ? "Expandir Menu" : "Expand Menu")}
+                >
+                    <span className="material-icons text-xs text-[#c5a059] transition-transform duration-300">
+                        {showMenu ? "expand_less" : "expand_more"}
+                    </span>
+                </div>
             </div>
 
-            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 py-8 md:py-12 min-h-[calc(100vh-220px)] flex flex-col justify-center items-center">
+            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 py-10 md:py-16 min-h-[calc(100vh-220px)] flex flex-col justify-center items-center">
                 
-                {/* PAGE HEADER (Only when not in fullscreen OS) */}
+                {/* PAGE HEADER (Hidden completely in fullscreen F11-style mode) */}
                 {!isFullscreen && (
                     <header className="mb-12 text-center w-full max-w-2xl mx-auto space-y-4">
                         <span className="text-[10px] uppercase tracking-[0.25em] text-[#c5a059]/60 font-semibold block">
@@ -200,8 +236,8 @@ export default function DominiosHubPage() {
 
                 {/* SIMULATED DEVICE ENVIRONMENT */}
                 {isFullscreen ? (
-                    /* 100% IMMERSIVE FULL-SCREEN SYSTEM OPERATIONAL MODE (True OS environment) */
-                    <div className="fixed inset-0 w-screen h-screen z-50 bg-[#07070a] flex flex-col justify-between p-6 sm:p-12 overflow-hidden select-none animate-fade-in">
+                    /* 100% IMMERSIVE FULL-SCREEN SYSTEM OPERATIONAL MODE (F11-style full viewport OS) */
+                    <div className="fixed inset-0 w-screen h-screen z-45 bg-[#07070a] flex flex-col justify-between p-6 sm:p-12 overflow-hidden select-none animate-fade-in">
                         {/* Immersive space wallpaper */}
                         <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
                         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=2000')] bg-cover bg-center opacity-15 mix-blend-luminosity blur-md pointer-events-none"></div>
@@ -232,7 +268,7 @@ export default function DominiosHubPage() {
                         </div>
 
                         {/* Inner Fullscreen UI Workspace */}
-                        <div className="relative z-10 flex-1 flex flex-col justify-center items-center max-w-5xl w-full mx-auto my-6 overflow-y-auto pr-1">
+                        <div className="relative z-10 flex-1 flex flex-col justify-center items-center max-w-5xl w-full mx-auto my-6 overflow-hidden pr-1">
                             {loadingApp ? (
                                 <div className="flex flex-col items-center justify-center animate-fade-in">
                                     <div className="relative flex items-center justify-center mb-6">
@@ -245,7 +281,7 @@ export default function DominiosHubPage() {
                                 </div>
                             ) : selectedApp && currentApp ? (
                                 /* Fullscreen app details display */
-                                <div className="w-full max-w-2xl bg-black/60 border border-[#c5a059]/25 rounded-3xl p-8 backdrop-blur-md animate-scale-up space-y-6 text-left">
+                                <div className="w-full max-w-2xl bg-black/60 border border-[#c5a059]/25 rounded-3xl p-8 backdrop-blur-md animate-scale-up space-y-6 text-left shadow-2xl">
                                     <div className="flex items-center gap-6 border-b border-[#c5a059]/15 pb-6">
                                         <div className="w-20 h-20 bg-gradient-to-br from-[#1c1a24] to-[#08070b] border-2 border-[#c5a059] rounded-2xl flex items-center justify-center text-5xl shadow-[0_0_20px_rgba(197,160,89,0.25)] select-none">
                                             {currentApp.emoji}
@@ -294,8 +330,7 @@ export default function DominiosHubPage() {
                             ) : (
                                 /* Fullscreen Grid of apps */
                                 <div className="w-full flex flex-col justify-between py-6">
-                                    {/* Grid scales to 4 horizontal cards on larger screens! */}
-                                    <div className={`grid gap-6 w-full px-4 max-w-5xl mx-auto
+                                    <div className={`grid gap-8 w-full px-4 max-w-5xl mx-auto
                                         ${deviceType === "phone" ? "grid-cols-2 max-w-xs" : "grid-cols-4"}`}
                                     >
                                         {DOMAINS.map((app) => (
@@ -334,10 +369,10 @@ export default function DominiosHubPage() {
                         </div>
                     </div>
                 ) : (
-                    /* 2. ADAPTIVE CONTAINER DEVICE MINIATURE MOCKUPS (Smartphone, Tablet, or Widescreen Desktop Desktop Mockup) */
+                    /* ADAPTIVE CONTAINER DEVICE MINIATURE MOCKUPS (Smartphone, Tablet, or Widescreen Desktop Mockup) */
                     <div className="relative flex flex-col items-center justify-center">
                         
-                        {/* PHONE MOCKUP FRAME (Narrow vertical smartphone) */}
+                        {/* PHONE MOCKUP FRAME */}
                         {deviceType === "phone" && (
                             <div className="relative w-[320px] aspect-[9/18.8] bg-black border-[6px] border-[#c5a059]/60 rounded-[3rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-3 pb-4 overflow-hidden">
                                 <div className="absolute inset-1.5 rounded-[2.5rem] border border-[#c5a059]/10 pointer-events-none z-45"></div>
@@ -409,7 +444,7 @@ export default function DominiosHubPage() {
                             </div>
                         )}
 
-                        {/* TABLET MOCKUP FRAME (Slightly wider aspect-[3/4] display frame) */}
+                        {/* TABLET MOCKUP FRAME */}
                         {deviceType === "tablet" && (
                             <div className="relative w-[480px] sm:w-[520px] aspect-[3/4] bg-black border-[8px] border-[#c5a059]/60 rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-4 pb-5 overflow-hidden">
                                 <div className="absolute inset-2 rounded-[2rem] border border-[#c5a059]/10 pointer-events-none z-45"></div>
@@ -476,7 +511,7 @@ export default function DominiosHubPage() {
                             </div>
                         )}
 
-                        {/* DESKTOP MOCKUP FRAME (Horizontal widescreen computer monitor frame mockup!) */}
+                        {/* DESKTOP MOCKUP FRAME */}
                         {deviceType === "desktop" && (
                             <div className="relative w-[750px] md:w-[820px] aspect-[16/10] bg-black border-[10px] border-[#c5a059]/60 rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-4 pb-6 overflow-hidden">
                                 <div className="absolute inset-2.5 rounded-[2rem] border border-[#c5a059]/15 pointer-events-none z-45"></div>
@@ -524,7 +559,7 @@ export default function DominiosHubPage() {
                                                 </div>
                                             </div>
                                             <div className="pt-4 flex justify-end">
-                                                <button type="button" onClick={() => setSelectedApp(null)} className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-6 py-2 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a]">{language.startsWith("pt") ? "← Fechar Domínio" : "← Close Domain"}</button>
+                                                <button type="button" onClick={() => setSelectedApp(null)} className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-6 py-2 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a]">{language.startsWith("pt") ? "← Fechar Domínio" : "← Close Domínio"}</button>
                                             </div>
                                         </div>
                                     ) : (
@@ -561,7 +596,7 @@ export default function DominiosHubPage() {
                 )}
             </div>
 
-            {/* Solid Page Footer */}
+            {/* Solid Page Footer (Hidden in fullscreen OS mode) */}
             {!isFullscreen && (
                 <footer className="relative z-20 p-8 border-t border-[#c5a059]/10 bg-black/60 text-center">
                     <p className="text-[10px] medieval-text-gold opacity-40 italic">
@@ -574,7 +609,7 @@ export default function DominiosHubPage() {
                 </footer>
             )}
 
-            <InstitutionalFooter />
+            {!isFullscreen && <InstitutionalFooter />}
         </main>
     );
 }
