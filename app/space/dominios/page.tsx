@@ -160,16 +160,59 @@ export default function DominiosHubPage() {
     // SYSTEM INITIALIZATIONS & TIMEKEEPER
     // ==========================================
 
-    useEffect(() => {
-        if (isFullscreen) {
-            document.body.style.overflow = "hidden";
-        } else {
-            document.body.style.overflow = "unset";
+    // ── Native Fullscreen API ──────────────────────────────────
+    const enterFullscreen = useCallback(async () => {
+        setIsFullscreen(true);
+        document.body.style.overflow = "hidden";
+        try {
+            const el = document.documentElement as any;
+            if (el.requestFullscreen) await el.requestFullscreen();
+            else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+            else if (el.mozRequestFullScreen) await el.mozRequestFullScreen();
+        } catch {
+            // browser may block fullscreen without user gesture, ignore silently
         }
+    }, []);
+
+    const exitFullscreen = useCallback(async () => {
+        setIsFullscreen(false);
+        document.body.style.overflow = "unset";
+        try {
+            const doc = document as any;
+            if (doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement) {
+                if (doc.exitFullscreen) await doc.exitFullscreen();
+                else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+                else if (doc.mozCancelFullScreen) await doc.mozCancelFullScreen();
+            }
+        } catch {
+            // ignore
+        }
+    }, []);
+
+    // Sync React state when user presses Android back button or Esc to exit fullscreen
+    useEffect(() => {
+        const onFullscreenChange = () => {
+            const doc = document as any;
+            const isNativeFullscreen = !!(
+                doc.fullscreenElement ||
+                doc.webkitFullscreenElement ||
+                doc.mozFullScreenElement
+            );
+            if (!isNativeFullscreen) {
+                setIsFullscreen(false);
+                document.body.style.overflow = "unset";
+            }
+        };
+        document.addEventListener("fullscreenchange", onFullscreenChange);
+        document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+        document.addEventListener("mozfullscreenchange", onFullscreenChange);
         return () => {
+            document.removeEventListener("fullscreenchange", onFullscreenChange);
+            document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
+            document.removeEventListener("mozfullscreenchange", onFullscreenChange);
             document.body.style.overflow = "unset";
         };
-    }, [isFullscreen]);
+    }, []);
 
     useEffect(() => {
         const updateClock = () => {
@@ -1761,8 +1804,8 @@ export default function DominiosHubPage() {
                             </h1>
                             <button
                                 type="button"
-                                onClick={() => setIsFullscreen(true)}
-                                title={language.startsWith("pt") ? "Expandir Sistema" : "Expand System"}
+                                onClick={enterFullscreen}
+                                title={language.startsWith("pt") ? "Expandir Sistema (Tela Cheia)" : "Expand System (Fullscreen)"}
                                 className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
                             >
                                 <span className="material-icons text-xl">open_in_full</span>
@@ -1808,7 +1851,7 @@ export default function DominiosHubPage() {
                             {/* Close button */}
                             <button
                                 type="button"
-                                onClick={() => setIsFullscreen(false)}
+                                onClick={exitFullscreen}
                                 title={language.startsWith("pt") ? "Minimizar" : "Minimize"}
                                 className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/75 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/20 cursor-pointer font-bold z-50"
                             >
