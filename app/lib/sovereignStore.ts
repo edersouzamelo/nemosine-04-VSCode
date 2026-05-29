@@ -16,6 +16,14 @@ async function ensureAgendaTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS start_time TEXT DEFAULT '00:00'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS end_time TEXT DEFAULT '23:59'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#c5a059'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS recurrence TEXT DEFAULT 'none'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS recurrence_end TEXT`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS recurrence_days TEXT`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS notification_minutes INTEGER DEFAULT 0`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_agenda ADD COLUMN IF NOT EXISTS notification_sound BOOLEAN DEFAULT FALSE`;
 }
 
 async function ensureTreinadorTables() {
@@ -141,12 +149,20 @@ export interface AgendaEvent {
   type: string;
   note?: string | null;
   completed: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  color?: string | null;
+  recurrence?: string | null;
+  recurrenceEnd?: string | null;
+  recurrenceDays?: string | null;
+  notificationMinutes?: number | null;
+  notificationSound?: boolean | null;
 }
 
 export async function getAgendaEvents(userId: string): Promise<AgendaEvent[]> {
   await ensureAgendaTable();
   const rows = await prisma.$queryRaw<Array<any>>`
-    SELECT id, title, date, type, note, completed
+    SELECT id, title, date, type, note, completed, start_time, end_time, color, recurrence, recurrence_end, recurrence_days, notification_minutes, notification_sound
     FROM sovereign_agenda
     WHERE user_id = ${userId}
     ORDER BY date ASC, created_at ASC
@@ -157,7 +173,15 @@ export async function getAgendaEvents(userId: string): Promise<AgendaEvent[]> {
     date: r.date,
     type: r.type,
     note: r.note,
-    completed: !!r.completed
+    completed: !!r.completed,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    color: r.color,
+    recurrence: r.recurrence,
+    recurrenceEnd: r.recurrence_end,
+    recurrenceDays: r.recurrence_days,
+    notificationMinutes: r.notification_minutes !== null ? Number(r.notification_minutes) : 0,
+    notificationSound: !!r.notification_sound
   }));
 }
 
@@ -166,11 +190,53 @@ export async function saveAgendaEvent(
   event: Omit<AgendaEvent, "completed">
 ): Promise<AgendaEvent> {
   await ensureAgendaTable();
+  
+  const startTime = event.startTime || '00:00';
+  const endTime = event.endTime || '23:59';
+  const color = event.color || '#c5a059';
+  const recurrence = event.recurrence || 'none';
+  const recurrenceEnd = event.recurrenceEnd ?? null;
+  const recurrenceDays = event.recurrenceDays ?? null;
+  const notificationMinutes = event.notificationMinutes !== undefined && event.notificationMinutes !== null ? Number(event.notificationMinutes) : 0;
+  const notificationSound = event.notificationSound ?? false;
+
   await prisma.$executeRaw`
-    INSERT INTO sovereign_agenda (id, user_id, title, date, type, note, completed)
-    VALUES (${event.id}, ${userId}, ${event.title}, ${event.date}, ${event.type}, ${event.note ?? null}, FALSE)
+    INSERT INTO sovereign_agenda (
+      id, user_id, title, date, type, note, completed, 
+      start_time, end_time, color, recurrence, recurrence_end, recurrence_days, 
+      notification_minutes, notification_sound
+    )
+    VALUES (
+      ${event.id}, ${userId}, ${event.title}, ${event.date}, ${event.type}, ${event.note ?? null}, FALSE,
+      ${startTime}, ${endTime}, ${color}, ${recurrence}, ${recurrenceEnd}, ${recurrenceDays},
+      ${notificationMinutes}, ${notificationSound}
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title,
+      date = EXCLUDED.date,
+      type = EXCLUDED.type,
+      note = EXCLUDED.note,
+      start_time = EXCLUDED.start_time,
+      end_time = EXCLUDED.end_time,
+      color = EXCLUDED.color,
+      recurrence = EXCLUDED.recurrence,
+      recurrence_end = EXCLUDED.recurrence_end,
+      recurrence_days = EXCLUDED.recurrence_days,
+      notification_minutes = EXCLUDED.notification_minutes,
+      notification_sound = EXCLUDED.notification_sound
   `;
-  return { ...event, completed: false };
+  return { 
+    ...event, 
+    completed: false,
+    startTime,
+    endTime,
+    color,
+    recurrence,
+    recurrenceEnd,
+    recurrenceDays,
+    notificationMinutes,
+    notificationSound
+  };
 }
 
 export async function toggleAgendaEvent(userId: string, eventId: string, completed: boolean): Promise<void> {

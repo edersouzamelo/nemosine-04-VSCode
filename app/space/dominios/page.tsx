@@ -25,6 +25,14 @@ interface AgendaEvent {
     type: string; // 'Solenidade' | 'Compromisso' | 'Lembrete'
     note?: string | null;
     completed: boolean;
+    startTime?: string | null;
+    endTime?: string | null;
+    color?: string | null;
+    recurrence?: string | null;
+    recurrenceEnd?: string | null;
+    recurrenceDays?: string | null;
+    notificationMinutes?: number | null;
+    notificationSound?: boolean | null;
 }
 
 interface GymMeasure {
@@ -101,6 +109,152 @@ export default function DominiosHubPage() {
     const [newEventDate, setNewEventDate] = useState("");
     const [newEventType, setNewEventType] = useState("Compromisso");
     const [newEventNote, setNewEventNote] = useState("");
+    const [agendaViewMode, setAgendaViewMode] = useState<"day" | "week">("week");
+    const [selectedDate, setSelectedDate] = useState<string>("");
+    const [activeEditEvent, setActiveEditEvent] = useState<AgendaEvent | null>(null);
+    const [notifiedEvents, setNotifiedEvents] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        setSelectedDate(`${year}-${month}-${day}`);
+    }, []);
+
+    // Premium Agenda Helper Functions & Alert Loop
+    const expandRecurringEvents = (events: AgendaEvent[], startRange: Date, endRange: Date): AgendaEvent[] => {
+        const expanded: AgendaEvent[] = [];
+        events.forEach(event => {
+            if (!event.date) return;
+            const [y, m, d] = event.date.split('-').map(Number);
+            const eventStart = new Date(y, m - 1, d);
+            if (eventStart > endRange) return;
+
+            if (!event.recurrence || event.recurrence === 'none') {
+                expanded.push(event);
+                return;
+            }
+
+            const limit = event.recurrenceEnd ? new Date(event.recurrenceEnd + "T23:59:59") : endRange;
+            const maxLimit = limit < endRange ? limit : endRange;
+
+            let current = new Date(eventStart);
+            let iterations = 0;
+            while (current <= maxLimit && iterations < 366) {
+                iterations++;
+                if (current >= startRange) {
+                    const yearStr = current.getFullYear();
+                    const monthStr = String(current.getMonth() + 1).padStart(2, '0');
+                    const dayStr = String(current.getDate()).padStart(2, '0');
+                    const dateStr = `${yearStr}-${monthStr}-${dayStr}`;
+                    
+                    expanded.push({
+                        ...event,
+                        id: `${event.id}-${dateStr}`,
+                        date: dateStr
+                    });
+                }
+                
+                // Advance
+                if (event.recurrence === 'daily') {
+                    current.setDate(current.getDate() + 1);
+                } else if (event.recurrence === 'weekly') {
+                    current.setDate(current.getDate() + 7);
+                } else if (event.recurrence === 'monthly') {
+                    current.setMonth(current.getMonth() + 1);
+                } else if (event.recurrence === 'yearly') {
+                    current.setFullYear(current.getFullYear() + 1);
+                } else {
+                    break;
+                }
+            }
+        });
+        return expanded;
+    };
+
+    const playCelestialChime = () => {
+        try {
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            const now = ctx.currentTime;
+
+            const playTone = (freq: number, start: number, duration: number) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, start);
+                
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.12, start + 0.04);
+                gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+                
+                osc.start(start);
+                osc.stop(start + duration);
+            };
+
+            playTone(523.25, now, 1.5);       // C5
+            playTone(659.25, now + 0.12, 1.5); // E5
+            playTone(783.99, now + 0.24, 1.8); // G5
+            playTone(1046.50, now + 0.36, 2.2); // C6
+        } catch (e) {
+            console.error("Som de lembrete falhou:", e);
+        }
+    };
+
+    useEffect(() => {
+        if (!agendaEvents || agendaEvents.length === 0) return;
+
+        const interval = setInterval(() => {
+            const now = new Date();
+            const startRange = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const endRange = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            
+            const todaysExpanded = expandRecurringEvents(agendaEvents, startRange, endRange);
+
+            todaysExpanded.forEach(ev => {
+                const notifMin = ev.notificationMinutes !== undefined && ev.notificationMinutes !== null ? Number(ev.notificationMinutes) : 0;
+                const hasSound = !!ev.notificationSound;
+                if (notifMin === 0 && !hasSound) return;
+
+                const [sh, sm] = (ev.startTime || "00:00").split(':').map(Number);
+                const eventTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm);
+                
+                const diffMs = eventTime.getTime() - now.getTime();
+                const diffMin = Math.ceil(diffMs / 60000);
+
+                if (diffMin >= 0 && diffMin <= notifMin) {
+                    const trackingId = `${ev.id}-${ev.date}-${sh}-${sm}`;
+                    
+                    if (!notifiedEvents[trackingId]) {
+                        setNotifiedEvents(prev => ({ ...prev, [trackingId]: true }));
+
+                        if (hasSound) {
+                            playCelestialChime();
+                        }
+
+                        if (notifMin > 0) {
+                            fetch('/api/push/send', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    title: `🔔 Lembrete: ${ev.title}`,
+                                    body: `Seu compromisso "${ev.title}" começa em ${diffMin} minutos às ${ev.startTime}.`,
+                                    url: '/space/dominios'
+                                })
+                            }).catch(err => console.error("Falha ao enviar push:", err));
+                        }
+                    }
+                }
+            });
+        }, 10000);
+
+        return () => clearInterval(interval);
+    }, [agendaEvents, notifiedEvents]);
 
     // 2. Timer do Arauto
     // Stopwatch State
@@ -328,7 +482,10 @@ export default function DominiosHubPage() {
     // Sincronizar modificações locais / estatais
     const saveAgendaEventLocal = async (event: Omit<AgendaEvent, "completed">) => {
         const fullEvent = { ...event, completed: false };
-        const updated = [...agendaEvents, fullEvent];
+        const exists = agendaEvents.some(ev => ev.id === event.id);
+        const updated = exists
+            ? agendaEvents.map(ev => ev.id === event.id ? fullEvent : ev)
+            : [...agendaEvents, fullEvent];
         setAgendaEvents(updated);
 
         if (dbSyncStatus === "synced") {
@@ -936,105 +1093,513 @@ export default function DominiosHubPage() {
     // ==========================================
 
     const renderAgendaApp = (compact: boolean) => {
-        const handleAddEvent = (e: React.FormEvent) => {
-            e.preventDefault();
-            if (!newEventTitle || !newEventDate) return;
-            const newEvent: Omit<AgendaEvent, "completed"> = {
+        // Calculate days to display based on view mode and selectedDate
+        const getWeekDays = (baseDateStr: string) => {
+            if (!baseDateStr) return [];
+            const [y, m, d] = baseDateStr.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const day = date.getDay();
+            const diff = date.getDate() - (day === 0 ? 6 : day - 1);
+            const monday = new Date(date.setDate(diff));
+            
+            const weekDays = [];
+            for (let i = 0; i < 7; i++) {
+                const current = new Date(monday);
+                current.setDate(monday.getDate() + i);
+                
+                const yearStr = current.getFullYear();
+                const monthStr = String(current.getMonth() + 1).padStart(2, '0');
+                const dayStr = String(current.getDate()).padStart(2, '0');
+                weekDays.push({
+                    dateStr: `${yearStr}-${monthStr}-${dayStr}`,
+                    label: current.getDate(),
+                    weekday: ["D", "S", "T", "Q", "Q", "S", "S"][current.getDay()],
+                    weekdayFull: ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][current.getDay()]
+                });
+            }
+            return weekDays;
+        };
+
+        const activeDays = agendaViewMode === "week" 
+            ? getWeekDays(selectedDate)
+            : [{
+                dateStr: selectedDate,
+                label: selectedDate ? Number(selectedDate.split('-')[2]) : new Date().getDate(),
+                weekday: selectedDate ? ["D", "S", "T", "Q", "Q", "S", "S"][new Date(selectedDate.split('-').map(Number)[0], selectedDate.split('-').map(Number)[1]-1, selectedDate.split('-').map(Number)[2]).getDay()] : "S",
+                weekdayFull: selectedDate ? ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][new Date(selectedDate.split('-').map(Number)[0], selectedDate.split('-').map(Number)[1]-1, selectedDate.split('-').map(Number)[2]).getDay()] : "Segunda"
+            }];
+
+        // Get visible range for expanding events
+        const startRange = activeDays[0] ? new Date(activeDays[0].dateStr + "T00:00:00") : new Date();
+        const endRange = activeDays[activeDays.length - 1] ? new Date(activeDays[activeDays.length - 1].dateStr + "T23:59:59") : new Date();
+        
+        const expandedEvents = expandRecurringEvents(agendaEvents, startRange, endRange);
+
+        const hours = Array.from({ length: 24 }, (_, i) => i);
+
+        const handleCellClick = (dateStr: string, hour: number) => {
+            const startStr = `${String(hour).padStart(2, '0')}:00`;
+            const endStr = `${String(hour === 23 ? 23 : hour + 1).padStart(2, '0')}:${hour === 23 ? '59' : '00'}`;
+            setActiveEditEvent({
                 id: Math.random().toString(36).substring(2, 9),
-                title: newEventTitle,
-                date: newEventDate,
-                type: newEventType,
-                note: newEventNote || null
+                title: "",
+                date: dateStr,
+                startTime: startStr,
+                endTime: endStr,
+                type: "Compromisso",
+                note: "",
+                completed: false,
+                color: "#c5a059",
+                recurrence: "none",
+                notificationMinutes: 0,
+                notificationSound: false
+            });
+        };
+
+        const handleEditEventSubmit = (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!activeEditEvent || !activeEditEvent.title || !activeEditEvent.date) return;
+            
+            const cleanId = activeEditEvent.id.includes('-') ? activeEditEvent.id.split('-')[0] : activeEditEvent.id;
+            
+            const eventToSave: Omit<AgendaEvent, "completed"> = {
+                id: cleanId,
+                title: activeEditEvent.title,
+                date: activeEditEvent.date,
+                type: activeEditEvent.type,
+                note: activeEditEvent.note || "",
+                startTime: activeEditEvent.startTime || "00:00",
+                endTime: activeEditEvent.endTime || "23:59",
+                color: activeEditEvent.color || "#c5a059",
+                recurrence: activeEditEvent.recurrence || "none",
+                recurrenceEnd: activeEditEvent.recurrenceEnd || null,
+                recurrenceDays: activeEditEvent.recurrenceDays || null,
+                notificationMinutes: activeEditEvent.notificationMinutes !== undefined ? Number(activeEditEvent.notificationMinutes) : 0,
+                notificationSound: !!activeEditEvent.notificationSound
             };
-            saveAgendaEventLocal(newEvent);
-            setNewEventTitle("");
-            setNewEventDate("");
-            setNewEventNote("");
+            
+            saveAgendaEventLocal(eventToSave);
+            setActiveEditEvent(null);
+        };
+
+        const handleDeleteEvent = (eventId: string) => {
+            const cleanId = eventId.includes('-') ? eventId.split('-')[0] : eventId;
+            deleteAgendaEventLocal(cleanId);
+            setActiveEditEvent(null);
+        };
+
+        const navigateDate = (direction: number) => {
+            if (!selectedDate) return;
+            const [y, m, d] = selectedDate.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            if (agendaViewMode === "week") {
+                date.setDate(date.getDate() + (direction * 7));
+            } else {
+                date.setDate(date.getDate() + direction);
+            }
+            const yearStr = date.getFullYear();
+            const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(date.getDate()).padStart(2, '0');
+            setSelectedDate(`${yearStr}-${monthStr}-${dayStr}`);
+        };
+
+        const navigateToToday = () => {
+            const date = new Date();
+            const yearStr = date.getFullYear();
+            const monthStr = String(date.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(date.getDate()).padStart(2, '0');
+            setSelectedDate(`${yearStr}-${monthStr}-${dayStr}`);
+        };
+
+        const colors = [
+            { hex: "#c5a059", name: "Ouro" },
+            { hex: "#9a2c2c", name: "Carmesim" },
+            { hex: "#2c5a9e", name: "Azul" },
+            { hex: "#2c8a5a", name: "Verde" },
+            { hex: "#6b2c9e", name: "Roxo" },
+            { hex: "#3e3e4f", name: "Obsidiana" }
+        ];
+
+        const getMonthYearDisplay = () => {
+            if (!selectedDate) return "";
+            const [y, m, d] = selectedDate.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).toUpperCase();
         };
 
         return (
-            <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1 text-stone-200">
-                <div className="border-b border-[#c5a059]/20 pb-3 mb-4">
-                    <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider">📅 Agenda do Arauto</h3>
-                    <p className="text-[9px] text-stone-400 italic">“Para tudo há uma estação, e tempo para cada atividade sob os céus.”</p>
+            <div className="flex-1 flex flex-col h-full text-stone-200 select-none relative">
+                {/* Header Section */}
+                <div className="border-b border-[#c5a059]/20 pb-3 mb-3 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-display text-xs font-bold text-[#c5a059] uppercase tracking-wider">📅 Agenda do Arauto</h3>
+                        {/* Day/Week Switch */}
+                        <div className="flex bg-[#121118] border border-[#c5a059]/20 rounded p-0.5">
+                            <button
+                                type="button"
+                                onClick={() => setAgendaViewMode("day")}
+                                className={`px-2 py-0.5 rounded text-[9px] uppercase tracking-wider transition-colors cursor-pointer ${agendaViewMode === "day" ? "bg-[#c5a059] text-black font-bold" : "text-stone-400 hover:text-stone-200"}`}
+                            >
+                                Dia
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setAgendaViewMode("week")}
+                                className={`px-2 py-0.5 rounded text-[9px] uppercase tracking-wider transition-colors cursor-pointer ${agendaViewMode === "week" ? "bg-[#c5a059] text-black font-bold" : "text-stone-400 hover:text-stone-200"}`}
+                            >
+                                Semana
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Date Navigation & Month indicator */}
+                    <div className="flex items-center justify-between bg-black/40 border border-[#c5a059]/10 rounded-lg p-1.5 px-3">
+                        <span className="font-display text-[9px] text-[#eae3d5] font-semibold tracking-wider">
+                            {getMonthYearDisplay()}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                type="button" 
+                                onClick={() => navigateDate(-1)} 
+                                className="p-1 bg-[#121118] hover:bg-[#1a1824] border border-[#c5a059]/30 rounded text-[#c5a059] text-xs cursor-pointer flex items-center justify-center transition-colors"
+                            >
+                                <span className="material-icons text-[10px]">chevron_left</span>
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={navigateToToday} 
+                                className="px-2 py-0.5 bg-[#121118] hover:bg-[#1a1824] border border-[#c5a059]/30 rounded text-[#c5a059] text-[9px] uppercase tracking-wider font-bold cursor-pointer transition-colors"
+                            >
+                                Hoje
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => navigateDate(1)} 
+                                className="p-1 bg-[#121118] hover:bg-[#1a1824] border border-[#c5a059]/30 rounded text-[#c5a059] text-xs cursor-pointer flex items-center justify-center transition-colors"
+                            >
+                                <span className="material-icons text-[10px]">chevron_right</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Form to add */}
-                <form onSubmit={handleAddEvent} className="bg-black/40 border border-[#c5a059]/10 rounded-xl p-3 mb-4 space-y-3">
-                    <span className="text-[10px] uppercase font-bold text-[#c5a059] block">Novo Compromisso</span>
-                    <input
-                        type="text"
-                        placeholder="Título / Atividade"
-                        value={newEventTitle}
-                        onChange={(e) => setNewEventTitle(e.target.value)}
-                        className="w-full bg-[#121118] border border-[#c5a059]/30 rounded px-2.5 py-1.5 text-xs text-stone-200 focus:outline-none focus:border-[#c5a059]"
-                        required
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                        <input
-                            type="date"
-                            value={newEventDate}
-                            onChange={(e) => setNewEventDate(e.target.value)}
-                            className="bg-[#121118] border border-[#c5a059]/30 rounded px-2 py-1 text-[11px] text-stone-200 focus:outline-none"
-                            required
-                        />
-                        <select
-                            value={newEventType}
-                            onChange={(e) => setNewEventType(e.target.value)}
-                            className="bg-[#121118] border border-[#c5a059]/30 rounded px-2 py-1 text-[11px] text-stone-200 focus:outline-none"
-                        >
-                            <option value="Compromisso">Compromisso</option>
-                            <option value="Solenidade">Solenidade 👑</option>
-                            <option value="Lembrete">Lembrete 🔔</option>
-                        </select>
-                    </div>
-                    <input
-                        type="text"
-                        placeholder="Nota opcional..."
-                        value={newEventNote}
-                        onChange={(e) => setNewEventNote(e.target.value)}
-                        className="w-full bg-[#121118] border border-[#c5a059]/30 rounded px-2.5 py-1 text-xs text-stone-200 focus:outline-none"
-                    />
-                    <button type="submit" className="w-full py-1.5 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 border border-[#c5a059]/40 text-stone-200 rounded font-display text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
-                        Agendar
-                    </button>
-                </form>
-
-                {/* Event List */}
-                <div className="space-y-2 flex-1">
-                    <span className="text-[10px] uppercase font-bold text-[#c5a059] block">Eventos Planejados ({agendaEvents.length})</span>
-                    {agendaEvents.length === 0 ? (
-                        <p className="text-[10px] text-stone-500 italic py-4 text-center">Nenhum evento registrado. Agende uma solenidade.</p>
-                    ) : (
-                        agendaEvents.map((ev) => (
-                            <div key={ev.id} className={`p-2.5 border rounded-xl flex items-center justify-between transition-all duration-300 ${ev.completed ? "bg-emerald-950/20 border-emerald-800/40 text-stone-400 opacity-60" : "bg-[#1c1a24]/30 border-[#c5a059]/15"}`}>
-                                <div className="flex items-center gap-2 flex-1">
-                                    <input
-                                        type="checkbox"
-                                        checked={ev.completed}
-                                        onChange={(e) => toggleAgendaEventLocal(ev.id, e.target.checked)}
-                                        className="w-3.5 h-3.5 rounded border-[#c5a059]/40 bg-black text-amber-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                                    />
-                                    <div className="text-left">
-                                        <span className={`text-xs block font-semibold ${ev.completed ? "line-through" : "text-[#eae3d5]"}`}>
-                                            {ev.title}
-                                        </span>
-                                        <div className="flex gap-2 items-center text-[9px] mt-0.5">
-                                            <span className="text-[#c5a059] font-bold">{ev.date}</span>
-                                            <span className={`px-1 rounded border text-[7.5px] uppercase tracking-wide ${ev.type === 'Solenidade' ? 'bg-[#7a1e1e]/20 border-[#7a1e1e]/50 text-red-300' : ev.type === 'Lembrete' ? 'bg-amber-950/30 border-amber-600/40 text-amber-300' : 'bg-stone-800 border-stone-600 text-stone-300'}`}>
-                                                {ev.type}
-                                            </span>
-                                        </div>
-                                        {ev.note && <p className="text-[9px] text-stone-400 mt-1 italic">{ev.note}</p>}
-                                    </div>
+                {/* Calendar Core Grid */}
+                <div className="flex-1 flex flex-col min-h-0 bg-black/30 border border-[#c5a059]/10 rounded-xl overflow-hidden">
+                    {/* Columns header (STQQSSD) */}
+                    <div className="flex bg-[#121118] border-b border-[#c5a059]/20 p-1.5 text-center font-display text-[8.5px] uppercase font-bold text-[#c5a059]">
+                        {/* Hour column spacer */}
+                        <div className="w-9" />
+                        {/* Days list */}
+                        {activeDays.map((day) => {
+                            const isToday = new Date().toISOString().split('T')[0] === day.dateStr;
+                            return (
+                                <div key={day.dateStr} className="flex-1 flex flex-col items-center justify-center min-w-0">
+                                    <span className="text-[7.5px] text-stone-500 font-normal">
+                                        {agendaViewMode === "week" ? day.weekday : day.weekdayFull}
+                                    </span>
+                                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] mt-0.5 ${isToday ? "bg-[#c5a059] text-black font-extrabold shadow-[0_0_8px_#c5a059]" : "text-[#eae3d5]"}`}>
+                                        {day.label}
+                                    </span>
                                 </div>
-                                <button type="button" onClick={() => deleteAgendaEventLocal(ev.id)} className="text-stone-500 hover:text-red-400 p-1 transition-colors cursor-pointer">
-                                    <span className="material-icons text-xs">delete</span>
+                            );
+                        })}
+                    </div>
+
+                    {/* Scrollable Hourly Area */}
+                    <div className="flex-1 overflow-y-auto relative min-h-[300px] sm:min-h-[350px]">
+                        <div className="flex w-full relative">
+                            {/* Hours indicator column */}
+                            <div className="w-9 flex flex-col bg-black/40 border-r border-[#c5a059]/10 select-none">
+                                {hours.map((h) => (
+                                    <div key={h} className="h-[45px] text-right pr-1.5 text-[8.5px] text-stone-500 pt-1 border-b border-[#c5a059]/5 flex justify-end">
+                                        {String(h).padStart(2, '0')}:00
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Main Columns Container */}
+                            <div className="flex-1 flex relative">
+                                {activeDays.map((day) => {
+                                    const dayEvents = expandedEvents.filter(ev => ev.date === day.dateStr);
+
+                                    return (
+                                        <div key={day.dateStr} className="flex-1 relative border-r border-[#c5a059]/5 min-w-[50px] last:border-r-0 select-none">
+                                            {/* Hourly Cells for Clicking */}
+                                            {hours.map((h) => (
+                                                <div 
+                                                    key={h} 
+                                                    onClick={() => handleCellClick(day.dateStr, h)}
+                                                    className="h-[45px] border-b border-[#c5a059]/5 hover:bg-[#c5a059]/5 transition-colors cursor-pointer relative"
+                                                />
+                                            ))}
+
+                                            {/* Render Event Blocks Absolutely */}
+                                            {dayEvents.map((ev) => {
+                                                const [startHour, startMin] = (ev.startTime || "00:00").split(':').map(Number);
+                                                const [endHour, endMin] = (ev.endTime || "23:59").split(':').map(Number);
+                                                
+                                                const startMinutes = startHour * 60 + startMin;
+                                                const endMinutes = endHour * 60 + endMin;
+                                                
+                                                // 45px per hour = 0.75px per minute
+                                                const top = startMinutes * 0.75;
+                                                const height = Math.max(20, (endMinutes - startMinutes) * 0.75);
+                                                
+                                                const eventColor = ev.color || "#c5a059";
+                                                
+                                                return (
+                                                    <div 
+                                                        key={ev.id} 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveEditEvent({ ...ev });
+                                                        }}
+                                                        className={`absolute left-[3%] right-[3%] rounded p-1 text-[8.5px] overflow-hidden flex flex-col justify-between shadow-md border-l-[3px] select-none hover:scale-[1.03] hover:z-30 transition-all cursor-pointer ${ev.completed ? "opacity-40" : "opacity-90"}`}
+                                                        style={{ 
+                                                            top: `${top}px`, 
+                                                            height: `${height}px`,
+                                                            backgroundColor: `${eventColor}1c`, 
+                                                            borderColor: eventColor,
+                                                            color: '#eae3d5'
+                                                        }}
+                                                    >
+                                                        <div className="font-semibold truncate">
+                                                            {ev.title}
+                                                        </div>
+                                                        {height > 25 && (
+                                                            <div className="text-[7px] text-stone-300 truncate opacity-90">
+                                                                {ev.startTime} - {ev.endTime}
+                                                            </div>
+                                                        )}
+                                                        {height > 40 && ev.note && (
+                                                            <div className="text-[7px] italic text-stone-400 truncate opacity-80 mt-0.5">
+                                                                {ev.note}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Event Creation & Editing Modal */}
+                {activeEditEvent && (
+                    <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+                        <div className="bg-[#0f0e15] border border-[#c5a059]/30 rounded-xl shadow-2xl p-4 w-full max-w-sm max-h-[85vh] overflow-y-auto space-y-3 animate-fade-in">
+                            <div className="flex items-center justify-between border-b border-[#c5a059]/10 pb-2">
+                                <span className="text-[10px] uppercase font-bold text-[#c5a059]">
+                                    {activeEditEvent.id.includes('-') ? "Editar Compromisso" : "Agendar Compromisso"}
+                                </span>
+                                <button 
+                                    type="button" 
+                                    onClick={() => setActiveEditEvent(null)}
+                                    className="text-stone-400 hover:text-stone-200 cursor-pointer"
+                                >
+                                    <span className="material-icons text-sm">close</span>
                                 </button>
                             </div>
-                        ))
-                    )}
-                </div>
+
+                            <form onSubmit={handleEditEventSubmit} className="space-y-3">
+                                {/* Title */}
+                                <div className="space-y-1">
+                                    <label className="text-[7.5px] uppercase font-bold text-stone-400">Atividade / Título</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Digite o compromisso..."
+                                        value={activeEditEvent.title}
+                                        onChange={(e) => setActiveEditEvent({ ...activeEditEvent, title: e.target.value })}
+                                        className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-2 py-1.5 text-xs text-stone-200 focus:outline-none focus:border-[#c5a059]"
+                                        required
+                                    />
+                                </div>
+
+                                {/* Date and Type */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-400">Data</label>
+                                        <input
+                                            type="date"
+                                            value={activeEditEvent.date}
+                                            onChange={(e) => setActiveEditEvent({ ...activeEditEvent, date: e.target.value })}
+                                            className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-1.5 py-1 text-[10px] text-stone-200 focus:outline-none"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-400">Tipo</label>
+                                        <select
+                                            value={activeEditEvent.type}
+                                            onChange={(e) => setActiveEditEvent({ ...activeEditEvent, type: e.target.value })}
+                                            className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-1.5 py-1 text-[10px] text-stone-200 focus:outline-none"
+                                        >
+                                            <option value="Compromisso">Compromisso</option>
+                                            <option value="Solenidade">Solenidade 👑</option>
+                                            <option value="Lembrete">Lembrete 🔔</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Start and End times */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-400">Início (Horário)</label>
+                                        <input
+                                            type="time"
+                                            value={activeEditEvent.startTime || "00:00"}
+                                            onChange={(e) => setActiveEditEvent({ ...activeEditEvent, startTime: e.target.value })}
+                                            className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-1.5 py-1 text-[10px] text-stone-200 focus:outline-none"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-400">Fim (Horário)</label>
+                                        <input
+                                            type="time"
+                                            value={activeEditEvent.endTime || "23:59"}
+                                            onChange={(e) => setActiveEditEvent({ ...activeEditEvent, endTime: e.target.value })}
+                                            className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-1.5 py-1 text-[10px] text-stone-200 focus:outline-none"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Color Picker */}
+                                <div className="space-y-1">
+                                    <label className="text-[7.5px] uppercase font-bold text-stone-400">Cor do Bloco</label>
+                                    <div className="flex gap-2 items-center">
+                                        {colors.map((c) => (
+                                            <button
+                                                key={c.hex}
+                                                type="button"
+                                                onClick={() => setActiveEditEvent({ ...activeEditEvent, color: c.hex })}
+                                                className={`w-5 h-5 rounded-full border cursor-pointer transition-transform ${activeEditEvent.color === c.hex ? "scale-110 border-white shadow-[0_0_6px_#fff]" : "border-stone-700 hover:scale-105"}`}
+                                                style={{ backgroundColor: c.hex }}
+                                                title={c.name}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Recurrence */}
+                                <div className="space-y-1">
+                                    <label className="text-[7.5px] uppercase font-bold text-stone-400">Recorrência</label>
+                                    <select
+                                        value={activeEditEvent.recurrence || "none"}
+                                        onChange={(e) => setActiveEditEvent({ ...activeEditEvent, recurrence: e.target.value })}
+                                        className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-2 py-1 text-[10px] text-stone-200 focus:outline-none"
+                                    >
+                                        <option value="none">Único</option>
+                                        <option value="daily">Diário</option>
+                                        <option value="weekly">Semanal</option>
+                                        <option value="monthly">Mensal</option>
+                                        <option value="yearly">Anual</option>
+                                    </select>
+                                </div>
+
+                                {/* Recurrence End Date if active */}
+                                {activeEditEvent.recurrence && activeEditEvent.recurrence !== "none" && (
+                                    <div className="space-y-1 animate-fade-in">
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-400">Terminar Recorrência Em</label>
+                                        <input
+                                            type="date"
+                                            value={activeEditEvent.recurrenceEnd || ""}
+                                            onChange={(e) => setActiveEditEvent({ ...activeEditEvent, recurrenceEnd: e.target.value })}
+                                            className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-1.5 py-1 text-[10px] text-stone-200 focus:outline-none"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Lembrete Push & Aviso Sonoro */}
+                                <div className="bg-black/25 border border-[#c5a059]/10 rounded-lg p-2 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-300">Lembrete Notificação Push</label>
+                                        <select
+                                            value={activeEditEvent.notificationMinutes || 0}
+                                            onChange={(e) => setActiveEditEvent({ ...activeEditEvent, notificationMinutes: Number(e.target.value) })}
+                                            className="bg-black border border-[#c5a059]/20 rounded px-1.5 py-0.5 text-[8.5px] text-[#eae3d5] focus:outline-none"
+                                        >
+                                            <option value={0}>Sem lembrete</option>
+                                            <option value={5}>5 minutos antes</option>
+                                            <option value={10}>10 minutos antes</option>
+                                            <option value={15}>15 minutos antes</option>
+                                            <option value={30}>30 minutos antes</option>
+                                            <option value={60}>1 hora antes</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-300">Aviso Sonoro Celestial</label>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!activeEditEvent.notificationSound}
+                                            onChange={(e) => setActiveEditEvent({ ...activeEditEvent, notificationSound: e.target.checked })}
+                                            className="w-3.5 h-3.5 rounded border-[#c5a059]/30 bg-black text-amber-500 focus:ring-0 cursor-pointer"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Note */}
+                                <div className="space-y-1">
+                                    <label className="text-[7.5px] uppercase font-bold text-stone-400">Nota Adicional</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Anotações sobre o evento..."
+                                        value={activeEditEvent.note || ""}
+                                        onChange={(e) => setActiveEditEvent({ ...activeEditEvent, note: e.target.value })}
+                                        className="w-full bg-black/40 border border-[#c5a059]/30 rounded px-2.5 py-1 text-[10px] text-stone-200 focus:outline-none"
+                                    />
+                                </div>
+
+                                {/* Complete Toggle (if editing) */}
+                                {!activeEditEvent.id.includes('-') && agendaEvents.some(ev => ev.id === activeEditEvent.id) && (
+                                    <div className="flex items-center justify-between bg-black/20 p-1.5 px-3 border border-[#c5a059]/5 rounded-lg">
+                                        <label className="text-[8px] uppercase font-bold text-[#c5a059]">Compromisso Concluído</label>
+                                        <input
+                                            type="checkbox"
+                                            checked={activeEditEvent.completed}
+                                            onChange={(e) => toggleAgendaEventLocal(activeEditEvent.id, e.target.checked)}
+                                            className="w-3.5 h-3.5 rounded border-[#c5a059]/30 bg-black text-emerald-600 focus:ring-0 cursor-pointer"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex gap-2 border-t border-[#c5a059]/10 pt-2">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setActiveEditEvent(null)}
+                                        className="flex-1 py-1 bg-stone-900 border border-stone-700 hover:bg-stone-800 text-stone-300 rounded font-display text-[9px] uppercase tracking-wider transition-colors cursor-pointer"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    
+                                    {/* Show delete only for existing events (or non-expanded items) */}
+                                    {!activeEditEvent.id.includes('-') && agendaEvents.some(ev => ev.id === activeEditEvent.id) && (
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleDeleteEvent(activeEditEvent.id)}
+                                            className="px-3 py-1 bg-red-950/20 border border-red-800/40 text-red-300 hover:bg-red-900/30 rounded font-display text-[9px] uppercase tracking-wider transition-colors cursor-pointer"
+                                        >
+                                            Excluir
+                                        </button>
+                                    )}
+
+                                    <button 
+                                        type="submit" 
+                                        className="flex-1 py-1 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 border border-[#c5a059]/50 text-stone-200 rounded font-display text-[9px] uppercase tracking-wider transition-colors cursor-pointer"
+                                    >
+                                        Salvar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };

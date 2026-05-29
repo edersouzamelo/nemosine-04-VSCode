@@ -5,6 +5,7 @@ import { CONSTITUTION_TEXT, CODEX_NOUS_TEXT, ATLAS_NOUS_TEXT } from '@/app/data/
 import { getUserMemories, getVisibleConversationEpisodes } from './session_store';
 import { isPrivateMemorySpace } from './privacy';
 import { getVisibleUserSources } from '@/app/lib/sourceStore';
+import { getAgendaEvents } from '@/app/lib/sovereignStore';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -30,10 +31,11 @@ export async function buildSystemPrompt(userId: string, personaId: string, langu
         ? (placeData.prompt || placeData.transcription).replace(/^Você é /, "O cenário ativo é ")
         : "";
     const isPrivateSpace = isPrivateMemorySpace(memoryScope);
-    const [memories, conversationEpisodes, userSources] = await Promise.all([
+    const [memories, conversationEpisodes, userSources, agendaEvents] = await Promise.all([
         getUserMemories(userId, memoryScope),
         getVisibleConversationEpisodes(userId, memoryScope),
-        getVisibleUserSources(userId, memoryScope)
+        getVisibleUserSources(userId, memoryScope),
+        getAgendaEvents(userId).catch(() => [])
     ]);
     const memoryContext = memories.length > 0
         ? `\n[MEMÓRIA DE LONGO PRAZO DO USUÁRIO]\n${isPrivateSpace
@@ -46,6 +48,17 @@ export async function buildSystemPrompt(userId: string, personaId: string, langu
     const sourceContext = userSources.length > 0
         ? `\n[FONTES PERSISTENTES DO USUÁRIO]\nO usuário anexou documentos como fontes permanentes do sistema. Use esse conteúdo como contexto de apoio, sem fingir certeza maior do que a fonte permite. Quando o tema for médico, jurídico, financeiro ou sensível, trate o material como informação para interpretação e organização, não como diagnóstico ou decisão profissional definitiva.\n${userSources.join('\n\n')}\n`
         : "";
+    
+    let agendaContext = "";
+    if (agendaEvents && agendaEvents.length > 0) {
+        agendaContext = `\n[COMPROMISSOS E AGENDA DO USUÁRIO]\nNas suas anotações e planejamento pessoal, o usuário possui os seguintes eventos agendados:\n` +
+        agendaEvents.map(e => {
+            const timeStr = e.startTime ? `, das ${e.startTime} às ${e.endTime}` : "";
+            const recurrenceStr = e.recurrence && e.recurrence !== 'none' ? ` (Recorrência: ${e.recurrence}${e.recurrenceEnd ? ` até ${e.recurrenceEnd}` : ""})` : "";
+            const statusStr = e.completed ? " [Concluído]" : "";
+            return `- ${e.date}${timeStr}: ${e.title} (${e.type})${recurrenceStr}${e.note ? ` - Nota: ${e.note}` : ""}${statusStr}`;
+        }).join('\n') + `\nLeve em consideração a rotina diária e os compromissos do usuário em suas reflexões, oferecendo conselhos coerentes com o tempo dele.\n`;
+    }
     const sharedContextInstruction = `
 [USO DO CONTEXTO COMPARTILHADO]
 Memórias e episódios visíveis acima são contexto efetivamente disponível para esta persona, ainda que tenham surgido em conversa com outra persona.
@@ -132,6 +145,7 @@ ${placeConstraint}
 ${memoryContext}
 ${episodeContext}
 ${sourceContext}
+${agendaContext}
 ${sharedContextInstruction}
 ${memoryInstruction}
 ${embodimentConstraint}
