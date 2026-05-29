@@ -117,8 +117,8 @@ export default function AccessPage() {
           </div>
 
           <div className="relative z-10 w-full max-w-md animate-fade-in py-4">
-            <div className="grimoire-border overflow-hidden rounded-lg bg-parchment p-1 dark:bg-parchment-dark">
-              <div className="parchment-texture filigree relative flex min-h-[500px] flex-col justify-between px-7 py-9 sm:px-8 sm:py-11">
+            <div className="grimoire-border overflow-hidden rounded-lg bg-[#c5a059]/20 p-1">
+              <div className="relative flex min-h-[500px] flex-col justify-between px-7 py-9 sm:px-8 sm:py-11 bg-[#fdfbf7] dark:bg-[#0c0d12] rounded-lg">
                 <span className="material-icons absolute left-2 top-2 text-3xl text-primary opacity-60">auto_awesome</span>
                 <span className="material-icons absolute right-2 top-2 scale-x-[-1] text-3xl text-primary opacity-60">auto_awesome</span>
 
@@ -133,10 +133,10 @@ export default function AccessPage() {
                     <LanguageSelector dark={theme === "dark"} />
                   </div>
                   <div className="space-y-2">
-                    <h2 className="font-display text-xl italic text-stone-900 dark:text-stone-100 md:text-2xl">
+                    <h2 className="font-display text-xl font-bold uppercase tracking-widest text-[#72552c] dark:text-[#fde68a] md:text-2xl">
                       {isRegistering ? t("registerTitle") : t("loginTitle")}
                     </h2>
-                    <p className="text-sm italic text-stone-600 dark:text-stone-400">
+                    <p className="text-sm italic text-stone-700 dark:text-[#eee8dc]/80">
                       {isRegistering ? t("registerPrompt") : t("loginPrompt")}
                     </p>
                   </div>
@@ -163,10 +163,10 @@ export default function AccessPage() {
                       <span>{isLoading ? t("processing") : t("continueWithGoogle")}</span>
                     </button>
 
-                    <div className="flex items-center gap-3 text-[10px] tracking-widest text-primary/60">
-                      <div className="h-px flex-1 bg-primary/20" />
+                    <div className="flex items-center gap-3 text-[10px] tracking-widest text-[#72552c]/70 dark:text-[#fde68a]/60">
+                      <div className="h-px flex-1 bg-[#c5a059]/30" />
                       <span>{t("or")}</span>
-                      <div className="h-px flex-1 bg-primary/20" />
+                      <div className="h-px flex-1 bg-[#c5a059]/30" />
                     </div>
 
                     {isRegistering && (
@@ -175,31 +175,34 @@ export default function AccessPage() {
                     <LoginInput value={email} onChange={setEmail} placeholder="seu-email@dominio.com" type="email" disabled={isLoading} />
                     <LoginInput value={password} onChange={setPassword} placeholder={t("passwordPlaceholder")} type="password" disabled={isLoading} />
 
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="font-display group/btn relative w-full cursor-pointer overflow-hidden border border-primary/50 bg-stone-900 px-6 py-4 tracking-widest text-primary shadow-lg transition-all duration-500 hover:bg-primary hover:text-stone-900 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950"
-                    >
-                      <span className="relative z-10">{isLoading ? t("processing") : t("continue")}</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => {
-                        setIsRegistering((current) => !current);
-                        setError("");
-                      }}
-                      className="text-xs uppercase tracking-widest text-primary/60 transition-colors hover:text-primary disabled:opacity-50"
-                    >
-                      {isRegistering ? t("haveAccess") : t("register")}
-                    </button>
+                    <div className="space-y-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="font-display group/btn relative w-full cursor-pointer overflow-hidden border border-primary/50 bg-stone-900 px-6 py-4 tracking-widest text-primary shadow-lg transition-all duration-500 hover:bg-primary hover:text-stone-900 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950"
+                      >
+                        <span className="relative z-10">{isLoading ? t("processing") : t("continue")}</span>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => {
+                          setIsRegistering((current) => !current);
+                          setError("");
+                        }}
+                        className="font-display w-full cursor-pointer overflow-hidden border border-[#c5a059]/40 bg-transparent px-6 py-3.5 tracking-widest text-[#72552c] dark:text-[#c5a059] hover:bg-[#c5a059]/10 transition-all duration-300 disabled:cursor-wait disabled:opacity-50 text-xs uppercase font-bold"
+                      >
+                        {isRegistering ? t("haveAccess") : t("register")}
+                      </button>
+                    </div>
                   </form>
                 </div>
 
                 <footer className="relative z-10 mt-auto pt-7 text-center">
-                  <p className="text-[10px] uppercase tracking-tighter text-stone-500 dark:text-stone-600">
+                  <p className="text-[10px] uppercase tracking-wider text-stone-600 dark:text-[#eee8dc]/60">
                     Ao prosseguir, você concorda com as <br />
-                    <span className="underline">Leis de Serviço do Sistema</span>
+                    <span className="underline cursor-pointer hover:text-[#c5a059] transition-colors">Leis de Serviço do Sistema</span>
                   </p>
                 </footer>
               </div>
@@ -237,7 +240,7 @@ function LoginInput({
   return (
     <div className="relative">
       <input
-        className="peer w-full border-x-0 border-b-2 border-t-0 border-primary/30 bg-transparent py-3 text-lg text-stone-900 transition-all duration-300 placeholder:italic placeholder:text-stone-500/50 focus:border-primary focus:ring-0 dark:text-stone-100"
+        className="peer w-full border-x-0 border-b-2 border-t-0 border-primary/30 bg-transparent py-3 text-lg text-stone-900 transition-all duration-300 placeholder:italic placeholder:text-stone-500/50 dark:placeholder:text-[#eee8dc]/40 focus:border-primary focus:ring-0 dark:text-white"
         placeholder={placeholder}
         type={type}
         value={value}

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export type AppLanguage = "pt-BR" | "pt-PT" | "en" | "es" | "fr" | "it" | "de" | "ar" | "zh" | "ja";
 export type AppTheme = "dark" | "light";
@@ -57,6 +58,7 @@ const translations = {
         constitution: "Constituição",
         games: "Jogos",
         travessia: "Travessia",
+        dominios: "Domínios",
         community: "Comunidade Nemosine",
         mySpace: "Meu Espaço",
         adminPanel: "Painel do Criador",
@@ -143,6 +145,7 @@ const translations = {
         constitution: "Constituição",
         games: "Jogos",
         travessia: "Travessia",
+        dominios: "Domínios",
         community: "Comunidade Nemosine",
         mySpace: "Meu Espaço",
         adminPanel: "Painel do Criador",
@@ -229,6 +232,7 @@ const translations = {
         constitution: "Constitución",
         games: "Juegos",
         travessia: "Travesía",
+        dominios: "Dominios",
         community: "Comunidad Nemosine",
         mySpace: "Mi Espacio",
         adminPanel: "Panel Admin",
@@ -315,6 +319,7 @@ const translations = {
         constitution: "Constitution",
         games: "Games",
         travessia: "Crossing",
+        dominios: "Domains",
         community: "Nemosine Community",
         mySpace: "My Space",
         adminPanel: "Admin Panel",
@@ -401,6 +406,7 @@ const translations = {
         constitution: "Constitution",
         games: "Jeux",
         travessia: "Traversée",
+        dominios: "Domaines",
         community: "Communauté Nemosine",
         mySpace: "Mon Espace",
         adminPanel: "Panneau Admin",
@@ -487,6 +493,7 @@ const translations = {
         constitution: "Costituzione",
         games: "Giochi",
         travessia: "Traversata",
+        dominios: "Domini",
         community: "Comunità Nemosine",
         mySpace: "Il Mio Spazio",
         adminPanel: "Pannello Creatore",
@@ -573,6 +580,7 @@ const translations = {
         constitution: "Verfassung",
         games: "Spiele",
         travessia: "Überquerung",
+        dominios: "Domänen",
         community: "Nemosine-Gemeinschaft",
         mySpace: "Mein Bereich",
         adminPanel: "Schöpfer-Panel",
@@ -659,6 +667,7 @@ const translations = {
         constitution: "الدستور",
         games: "الألعاب",
         travessia: "العبور",
+        dominios: "النطاقات",
         community: "مجتمع نيموسين",
         mySpace: "مساحتي",
         adminPanel: "لوحة المبدع",
@@ -745,6 +754,7 @@ const translations = {
         constitution: "宪章",
         games: "游戏",
         travessia: "渡越",
+        dominios: "领地",
         community: "记忆女神社区",
         mySpace: "我的空间",
         adminPanel: "创造者面板",
@@ -831,6 +841,7 @@ const translations = {
         constitution: "憲章",
         games: "ゲーム",
         travessia: "渡航",
+        dominios: "ドメイン",
         community: "ネモシネ・コミュニティ",
         mySpace: "マイスペース",
         adminPanel: "創作者パネル",
@@ -946,6 +957,40 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
+    const router = useRouter();
+
+    useEffect(() => {
+        if (singularity !== "on") return;
+        
+        const handleLinkClick = (event: MouseEvent) => {
+            const anchor = (event.target as HTMLElement).closest("a");
+            if (!anchor) return;
+            
+            const href = anchor.getAttribute("href");
+            // Only intercept local paths
+            if (
+                href && 
+                href.startsWith("/") && 
+                !href.startsWith("//") && 
+                anchor.getAttribute("target") !== "_blank" &&
+                !event.defaultPrevented &&
+                event.button === 0 && 
+                !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+            ) {
+                const mainElement = document.querySelector("main");
+                if (mainElement) {
+                    event.preventDefault();
+                    mainElement.classList.add("singularity-fade-out");
+                    setTimeout(() => {
+                        router.push(href);
+                    }, 380);
+                }
+            }
+        };
+        
+        document.addEventListener("click", handleLinkClick);
+        return () => document.removeEventListener("click", handleLinkClick);
+    }, [singularity, router]);
 
     useEffect(() => {
         const stored = window.localStorage.getItem("nemosine-language") as AppLanguage | null;

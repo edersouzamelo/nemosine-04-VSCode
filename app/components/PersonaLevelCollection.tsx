@@ -61,26 +61,20 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
         }
     };
 
-    const toggleText = carouselMode
-        ? (language.startsWith("pt") ? "Ver em Grade" : language === "es" ? "Ver en Cuadrícula" : "View in Grid")
-        : (language.startsWith("pt") ? "Ver em Carrossel" : language === "es" ? "Ver en Carrusel" : "View in Carousel");
-
     return (
         <div className="space-y-6">
-            {level === "Peregrino" && (
-                <div className="flex justify-end pr-2">
-                    <button
-                        type="button"
-                        onClick={() => setCarouselMode(!carouselMode)}
-                        className="flex items-center gap-2 rounded-lg border border-[#c5a059]/40 bg-black/45 px-4 py-2 text-xs uppercase tracking-widest text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
-                    >
-                        <span className="material-icons text-sm">{carouselMode ? "grid_on" : "view_carousel"}</span>
-                        {toggleText}
-                    </button>
-                </div>
-            )}
+            <div className="flex justify-end pr-2">
+                <button
+                    type="button"
+                    onClick={() => setCarouselMode(!carouselMode)}
+                    title={carouselMode ? (language.startsWith("pt") ? "Ver em Grade" : "View in Grid") : (language.startsWith("pt") ? "Ver em Carrossel" : "View in Carousel")}
+                    className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+                >
+                    <span className="material-icons text-xl">{carouselMode ? "grid_on" : "view_carousel"}</span>
+                </button>
+            </div>
 
-            {level === "Peregrino" && carouselMode ? (
+            {carouselMode ? (
                 <div className="relative group/carousel max-w-full">
                     {/* Navigation Buttons (desktop only) */}
                     <button
@@ -95,7 +89,7 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
                     <button
                         type="button"
                         onClick={scrollRight}
-                        className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-20 hidden md:flex items-center justify-center w-10 h-10 rounded-full border border-[#c5a059]/40 bg-[#0a0a0c]/90 text-[#c5a059] hover:border-[#c5a059] hover:bg-[#c5a059]/10 transition-all cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.6)] focus:outline-none"
+                        className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-20 hidden md:flex items-center justify-center w-10 h-10 rounded-full border border-[#c5a059]/40 bg-[#0a0a0c]/90 text-[#c5a059] hover:border-[#c5a059]/10 transition-all cursor-pointer shadow-[0_0_15px_rgba(0,0,0,0.6)] focus:outline-none"
                         aria-label="Scroll Right"
                     >
                         <span className="text-xl">→</span>

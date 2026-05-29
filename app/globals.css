@@ -663,3 +663,20 @@ body {
     transform: scale(1);
   }
 }
+
+.is-singularity-active main.singularity-fade-out {
+  animation: singularity-slow-fade-out 380ms cubic-bezier(0.25, 0.8, 0.25, 1) both !important;
+}
+
+@keyframes singularity-slow-fade-out {
+  from {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    filter: blur(8px);
+    transform: scale(0.995);
+  }
+}
