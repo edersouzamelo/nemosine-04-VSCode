@@ -22,6 +22,14 @@ const ACTIVE_GAMES = [
         emoji: "🃏",
         href: "/space/games/solitaire",
         bgUrl: "/assets/cards/Anverso%20padrão.png",
+    },
+    {
+        id: "xadrez",
+        title: "Xadrez contra o Inimigo",
+        description: "O clássico jogo de estratégia medieval, enfrentando o mais sagaz dos oponentes: a sua própria mente oculta.",
+        emoji: "♟️",
+        href: "/space/games/chess",
+        bgUrl: "/assets/cards/Anverso%20padrão.png",
     }
 ];
 
@@ -59,13 +67,6 @@ const UPCOMING_GAMES = [
         title: "Tribunal Interno",
         description: "Julgue seus próprios conflitos morais e dilemas existenciais. Coloque a sombra e a luz frente a frente diante da balança.",
         emoji: "🏛️",
-        bgUrl: "/assets/cards/Anverso%20padrão.png",
-    },
-    {
-        id: "xadrez",
-        title: "Xadrez contra o Inimigo",
-        description: "O clássico jogo de estratégia medieval, enfrentando o mais sagaz dos oponentes: a sua própria mente oculta.",
-        emoji: "♟️",
         bgUrl: "/assets/cards/Anverso%20padrão.png",
     }
 ];
