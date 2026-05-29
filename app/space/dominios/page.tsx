@@ -280,48 +280,76 @@ export default function DominiosHubPage() {
                                     </p>
                                 </div>
                             ) : selectedApp && currentApp ? (
-                                /* Fullscreen app details display */
-                                <div className="w-full max-w-2xl bg-black/60 border border-[#c5a059]/25 rounded-3xl p-8 backdrop-blur-md animate-scale-up space-y-6 text-left shadow-2xl">
-                                    <div className="flex items-center gap-6 border-b border-[#c5a059]/15 pb-6">
-                                        <div className="w-20 h-20 bg-gradient-to-br from-[#1c1a24] to-[#08070b] border-2 border-[#c5a059] rounded-2xl flex items-center justify-center text-5xl shadow-[0_0_20px_rgba(197,160,89,0.25)] select-none">
+                                /* Fullscreen app details display adapting to deviceType rules */
+                                <div className={`w-full bg-black/60 border border-[#c5a059]/25 rounded-3xl p-6 sm:p-8 backdrop-blur-md animate-scale-up space-y-6 text-left shadow-2xl
+                                    ${deviceType === "phone" ? "max-w-xs space-y-4" : deviceType === "tablet" ? "max-w-md" : "max-w-2xl"}`}
+                                >
+                                    {/* Header adapts vertical stack on phone */}
+                                    <div className={`flex border-b border-[#c5a059]/15 pb-4 sm:pb-6 
+                                        ${deviceType === "phone" ? "flex-col items-center text-center gap-3" : "flex-row items-center gap-6"}`}
+                                    >
+                                        <div className={`bg-gradient-to-br from-[#1c1a24] to-[#08070b] border-2 border-[#c5a059] rounded-2xl flex items-center justify-center select-none shadow-[0_0_20px_rgba(197,160,89,0.25)]
+                                            ${deviceType === "phone" ? "w-16 h-16 text-3xl" : "w-20 h-20 text-5xl"}`}
+                                        >
                                             {currentApp.emoji}
                                         </div>
                                         <div>
-                                            <h3 className="font-display text-2xl font-bold uppercase tracking-widest text-[#c5a059] mb-1">
+                                            <h3 className={`font-display font-bold uppercase tracking-widest text-[#c5a059]
+                                                ${deviceType === "phone" ? "text-lg text-center" : "text-2xl"}`}
+                                            >
                                                 {currentApp.label}
                                             </h3>
-                                            <p className="text-xs uppercase tracking-wider text-[#c5a059]/50">
+                                            <p className={`uppercase tracking-wider text-[#c5a059]/50
+                                                ${deviceType === "phone" ? "text-[8px] text-center" : "text-xs"}`}
+                                            >
                                                 {currentApp.developer}
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-6">
-                                        <div className="space-y-2">
-                                            <span className="text-xs uppercase tracking-wider text-amber-500 font-bold block">
+                                    {/* Content Area */}
+                                    <div className="space-y-4 sm:space-y-6">
+                                        <div className="space-y-1 sm:space-y-2">
+                                            <span className={`uppercase tracking-wider text-amber-500 font-bold block
+                                                ${deviceType === "phone" ? "text-[9px]" : "text-xs"}`}
+                                            >
                                                 {language.startsWith("pt") ? "Status do Portal Executivo" : "Executive Portal Status"}
                                             </span>
-                                            <p className="font-body text-base leading-relaxed text-[#eee8dc]/85">
+                                            <p className={`font-body leading-relaxed text-[#eee8dc]/85
+                                                ${deviceType === "phone" ? "text-xs" : "text-base"}`}
+                                            >
                                                 {currentApp.description}
                                             </p>
                                         </div>
 
-                                        <div className="glass-medieval rounded-2xl p-5 border border-[#c5a059]/20 bg-black/40 text-center space-y-2 max-w-sm mx-auto">
-                                            <span className="material-icons text-2xl text-amber-500 animate-bounce">construction</span>
-                                            <h4 className="font-display text-xs uppercase tracking-wider text-[#c5a059]">
+                                        <div className={`glass-medieval rounded-2xl border border-[#c5a059]/20 bg-black/40 text-center space-y-1 sm:space-y-2 max-w-sm mx-auto
+                                            ${deviceType === "phone" ? "p-3" : "p-5"}`}
+                                        >
+                                            <span className={`material-icons text-amber-500 animate-bounce
+                                                ${deviceType === "phone" ? "text-lg" : "text-2xl"}`}
+                                            >
+                                                construction
+                                            </span>
+                                            <h4 className={`font-display uppercase tracking-wider text-[#c5a059]
+                                                ${deviceType === "phone" ? "text-[9px]" : "text-xs"}`}
+                                            >
                                                 {language.startsWith("pt") ? "Em Construção no Metasistema" : "Under Metasystem Construction"}
                                             </h4>
-                                            <p className="text-[10px] uppercase tracking-wider text-[#eee8dc]/50">
+                                            <p className={`uppercase tracking-wider text-[#eee8dc]/50
+                                                ${deviceType === "phone" ? "text-[8px]" : "text-[10px]"}`}
+                                            >
                                                 {currentApp.version}
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="pt-4 flex justify-end">
+                                    {/* Action button */}
+                                    <div className={`pt-2 flex ${deviceType === "phone" ? "justify-center" : "justify-end"}`}>
                                         <button
                                             type="button"
                                             onClick={() => setSelectedApp(null)}
-                                            className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-8 py-3 rounded-xl font-display text-xs uppercase tracking-widest text-[#fde68a] hover:text-white transition-all font-semibold"
+                                            className={`cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 rounded-xl font-display uppercase tracking-widest text-[#fde68a] hover:text-white transition-all font-semibold
+                                                ${deviceType === "phone" ? "w-full py-2.5 text-[9px]" : "px-8 py-3 text-xs"}`}
                                         >
                                             {language.startsWith("pt") ? "← Retornar ao Menu" : "← Return to Menu"}
                                         </button>
