@@ -11,6 +11,7 @@ export default function DominiosHubPage() {
     const [loadingApp, setLoadingApp] = useState<boolean>(false);
     const [loadingTextIndex, setLoadingTextIndex] = useState(0);
     const [simulatedTime, setSimulatedTime] = useState("20:00");
+    const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
     // Dynamic Clock inside phone status bar
     useEffect(() => {
@@ -28,14 +29,14 @@ export default function DominiosHubPage() {
     const DOMAINS = [
         {
             id: "arauto",
-            title: language.startsWith("pt") ? "Agenda do Arauto" : language === "es" ? "Agenda del Heraldo" : "Herald's Agenda",
-            label: language.startsWith("pt") ? "Agenda" : language === "es" ? "Agenda" : "Agenda",
+            title: language.startsWith("pt") ? "Arauto Nous" : language === "es" ? "Heraldo Nous" : "Herald Nous",
+            label: language.startsWith("pt") ? "Arauto" : language === "es" ? "Heraldo" : "Herald",
             description: language.startsWith("pt") 
                 ? "Organize sua rotina, compromissos e lembretes com a solenidade e o aviso solene do Arauto. Planeje seu tempo com clareza executiva."
                 : language === "es"
                     ? "Organiza tu rutina, citas y recordatorios con la solemnidad y el aviso solmene del Heraldo. Planifica tu tiempo con claridad."
                     : "Organize your routine, appointments, and reminders with the solemnity and warnings of the Herald.",
-            emoji: "📯",
+            emoji: "📜",
             developer: "Arauto Nous",
             version: "v0.9.1 - Beta"
         },
@@ -48,7 +49,7 @@ export default function DominiosHubPage() {
                 : language === "es"
                     ? "Monitorea tus hábitos, metas de disciplina y rendimiento bajo la mirada firme del Entrenador. El escudo contra la pereza."
                     : "Track your habits, discipline goals, and performance under the steadfast gaze of the Trainer. The ultimate shield.",
-            emoji: "⚔️",
+            emoji: "🛡️",
             developer: "Treinador Nous",
             version: "v0.4.5 - Alpha"
         },
@@ -74,7 +75,7 @@ export default function DominiosHubPage() {
                 : language === "es"
                     ? "Haz un seguimiento de tus datos de salud, bienestar, sueño y vitalidad bajo el cuidado del Médico. Equilibrio mental y físico."
                     : "Track your health data, well-being, sleep, and vitality under the dedicated care of the Physician. Body and mind harmony.",
-            emoji: "⚕️",
+            emoji: "🧪",
             developer: "Médico Nous",
             version: "v0.3.0 - Concept"
         }
@@ -115,6 +116,13 @@ export default function DominiosHubPage() {
                 .app-icon-jiggle:hover {
                     animation: phone-jiggle 0.28s ease-in-out infinite;
                 }
+                @keyframes scale-up {
+                    from { transform: translate(-50%, -50%) scale(0.92); opacity: 0; }
+                    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                }
+                .animate-scale-up {
+                    animation: scale-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                }
             `}</style>
 
             {/* Dark Immersive Background */}
@@ -123,6 +131,14 @@ export default function DominiosHubPage() {
                 <div className="w-full h-full bg-[#0a0a0c] bg-[url('https://images.unsplash.com/photo-1510519138101-570d1dca3d66?q=80&w=2000')] bg-cover bg-center opacity-20 mix-blend-luminosity"></div>
             </div>
 
+            {/* Immersive Fullscreen Backdrop Blurring */}
+            {isFullscreen && (
+                <div 
+                    className="fixed inset-0 bg-black/85 backdrop-blur-md z-45 transition-opacity duration-300 cursor-pointer"
+                    onClick={() => setIsFullscreen(false)}
+                ></div>
+            )}
+
             <div className="sticky top-0 z-50">
                 <Navbar />
             </div>
@@ -130,22 +146,43 @@ export default function DominiosHubPage() {
             <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 py-8 md:py-12 min-h-[calc(100vh-220px)] flex flex-col justify-center items-center">
                 <header className="mb-8 text-center">
                     <span className="text-[10px] uppercase tracking-[0.25em] text-[#c5a059]/60 font-semibold block mb-1">
-                        Sovereign OS v1.0
+                        Sovereign OS v1.1
                     </span>
-                    <h1 className="mb-2 font-display text-4xl uppercase tracking-widest text-[#c5a059]">{t("dominios")}</h1>
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                        <h1 className="font-display text-4xl uppercase tracking-widest text-[#c5a059]">
+                            {t("dominios")}
+                        </h1>
+                        {!isFullscreen && (
+                            <button
+                                type="button"
+                                onClick={() => setIsFullscreen(true)}
+                                className="p-1 rounded-lg border border-[#c5a059]/30 hover:border-[#c5a059] bg-[#c5a059]/10 text-[#c5a059] hover:text-[#fde68a] transition-all cursor-pointer flex items-center justify-center"
+                                title={language.startsWith("pt") ? "Ampliar Sovereign OS" : "Expand Sovereign OS"}
+                            >
+                                <span className="material-icons text-xl">open_in_full</span>
+                            </button>
+                        )}
+                    </div>
                     <p className="font-body text-base italic text-[#c5a059]/60 max-w-xl mx-auto">
                         {language.startsWith("pt")
                             ? "Explore os sub-aplicativos e domínios executivos em desenvolvimento"
                             : language === "es"
-                                ? "Explora las subaplicaciones y áreas ejecutivas en desarrollo"
+                                ? "Explora las subaplicaciones y áreas ejecutivas en desenvolvimento"
                                 : "Explore the sub-applications and executive domains under development"}
                     </p>
                 </header>
 
                 {/* Virtual Smartphone Emulator */}
-                <div className="relative mx-auto w-[330px] sm:w-[350px] aspect-[9/18.8] bg-black border-[6px] border-[#c5a059]/60 rounded-[3rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] overflow-hidden flex flex-col p-3 pb-4">
+                <div className={`transition-all duration-500 ease-in-out flex flex-col mx-auto bg-black overflow-hidden
+                    ${isFullscreen 
+                        ? "fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[390px] sm:max-w-[420px] h-[92vh] max-h-[850px] border-[8px] border-[#c5a059] rounded-[3.5rem] shadow-[0_0_100px_rgba(197,160,89,0.35)] p-3.5 pb-5 z-50 animate-scale-up" 
+                        : "relative w-[330px] sm:w-[350px] aspect-[9/18.8] border-[6px] border-[#c5a059]/60 rounded-[3rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] p-3 pb-4 z-10"
+                    }`}
+                >
                     {/* Inner gold styling frame */}
-                    <div className="absolute inset-1.5 rounded-[2.5rem] border border-[#c5a059]/10 pointer-events-none z-40"></div>
+                    <div className={`absolute rounded-[2.5rem] border border-[#c5a059]/10 pointer-events-none z-40 
+                        ${isFullscreen ? "inset-2 rounded-[3rem]" : "inset-1.5"}`}
+                    ></div>
 
                     {/* Dynamic Island Notch */}
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-50 flex items-center justify-center border border-[#c5a059]/15">
@@ -156,7 +193,17 @@ export default function DominiosHubPage() {
                     {/* Simulated Phone Status Bar */}
                     <div className="flex justify-between items-center text-[9px] font-bold text-[#c5a059]/75 px-5 pt-3 pb-2 z-30 select-none">
                         <span>{simulatedTime}</span>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
+                            {isFullscreen && (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsFullscreen(false)}
+                                    className="cursor-pointer text-[#c5a059] hover:text-[#fde68a] flex items-center justify-center transition-all mr-1.5"
+                                    title={language.startsWith("pt") ? "Minimizar" : "Minimize"}
+                                >
+                                    <span className="material-icons text-xs">close_fullscreen</span>
+                                </button>
+                            )}
                             <span>⚜️</span>
                             <span>📶</span>
                             <span>🔋</span>
@@ -233,13 +280,23 @@ export default function DominiosHubPage() {
                             /* Home Screen / Apps Grid */
                             <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-4">
                                 <div className="space-y-4">
-                                    <div className="text-center pb-2 select-none">
+                                    <div className="flex justify-between items-center pb-2 select-none">
                                         <p className="font-display text-[9px] uppercase tracking-[0.2em] text-[#c5a059]/50">
                                             {language.startsWith("pt") ? "Grimório de Bolso" : "Pocket Grimoire"}
                                         </p>
+                                        {isFullscreen && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsFullscreen(false)}
+                                                className="p-1 rounded bg-[#c5a059]/10 hover:bg-[#c5a059]/25 text-[#c5a059] cursor-pointer flex items-center justify-center transition-all border border-[#c5a059]/20"
+                                                title={language.startsWith("pt") ? "Minimizar" : "Minimize"}
+                                            >
+                                                <span className="material-icons text-[11px]">close_fullscreen</span>
+                                            </button>
+                                        )}
                                     </div>
 
-                                    {/* Curved square iOS-style apps grid */}
+                                    {/* Curved square iOS-style apps grid with RPG themed icons */}
                                     <div className="grid grid-cols-2 gap-x-4 gap-y-6 px-1.5">
                                         {DOMAINS.map((app) => (
                                             <button
@@ -248,11 +305,18 @@ export default function DominiosHubPage() {
                                                 onClick={() => handleAppClick(app.id)}
                                                 className="flex flex-col items-center group cursor-pointer"
                                             >
-                                                {/* App icon container */}
-                                                <div className="app-icon-jiggle w-16 h-16 bg-gradient-to-br from-[#12131a] to-[#06070a] border border-[#c5a059]/30 rounded-2xl flex items-center justify-center text-3xl shadow-[0_6px_15px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover:border-[#c5a059] group-hover:scale-[1.04] relative group-hover:shadow-[0_0_20px_rgba(197,160,89,0.18)]">
-                                                    <span>{app.emoji}</span>
+                                                {/* App icon container styled like an RPG skill/token */}
+                                                <div className="app-icon-jiggle w-16 h-16 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 border-[#c5a059]/40 rounded-2xl flex items-center justify-center text-3xl shadow-[0_8px_20px_rgba(0,0,0,0.7)] transition-all duration-300 group-hover:border-[#c5a059] group-hover:scale-[1.05] relative group-hover:shadow-[0_0_25px_rgba(197,160,89,0.25)] overflow-hidden">
+                                                    {/* Inner metallic brass inlay ring */}
+                                                    <div className="absolute inset-1 rounded-[0.95rem] border border-[#c5a059]/10 pointer-events-none group-hover:border-[#c5a059]/25"></div>
+                                                    
+                                                    {/* Styled premium emoji symbol */}
+                                                    <span className="drop-shadow-[0_4px_6px_rgba(0,0,0,0.4)] relative z-10 transition-transform duration-300 group-hover:scale-110">
+                                                        {app.emoji}
+                                                    </span>
+                                                    
                                                     {/* Soon notification badge */}
-                                                    <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-500 to-yellow-600 text-black text-[6px] uppercase font-bold tracking-wider px-1 py-0.5 rounded-full border border-black shadow">
+                                                    <span className="absolute -top-1 -right-1 bg-gradient-to-r from-[#7c2d12] to-[#b45309] text-[#fde68a] text-[6px] uppercase font-bold tracking-wider px-1 py-0.5 rounded-full border border-[#c5a059]/30 shadow-md">
                                                         Soon
                                                     </span>
                                                 </div>
