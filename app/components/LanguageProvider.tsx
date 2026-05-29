@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 export type AppLanguage = "pt-BR" | "pt-PT" | "en" | "es" | "fr" | "it" | "de" | "ar" | "zh" | "ja";
 export type AppTheme = "dark" | "light" | "luanova" | "crepusculo";
@@ -978,6 +978,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
     const router = useRouter();
+    const pathname = usePathname();
+
+    // Clean up transition fade-out class on pathname (route) changes
+    useEffect(() => {
+        const mainElement = document.querySelector("main");
+        if (mainElement) {
+            mainElement.classList.remove("singularity-fade-out");
+        }
+    }, [pathname]);
 
     useEffect(() => {
         if (singularity !== "on") return;
@@ -1003,6 +1012,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
                     mainElement.classList.add("singularity-fade-out");
                     setTimeout(() => {
                         router.push(href);
+                        
+                        // Safety-valve to restore visibility after transition window (e.g. if navigation is slow or target is same route)
+                        setTimeout(() => {
+                            const currentMain = document.querySelector("main");
+                            if (currentMain) {
+                                currentMain.classList.remove("singularity-fade-out");
+                            }
+                        }, 600);
                     }, 380);
                 }
             }
