@@ -993,7 +993,14 @@ html.sober-mode.light-theme,
 .sober-mode [class*="medieval-text-gold"],
 .sober-mode label[class*="text-[#c5a059]"],
 .sober-mode span[class*="text-[#c5a059]"],
-.sober-mode p[class*="text-[#c5a059]"] {
+.sober-mode p[class*="text-[#c5a059]"],
+.sober-mode button[class*="text-[#c5a059]"],
+.sober-mode h1[class*="text-[#c5a059]"],
+.sober-mode h2[class*="text-[#c5a059]"],
+.sober-mode h3[class*="text-[#c5a059]"],
+.sober-mode h4[class*="text-[#c5a059]"],
+.sober-mode a[class*="text-[#c5a059]"],
+.sober-mode div[class*="text-[#c5a059]"] {
   color: var(--foreground) !important;
   opacity: 0.9;
 }

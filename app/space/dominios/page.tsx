@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "../../components/LanguageProvider";
 import Navbar from "../../components/Navbar";
@@ -71,7 +71,7 @@ interface MedicalDocument {
 }
 
 export default function DominiosHubPage() {
-    const { t, language } = useLanguage();
+    const { t, language, cognitiveMode, setCognitiveMode } = useLanguage();
     const router = useRouter();
     const [selectedApp, setSelectedApp] = useState<string | null>(null);
     const [loadingApp, setLoadingApp] = useState<boolean>(false);
@@ -80,6 +80,17 @@ export default function DominiosHubPage() {
     const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
     const [showMenu, setShowMenu] = useState<boolean>(false);
     const [deviceType, setDeviceType] = useState<"phone" | "tablet" | "desktop">("desktop");
+
+    const triggerPwaInstall = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`PWA native install outcome: ${outcome}`);
+            setDeferredPrompt(null);
+        } else {
+            setShowPwaInstallGuide(true);
+        }
+    };
 
     // ── Drag & Drop ───────────────────────────────────────────
     const [appOrder, setAppOrder] = useState<string[]>([]);
@@ -948,9 +959,202 @@ export default function DominiosHubPage() {
             ? ["Invocando Portal...", "Cargando Grimorio...", "Estableciendo Conexión...", "Abriendo Protocolo..."]
             : ["Summoning Portal...", "Loading Grimoire...", "Establishing Connection...", "Opening Protocol..."];
 
+    const memoizedDomains = useMemo<DomainApp[]>(() => {
+        const isSober = cognitiveMode === "sober";
+        if (isSober) {
+            return [
+                {
+                    id: "arauto",
+                    title: language.startsWith("pt") ? "Calendário & Agenda" : language === "es" ? "Calendario y Agenda" : "Calendar & Agenda",
+                    label: language.startsWith("pt") ? "Agenda" : language === "es" ? "Agenda" : "Agenda",
+                    description: language.startsWith("pt") 
+                        ? "Organize sua agenda corporativa com prazos, compromissos e lembretes integrados de produtividade."
+                        : language === "es"
+                            ? "Organice su agenda corporativa con plazos, citas y recordatorios integrados de productividad."
+                            : "Organize your corporate calendar with deadlines, appointments, and integrated productivity reminders.",
+                    emoji: "📆",
+                    developer: "Módulo Arauto",
+                    version: "v1.2.0"
+                },
+                {
+                    id: "timer",
+                    title: language.startsWith("pt") ? "Temporizador & Relógio" : language === "es" ? "Temporizador y Reloj" : "Timer & Clock",
+                    label: language.startsWith("pt") ? "Relógio" : language === "es" ? "Reloj" : "Clock",
+                    description: language.startsWith("pt")
+                        ? "Monitore o tempo com precisão usando o cronômetro, temporizador e despertador integrados."
+                        : language === "es"
+                            ? "Monitoree el tempo com precisão usando o cronômetro, temporizador e alarme integrados."
+                            : "Monitor time with precision using the integrated stopwatch, timer, and alarm clock.",
+                    emoji: "⏱️",
+                    developer: "Módulo Arauto",
+                    version: "v1.0.0"
+                },
+                {
+                    id: "treinador",
+                    title: language.startsWith("pt") ? "Registro de Exercícios" : language === "es" ? "Registro de Ejercicios" : "Exercise Log",
+                    label: language.startsWith("pt") ? "Exercícios" : language === "es" ? "Ejercicios" : "Exercises",
+                    description: language.startsWith("pt")
+                        ? "Planeje seus treinos físicos, registre dados biométricos e monitore sua evolução de saúde."
+                        : language === "es"
+                            ? "Planifique sus entrenamientos físicos, registre dados biométricos e monitoree su evolução de saúde."
+                            : "Plan physical workouts, log biometric measurements, and monitor health evolution.",
+                    emoji: "📊",
+                    developer: "Módulo Treinador",
+                    version: "v1.1.0"
+                },
+                {
+                    id: "mordomo",
+                    title: language.startsWith("pt") ? "Gestão Financeira" : language === "es" ? "Gestión Financiera" : "Financial Management",
+                    label: language.startsWith("pt") ? "Finanças" : language === "es" ? "Finanzas" : "Finance",
+                    description: language.startsWith("pt")
+                        ? "Gerencie suas finanças pessoais, fluxos de receitas e despesas com definição de tetos de gastos."
+                        : language === "es"
+                            ? "Gestione sus finanzas personales, flujos de ingresos y gastos con definição de limites de gastos."
+                            : "Manage personal finances, income and expense flows, and set budget limits.",
+                    emoji: "💳",
+                    developer: "Módulo Mordomo",
+                    version: "v1.1.0"
+                },
+                {
+                    id: "medico",
+                    title: language.startsWith("pt") ? "Prontuário de Saúde" : language === "es" ? "Prontuario de Salud" : "Health Records",
+                    label: language.startsWith("pt") ? "Prontuário" : language === "es" ? "Prontuario" : "Records",
+                    description: language.startsWith("pt")
+                        ? "Anexe receitas e laudos de exames sob um rigoroso termo de compromisso e controle ético."
+                        : language === "es"
+                            ? "Adjunte receitas e informes médicos sob um estricto término de compromisso e controle ético."
+                            : "Attach prescriptions and medical reports under strict terms of ethical commitment and control.",
+                    emoji: "🩺",
+                    developer: "Módulo Médico",
+                    version: "v1.1.5"
+                },
+                {
+                    id: "oracle",
+                    title: language.startsWith("pt") ? "Reflexão Arquetípica" : language === "es" ? "Reflexión Arquetípica" : "Archetypal Reflection",
+                    label: language.startsWith("pt") ? "Reflexão" : language === "es" ? "Reflexión" : "Reflection",
+                    description: language.startsWith("pt")
+                        ? "Reflita sobre uma questão de desenvolvimento pessoal retirando um arquétipo de orientação."
+                        : language === "es"
+                            ? "Reflexione sobre uma questão de desenvolvimento pessoal retirando um arquetipo de orientação."
+                            : "Reflect on a personal development question by drawing an archetypal guide card.",
+                    emoji: "💡",
+                    developer: "Módulo Conselho",
+                    version: "v1.0.0"
+                },
+                {
+                    id: "solitaire",
+                    title: language.startsWith("pt") ? "Treino de Foco (Paciência)" : language === "es" ? "Entrenamiento de Foco" : "Focus Training (Solitaire)",
+                    label: language.startsWith("pt") ? "Foco" : language === "es" ? "Foco" : "Focus",
+                    description: language.startsWith("pt")
+                        ? "Treine seu foco mental, raciocínio lógico e paciência organizando o tabuleiro."
+                        : language === "es"
+                            ? "Entrene su enfoque mental, razonamiento lógico y paciencia organizando el tablero."
+                            : "Train your mental focus, logical reasoning, and patience by organizing the board.",
+                    emoji: "🧩",
+                    developer: "Módulo Conselho",
+                    version: "v1.0.0"
+                },
+                {
+                    id: "chess",
+                    title: language.startsWith("pt") ? "Simulador Estratégico (Xadrez)" : language === "es" ? "Simulador Estratégico" : "Strategic Simulator (Chess)",
+                    label: language.startsWith("pt") ? "Estratégia" : language === "es" ? "Estrategia" : "Strategy",
+                    description: language.startsWith("pt")
+                        ? "Aprimore suas habilidades de tomada de decisão e lógica enfrentando um motor de IA de xadrez."
+                        : language === "es"
+                            ? "Mejore sus habilidades de toma de decisiones y lógica enfrentando um motor de IA de ajedrez."
+                            : "Improve decision-making and logic skills by playing against a chess AI engine.",
+                    emoji: "🤖",
+                    developer: "Módulo Estratégia",
+                    version: "v1.0.0"
+                },
+                {
+                    id: "diario",
+                    title: language.startsWith("pt") ? "Diário do Peregrino" : "Pilgrim's Diary",
+                    label: language.startsWith("pt") ? "Diário" : "Diary",
+                    description: language.startsWith("pt") ? "Registre a sua jornada interior em páginas de um diário encantado." : "Record your inner journey in the pages of an enchanted diary.",
+                    emoji: "📖",
+                    developer: "Scriptorium Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                },
+                {
+                    id: "habitos",
+                    title: language.startsWith("pt") ? "Fábrica de Hábitos" : "Habit Forge",
+                    label: language.startsWith("pt") ? "Hábitos" : "Habits",
+                    description: language.startsWith("pt") ? "Forje rituais diários e construa hábitos com disciplina e consistência." : "Forge daily rituals and build habits with discipline and consistency.",
+                    emoji: "🔄",
+                    developer: "Arauto Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                },
+                {
+                    id: "mapa-estelar",
+                    title: language.startsWith("pt") ? "Mapa Estelar" : "Star Map",
+                    label: language.startsWith("pt") ? "Estelar" : "Stellar",
+                    description: language.startsWith("pt") ? "Visualize sua constelação de objetivos, projetos e sonhos." : "Visualize your constellation of goals, projects and dreams.",
+                    emoji: "🌟",
+                    developer: "Observatório Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                },
+                {
+                    id: "mantras",
+                    title: language.startsWith("pt") ? "Cantos de Nous" : "Nous Chants",
+                    label: language.startsWith("pt") ? "Mantras" : "Chants",
+                    description: language.startsWith("pt") ? "Sons e mantras medievais para concentration, meditação e criatividade." : "Medieval sounds and mantras for focus, meditation and creativity.",
+                    emoji: "🎵",
+                    developer: "Templo Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                },
+                {
+                    id: "dado",
+                    title: language.startsWith("pt") ? "Dado de Destino" : "Destiny Dice",
+                    label: language.startsWith("pt") ? "Dado" : "Dice",
+                    description: language.startsWith("pt") ? "Quando a razão falha, que o destino decida. Role o dado sagrado." : "When reason fails, let fate decide. Roll the sacred die.",
+                    emoji: "🎲",
+                    developer: "Conselho de Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                },
+                {
+                    id: "palavras",
+                    title: language.startsWith("pt") ? "Palavras do Templo" : "Temple Words",
+                    label: language.startsWith("pt") ? "Palavras" : "Words",
+                    description: language.startsWith("pt") ? "Desafios de palavras e enigmas linguísticos inspirados nos grimórios medievais." : "Word challenges and linguistic enigmas inspired by medieval grimoires.",
+                    emoji: "🔠",
+                    developer: "Conselho de Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                },
+                {
+                    id: "labirinto",
+                    title: language.startsWith("pt") ? "Labirinto da Mente" : "Mind Labyrinth",
+                    label: language.startsWith("pt") ? "Labirinto" : "Labyrinth",
+                    description: language.startsWith("pt") ? "Navegue pelos corredores da consciência em um labirinto de puzzles e lógica." : "Navigate the corridors of consciousness in a labyrinth of puzzles and logic.",
+                    emoji: "🌀",
+                    developer: "Conselho de Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                },
+                {
+                    id: "tarot",
+                    title: language.startsWith("pt") ? "Tarot de Nous" : "Nous Tarot",
+                    label: "Tarot",
+                    description: language.startsWith("pt") ? "Leituras de tarô arquetípico como espelho de autoconhecimento e reflexão." : "Archetypal tarot readings as a mirror for self-knowledge and reflection.",
+                    emoji: "🃏",
+                    developer: "Conselho de Nous",
+                    version: "Em breve",
+                    comingSoon: true
+                }
+            ];
+        }
+        return DOMAINS;
+    }, [language, cognitiveMode]);
+
     const handleAppClick = useCallback((appId: string) => {
         if (isDragging) return;
-        const app = DOMAINS.find(d => d.id === appId);
+        const app = memoizedDomains.find(d => d.id === appId);
         if (app?.comingSoon) return; // block coming-soon apps
         setLoadingApp(true);
         setSelectedApp(appId);
@@ -970,7 +1174,7 @@ export default function DominiosHubPage() {
             clearInterval(textCycle);
             setLoadingApp(false);
         }, 1200);
-    }, [isDragging, loadingTexts]);
+    }, [isDragging, loadingTexts, memoizedDomains]);
 
     // ── Load/Save icon order ──────────────────────────────────
     useEffect(() => {
@@ -981,13 +1185,13 @@ export default function DominiosHubPage() {
     }, []);
 
     const getOrderedDomains = useCallback(() => {
-        if (appOrder.length === 0) return DOMAINS;
-        const domainMap = Object.fromEntries(DOMAINS.map(d => [d.id, d]));
+        if (appOrder.length === 0) return memoizedDomains;
+        const domainMap = Object.fromEntries(memoizedDomains.map(d => [d.id, d]));
         const ordered = appOrder.map(id => domainMap[id]).filter(Boolean);
-        const rest = DOMAINS.filter(d => !appOrder.includes(d.id));
+        const rest = memoizedDomains.filter(d => !appOrder.includes(d.id));
         return [...ordered, ...rest];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appOrder]);
+    }, [appOrder, memoizedDomains]);
 
     // ── Drag & Drop handlers ──────────────────────────────────
     const handleDragStart = useCallback((e: React.DragEvent, appId: string) => {
@@ -1098,7 +1302,7 @@ export default function DominiosHubPage() {
 
     // ── Long-press share ──────────────────────────────────────
     const handleShareApp = useCallback(async (appId: string) => {
-        const app = DOMAINS.find(d => d.id === appId);
+        const app = memoizedDomains.find(d => d.id === appId);
         if (!app) return;
         const shareData = {
             title: `Nemosine — ${app.title}`,
@@ -1118,7 +1322,7 @@ export default function DominiosHubPage() {
             /* user cancelled */
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [memoizedDomains]);
 
     // ── Android-style navigation handlers ────────────────────
     const handleNavBack = useCallback(() => {
@@ -1143,7 +1347,7 @@ export default function DominiosHubPage() {
         setShowRecents(prev => !prev);
     }, []);
 
-    const currentApp = DOMAINS.find((app) => app.id === selectedApp);
+    const currentApp = memoizedDomains.find((app) => app.id === selectedApp);
 
     // ==========================================
     // RENDER DETAILED SOVEREIGN APPLICATIONS
@@ -1378,7 +1582,7 @@ export default function DominiosHubPage() {
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-3 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                         <h3 className="font-display text-xs font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
-                            <span>📅 Agenda do Arauto</span>
+                            <span>{cognitiveMode === "sober" ? "📆 Calendário & Agenda" : "📅 Agenda do Arauto"}</span>
                             {renderPwaInstallBadge()}
                             <PushToggle compact={true} />
                         </h3>
@@ -1954,10 +2158,14 @@ export default function DominiosHubPage() {
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
                     <div>
                         <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
-                            <span>⏳ Timer do Arauto</span>
+                            <span>{cognitiveMode === "sober" ? "⏱️ Temporizador & Relógio" : "⏳ Timer do Arauto"}</span>
                             {renderPwaInstallBadge()}
                         </h3>
-                        <p className="text-[9px] text-stone-400 italic">“Mede as horas imperiais com a precisão dos relógios solares de Nous.”</p>
+                        <p className="text-[9px] text-stone-400 italic">
+                            {cognitiveMode === "sober" 
+                                ? "Mapeamento precise de intervalos de tempo para foco operacional." 
+                                : "“Mede as horas imperiais com a precisão dos relógios solares de Nous.”"}
+                        </p>
                     </div>
                 </div>
 
@@ -2181,10 +2389,14 @@ export default function DominiosHubPage() {
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
                     <div>
                         <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
-                            <span>📋 Ficha do Treinador</span>
+                            <span>{cognitiveMode === "sober" ? "📊 Registro de Exercícios" : "📋 Ficha do Treinador"}</span>
                             {renderPwaInstallBadge()}
                         </h3>
-                        <p className="text-[9px] text-stone-400 italic">“Forje seu templo corporal sob a firme disciplina do Treinador de Nous.”</p>
+                        <p className="text-[9px] text-stone-400 italic">
+                            {cognitiveMode === "sober" 
+                                ? "Planejamento e acompanhamento de rotinas e métricas físicas de desempenho." 
+                                : "“Forje seu templo corporal sob a firme disciplina do Treinador de Nous.”"}
+                        </p>
                     </div>
                 </div>
 
@@ -2423,10 +2635,14 @@ export default function DominiosHubPage() {
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
                     <div>
                         <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
-                            <span>💰 Contas do Mordomo</span>
+                            <span>{cognitiveMode === "sober" ? "💳 Gestão Financeira" : "💰 Contas do Mordomo"}</span>
                             {renderPwaInstallBadge()}
                         </h3>
-                        <p className="text-[9px] text-stone-400 italic">“O reino prospera quando o tesouro imperial é gerido com exatidão.”</p>
+                        <p className="text-[9px] text-stone-400 italic">
+                            {cognitiveMode === "sober" 
+                                ? "Controle orçamentário, fluxos de despesas e planejamento financeiro analítico." 
+                                : "“O reino prospera quando o tesouro imperial é gerido com exatidão.”"}
+                        </p>
                     </div>
                 </div>
 
@@ -2566,10 +2782,14 @@ export default function DominiosHubPage() {
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
                     <div>
                         <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
-                            <span>⚕️ Ficha do Médico</span>
+                            <span>{cognitiveMode === "sober" ? "🩺 Prontuário de Saúde" : "⚕️ Ficha do Médico"}</span>
                             {renderPwaInstallBadge()}
                         </h3>
-                        <p className="text-[9px] text-stone-400 italic">“Mantenha a vitalidade e a harmonia entre o corpo físico e o metasistema mental.”</p>
+                        <p className="text-[9px] text-stone-400 italic">
+                            {cognitiveMode === "sober" 
+                                ? "Mapeamento de histórico de saúde, termos éticos e acompanhamento de bem-estar." 
+                                : "“Mantenha a vitalidade e a harmonia entre o corpo físico e o metasistema mental.”"}
+                        </p>
                     </div>
                 </div>
 
@@ -2769,6 +2989,26 @@ export default function DominiosHubPage() {
                             <h1 className="font-display text-4xl uppercase tracking-widest text-[#c5a059]">
                                 {t("dominios")}
                             </h1>
+                            {!isPwaStandalone && (
+                                <button
+                                    type="button"
+                                    onClick={triggerPwaInstall}
+                                    title={language.startsWith("pt") ? "Instalar Aplicativo Dedicado" : "Install Dedicated App"}
+                                    className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold animate-pulse"
+                                >
+                                    <span className="material-icons text-xl">install_mobile</span>
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setCognitiveMode(cognitiveMode === "sober" ? "symbolic" : "sober")}
+                                title={cognitiveMode === "sober" ? (language.startsWith("pt") ? "Ativar Modo Simbólico" : "Activate Symbolic Mode") : (language.startsWith("pt") ? "Ativar Modo Sóbrio" : "Activate Sober Mode")}
+                                className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+                            >
+                                <span className="material-icons text-xl">
+                                    {cognitiveMode === "sober" ? "visibility" : "visibility_off"}
+                                </span>
+                            </button>
                             <button
                                 type="button"
                                 onClick={enterFullscreen}
@@ -2811,10 +3051,32 @@ export default function DominiosHubPage() {
                                 </div>
                             </div>
                             
-                            {/* DB Sinc Indicator */}
-                            <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-full border border-stone-850 text-[8px] uppercase tracking-widest text-stone-400 font-bold font-mono select-none">
-                                <span className={`w-1.5 h-1.5 rounded-full ${dbSyncStatus === 'synced' ? 'bg-emerald-500 animate-pulse' : dbSyncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-stone-500'}`}></span>
-                                {dbSyncStatus === 'synced' ? 'Cloud Sync' : dbSyncStatus === 'syncing' ? 'Syncing...' : 'Local Cache'}
+                            <div className="flex items-center gap-2">
+                                {!isPwaStandalone && (
+                                    <button
+                                        type="button"
+                                        onClick={triggerPwaInstall}
+                                        title={language.startsWith("pt") ? "Instalar Aplicativo Dedicado" : "Install Dedicated App"}
+                                        className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+                                    >
+                                        <span className="material-icons text-base">install_mobile</span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => setCognitiveMode(cognitiveMode === "sober" ? "symbolic" : "sober")}
+                                    title={cognitiveMode === "sober" ? (language.startsWith("pt") ? "Ativar Modo Simbólico" : "Activate Symbolic Mode") : (language.startsWith("pt") ? "Ativar Modo Sóbrio" : "Activate Sober Mode")}
+                                    className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+                                >
+                                    <span className="material-icons text-base">
+                                        {cognitiveMode === "sober" ? "visibility" : "visibility_off"}
+                                    </span>
+                                </button>
+                                {/* DB Sinc Indicator */}
+                                <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-full border border-stone-850 text-[8px] uppercase tracking-widest text-stone-400 font-bold font-mono select-none">
+                                    <span className={`w-1.5 h-1.5 rounded-full ${dbSyncStatus === 'synced' ? 'bg-emerald-500 animate-pulse' : dbSyncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-stone-500'}`}></span>
+                                    {dbSyncStatus === 'synced' ? 'Cloud Sync' : dbSyncStatus === 'syncing' ? 'Syncing...' : 'Local Cache'}
+                                </div>
                             </div>
 
                             {/* Close button */}
@@ -2911,7 +3173,7 @@ export default function DominiosHubPage() {
                                     ) : (
                                         <div className="flex flex-col gap-3 overflow-y-auto">
                                             {appHistory.map((appId) => {
-                                                const a = DOMAINS.find(d => d.id === appId);
+                                                const a = memoizedDomains.find(d => d.id === appId);
                                                 if (!a) return null;
                                                 return (
                                                     <button

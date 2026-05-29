@@ -42,6 +42,13 @@ export default function AgentDetailPage() {
     const { t, entityName, recordCardUse, cognitiveMode } = useLanguage();
     const id = decodeURIComponent(params.id as string);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isEmbedded, setIsEmbedded] = useState(false);
+
+    React.useEffect(() => {
+        if (typeof window !== "undefined") {
+            setIsEmbedded(window.location.search.includes("embed=true") || window.self !== window.top);
+        }
+    }, []);
     const audioRef = React.useRef<HTMLAudioElement | null>(null);
     const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
     const [refreshHistory, setRefreshHistory] = useState(0);
@@ -103,15 +110,18 @@ export default function AgentDetailPage() {
                 <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center"></div>
             </div>
 
-            <div className="navbar-container relative z-20 overflow-visible transition-all duration-300">
-                <Navbar mobileCollapsible defaultMobileCollapsed />
-            </div>
+            {!isEmbedded && (
+                <div className="navbar-container relative z-20 overflow-visible transition-all duration-300">
+                    <Navbar mobileCollapsible defaultMobileCollapsed />
+                </div>
+            )}
 
             {/* CONTENT LAYOUT - Mobile First */}
             <div className="relative z-10 flex-1 flex flex-col lg:flex-row overflow-hidden gap-0">
 
                 {/* TOP: PERSONA IMAGE (Mobile) & RETRACTABLE MEMORIES */}
-                <div className="lg:hidden flex items-center h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-2 gap-2">
+                {!isEmbedded && (
+                    <div className="lg:hidden flex items-center h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-2 gap-2">
                     {/* Small Image for Mobile */}
                     {cognitiveMode === "sober" ? (
                         <div 
@@ -158,7 +168,7 @@ export default function AgentDetailPage() {
                                         src={entity.landscapeImage || entity.image || ''}
                                         alt={displayedEntityName}
                                         fill
-                                        className={`object-cover transition-transform duration-700 ${entity.type === "place" ? "scale-[1.15]" : ""} ${isPlaying ? 'scale-[1.08] opacity-80' : 'group-hover:scale-[1.08]'}`}
+                                        className={`object-cover transition-transform duration-700 ${entity.type === "place" ? "scale-[1.25]" : ""} ${isPlaying ? 'scale-[1.08] opacity-80' : 'group-hover:scale-[1.08]'}`}
                                     />
                                 </div>
                             )}
@@ -192,10 +202,12 @@ export default function AgentDetailPage() {
                             <p className="mt-3 text-xs italic text-[#c5a059]/60">Convoque uma persona para iniciar uma memória neste lugar.</p>
                         )}
                     </CollapsiblePanel>
-                </div>
+                    </div >
+                )}
 
                 {/* LEFT: LARGE IMAGE & MEMORIES (Desktop Only) */}
-                <div className="hidden lg:flex lg:w-1/4 p-6 flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20 gap-6">
+                {!isEmbedded && (
+                    <div className="hidden lg:flex lg:w-1/4 p-6 flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20 gap-6">
                     {/* Desktop Image */}
                     {cognitiveMode === "sober" ? (
                         <div 
@@ -242,7 +254,7 @@ export default function AgentDetailPage() {
                                         src={entity.landscapeImage || entity.image || ''}
                                         alt={displayedEntityName}
                                         fill
-                                        className={`object-cover transition-transform duration-700 ${entity.type === "place" ? "scale-[1.15]" : ""} ${isPlaying ? 'scale-[1.08] opacity-80' : 'group-hover:scale-[1.08]'}`}
+                                        className={`object-cover transition-transform duration-700 ${entity.type === "place" ? "scale-[1.25]" : ""} ${isPlaying ? 'scale-[1.08] opacity-80' : 'group-hover:scale-[1.08]'}`}
                                     />
                                 </div>
                             )}
@@ -276,7 +288,8 @@ export default function AgentDetailPage() {
                             <p className="mt-3 text-xs italic text-[#c5a059]/60">Convoque uma persona para iniciar uma memória neste lugar.</p>
                         )}
                     </CollapsiblePanel>
-                </div>
+                    </div>
+                )}
 
                 {/* CENTER/RIGHT: CHAT (The Main Focus - ~60%) */}
                 <div className="flex-1 min-h-0 p-2 sm:p-4 lg:p-6 flex flex-col w-full overflow-hidden">
