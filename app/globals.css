@@ -758,3 +758,24 @@ body {
   opacity: 0.4 !important;
   filter: hue-rotate(320deg) brightness(0.65) saturate(1.7) !important;
 }
+
+/* Dawn overrides for Amanhecer (light-theme) */
+.light-theme [class*="bg-[url("],
+.light-theme div[class*="bg-[url('https://images.unsplash.com"],
+.light-theme main div[class*="bg-[url("] {
+  background-image: url("/assets/dawn_morning_sky.png") !important;
+  opacity: 0.55 !important;
+  mix-blend-mode: multiply !important;
+}
+
+.light-theme .login-screen img[alt="Paisagem do castelo mental"] {
+  content: url("/assets/dawn_morning_sky.png") !important;
+  opacity: 0.85 !important;
+  mix-blend-mode: multiply !important;
+}
+
+.light-theme video {
+  opacity: 0.22 !important;
+  filter: hue-rotate(50deg) brightness(1.28) saturate(0.7) contrast(1.05) !important;
+}
+
