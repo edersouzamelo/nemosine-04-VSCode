@@ -99,6 +99,18 @@ export default function DominiosHubPage() {
     // Unified database sync status
     const [dbSyncStatus, setDbSyncStatus] = useState<"syncing" | "synced" | "offline">("syncing");
 
+    // PWA Standalone Detection & Helper Guide States
+    const [isPwaStandalone, setIsPwaStandalone] = useState(false);
+    const [showPwaInstallGuide, setShowPwaInstallGuide] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const standalone = window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true;
+            setIsPwaStandalone(standalone);
+        }
+    }, []);
+
+
     // ==========================================
     // SOVEREIGN OS APPLICATION STATES
     // ==========================================
@@ -396,6 +408,37 @@ export default function DominiosHubPage() {
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
     }, []);
+
+    // PWA Dedicated Manifest Swapper & Deep-link Mount Detector
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const params = new URLSearchParams(window.location.search);
+        const appParam = params.get("app");
+        if (appParam) {
+            const validApps = ["arauto", "timer", "treinador", "mordomo", "medico", "oracle", "solitaire", "chess"];
+            if (validApps.includes(appParam)) {
+                setSelectedApp(appParam);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        let linkElement = document.querySelector("link[rel='manifest']") as HTMLLinkElement | null;
+        if (!linkElement) {
+            linkElement = document.createElement("link");
+            linkElement.rel = "manifest";
+            document.head.appendChild(linkElement);
+        }
+
+        const validManifestApps = ["arauto", "timer", "treinador", "mordomo", "medico"];
+        if (selectedApp && validManifestApps.includes(selectedApp)) {
+            linkElement.href = `/manifest-${selectedApp}.json`;
+        } else {
+            linkElement.href = "/manifest.json";
+        }
+    }, [selectedApp]);
+
 
     // Stopwatch logic
     useEffect(() => {
@@ -1092,6 +1135,20 @@ export default function DominiosHubPage() {
     // RENDER DETAILED SOVEREIGN APPLICATIONS
     // ==========================================
 
+    const renderPwaInstallBadge = () => {
+        if (isPwaStandalone) return null;
+        return (
+            <button
+                type="button"
+                onClick={() => setShowPwaInstallGuide(true)}
+                className="flex items-center gap-1 px-1.5 py-0.5 border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 rounded text-[#c5a059] text-[7px] xs:text-[7.5px] uppercase font-bold tracking-wider transition-colors cursor-pointer"
+            >
+                <span className="material-icons text-[8.5px] xs:text-[9px]">install_mobile</span>
+                Instalar Standalone
+            </button>
+        );
+    };
+
     const renderAgendaApp = (compact: boolean) => {
         // Calculate days to display based on view mode and selectedDate
         const getWeekDays = (baseDateStr: string) => {
@@ -1297,7 +1354,10 @@ export default function DominiosHubPage() {
                 {/* Header Section */}
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-3 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                        <h3 className="font-display text-xs font-bold text-[#c5a059] uppercase tracking-wider">📅 Agenda do Arauto</h3>
+                        <h3 className="font-display text-xs font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
+                            <span>📅 Agenda do Arauto</span>
+                            {renderPwaInstallBadge()}
+                        </h3>
                         {/* Day/Week/Month/Year Switch */}
                         <div className="flex bg-[#121118] border border-[#c5a059]/20 rounded p-0.5 max-w-[200px] xs:max-w-full overflow-x-auto">
                             <button
@@ -1866,9 +1926,14 @@ export default function DominiosHubPage() {
 
         return (
             <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1 text-stone-200">
-                <div className="border-b border-[#c5a059]/20 pb-3 mb-4">
-                    <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider">⏳ Timer do Arauto</h3>
-                    <p className="text-[9px] text-stone-400 italic">“Mede as horas imperiais com a precisão dos relógios solares de Nous.”</p>
+                <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
+                            <span>⏳ Timer do Arauto</span>
+                            {renderPwaInstallBadge()}
+                        </h3>
+                        <p className="text-[9px] text-stone-400 italic">“Mede as horas imperiais com a precisão dos relógios solares de Nous.”</p>
+                    </div>
                 </div>
 
                 {/* 1. SECTION COUNTDOWN TIMER */}
@@ -2088,9 +2153,14 @@ export default function DominiosHubPage() {
 
         return (
             <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1 text-stone-200">
-                <div className="border-b border-[#c5a059]/20 pb-3 mb-4">
-                    <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider">📋 Ficha do Treinador</h3>
-                    <p className="text-[9px] text-stone-400 italic">“Forje seu templo corporal sob a firme disciplina do Treinador de Nous.”</p>
+                <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
+                            <span>📋 Ficha do Treinador</span>
+                            {renderPwaInstallBadge()}
+                        </h3>
+                        <p className="text-[9px] text-stone-400 italic">“Forje seu templo corporal sob a firme disciplina do Treinador de Nous.”</p>
+                    </div>
                 </div>
 
                 {/* Navigation inside app */}
@@ -2325,9 +2395,14 @@ export default function DominiosHubPage() {
 
         return (
             <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1 text-stone-200">
-                <div className="border-b border-[#c5a059]/20 pb-3 mb-4">
-                    <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider">💰 Contas do Mordomo</h3>
-                    <p className="text-[9px] text-stone-400 italic">“O reino prospera quando o tesouro imperial é gerido com exatidão.”</p>
+                <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
+                            <span>💰 Contas do Mordomo</span>
+                            {renderPwaInstallBadge()}
+                        </h3>
+                        <p className="text-[9px] text-stone-400 italic">“O reino prospera quando o tesouro imperial é gerido com exatidão.”</p>
+                    </div>
                 </div>
 
                 {/* Metrics boxes */}
@@ -2463,9 +2538,14 @@ export default function DominiosHubPage() {
 
         return (
             <div className="flex-1 flex flex-col h-full overflow-y-auto pr-1 text-stone-200">
-                <div className="border-b border-[#c5a059]/20 pb-3 mb-4">
-                    <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider">⚕️ Ficha do Médico</h3>
-                    <p className="text-[9px] text-stone-400 italic">“Mantenha a vitalidade e a harmonia entre o corpo físico e o metasistema mental.”</p>
+                <div className="border-b border-[#c5a059]/20 pb-3 mb-4 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-display text-sm font-bold text-[#c5a059] uppercase tracking-wider flex items-center gap-2">
+                            <span>⚕️ Ficha do Médico</span>
+                            {renderPwaInstallBadge()}
+                        </h3>
+                        <p className="text-[9px] text-stone-400 italic">“Mantenha a vitalidade e a harmonia entre o corpo físico e o metasistema mental.”</p>
+                    </div>
                 </div>
 
                 {/* 1. ETHICAL DISCLAIMER (CANNOT BE REMOVED) */}
@@ -3218,6 +3298,59 @@ export default function DominiosHubPage() {
             )}
 
             {!isFullscreen && <InstitutionalFooter />}
+
+            {/* PWA Dedicated Installation Guide Modal */}
+            {showPwaInstallGuide && (
+                <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-[99999] p-4">
+                    <div className="bg-[#0f0e15] border border-[#c5a059]/30 rounded-xl shadow-2xl p-5 w-full max-w-sm space-y-4 animate-fade-in text-stone-200">
+                        <div className="flex items-center justify-between border-b border-[#c5a059]/10 pb-2">
+                            <span className="text-[10px] uppercase font-bold text-[#c5a059] flex items-center gap-1.5">
+                                <span className="material-icons text-xs">install_mobile</span>
+                                Instalar App Dedicado
+                            </span>
+                            <button 
+                                type="button" 
+                                onClick={() => setShowPwaInstallGuide(false)}
+                                className="text-stone-400 hover:text-stone-200 cursor-pointer"
+                            >
+                                <span className="material-icons text-sm">close</span>
+                            </button>
+                        </div>
+
+                        <p className="text-[9.5px] text-stone-400 leading-relaxed italic">
+                            “Fixe esta ferramenta sagrada do Sovereign OS diretamente na tela de início do seu celular e use-a como um aplicativo totalmente dedicado e nativo.”
+                        </p>
+
+                        <div className="space-y-3 text-left">
+                            <div className="bg-black/40 border border-[#c5a059]/10 rounded-lg p-2.5 space-y-1.5">
+                                <span className="text-[8.5px] uppercase font-bold text-amber-200 block">🤖 Android (Google Chrome)</span>
+                                <p className="text-[8px] text-stone-300 leading-normal pl-2">
+                                    1. Toque nos <strong className="text-[#c5a059]">três pontos verticais</strong> no canto superior direito do navegador.<br />
+                                    2. Selecione a opção <strong className="text-[#c5a059]">"Instalar aplicativo"</strong> ou <strong className="text-[#c5a059]">"Adicionar à tela inicial"</strong>.<br />
+                                    3. Confirme a instalação. O ícone aparecerá na sua tela inicial!
+                                </p>
+                            </div>
+
+                            <div className="bg-black/40 border border-[#c5a059]/10 rounded-lg p-2.5 space-y-1.5">
+                                <span className="text-[8.5px] uppercase font-bold text-amber-200 block">🍏 iPhone / iOS (Safari)</span>
+                                <p className="text-[8px] text-stone-300 leading-normal pl-2">
+                                    1. Toque no botão de <strong className="text-[#c5a059]">"Compartilhar"</strong> (o ícone de quadrado com uma seta para cima na barra inferior).<br />
+                                    2. Role a lista de opções para baixo e toque em <strong className="text-[#c5a059]">"Adicionar à Tela de Início"</strong>.<br />
+                                    3. Toque em <strong className="text-[#c5a059]">"Adicionar"</strong> no canto superior direito. Pronto!
+                                </p>
+                            </div>
+                        </div>
+
+                        <button 
+                            type="button" 
+                            onClick={() => setShowPwaInstallGuide(false)}
+                            className="w-full py-1.5 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 border border-[#c5a059]/50 text-stone-200 rounded font-display text-[9px] uppercase tracking-wider transition-colors cursor-pointer"
+                        >
+                            Entendido, Soberano
+                        </button>
+                    </div>
+                </div>
+            )}
         </main>
     );
 }
