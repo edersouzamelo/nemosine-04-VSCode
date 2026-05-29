@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "../../components/LanguageProvider";
 import Navbar from "../../components/Navbar";
 import InstitutionalFooter from "../../components/InstitutionalFooter";
@@ -61,6 +62,7 @@ interface MedicalDocument {
 
 export default function DominiosHubPage() {
     const { t, language } = useLanguage();
+    const router = useRouter();
     const [selectedApp, setSelectedApp] = useState<string | null>(null);
     const [loadingApp, setLoadingApp] = useState<boolean>(false);
     const [loadingTextIndex, setLoadingTextIndex] = useState(0);
@@ -68,6 +70,22 @@ export default function DominiosHubPage() {
     const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
     const [showMenu, setShowMenu] = useState<boolean>(false);
     const [deviceType, setDeviceType] = useState<"phone" | "tablet" | "desktop">("desktop");
+
+    // ── Drag & Drop ───────────────────────────────────────────
+    const [appOrder, setAppOrder] = useState<string[]>([]);
+    const [dragSourceId, setDragSourceId] = useState<string | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // ── Long-press share ──────────────────────────────────────
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const longPressActive = useRef(false);
+    const [contextMenuApp, setContextMenuApp] = useState<string | null>(null);
+    const [shareToast, setShareToast] = useState<string | null>(null);
+
+    // ── Navigation History & Recents ──────────────────────────
+    const [appHistory, setAppHistory] = useState<string[]>([]);
+    const [showRecents, setShowRecents] = useState(false);
 
     // Unified database sync status
     const [dbSyncStatus, setDbSyncStatus] = useState<"syncing" | "synced" | "offline">("syncing");
@@ -591,11 +609,18 @@ export default function DominiosHubPage() {
             ? ["Invocando Portal...", "Cargando Grimorio...", "Estableciendo Conexión...", "Abriendo Protocolo..."]
             : ["Summoning Portal...", "Loading Grimoire...", "Establishing Connection...", "Opening Protocol..."];
 
-    const handleAppClick = (appId: string) => {
+    const handleAppClick = useCallback((appId: string) => {
+        if (isDragging) return;
         setLoadingApp(true);
         setSelectedApp(appId);
         setLoadingTextIndex(0);
-        
+        // Push to history (keep last 5 unique)
+        setAppHistory(prev => {
+            const filtered = prev.filter(id => id !== appId);
+            return [appId, ...filtered].slice(0, 5);
+        });
+        setShowRecents(false);
+
         const textCycle = setInterval(() => {
             setLoadingTextIndex((prev) => (prev + 1) % loadingTexts.length);
         }, 600);
@@ -604,7 +629,178 @@ export default function DominiosHubPage() {
             clearInterval(textCycle);
             setLoadingApp(false);
         }, 1200);
-    };
+    }, [isDragging, loadingTexts]);
+
+    // ── Load/Save icon order ──────────────────────────────────
+    useEffect(() => {
+        const saved = localStorage.getItem("sovereign_app_order");
+        if (saved) {
+            try { setAppOrder(JSON.parse(saved)); } catch { /* ignore */ }
+        }
+    }, []);
+
+    const getOrderedDomains = useCallback(() => {
+        if (appOrder.length === 0) return DOMAINS;
+        const domainMap = Object.fromEntries(DOMAINS.map(d => [d.id, d]));
+        const ordered = appOrder.map(id => domainMap[id]).filter(Boolean);
+        const rest = DOMAINS.filter(d => !appOrder.includes(d.id));
+        return [...ordered, ...rest];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appOrder]);
+
+    // ── Drag & Drop handlers ──────────────────────────────────
+    const handleDragStart = useCallback((e: React.DragEvent, appId: string) => {
+        setDragSourceId(appId);
+        setIsDragging(true);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", appId);
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent, appId: string) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setDragOverId(appId);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+        e.preventDefault();
+        const sourceId = dragSourceId;
+        if (!sourceId || sourceId === targetId) {
+            setIsDragging(false);
+            setDragSourceId(null);
+            setDragOverId(null);
+            return;
+        }
+        const ordered = getOrderedDomains();
+        const ids = ordered.map(d => d.id);
+        const fromIdx = ids.indexOf(sourceId);
+        const toIdx = ids.indexOf(targetId);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const newIds = [...ids];
+        newIds.splice(fromIdx, 1);
+        newIds.splice(toIdx, 0, sourceId);
+        setAppOrder(newIds);
+        localStorage.setItem("sovereign_app_order", JSON.stringify(newIds));
+        setIsDragging(false);
+        setDragSourceId(null);
+        setDragOverId(null);
+    }, [dragSourceId, getOrderedDomains]);
+
+    const handleDragEnd = useCallback(() => {
+        setIsDragging(false);
+        setDragSourceId(null);
+        setDragOverId(null);
+    }, []);
+
+    // ── Touch drag (pointer events for mobile) ────────────────
+    const touchDragState = useRef<{
+        sourceId: string | null;
+        startX: number; startY: number;
+        ghost: HTMLElement | null;
+    }>({ sourceId: null, startX: 0, startY: 0, ghost: null });
+
+    const handlePointerDown = useCallback((e: React.PointerEvent, appId: string) => {
+        longPressActive.current = false;
+        longPressTimer.current = setTimeout(() => {
+            longPressActive.current = true;
+            setContextMenuApp(appId);
+        }, 600);
+        // Touch drag prep
+        touchDragState.current = { sourceId: appId, startX: e.clientX, startY: e.clientY, ghost: null };
+    }, []);
+
+    const handlePointerMove = useCallback((e: React.PointerEvent) => {
+        const state = touchDragState.current;
+        if (!state.sourceId) return;
+        const dx = Math.abs(e.clientX - state.startX);
+        const dy = Math.abs(e.clientY - state.startY);
+        if (dx > 8 || dy > 8) {
+            // Cancel long-press if user started dragging
+            if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+                longPressTimer.current = null;
+            }
+            setIsDragging(true);
+            setDragSourceId(state.sourceId);
+        }
+    }, []);
+
+    const handlePointerUp = useCallback((e: React.PointerEvent) => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+        // Resolve touch drop
+        if (isDragging && dragSourceId) {
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            const targetBtn = el?.closest("[data-app-id]");
+            const targetId = targetBtn?.getAttribute("data-app-id");
+            if (targetId && targetId !== dragSourceId) {
+                const ordered = getOrderedDomains();
+                const ids = ordered.map(d => d.id);
+                const fromIdx = ids.indexOf(dragSourceId);
+                const toIdx = ids.indexOf(targetId);
+                if (fromIdx !== -1 && toIdx !== -1) {
+                    const newIds = [...ids];
+                    newIds.splice(fromIdx, 1);
+                    newIds.splice(toIdx, 0, dragSourceId);
+                    setAppOrder(newIds);
+                    localStorage.setItem("sovereign_app_order", JSON.stringify(newIds));
+                }
+            }
+        }
+        setIsDragging(false);
+        setDragSourceId(null);
+        setDragOverId(null);
+        touchDragState.current = { sourceId: null, startX: 0, startY: 0, ghost: null };
+    }, [isDragging, dragSourceId, getOrderedDomains]);
+
+    // ── Long-press share ──────────────────────────────────────
+    const handleShareApp = useCallback(async (appId: string) => {
+        const app = DOMAINS.find(d => d.id === appId);
+        if (!app) return;
+        const shareData = {
+            title: `Nemosine — ${app.title}`,
+            text: app.description,
+            url: window.location.origin + "/space/dominios",
+        };
+        setContextMenuApp(null);
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                await navigator.clipboard.writeText(shareData.url);
+                setShareToast("Link copiado para a área de transferência!");
+                setTimeout(() => setShareToast(null), 3000);
+            }
+        } catch {
+            /* user cancelled */
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Android-style navigation handlers ────────────────────
+    const handleNavBack = useCallback(() => {
+        if (selectedApp) {
+            // Close current app, go back to home
+            setSelectedApp(null);
+            setShowRecents(false);
+        } else if (showRecents) {
+            setShowRecents(false);
+        } else {
+            // Navigate browser back
+            router.back();
+        }
+    }, [selectedApp, showRecents, router]);
+
+    const handleNavHome = useCallback(() => {
+        setSelectedApp(null);
+        setShowRecents(false);
+    }, []);
+
+    const handleNavRecents = useCallback(() => {
+        setShowRecents(prev => !prev);
+    }, []);
 
     const currentApp = DOMAINS.find((app) => app.id === selectedApp);
 
@@ -1648,17 +1844,26 @@ export default function DominiosHubPage() {
                                 </div>
                             ) : (
                                 /* Fullscreen Grid of apps */
-                                <div className="w-full flex flex-col justify-between py-6">
-                                    <div className={`grid gap-8 w-full px-4 max-w-5xl mx-auto grid-cols-2 max-w-xs sm:grid-cols-5 sm:max-w-5xl`}
-                                    >
-                                        {DOMAINS.map((app) => (
-                                            <button
+                                <div className="w-full flex flex-col justify-between py-6 relative">
+                                    <div className={`grid gap-8 w-full px-4 max-w-5xl mx-auto grid-cols-2 max-w-xs sm:grid-cols-5 sm:max-w-5xl`}>
+                                        {getOrderedDomains().map((app) => (
+                                            <div
                                                 key={app.id}
-                                                type="button"
-                                                onClick={() => handleAppClick(app.id)}
-                                                className="flex flex-col items-center group cursor-pointer bg-black/40 border border-[#c5a059]/20 hover:border-[#c5a059] p-6 rounded-2xl transition-all duration-300 hover:shadow-[0_0_30px_rgba(197,160,89,0.15)]"
+                                                data-app-id={app.id}
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, app.id)}
+                                                onDragOver={(e) => handleDragOver(e, app.id)}
+                                                onDrop={(e) => handleDrop(e, app.id)}
+                                                onDragEnd={handleDragEnd}
+                                                onPointerDown={(e) => handlePointerDown(e, app.id)}
+                                                onPointerMove={handlePointerMove}
+                                                onPointerUp={handlePointerUp}
+                                                onClick={() => !longPressActive.current && handleAppClick(app.id)}
+                                                className={`flex flex-col items-center group cursor-grab active:cursor-grabbing bg-black/40 border p-6 rounded-2xl transition-all duration-200 hover:shadow-[0_0_30px_rgba(197,160,89,0.15)] select-none touch-none
+                                                    ${dragOverId === app.id && dragSourceId !== app.id ? "border-[#c5a059] shadow-[0_0_20px_rgba(197,160,89,0.4)] scale-105" : "border-[#c5a059]/20 hover:border-[#c5a059]"}
+                                                    ${dragSourceId === app.id ? "opacity-40 scale-95" : "opacity-100"}`}
+                                                style={{ touchAction: "none" }}
                                             >
-                                                {/* Expanded RPG skill token */}
                                                 <div className="app-icon-jiggle w-20 h-20 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 border-[#c5a059]/40 rounded-3xl flex items-center justify-center text-4xl shadow-[0_8px_20px_rgba(0,0,0,0.7)] transition-all duration-300 group-hover:scale-105 relative overflow-hidden mb-4">
                                                     <div className="absolute inset-1.5 rounded-[1.2rem] border border-[#c5a059]/10"></div>
                                                     <span className="drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)] relative z-10">{app.emoji}</span>
@@ -1666,20 +1871,105 @@ export default function DominiosHubPage() {
                                                 <span className="text-[10px] uppercase tracking-[0.2em] text-[#c5a059]/80 group-hover:text-[#fde68a] font-display text-center font-bold">
                                                     {app.label}
                                                 </span>
-                                            </button>
+                                            </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Bottom OS Bar */}
+                        {/* Recents overlay panel */}
+                        {showRecents && (
+                            <div
+                                className="absolute inset-0 z-50 flex items-end justify-end pointer-events-auto animate-fade-in"
+                                onClick={() => setShowRecents(false)}
+                            >
+                                <div
+                                    className="relative h-full w-72 bg-black/90 border-l border-[#c5a059]/20 backdrop-blur-2xl flex flex-col p-6 gap-4 shadow-[-20px_0_60px_rgba(0,0,0,0.8)] animate-slide-in-right"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[10px] uppercase tracking-widest text-[#c5a059] font-bold">Apps Recentes</span>
+                                        <button type="button" onClick={() => setShowRecents(false)} className="text-stone-500 hover:text-stone-300 text-lg cursor-pointer">×</button>
+                                    </div>
+                                    {appHistory.length === 0 ? (
+                                        <p className="text-[10px] text-stone-500 italic text-center mt-8">Nenhum app aberto recentemente.</p>
+                                    ) : (
+                                        <div className="flex flex-col gap-3 overflow-y-auto">
+                                            {appHistory.map((appId) => {
+                                                const a = DOMAINS.find(d => d.id === appId);
+                                                if (!a) return null;
+                                                return (
+                                                    <button
+                                                        key={appId}
+                                                        type="button"
+                                                        onClick={() => { setShowRecents(false); handleAppClick(appId); }}
+                                                        className="flex items-center gap-3 p-3 rounded-xl border border-[#c5a059]/15 bg-white/5 hover:bg-[#c5a059]/10 hover:border-[#c5a059]/40 transition-all cursor-pointer text-left group"
+                                                    >
+                                                        <div className="w-12 h-12 bg-gradient-to-br from-[#1c1a24] to-[#0b0a0f] border border-[#c5a059]/30 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
+                                                            {a.emoji}
+                                                        </div>
+                                                        <div className="flex-1 overflow-hidden">
+                                                            <p className="text-xs font-bold text-[#eae3d5] group-hover:text-[#fde68a] truncate">{a.title}</p>
+                                                            <p className="text-[9px] text-stone-500 uppercase tracking-wider">{a.developer}</p>
+                                                        </div>
+                                                        <span className="material-icons text-xs text-[#c5a059]/40">chevron_right</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {appHistory.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setAppHistory([]); setShowRecents(false); }}
+                                            className="mt-auto text-[9px] uppercase tracking-wider text-stone-600 hover:text-red-400 cursor-pointer transition-colors text-center"
+                                        >
+                                            Limpar Histórico
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Bottom OS Bar — Android-style Navigation */}
                         <div className="relative z-10 flex flex-col items-center">
-                            {/* Immersive Dock area */}
-                            <div className="glass-medieval rounded-2xl px-8 py-3 border border-[#c5a059]/20 bg-white/5 backdrop-blur-md flex justify-around gap-12 items-center select-none max-w-sm w-full mx-auto">
-                                <span className="text-2xl opacity-60 hover:opacity-100 transition-opacity cursor-pointer">🛡️</span>
-                                <span className="text-2xl opacity-60 hover:opacity-100 transition-opacity cursor-pointer">⚜️</span>
-                                <span className="text-2xl opacity-60 hover:opacity-100 transition-opacity cursor-pointer">🧭</span>
+                            <div className="glass-medieval rounded-2xl px-6 py-3 border border-[#c5a059]/20 bg-black/60 backdrop-blur-md flex justify-around gap-10 items-center select-none max-w-xs w-full mx-auto">
+                                {/* Back */}
+                                <button
+                                    type="button"
+                                    onClick={handleNavBack}
+                                    title="Voltar"
+                                    className="flex flex-col items-center gap-1 group cursor-pointer opacity-60 hover:opacity-100 transition-all"
+                                >
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-[#c5a059] group-hover:text-[#fde68a] transition-colors">
+                                        <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                </button>
+                                {/* Home */}
+                                <button
+                                    type="button"
+                                    onClick={handleNavHome}
+                                    title="Área de trabalho"
+                                    className="flex flex-col items-center gap-1 group cursor-pointer opacity-60 hover:opacity-100 transition-all"
+                                >
+                                    <div className="w-5 h-5 rounded-full border-2 border-[#c5a059] group-hover:border-[#fde68a] group-hover:shadow-[0_0_12px_rgba(197,160,89,0.6)] transition-all" />
+                                </button>
+                                {/* Recents */}
+                                <button
+                                    type="button"
+                                    onClick={handleNavRecents}
+                                    title="Apps recentes"
+                                    className={`flex flex-col items-center gap-1 group cursor-pointer transition-all ${
+                                        showRecents ? "opacity-100" : "opacity-60 hover:opacity-100"
+                                    }`}
+                                >
+                                    <div className={`w-5 h-5 rounded-sm border-2 transition-all ${
+                                        showRecents
+                                            ? "border-[#fde68a] shadow-[0_0_12px_rgba(253,230,138,0.5)]"
+                                            : "border-[#c5a059] group-hover:border-[#fde68a]"
+                                    }`} />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1727,17 +2017,42 @@ export default function DominiosHubPage() {
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-3">
                                             <p className="font-display text-[8px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-4">Grimório de Bolso</p>
                                             <div className="grid grid-cols-2 gap-x-3 gap-y-4 px-1 max-h-[300px] overflow-y-auto pr-0.5">
-                                                {DOMAINS.map((app) => (
-                                                    <button key={app.id} onClick={() => handleAppClick(app.id)} className="flex flex-col items-center group cursor-pointer">
+                                                {getOrderedDomains().map((app) => (
+                                                    <div
+                                                        key={app.id}
+                                                        data-app-id={app.id}
+                                                        draggable
+                                                        onDragStart={(e) => handleDragStart(e, app.id)}
+                                                        onDragOver={(e) => handleDragOver(e, app.id)}
+                                                        onDrop={(e) => handleDrop(e, app.id)}
+                                                        onDragEnd={handleDragEnd}
+                                                        onPointerDown={(e) => handlePointerDown(e, app.id)}
+                                                        onPointerMove={handlePointerMove}
+                                                        onPointerUp={handlePointerUp}
+                                                        onClick={() => !longPressActive.current && handleAppClick(app.id)}
+                                                        className={`flex flex-col items-center group cursor-grab active:cursor-grabbing select-none touch-none transition-all duration-150
+                                                            ${dragOverId === app.id && dragSourceId !== app.id ? "scale-110" : ""}
+                                                            ${dragSourceId === app.id ? "opacity-40" : "opacity-100"}`}
+                                                        style={{ touchAction: "none" }}
+                                                    >
                                                         <div className="app-icon-jiggle w-14 h-14 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border border-[#c5a059]/30 rounded-xl flex items-center justify-center text-2xl relative shadow-md">
                                                             <span>{app.emoji}</span>
                                                         </div>
                                                         <span className="text-[7.5px] uppercase tracking-wider text-[#c5a059]/80 mt-1">{app.label}</span>
-                                                    </button>
+                                                    </div>
                                                 ))}
                                             </div>
-                                            <div className="glass-medieval rounded-xl p-2 border border-[#c5a059]/15 bg-white/5 flex justify-around items-center select-none mt-4 text-xs">
-                                                <span>🛡️</span><span>⚜️</span><span>🧭</span>
+                                            {/* Phone nav bar */}
+                                            <div className="glass-medieval rounded-xl px-4 py-2 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-4">
+                                                <button type="button" onClick={handleNavBack} className="p-1 opacity-60 hover:opacity-100 cursor-pointer">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="#c5a059" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                </button>
+                                                <button type="button" onClick={handleNavHome} className="opacity-60 hover:opacity-100 cursor-pointer">
+                                                    <div className="w-4 h-4 rounded-full border-2 border-[#c5a059]" />
+                                                </button>
+                                                <button type="button" onClick={handleNavRecents} className={`cursor-pointer transition-opacity ${showRecents ? "opacity-100" : "opacity-60 hover:opacity-100"}`}>
+                                                    <div className={`w-4 h-4 rounded-sm border-2 ${showRecents ? "border-[#fde68a]" : "border-[#c5a059]"}`} />
+                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -1781,17 +2096,42 @@ export default function DominiosHubPage() {
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-4">
                                             <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-6">Grimório de Bolso - Modo Tablet</p>
                                             <div className="grid grid-cols-3 gap-x-6 gap-y-6 px-4 max-h-[360px] overflow-y-auto pr-0.5">
-                                                {DOMAINS.map((app) => (
-                                                    <button key={app.id} onClick={() => handleAppClick(app.id)} className="flex flex-col items-center group cursor-pointer">
+                                                {getOrderedDomains().map((app) => (
+                                                    <div
+                                                        key={app.id}
+                                                        data-app-id={app.id}
+                                                        draggable
+                                                        onDragStart={(e) => handleDragStart(e, app.id)}
+                                                        onDragOver={(e) => handleDragOver(e, app.id)}
+                                                        onDrop={(e) => handleDrop(e, app.id)}
+                                                        onDragEnd={handleDragEnd}
+                                                        onPointerDown={(e) => handlePointerDown(e, app.id)}
+                                                        onPointerMove={handlePointerMove}
+                                                        onPointerUp={handlePointerUp}
+                                                        onClick={() => !longPressActive.current && handleAppClick(app.id)}
+                                                        className={`flex flex-col items-center group cursor-grab active:cursor-grabbing select-none touch-none transition-all duration-150
+                                                            ${dragOverId === app.id && dragSourceId !== app.id ? "scale-110" : ""}
+                                                            ${dragSourceId === app.id ? "opacity-40" : "opacity-100"}`}
+                                                        style={{ touchAction: "none" }}
+                                                    >
                                                         <div className="app-icon-jiggle w-16 h-16 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 border-[#c5a059]/40 rounded-2xl flex items-center justify-center text-3xl shadow-md transition-all">
                                                             <span>{app.emoji}</span>
                                                         </div>
                                                         <span className="text-[9px] font-bold uppercase tracking-wider text-[#c5a059]/80 mt-2">{app.label}</span>
-                                                    </button>
+                                                    </div>
                                                 ))}
                                             </div>
-                                            <div className="glass-medieval rounded-2xl p-2.5 border border-[#c5a059]/15 bg-white/5 flex justify-around items-center select-none mt-8 text-xl max-w-xs w-full mx-auto">
-                                                <span>🛡️</span><span>⚜️</span><span>🧭</span>
+                                            {/* Tablet nav bar */}
+                                            <div className="glass-medieval rounded-2xl px-6 py-2.5 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-8 max-w-xs w-full mx-auto">
+                                                <button type="button" onClick={handleNavBack} className="p-1 opacity-60 hover:opacity-100 cursor-pointer">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="#c5a059" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                </button>
+                                                <button type="button" onClick={handleNavHome} className="opacity-60 hover:opacity-100 cursor-pointer">
+                                                    <div className="w-5 h-5 rounded-full border-2 border-[#c5a059]" />
+                                                </button>
+                                                <button type="button" onClick={handleNavRecents} className={`cursor-pointer transition-opacity ${showRecents ? "opacity-100" : "opacity-60 hover:opacity-100"}`}>
+                                                    <div className={`w-5 h-5 rounded-sm border-2 ${showRecents ? "border-[#fde68a]" : "border-[#c5a059]"}`} />
+                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -1839,22 +2179,48 @@ export default function DominiosHubPage() {
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-2">
                                             <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-8">Grimório de Mesa - Sovereign Workspace</p>
                                             
-                                            {/* Horizontal Row app icons row (desktop style) */}
+                                            {/* Desktop app icon grid with drag & drop */}
                                             <div className="grid grid-cols-5 gap-4 px-4 max-h-[280px] overflow-y-auto pr-0.5">
-                                                {DOMAINS.map((app) => (
-                                                    <button key={app.id} onClick={() => handleAppClick(app.id)} className="flex flex-col items-center group cursor-pointer bg-black/30 border border-[#c5a059]/15 hover:border-[#c5a059]/60 p-4 rounded-xl transition-all duration-300">
+                                                {getOrderedDomains().map((app) => (
+                                                    <div
+                                                        key={app.id}
+                                                        data-app-id={app.id}
+                                                        draggable
+                                                        onDragStart={(e) => handleDragStart(e, app.id)}
+                                                        onDragOver={(e) => handleDragOver(e, app.id)}
+                                                        onDrop={(e) => handleDrop(e, app.id)}
+                                                        onDragEnd={handleDragEnd}
+                                                        onPointerDown={(e) => handlePointerDown(e, app.id)}
+                                                        onPointerMove={handlePointerMove}
+                                                        onPointerUp={handlePointerUp}
+                                                        onClick={() => !longPressActive.current && handleAppClick(app.id)}
+                                                        className={`flex flex-col items-center group cursor-grab active:cursor-grabbing bg-black/30 border p-4 rounded-xl transition-all duration-200 select-none touch-none
+                                                            ${dragOverId === app.id && dragSourceId !== app.id
+                                                                ? "border-[#c5a059] shadow-[0_0_20px_rgba(197,160,89,0.35)] scale-105"
+                                                                : "border-[#c5a059]/15 hover:border-[#c5a059]/60"}
+                                                            ${dragSourceId === app.id ? "opacity-40 scale-95" : ""}`}
+                                                        style={{ touchAction: "none" }}
+                                                    >
                                                         <div className="app-icon-jiggle w-16 h-16 bg-gradient-to-br from-[#1c1a24] via-[#0b0a0f] to-[#121017] border-2 border-[#c5a059]/40 rounded-2xl flex items-center justify-center text-3xl shadow-md transition-all mb-3 relative overflow-hidden">
                                                             <div className="absolute inset-1 rounded-[0.95rem] border border-[#c5a059]/10"></div>
                                                             <span className="drop-shadow-[0_4px_6px_rgba(0,0,0,0.4)]">{app.emoji}</span>
                                                         </div>
                                                         <span className="text-[9px] font-bold uppercase tracking-widest text-[#c5a059]/80 group-hover:text-[#fde68a]">{app.label}</span>
-                                                    </button>
+                                                    </div>
                                                 ))}
                                             </div>
 
-                                            {/* Dock Area Widescreen */}
-                                            <div className="glass-medieval rounded-2xl p-2.5 border border-[#c5a059]/15 bg-white/5 flex justify-around items-center select-none mt-8 text-xl max-w-xs w-full mx-auto">
-                                                <span>🛡️</span><span>⚜️</span><span>🧭</span>
+                                            {/* Desktop nav bar */}
+                                            <div className="glass-medieval rounded-2xl px-8 py-2.5 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-8 max-w-xs w-full mx-auto">
+                                                <button type="button" onClick={handleNavBack} title="Voltar" className="p-1.5 opacity-60 hover:opacity-100 cursor-pointer transition-opacity">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="#c5a059" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                                </button>
+                                                <button type="button" onClick={handleNavHome} title="Área de trabalho" className="opacity-60 hover:opacity-100 cursor-pointer transition-all group">
+                                                    <div className="w-5 h-5 rounded-full border-2 border-[#c5a059] group-hover:shadow-[0_0_10px_rgba(197,160,89,0.5)] transition-all" />
+                                                </button>
+                                                <button type="button" onClick={handleNavRecents} title="Apps recentes" className={`cursor-pointer transition-opacity ${showRecents ? "opacity-100" : "opacity-60 hover:opacity-100"}`}>
+                                                    <div className={`w-5 h-5 rounded-sm border-2 transition-all ${showRecents ? "border-[#fde68a] shadow-[0_0_10px_rgba(253,230,138,0.4)]" : "border-[#c5a059]"}`} />
+                                                </button>
                                             </div>
                                         </div>
                                     )}
@@ -1867,6 +2233,63 @@ export default function DominiosHubPage() {
                     </div>
                 )}
             </div>
+
+            {/* Context Menu (long-press) */}
+            {contextMenuApp && (() => {
+                const app = DOMAINS.find(d => d.id === contextMenuApp);
+                if (!app) return null;
+                return (
+                    <div
+                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in"
+                        onClick={() => setContextMenuApp(null)}
+                    >
+                        <div
+                            className="bg-[#0e0d13] border border-[#c5a059]/30 rounded-2xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.9)] w-72 animate-fade-in"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-3 mb-5 pb-4 border-b border-[#c5a059]/15">
+                                <div className="w-14 h-14 bg-gradient-to-br from-[#1c1a24] to-[#0b0a0f] border border-[#c5a059]/30 rounded-2xl flex items-center justify-center text-3xl">
+                                    {app.emoji}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold text-[#eae3d5]">{app.title}</p>
+                                    <p className="text-[9px] uppercase tracking-wider text-[#c5a059]/60">{app.developer} · {app.version}</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => handleShareApp(contextMenuApp)}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 hover:bg-[#c5a059]/10 border border-[#c5a059]/15 hover:border-[#c5a059]/40 text-[#eae3d5] text-sm cursor-pointer transition-all mb-2"
+                            >
+                                <span className="text-lg">🔗</span>
+                                <span className="font-semibold text-xs">Compartilhar aplicativo</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setContextMenuApp(null); handleAppClick(contextMenuApp); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 hover:bg-[#c5a059]/10 border border-[#c5a059]/15 hover:border-[#c5a059]/40 text-[#eae3d5] text-sm cursor-pointer transition-all"
+                            >
+                                <span className="text-lg">▶️</span>
+                                <span className="font-semibold text-xs">Abrir aplicativo</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setContextMenuApp(null)}
+                                className="w-full mt-3 text-[10px] uppercase tracking-widest text-stone-600 hover:text-stone-400 cursor-pointer py-1 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Share Toast */}
+            {shareToast && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[300] bg-[#1c1a24] border border-[#c5a059]/40 text-[#fde68a] text-xs px-5 py-3 rounded-full shadow-xl animate-fade-in">
+                    ✓ {shareToast}
+                </div>
+            )}
 
             {/* Solid Page Footer (Hidden in fullscreen OS mode) */}
             {!isFullscreen && (
