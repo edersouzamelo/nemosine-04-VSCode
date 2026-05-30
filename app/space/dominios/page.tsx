@@ -71,7 +71,7 @@ interface MedicalDocument {
 }
 
 export default function DominiosHubPage() {
-    const { t, language, cognitiveMode, setCognitiveMode } = useLanguage();
+    const { t, language, cognitiveMode, setCognitiveMode, isAdmin } = useLanguage();
     const router = useRouter();
     const [selectedApp, setSelectedApp] = useState<string | null>(null);
     const [loadingApp, setLoadingApp] = useState<boolean>(false);
@@ -2999,16 +2999,18 @@ export default function DominiosHubPage() {
                                     <span className="material-icons text-xl">install_mobile</span>
                                 </button>
                             )}
-                            <button
-                                type="button"
-                                onClick={() => setCognitiveMode(cognitiveMode === "sober" ? "symbolic" : "sober")}
-                                title={cognitiveMode === "sober" ? (language.startsWith("pt") ? "Ativar Modo Simbólico" : "Activate Symbolic Mode") : (language.startsWith("pt") ? "Ativar Modo Sóbrio" : "Activate Sober Mode")}
-                                className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
-                            >
-                                <span className="material-icons text-xl">
-                                    {cognitiveMode === "sober" ? "visibility" : "visibility_off"}
-                                </span>
-                            </button>
+                            {isAdmin && (
+                                <button
+                                    type="button"
+                                    onClick={() => setCognitiveMode(cognitiveMode === "sober" ? "symbolic" : "sober")}
+                                    title={cognitiveMode === "sober" ? (language.startsWith("pt") ? "Ativar Modo Simbólico" : "Activate Symbolic Mode") : (language.startsWith("pt") ? "Ativar Modo Sóbrio" : "Activate Sober Mode")}
+                                    className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+                                >
+                                    <span className="material-icons text-xl">
+                                        {cognitiveMode === "sober" ? "visibility" : "visibility_off"}
+                                    </span>
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={enterFullscreen}
@@ -3062,16 +3064,18 @@ export default function DominiosHubPage() {
                                         <span className="material-icons text-base">install_mobile</span>
                                     </button>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={() => setCognitiveMode(cognitiveMode === "sober" ? "symbolic" : "sober")}
-                                    title={cognitiveMode === "sober" ? (language.startsWith("pt") ? "Ativar Modo Simbólico" : "Activate Symbolic Mode") : (language.startsWith("pt") ? "Ativar Modo Sóbrio" : "Activate Sober Mode")}
-                                    className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
-                                >
-                                    <span className="material-icons text-base">
-                                        {cognitiveMode === "sober" ? "visibility" : "visibility_off"}
-                                    </span>
-                                </button>
+                                {isAdmin && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCognitiveMode(cognitiveMode === "sober" ? "symbolic" : "sober")}
+                                        title={cognitiveMode === "sober" ? (language.startsWith("pt") ? "Ativar Modo Simbólico" : "Activate Symbolic Mode") : (language.startsWith("pt") ? "Ativar Modo Sóbrio" : "Activate Sober Mode")}
+                                        className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+                                    >
+                                        <span className="material-icons text-base">
+                                            {cognitiveMode === "sober" ? "visibility" : "visibility_off"}
+                                        </span>
+                                    </button>
+                                )}
                                 {/* DB Sinc Indicator */}
                                 <div className="flex items-center gap-1.5 bg-black/60 px-3 py-1 rounded-full border border-stone-850 text-[8px] uppercase tracking-widest text-stone-400 font-bold font-mono select-none">
                                     <span className={`w-1.5 h-1.5 rounded-full ${dbSyncStatus === 'synced' ? 'bg-emerald-500 animate-pulse' : dbSyncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-stone-500'}`}></span>

@@ -171,14 +171,25 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                                     <span>{t("modeSymbolic")}</span>
                                                     {cognitiveMode === "symbolic" && <span className="text-[6.5px] opacity-70 mt-0.5">({t("current")})</span>}
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setCognitiveMode("sober")}
-                                                    className={`rounded border py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight h-11 transition-all ${cognitiveMode === "sober" ? "border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/10 text-white/40 hover:border-[#c5a059]/40 hover:bg-white/5 cursor-pointer"}`}
-                                                >
-                                                    <span>{t("modeSober")}</span>
-                                                    {cognitiveMode === "sober" && <span className="text-[6.5px] opacity-70 mt-0.5">({t("current")})</span>}
-                                                </button>
+                                                {isAdmin ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCognitiveMode("sober")}
+                                                        className={`rounded border py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight h-11 transition-all ${cognitiveMode === "sober" ? "border-[#c5a059] bg-[#c5a059]/15 text-[#c5a059]" : "border-[#c5a059]/10 text-white/40 hover:border-[#c5a059]/40 hover:bg-white/5 cursor-pointer"}`}
+                                                    >
+                                                        <span>{t("modeSober")}</span>
+                                                        {cognitiveMode === "sober" && <span className="text-[6.5px] opacity-70 mt-0.5">({t("current")})</span>}
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        disabled
+                                                        className="rounded border border-[#c5a059]/10 text-white/30 py-1.5 text-[8.5px] uppercase tracking-widest text-center flex flex-col justify-center items-center font-bold leading-tight cursor-not-allowed h-11 opacity-60"
+                                                    >
+                                                        <span>{t("modeSober")}</span>
+                                                        <span className="text-[6.5px] opacity-90 text-amber-500 mt-0.5">{t("soon")}</span>
+                                                    </button>
+                                                )}
                                                 <button
                                                     type="button"
                                                     disabled

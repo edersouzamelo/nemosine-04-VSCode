@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { isAdminEmail } from "../lib/accessControl";
 
 export type AppLanguage = "pt-BR" | "pt-PT" | "en" | "es" | "fr" | "it" | "de" | "ar" | "zh" | "ja";
 export type AppTheme = "dark" | "light" | "luanova" | "crepusculo";
@@ -1134,6 +1136,7 @@ type LanguageContextValue = {
     recordCardUse: (collection: CardCollection, name: string) => void;
     t: (key: TranslationKey) => string;
     entityName: (name: string) => string;
+    isAdmin: boolean;
 };
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
@@ -1150,6 +1153,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
     const router = useRouter();
     const pathname = usePathname();
+    const { data: session } = useSession();
+    const isAdmin = isAdminEmail(session?.user?.email);
+
+    // Restrict sober mode to admins only
+    useEffect(() => {
+        if (!isAdmin && cognitiveMode === "sober") {
+            setCognitiveModeState("symbolic");
+            document.documentElement.classList.remove("sober-mode");
+            window.localStorage.setItem("nemosine-cognitive-mode", "symbolic");
+        }
+    }, [isAdmin, cognitiveMode]);
 
     // Clean up transition fade-out class on pathname (route) changes
     useEffect(() => {
@@ -1380,6 +1394,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setSingularity,
         cognitiveMode,
         setCognitiveMode,
+        isAdmin,
         getOrderedCards,
         setCustomCardOrder,
         ensureRandomCardOrder,
@@ -1400,7 +1415,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
                 ? language === "es" ? "Confesor" : "Confessor"
                 : language === "pt-BR" ? name : (translatedPersonaNames[language]?.[name] || name);
         }
-    }), [language, theme, fontSize, cardOrderMode, level, singularity, cognitiveMode, customCardOrders, randomCardOrders, cardUsage]);
+    }), [language, theme, fontSize, cardOrderMode, level, singularity, cognitiveMode, customCardOrders, randomCardOrders, cardUsage, isAdmin]);
 
     return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
