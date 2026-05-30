@@ -27,6 +27,16 @@ async function ensureDeveloperMessagesTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  try {
+    await prisma.$executeRaw`ALTER TABLE developer_messages ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE`;
+  } catch (e) {
+    console.error("Error adding archived column:", e);
+  }
+  try {
+    await prisma.$executeRaw`ALTER TABLE developer_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE`;
+  } catch (e) {
+    console.error("Error adding is_read column:", e);
+  }
 }
 
 export async function getFavoritePersonas(userId: string): Promise<string[]> {
@@ -104,7 +114,7 @@ export async function createDeveloperMessage({
   `;
 }
 
-export async function getDeveloperMessages() {
+export async function getDeveloperMessages(includeArchived = false) {
   await ensureDeveloperMessagesTable();
   return prisma.$queryRaw<Array<{
     id: string;
@@ -115,10 +125,49 @@ export async function getDeveloperMessages() {
     user_id: string | null;
     user_email: string | null;
     created_at: Date;
+    archived: boolean;
+    is_read: boolean;
   }>>`
-    SELECT id, name, email, subject, message, user_id, user_email, created_at
+    SELECT id, name, email, subject, message, user_id, user_email, created_at, archived, is_read
     FROM developer_messages
+    WHERE archived = ${includeArchived}
     ORDER BY created_at DESC
     LIMIT 100
   `;
+}
+
+export async function archiveDeveloperMessage(id: string, archived: boolean) {
+  await ensureDeveloperMessagesTable();
+  await prisma.$executeRaw`
+    UPDATE developer_messages
+    SET archived = ${archived}
+    WHERE id = ${id}
+  `;
+}
+
+export async function deleteDeveloperMessage(id: string) {
+  await ensureDeveloperMessagesTable();
+  await prisma.$executeRaw`
+    DELETE FROM developer_messages
+    WHERE id = ${id}
+  `;
+}
+
+export async function markDeveloperMessageRead(id: string, isRead: boolean) {
+  await ensureDeveloperMessagesTable();
+  await prisma.$executeRaw`
+    UPDATE developer_messages
+    SET is_read = ${isRead}
+    WHERE id = ${id}
+  `;
+}
+
+export async function getUnreadDeveloperMessagesCount(): Promise<number> {
+  await ensureDeveloperMessagesTable();
+  const rows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    SELECT COUNT(*)::bigint AS count
+    FROM developer_messages
+    WHERE is_read = false AND archived = false
+  `;
+  return Number(rows[0]?.count ?? 0);
 }

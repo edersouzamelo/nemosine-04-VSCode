@@ -3,9 +3,6 @@ import { ENTITIES } from "@/app/data/entities";
 
 export const runtime = "edge";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    || "https://nemosine-04-vs-code.vercel.app";
-
 type RouteContext = {
     params: Promise<{ id: string }>;
 };
@@ -14,10 +11,16 @@ export async function GET(_request: Request, { params }: RouteContext) {
     const { id } = await params;
     const slug = decodeURIComponent(id);
     const entity = ENTITIES[slug];
+    
+    // Resolve URL dynamically to handle preview domains and prevent mismatch redirects
+    const host = _request.headers.get("host") || "nemosine-04-vs-code.vercel.app";
+    const proto = _request.headers.get("x-forwarded-proto") || "https";
+    const currentAppUrl = `${proto}://${host}`;
+
     const name = entity?.name || "Nemosine";
     const phrase = entity?.phrase || "Sistema de Cartas das Personas de Nemosine Nous";
     const imagePath = entity?.landscapeImage || entity?.image || "/assets/nemosine-cube-v2.png";
-    const imageUrl = new URL(imagePath, appUrl).toString();
+    const imageUrl = new URL(imagePath, currentAppUrl).toString();
 
     return new ImageResponse(
         (
@@ -36,20 +39,21 @@ export async function GET(_request: Request, { params }: RouteContext) {
                 <img
                     src={imageUrl}
                     alt=""
-                    width={1200}
-                    height={630}
                     style={{
                         position: "absolute",
-                        inset: 0,
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
+                        left: 0,
+                        top: 0,
+                        width: 1200,
+                        height: 630,
                     }}
                 />
                 <div
                     style={{
                         position: "absolute",
-                        inset: 0,
+                        left: 0,
+                        top: 0,
+                        width: 1200,
+                        height: 630,
                         background: "linear-gradient(90deg, rgba(5,5,7,0.92) 0%, rgba(5,5,7,0.62) 42%, rgba(5,5,7,0.14) 100%)",
                     }}
                 />

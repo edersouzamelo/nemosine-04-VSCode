@@ -23,6 +23,21 @@ function isSocialPreviewBot(userAgent: string | null) {
 }
 
 export default auth((req) => {
+    const { pathname } = req.nextUrl;
+
+    // Permitir livre acesso a assets estáticos (imagens, áudios e manifestos) das pastas protegidas
+    if (
+        pathname.endsWith(".png") ||
+        pathname.endsWith(".jpg") ||
+        pathname.endsWith(".jpeg") ||
+        pathname.endsWith(".svg") ||
+        pathname.endsWith(".mp3") ||
+        pathname.endsWith(".m4a") ||
+        pathname.endsWith(".json")
+    ) {
+        return NextResponse.next();
+    }
+
     if (
         req.nextUrl.pathname.startsWith("/agents/")
         && isSocialPreviewBot(req.headers.get("user-agent"))

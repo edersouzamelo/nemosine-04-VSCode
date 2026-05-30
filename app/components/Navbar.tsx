@@ -17,13 +17,36 @@ interface NavbarProps {
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
     const pathname = usePathname();
     const { data: session, status } = useSession();
-    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity, fontSize, setFontSize, cognitiveMode, setCognitiveMode } = useLanguage();
+    const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity, fontSize, setFontSize, cognitiveMode, setCognitiveMode, isAdmin } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
+    const [unreadMessages, setUnreadMessages] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isAdmin) return;
+        
+        const fetchUnreadCount = async () => {
+            try {
+                const res = await fetch("/api/developer/messages");
+                if (res.ok) {
+                    const data = await res.json();
+                    setUnreadMessages(data.unreadCount || 0);
+                }
+            } catch (err) {
+                console.error("Error fetching unread count:", err);
+            }
+        };
+
+        fetchUnreadCount();
+        
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchUnreadCount, 30000);
+        return () => clearInterval(interval);
+    }, [isAdmin]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -57,7 +80,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         setNavbarHidden((hidden) => !hidden);
     };
     const isAuthenticated = status === "authenticated" && Boolean(session?.user);
-    const isAdmin = isAdminEmail(session?.user?.email);
     return (
         <>
             <div className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
@@ -245,7 +267,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                         setSettingsOpen(false);
                                     }}
                                     disabled={!isAuthenticated}
-                                    className="flex shrink-0 items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                                    className="relative flex shrink-0 items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
                                     aria-label={isAuthenticated ? "Abrir menu do usuário" : "Usuário não autenticado"}
                                     aria-expanded={menuOpen}
                                 >
@@ -254,6 +276,12 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                         alt="User"
                                         className="h-8 w-8 min-w-8 shrink-0 rounded-full border-2 border-[#c5a059]/50 object-cover hover:border-[#c5a059] transition-colors"
                                     />
+                                    {isAdmin && unreadMessages > 0 && (
+                                        <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-black bg-red-500 animate-ping" />
+                                    )}
+                                    {isAdmin && unreadMessages > 0 && (
+                                        <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-black bg-red-500" />
+                                    )}
                                 </button>
 
                                 {menuOpen && isAuthenticated && (
