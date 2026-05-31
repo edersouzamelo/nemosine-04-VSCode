@@ -1,4 +1,4 @@
-![Uploading icon.png…]()
+<img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/2368adf2-7a4c-4492-8950-ef5c4fa4fef1" />
 
 Nemosine | Sistema Nous
 
