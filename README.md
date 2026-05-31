@@ -2,7 +2,7 @@
 
 **Sistema de simulação cognitiva e arquitetura de personas baseada em LLMs.**
 
-O **Nemosine** é uma interface avançada de chat e exploração simbólica, projetada para simular uma "mente expandida". O sistema opera através de **56 Personas** (agentes cognitivos especializados) e **22 Lugares da Mente** (ambientes simbólicos), permitindo interações profundas, contextuais e visualmente imersivas.
+O Nemosine Nous é uma interface experimental de organização simbólico-cognitiva. O sistema integra módulos de interação com personas, registros estruturados, domínios funcionais, travessias de progressão e ferramentas auxiliares, buscando transformar reflexão, decisão e acompanhamento pessoal em uma experiência navegável.
 
 ---
 
@@ -103,7 +103,15 @@ O **Nemosine** é uma interface avançada de chat e exploração simbólica, pro
 
 ## © Créditos e Licença
 
-**Autor**: Edervaldo José de Souza Melo
-**Licença**: Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0)
+## Créditos e licença
+
+Autor: **Edervaldo José de Souza Melo**  
+Sistema: **Nemosine Nous**  
+Site oficial: https://nemosinenous.com  
+App oficial: https://app.nemosinenous.com  
+
+Este projeto é uma implementação técnica do Sistema Nemosine Nous.
+
+Licença: Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International (CC BY-NC-ND 4.0).
 
 *Este projeto é uma implementação técnica do Sistema Nemosine Nous.*
