@@ -1,4 +1,6 @@
-# <img src="app/icon.png" alt="Nemosine Logo" width="64" height="64" style="vertical-align: middle; margin-right: 10px;" /> Nemosine | Sistema Nous
+![Uploading icon.png…]()
+
+Nemosine | Sistema Nous
 
 **Sistema de simulação cognitiva e arquitetura de personas baseada em LLMs.**
 
