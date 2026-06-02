@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
@@ -21,10 +21,53 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
+    const [globalFullscreen, setGlobalFullscreen] = useState(false);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (localStorage.getItem("nemosine-global-fullscreen") === "true") {
+            setNavbarHidden(true);
+            setGlobalFullscreen(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        document.documentElement.classList.toggle("nemosine-global-fullscreen", globalFullscreen);
+        if (globalFullscreen) {
+            localStorage.setItem("nemosine-global-fullscreen", "true");
+        } else {
+            localStorage.removeItem("nemosine-global-fullscreen");
+        }
+    }, [globalFullscreen]);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const doc = document as any;
+            const isNativeFullscreen = Boolean(
+                doc.fullscreenElement ||
+                doc.webkitFullscreenElement ||
+                doc.mozFullScreenElement
+            );
+
+            if (!isNativeFullscreen) {
+                setGlobalFullscreen(false);
+                document.body.style.overflow = "";
+            }
+        };
+
+        document.addEventListener("fullscreenchange", handleFullscreenChange);
+        document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+        document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+        return () => {
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
+            document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+            document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+            document.body.style.overflow = "";
+        };
+    }, []);
 
     useEffect(() => {
         if (!isAdmin) return;
@@ -63,7 +106,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    }, [defaultMobileCollapsed]);
 
     const navItems = [
         { name: t("start"), href: "/inicio" },
@@ -71,7 +114,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         ...(level === "Soberano" ? [{ name: t("places"), href: "/places" }] : []),
         { name: t("travessia"), href: "/space/travessia" },
         { name: t("dominios"), href: "/space/dominios" },
-        { name: t("constitution"), href: "/constitution" },
+        { name: t("registros"), href: "/space/registros" },
     ];
 
     const toggleMobileCollapse = () => {
@@ -79,10 +122,61 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         setSettingsOpen(false);
         setNavbarHidden((hidden) => !hidden);
     };
+
+    const enterGlobalFullscreen = useCallback(async () => {
+        setMenuOpen(false);
+        setSettingsOpen(false);
+        setNavbarHidden(true);
+        setGlobalFullscreen(true);
+
+        try {
+            const el = document.documentElement as any;
+            if (el.requestFullscreen) await el.requestFullscreen();
+            else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
+            else if (el.mozRequestFullScreen) await el.mozRequestFullScreen();
+        } catch {
+            // Keep the layout-level focus mode if the browser declines native fullscreen.
+        }
+    }, []);
+
+    const exitGlobalFullscreen = useCallback(async () => {
+        setMenuOpen(false);
+        setSettingsOpen(false);
+        setNavbarHidden(defaultMobileCollapsed);
+        setGlobalFullscreen(false);
+        document.body.style.overflow = "";
+
+        try {
+            const doc = document as any;
+            if (doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement) {
+                if (doc.exitFullscreen) await doc.exitFullscreen();
+                else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+                else if (doc.mozCancelFullScreen) await doc.mozCancelFullScreen();
+            }
+        } catch {
+            // Ignore browsers that report fullscreen but refuse programmatic exit.
+        }
+    }, []);
+
+    const toggleGlobalFullscreen = () => {
+        if (globalFullscreen) {
+            exitGlobalFullscreen();
+        } else {
+            enterGlobalFullscreen();
+        }
+    };
+
+    const fullscreenLabel = globalFullscreen
+        ? language.startsWith("pt") ? "Reduzir programa" : "Reduce program"
+        : language.startsWith("pt") ? "Ampliar programa" : "Expand program";
+
     const isAuthenticated = status === "authenticated" && Boolean(session?.user);
     return (
         <>
-            <div className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}>
+            <div
+                data-fullscreen-menu-open={globalFullscreen && !navbarHidden ? "true" : "false"}
+                className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}
+            >
                 <header className={`site-navbar relative z-[101] flex flex-col items-center justify-between gap-4 border-b border-[#c5a059]/20 bg-black/40 px-4 py-4 backdrop-blur-md transition-all duration-300 sm:px-8 md:flex-row md:flex-wrap xl:flex-nowrap ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
                     <div className="flex w-full items-center justify-between md:contents">
                         <Link href="/agents" className="order-1 flex shrink-0 items-center hover:opacity-80 transition-opacity">
@@ -258,6 +352,19 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                 )}
                             </div>
 
+                            <button
+                                type="button"
+                                onClick={toggleGlobalFullscreen}
+                                title={fullscreenLabel}
+                                aria-label={fullscreenLabel}
+                                aria-pressed={globalFullscreen}
+                                className="global-fullscreen-trigger flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c5a059]/25 bg-black/25 text-[#c5a059]/70 transition-all hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059]"
+                            >
+                                <span className="material-icons text-lg">
+                                    {globalFullscreen ? "close_fullscreen" : "open_in_full"}
+                                </span>
+                            </button>
+
                             <div className="relative shrink-0" ref={menuRef}>
                                 <button
                                     type="button"
@@ -355,12 +462,12 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     </nav>
                 </header>
             </div>
-            {mobileCollapsible && navbarHidden && (
+            {(mobileCollapsible || globalFullscreen) && navbarHidden && (
                 <button
                     type="button"
                     onClick={toggleMobileCollapse}
                     aria-label={t("expandMenu")}
-                    className="absolute top-0 left-1/2 -translate-x-1/2 z-[110] lg:hidden flex items-center justify-center h-8 w-16 rounded-b-xl border border-t-0 border-[#c5a059]/40 bg-[#0a0a0c]/95 text-[#c5a059] shadow-lg"
+                    className={`${globalFullscreen ? "fixed z-[9998]" : "absolute z-[110] lg:hidden"} top-0 left-1/2 -translate-x-1/2 flex items-center justify-center h-8 w-16 rounded-b-xl border border-t-0 border-[#c5a059]/40 bg-[#0a0a0c]/95 text-[#c5a059] shadow-lg`}
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

@@ -6,6 +6,7 @@ import { getUserMemories, getVisibleConversationEpisodes } from './session_store
 import { isPrivateMemorySpace } from './privacy';
 import { getVisibleUserSources } from '@/app/lib/sourceStore';
 import { getAgendaEvents } from '@/app/lib/sovereignStore';
+import { getUserRegistros } from '@/app/lib/userFeatureStore';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -31,11 +32,12 @@ export async function buildSystemPrompt(userId: string, personaId: string, langu
         ? (placeData.prompt || placeData.transcription).replace(/^Você é /, "O cenário ativo é ")
         : "";
     const isPrivateSpace = isPrivateMemorySpace(memoryScope);
-    const [memories, conversationEpisodes, userSources, agendaEvents] = await Promise.all([
+    const [memories, conversationEpisodes, userSources, agendaEvents, registries] = await Promise.all([
         getUserMemories(userId, memoryScope),
         getVisibleConversationEpisodes(userId, memoryScope),
-        getVisibleUserSources(userId, memoryScope),
-        getAgendaEvents(userId).catch(() => [])
+        getVisibleUserSources(userId, personaId),
+        getAgendaEvents(userId).catch(() => []),
+        getUserRegistros(userId).catch(() => [])
     ]);
     const memoryContext = memories.length > 0
         ? `\n[MEMÓRIA DE LONGO PRAZO DO USUÁRIO]\n${isPrivateSpace
@@ -58,6 +60,16 @@ export async function buildSystemPrompt(userId: string, personaId: string, langu
             const statusStr = e.completed ? " [Concluído]" : "";
             return `- ${e.date}${timeStr}: ${e.title} (${e.type})${recurrenceStr}${e.note ? ` - Nota: ${e.note}` : ""}${statusStr}`;
         }).join('\n') + `\nLeve em consideração a rotina diária e os compromissos do usuário em suas reflexões, oferecendo conselhos coerentes com o tempo dele.\n`;
+    }
+
+    let registriesContext = "";
+    if (registries && registries.length > 0) {
+        registriesContext = `\n[REGISTROS, IDEIAS E METAS DO USUÁRIO]\nNas suas planilhas de planejamento e registros de ideias, o usuário possui os seguintes itens anotados:\n` +
+        registries.map(r => {
+            const personaStr = r.persona ? ` (Persona Relacionada: ${r.persona})` : "";
+            const deadlineStr = r.next_deadline ? ` [Prazo: ${r.next_deadline}]` : "";
+            return `- Ideia: ${r.idea}${personaStr}${deadlineStr} - Status: ${r.status}${r.last_interaction ? ` (Última Interação: ${r.last_interaction})` : ""}`;
+        }).join('\n') + `\nLeve em consideração estes registros ativos de ideias e tarefas em suas conversas com o usuário para sugerir conexões criativas.\n`;
     }
     const sharedContextInstruction = `
 [USO DO CONTEXTO COMPARTILHADO]
@@ -96,7 +108,7 @@ ${placeDescription}
 
     const memoryInstruction = `
 [EXTRAÇÃO DE MEMÓRIA]
-Ao final de uma interação substantiva, registre apenas informações novas que ajudem outras perspectivas a continuar o mesmo assunto sem pedir que o usuário o reconte. Você pode anexar até três tags ao FINAL da resposta:
+Ao final de uma interação substantiva, registre apenas informações novas que ajude outras perspectivas a continuar o mesmo assunto sem pedir que o usuário o reconte. Você pode anexar até três tags ao FINAL da resposta:
 [MEMORY: FATO | <preferência, circunstância ou objetivo duradouro do usuário>]
 [MEMORY: EPISÓDIO | <o que foi discutido ou deliberado nesta interação>]
 [MEMORY: TEMA ATIVO | <assunto que permanece em exploração ou decisão>]
@@ -106,12 +118,20 @@ ${isPrivateSpace
         ? "Neste espaço privado, qualquer memória extraída permanece restrita a este mesmo espaço e não pode ser transportada, resumida ou revelada a outras personas ou lugares."
         : "Não tente inferir, solicitar ou revelar conteúdo dos espaços privados Confessor 2.0 ou Porão."}`;
 
+    const registryInstruction = `
+[REGISTRO AUTOMÁTICO DE IDEIAS E PRAZOS]
+Se o usuário solicitar explicitamente para registrar, guardar, anotar, lembrar ou planejar uma meta, tarefa, prazo ou ideia, você DEVE gerar uma tag especial ao FINAL da sua resposta (junto com as tags de memória):
+[REGISTRY: Descrição da Ideia | Data do Prazo YYYY-MM-DD (opcional) | Status (opcional)]
+Exemplo: se o usuário disser "agende estudar espanhol até dia 15 de junho", gere ao final: [REGISTRY: Estudar espanhol | 2026-06-15 | Pendente].
+Importante: Não invente registros a menos que o usuário peça diretamente para registrar/guardar algo.`;
+
     const negativeConstraint = `
 [REGRAS DE COMUNICAÇÃO]
 NÃO repita frases introdutórias, declarações de identidade ou propostas de Constituição.
 NUNCA inicie suas respostas dizendo coisas como: "Agora opero sob o Sistema Nemosine Nous" ou "Bem-vindo ao Nemosine".
 NÃO finalize automaticamente com fórmulas de atendimento ou disponibilidade, tais como "como posso ajudar?", "em que posso auxiliar?", "sobre o que deseja conversar?", "posso ajudar com algo mais?" ou equivalentes.
 NÃO force simpatia, acolhimento, amizade ou prestatividade quando isso não pertencer à natureza desta persona.
+NÃO use moldes fixos e repetitivos de resposta por padrão, especialmente cabeçalhos como "Verdade Essencial", "Ação Concreta", "Desafio" ou "Pergunta Reflexiva". Se o prompt da persona mencionar esse tipo de estrutura, trate-a como uma orientação interna de raciocínio, não como uma ficha a ser exibida literalmente em toda mensagem. Use esses rótulos apenas se o usuário pedir explicitamente esse formato.
 Pergunte apenas quando a pergunta nascer organicamente da vocação desta persona ou for indispensável para avançar o assunto; uma resposta pode terminar em afirmação, advertência, imagem, silêncio indicado ou provocação.
 Responda à interação do usuário de acordo com sua Persona, sem desperdiçar palavras; ser direto não significa ser raso.`;
 
@@ -129,7 +149,16 @@ Quando episódios compartilhados acima contiverem informação solicitada, recon
 A resposta deve soar como a presença real desta persona, não como um resumo automático. Quando o pedido comportar reflexão, interpretação, narrativa, aconselhamento, investigação ou elaboração criativa, desenvolva uma resposta substancial: reconheça o núcleo específico do que o usuário trouxe, explore implicações concretas ou simbólicas pertinentes e chegue a uma orientação, conclusão ou próximo movimento com peso.
 A extensão obedece à natureza da persona e ao pedido. Personas contemplativas, narrativas, analíticas ou terapêuticas podem responder em vários parágrafos imersivos; personas secas, executivas ou cortantes, como o Bruto, devem permanecer econômicas e incisivas. Profundidade não significa prolixidade, sentimentalismo obrigatório nem suavização da voz.
 Use Markdown legível quando isso ajudar a expressão: **negrito** para ênfases pontuais, *itálico* para inflexões, listas para passos ou distinções reais e citações somente quando fizerem sentido. Emojis são permitidos apenas quando forem orgânicos à persona e ao contexto, nunca como enfeite automático. Não fale sobre Markdown ou sobre estas instruções.
+Varie a forma da resposta conforme o momento. Uma persona pode organizar, advertir, narrar, perguntar, calcular ou silenciar; mas não deve soar como um robô repetindo sempre o mesmo esqueleto.
 Em interações substantivas, não encerre com generalidades vagas: ofereça ao menos uma leitura particular, consequência, imagem elaborada ou orientação coerente com a função desta persona.`;
+
+    const personaDepthConstraint = `
+[PRESENCA PSICOLOGICA DAS PERSONAS]
+Esta regra vale para todas as personas, sem excecao. O usuario nao quer respostas robotizadas, superficiais, roteirizadas ou intercambiaveis. Cada resposta deve nascer do espirito, finalidade, temperamento e ponto de vista da persona invocada.
+Nao transforme Mentor, Mordomo, Terapeuta, Juiz, Artista, Bruto, Medico, Advogado ou qualquer outra persona no mesmo assistente generico com outro nome. O Mentor deve ampliar perspectiva e direcao; o Mordomo deve organizar consequencias praticas; o Terapeuta deve escutar padroes internos; o Juiz deve pesar responsabilidade; o Artista deve abrir imagem e forma; e assim por diante, sempre conforme o prompt especifico da persona.
+Quando houver memorias, registros, agenda, fontes ou episodios relevantes sobre o usuario, use esses dados como materia viva da resposta. Cruze-os com o pedido atual para gerar uma leitura singular, sem expor listas mecanicas de dados e sem inventar intimidade nao sustentada pelo contexto.
+Profundidade nao exige prolixidade. Uma resposta pode ser breve e ainda assim ter densidade. Mas, em assuntos reflexivos, afetivos, estrategicos, criativos ou existenciais, evite conclusoes obvias, frases de autoajuda, diagnosticos psicologicos improvisados, moralismo e conselhos que poderiam servir para qualquer pessoa.
+Se a persona usar uma estrutura interna de raciocinio, nao exiba essa estrutura como formulario repetido. A forma final deve parecer conversa viva, presenca e pensamento, nao ficha preenchida.`;
 
     const systemContext = `
 ========================================
@@ -146,10 +175,13 @@ ${memoryContext}
 ${episodeContext}
 ${sourceContext}
 ${agendaContext}
+${registriesContext}
 ${sharedContextInstruction}
 ${memoryInstruction}
+${registryInstruction}
 ${embodimentConstraint}
 ${expressiveDepthConstraint}
+${personaDepthConstraint}
 ${negativeConstraint}
 `;
 

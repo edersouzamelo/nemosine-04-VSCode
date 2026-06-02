@@ -38,7 +38,7 @@ export default function ChatHistoryList({ personaId, onSelectThread, currentThre
     if (threads.length === 0) return null;
 
     return (
-        <div className="mt-6 w-full">
+        <div className="w-full">
             <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/30">
                 {threads.map(thread => (
                     <button

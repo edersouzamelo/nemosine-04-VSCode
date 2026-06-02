@@ -17,6 +17,16 @@ const AGENTS = [
     "Sócio", "Sombra", "Terapeuta", "Treinador", "Vazio", "Vidente", "Vigia", "Vingador"
 ];
 
+const buildCardSummary = (slug: string) => {
+    const entity = ENTITIES[slug];
+    const source = [entity?.phrase, entity?.transcription || entity?.script]
+        .filter(Boolean)
+        .join(". ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return source.length > 150 ? `${source.slice(0, 147).trim()}...` : source;
+};
+
 export default function AgentsPage() {
     const { t, language } = useLanguage();
 
@@ -44,7 +54,7 @@ export default function AgentsPage() {
                     <PersonaLevelCollection
                         items={AGENTS.map((name) => {
                             const slug = name.toLowerCase().replace(/\s+/g, "-");
-                            return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };
+                            return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}`, summary: buildCardSummary(slug) };
                         })}
                     />
                 </div>

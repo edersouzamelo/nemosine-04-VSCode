@@ -13,6 +13,7 @@ interface AgentCardProps {
     href?: string;
     flipOnMount?: boolean;
     index?: number;
+    summary?: string;
 }
  
 const soberEmojis: Record<string, string> = {
@@ -37,10 +38,26 @@ const soberEmojis: Record<string, string> = {
 
 import { useLanguage } from "./LanguageProvider";
 
-export default function AgentCard({ name, displayName, label = "Persona", image, className = "", href, flipOnMount = false, index = 0 }: AgentCardProps) {
+function cleanTooltipSummary(value: string) {
+    const withoutGreeting = value
+        .replace(/\s+/g, " ")
+        .split(/Saudações\.?|Saudacoes\.?/i)[0]
+        .trim();
+    const withoutQuotes = withoutGreeting.replace(/[“”"]/g, "").trim();
+    if (withoutQuotes.length <= 92) return withoutQuotes;
+    return `${withoutQuotes.slice(0, 89).trim()}...`;
+}
+
+export default function AgentCard({ name, displayName, label = "Persona", image, className = "", href, flipOnMount = false, index = 0, summary }: AgentCardProps) {
     const { cognitiveMode } = useLanguage();
     const cardDisplayName = displayName ?? name;
     const [isRevealed, setIsRevealed] = React.useState(!flipOnMount);
+    const rawTooltipText = summary || (label === "Lugar"
+        ? "Modulo de contexto para orientar a experiencia mental. Ajuda a situar o pensamento no lugar certo."
+        : "Persona de apoio cognitivo para interpretar demandas. Ajuda a escolher a melhor forma de agir.");
+    const tooltipText = cleanTooltipSummary(rawTooltipText);
+    const tooltipSideOffset = index % 2 === 0 ? "left-[56%]" : "left-[44%]";
+    const tooltipTilt = index % 2 === 0 ? "group-hover:rotate-[0.5deg]" : "group-hover:-rotate-[0.5deg]";
 
     React.useEffect(() => {
         if (flipOnMount) {
@@ -52,11 +69,11 @@ export default function AgentCard({ name, displayName, label = "Persona", image,
     }, [flipOnMount, index]);
 
     const cleanCard = (
-        <div className="flex h-full flex-col justify-between border border-zinc-200 dark:border-zinc-800 bg-[#fafafa] dark:bg-[#18181b] p-4 rounded-xl hover:border-zinc-400 dark:hover:border-zinc-600 transition-all select-none cursor-pointer group shadow-sm min-h-[135px]">
+        <div className="relative flex h-full flex-col justify-between border border-zinc-200 dark:border-zinc-800 bg-[#fafafa] dark:bg-[#18181b] p-4 rounded-xl hover:border-zinc-400 dark:hover:border-zinc-600 transition-all select-none cursor-pointer group shadow-sm min-h-[135px]">
             <div className="flex items-center gap-3">
-                <span className="text-3xl flex items-center justify-center shrink-0 w-12 h-12 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg group-hover:scale-105 transition-transform duration-300">{soberEmojis[name] || "👤"}</span>
+                <span className="text-3xl flex items-center justify-center shrink-0 w-12 h-12 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg group-hover:scale-105 transition-transform duration-300">{soberEmojis[name] || "?"}</span>
                 <div className="min-w-0">
-                    <span className="text-[9px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 font-semibold block">{label === "Lugar" ? "Módulo" : "Perfil"}</span>
+                    <span className="text-[9px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 font-semibold block">{label === "Lugar" ? "Modulo" : "Perfil"}</span>
                     <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate transition-colors">
                         {cardDisplayName}
                     </h3>
@@ -64,10 +81,11 @@ export default function AgentCard({ name, displayName, label = "Persona", image,
             </div>
             <div className="mt-3">
                 <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed">
-                    {label === "Lugar" 
-                        ? `Módulo de contexto e equalização para sincronização de atividades.`
-                        : `Agente de processamento focado em análises operacionais.`}
+                    {tooltipText}
                 </p>
+            </div>
+            <div className={`pointer-events-none absolute ${tooltipSideOffset} top-full z-[999] mt-3 w-56 -translate-x-1/2 translate-y-2 rounded-lg border border-[#c5a059]/45 bg-[#07070a]/95 px-3 py-2 text-center font-serif text-[13px] leading-snug text-[#d8b766] opacity-0 shadow-[0_18px_45px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all duration-300 ease-out group-hover:translate-y-0 ${tooltipTilt} group-hover:opacity-100`}>
+                {tooltipText}
             </div>
         </div>
     );
@@ -84,7 +102,7 @@ export default function AgentCard({ name, displayName, label = "Persona", image,
     }
 
     const cardContent = (
-        <div className="group flex h-full select-none flex-col gap-2 cursor-pointer" style={{ perspective: "1000px" }}>
+        <div className="group relative z-0 flex h-full select-none flex-col gap-2 cursor-pointer hover:z-[90]" style={{ perspective: "1000px" }}>
             <div 
                 className="relative aspect-[3/4.35] transition-transform duration-700"
                 style={{
@@ -157,6 +175,10 @@ export default function AgentCard({ name, displayName, label = "Persona", image,
                 <h3 className="text-[9px] sm:text-[11px] md:text-xs font-sans font-medium text-[#c5a059]/80 uppercase tracking-[0.06em] sm:tracking-[0.16em] leading-tight sm:leading-relaxed group-hover:text-[#e4c476] transition-colors">
                     {cardDisplayName}
                 </h3>
+            </div>
+            <div className={`pointer-events-none absolute ${tooltipSideOffset} top-full z-[999] mt-2 w-60 -translate-x-1/2 translate-y-2 rounded-lg border border-[#c5a059]/45 bg-[#07070a]/95 px-4 py-3 text-center font-serif text-[13px] leading-snug text-[#d8b766] opacity-0 shadow-[0_18px_45px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all duration-300 ease-out group-hover:translate-y-0 ${tooltipTilt} group-hover:opacity-100`}>
+                <span className="mb-1 block font-sans text-[8px] font-bold uppercase tracking-[0.24em] text-[#c5a059]/70">{label}</span>
+                {tooltipText}
             </div>
         </div>
     );

@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import Navbar from "../../components/Navbar";
-import RetractablePanel from "@/app/components/RetractablePanel";
 import CollapsiblePanel from "@/app/components/CollapsiblePanel";
 import ChatHistoryList from "@/app/components/ChatHistoryList";
 import MedievalChat from "@/app/components/MedievalChat";
@@ -14,7 +13,7 @@ import FavoritePersonaButton from "@/app/components/FavoritePersonaButton";
 import SharePersonaButton from "@/app/components/SharePersonaButton";
 import SourcesPanelButton from "@/app/components/SourcesPanelButton";
 import { useLanguage } from "@/app/components/LanguageProvider";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ENTITIES, PERSONAS } from "../../data/entities";
 
 const soberEmojis: Record<string, string> = {
@@ -37,8 +36,38 @@ const soberEmojis: Record<string, string> = {
     "Vingador": "⚔️"
 };
 
+function AgentActionButton({
+    icon,
+    label,
+    onClick,
+    disabled = false,
+}: {
+    icon: string;
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            title={label}
+            aria-label={label}
+            className="group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[#c5a059]/75 transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059] disabled:cursor-not-allowed disabled:opacity-35 lg:w-10 lg:justify-center lg:gap-0 lg:px-0"
+        >
+            <span className="material-icons text-[18px]">{icon}</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] lg:hidden">{label}</span>
+            <span className="pointer-events-none absolute left-1/2 top-full z-[80] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-[#c5a059]/25 bg-[#07070a]/95 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-[#c5a059] opacity-0 shadow-xl transition-opacity group-hover/action:opacity-100 lg:block">
+                {label}
+            </span>
+        </button>
+    );
+}
+
 export default function AgentDetailPage() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const { t, entityName, recordCardUse, cognitiveMode } = useLanguage();
     const id = decodeURIComponent(params.id as string);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -53,6 +82,7 @@ export default function AgentDetailPage() {
     const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
     const [refreshHistory, setRefreshHistory] = useState(0);
     const [summonedPersona, setSummonedPersona] = useState("");
+    const [dossierOpen, setDossierOpen] = useState(false);
 
     const entity = ENTITIES[id];
 
@@ -67,6 +97,11 @@ export default function AgentDetailPage() {
     React.useEffect(() => {
         setCurrentThreadId(null);
     }, [id, summonedPersona]);
+
+    React.useEffect(() => {
+        const threadId = searchParams.get("threadId");
+        if (threadId) setCurrentThreadId(threadId);
+    }, [searchParams]);
 
     if (!entity) {
         return (
@@ -102,12 +137,147 @@ export default function AgentDetailPage() {
         }
     };
 
+    const getThreadUrl = () => {
+        if (typeof window === "undefined" || !currentThreadId) return "";
+        const url = new URL(window.location.href);
+        url.searchParams.set("threadId", currentThreadId);
+        return url.toString();
+    };
+
+    const shareChat = async () => {
+        if (!currentThreadId) {
+            alert("Inicie ou selecione uma conversa antes de compartilhar o chat.");
+            return;
+        }
+
+        try {
+            const response = await fetch("/api/chat/share", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ threadId: currentThreadId }),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.url) {
+                throw new Error(data.error || "Erro ao compartilhar chat.");
+            }
+
+            const shareUrl = `${window.location.origin}${data.url}`;
+            const payload = {
+                title: `Conversa com ${activePersonaName}`,
+                text: `Conversa compartilhada do Nemosine com ${activePersonaName}.`,
+                url: shareUrl,
+            };
+
+            if (navigator.share) {
+                try {
+                    await navigator.share(payload);
+                    return;
+                } catch {
+                    // User may cancel the native share sheet.
+                }
+            }
+
+            await navigator.clipboard?.writeText(shareUrl);
+            alert("Link do chat copiado para a área de transferência.");
+        } catch (error) {
+            console.error("Erro ao compartilhar chat:", error);
+            alert("Não foi possível compartilhar este chat agora.");
+        }
+    };
+
+    const registerChat = async () => {
+        if (!currentThreadId) {
+            alert("Inicie ou selecione uma conversa antes de registrar.");
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/chat?threadId=${encodeURIComponent(currentThreadId)}`);
+            const data = await response.json();
+            if (!response.ok || !data.thread) {
+                throw new Error(data.error || "Conversa não encontrada.");
+            }
+
+            const messages = Array.isArray(data.thread.messages) ? data.thread.messages : [];
+            const usefulMessages = messages
+                .filter((message: any) => message.role !== "system")
+                .slice(-6)
+                .map((message: any) => `${message.role === "user" ? "Usuário" : activePersonaName}: ${String(message.content || "").replace(/\[MEMORY:\s*.*?\]/ig, "").trim()}`)
+                .filter(Boolean);
+            const summary = usefulMessages.join("\n\n").slice(0, 1800);
+            const idea = summary || `Conversa com ${activePersonaName}`;
+
+            const registry = {
+                id: crypto.randomUUID(),
+                idea,
+                chat_origin_id: currentThreadId,
+                persona: activePersonaName,
+                status: "Pendente",
+                last_interaction: new Date().toISOString().split("T")[0],
+                next_deadline: "",
+                external_links: getThreadUrl(),
+                custom_columns: "{}",
+            };
+
+            const registryResponse = await fetch("/api/space/registros", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(registry),
+            });
+
+            if (!registryResponse.ok) {
+                const errorData = await registryResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || "Erro ao registrar conversa.");
+            }
+
+            alert("Conversa registrada em Memórias > Registros.");
+        } catch (error) {
+            console.error("Erro ao registrar conversa:", error);
+            alert("Não foi possível registrar este chat agora.");
+        }
+    };
+
+    const actionButtons = (
+        <>
+            <AgentActionButton icon="article" label={entity.type === "place" ? "Dossiê do lugar" : "Dossiê do agente"} onClick={() => setDossierOpen(true)} />
+            {entity.type === "persona" && <FavoritePersonaButton personaName={entity.name} variant="icon" />}
+            {entity.type === "persona" && <SourcesPanelButton personaName={entity.name} variant="icon" />}
+            <SharePersonaButton title={displayedEntityName} variant="icon" />
+            <AgentActionButton icon="ios_share" label="Compartilhar chat" onClick={shareChat} disabled={!currentThreadId} />
+            <AgentActionButton icon="playlist_add_check" label="Registrar" onClick={registerChat} disabled={!currentThreadId} />
+        </>
+    );
+
+    const dossierContent = (
+        <>
+            <div className="space-y-2">
+                <span className="block font-serif text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60">
+                    {t("identification")}
+                </span>
+                <h2 className="font-serif text-3xl uppercase text-[#e1e1e6]">{displayedEntityName}</h2>
+                <div className="my-4 h-[1px] w-12 bg-[#c5a059]" />
+                <p className="font-serif text-xl italic text-[#c5a059]">
+                    "{entity.phrase}"
+                </p>
+            </div>
+
+            <div className="mt-8 space-y-4">
+                <span className="block font-serif text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60">
+                    {t("protocol")}
+                </span>
+                <p className="whitespace-pre-line text-sm font-light leading-relaxed text-[#e1e1e6]/80">
+                    {entity.script || entity.transcription}
+                </p>
+            </div>
+        </>
+    );
+
     return (
         <main className="nemosine-main-container relative h-[100dvh] flex flex-col overflow-hidden">
             {/* Dark Immersive Background */}
             <div className="fixed inset-0 z-0">
-                <div className="nemosine-bg-overlay absolute inset-0 z-10 backdrop-blur-[4px]"></div>
-                <div className="nemosine-mental-castle-bg w-full h-full bg-[url('https://images.unsplash.com/photo-1533105079780-92b9be482077?q=80&w=2000')] bg-cover bg-center"></div>
+                <div className="nemosine-bg-overlay absolute inset-0 z-10 bg-[#050507]/72 backdrop-blur-[3px]"></div>
+                <div className="nemosine-mental-castle-bg h-full w-full bg-[url('https://images.unsplash.com/photo-1505664194779-8beaceb93744?q=80&w=2000')] bg-cover bg-center"></div>
             </div>
 
             {!isEmbedded && (
@@ -208,6 +378,7 @@ export default function AgentDetailPage() {
                 {/* LEFT: LARGE IMAGE & MEMORIES (Desktop Only) */}
                 {!isEmbedded && (
                     <div className="hidden lg:flex lg:w-1/4 p-6 flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20 gap-6">
+                    <div className="flex w-full items-start justify-center gap-3">
                     {/* Desktop Image */}
                     {cognitiveMode === "sober" ? (
                         <div 
@@ -274,6 +445,7 @@ export default function AgentDetailPage() {
                             </div>
                         </div>
                     )}
+                    </div>
 
                     {/* Desktop Memories Panel */}
                     <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
@@ -327,6 +499,7 @@ export default function AgentDetailPage() {
                                     setRefreshHistory(prev => prev + 1);
                                 }}
                                 onNewChat={() => setCurrentThreadId(null)}
+                                actionMenu={actionButtons}
                             />
                         </>
                     ) : (
@@ -341,41 +514,34 @@ export default function AgentDetailPage() {
                     {requiresPrivacyNotice && <PrivateSpaceNotice spaceName={displayedEntityName} />}
                 </div>
 
-                {/* RIGHT: LATERAL PANEL DETAILS */}
-                <RetractablePanel
-                    title={entity.type === 'place' ? t("dossierPlace") : t("dossierAgent")}
-                    secondaryAction={entity.type === "persona" ? (
-                        <>
-                            <FavoritePersonaButton personaName={entity.name} />
-                            <SourcesPanelButton personaName={entity.name} />
-                            <SharePersonaButton title={displayedEntityName} />
-                        </>
-                    ) : <SharePersonaButton title={displayedEntityName} />}
-                >
-                    {/* Identity Card */}
-                    <div className="space-y-2">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                            {t("identification")}
-                        </span>
-                        <h2 className="text-3xl font-serif text-[#e1e1e6] uppercase">{displayedEntityName}</h2>
-                        <div className="h-[1px] w-12 bg-[#c5a059] my-4"></div>
-                        <p className="text-xl font-serif text-[#c5a059] italic">
-                            "{entity.phrase}"
-                        </p>
-                    </div>
-
-                    {/* Script / Description */}
-                    <div className="mt-8 space-y-4">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-serif block">
-                            {t("protocol")}
-                            </span>
-                            <p className="text-sm font-light leading-relaxed text-[#e1e1e6]/80 whitespace-pre-line">
-                                {entity.script || entity.transcription}
-                            </p>
-                        </div>
-                    </RetractablePanel>
-
             </div>
+
+            <div className={`fixed right-0 top-0 z-50 h-full w-full max-w-[400px] transform border-l border-[#c5a059]/30 bg-[#050507]/95 shadow-2xl backdrop-blur-xl transition-transform duration-500 ease-in-out ${dossierOpen ? "translate-x-0" : "translate-x-full"}`}>
+                <button
+                    type="button"
+                    onClick={() => setDossierOpen(false)}
+                    className="absolute left-6 top-6 text-[#c5a059] transition-colors hover:text-white"
+                    aria-label="Fechar dossiê"
+                >
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <div className="h-full overflow-y-auto p-8 pt-20">
+                    <h2 className="mb-8 border-b border-[#c5a059]/20 pb-4 font-serif text-2xl text-[#c5a059]">
+                        {entity.type === "place" ? t("dossierPlace") : t("dossierAgent")}
+                    </h2>
+                    <div className="space-y-6 text-[#e1e1e6]">
+                        {dossierContent}
+                    </div>
+                </div>
+            </div>
+            {dossierOpen && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                    onClick={() => setDossierOpen(false)}
+                />
+            )}
         </main>
     );
 }

@@ -28,6 +28,11 @@ async function ensureSourceTable() {
     CREATE INDEX IF NOT EXISTS user_sources_user_created_idx
     ON user_sources (user_id, created_at DESC)
   `;
+
+  await prisma.$executeRaw`
+    CREATE INDEX IF NOT EXISTS user_sources_user_persona_created_idx
+    ON user_sources (user_id, persona_id, created_at DESC)
+  `;
 }
 
 export async function createUserSource({
@@ -63,7 +68,7 @@ export async function createUserSource({
   `;
 }
 
-export async function listUserSources(userId: string): Promise<UserSource[]> {
+export async function listUserSources(userId: string, personaId?: string | null): Promise<UserSource[]> {
   await ensureSourceTable();
   const rows = await prisma.$queryRaw<Array<{
     id: string;
@@ -76,6 +81,7 @@ export async function listUserSources(userId: string): Promise<UserSource[]> {
     SELECT id, filename, mime_type, persona_id, content, created_at
     FROM user_sources
     WHERE user_id = ${userId}
+      AND persona_id = ${personaId ?? null}
     ORDER BY created_at DESC
     LIMIT 30
   `;
@@ -109,13 +115,14 @@ export async function getVisibleUserSources(userId: string, targetPersonaId: str
     SELECT filename, persona_id, content, created_at
     FROM user_sources
     WHERE user_id = ${userId}
+      AND persona_id = ${targetPersonaId}
     ORDER BY created_at DESC
     LIMIT 12
   `;
 
   return rows.map((row) => {
-    const origin = row.persona_id ? `Fonte inserida em ${row.persona_id}` : "Fonte geral";
-    const excerpt = row.content.slice(0, row.persona_id === targetPersonaId ? 2600 : 1700);
+    const origin = `Fonte do persona ${row.persona_id || targetPersonaId}`;
+    const excerpt = row.content.slice(0, 2600);
     return `[${origin} | ${row.filename}]\n${excerpt}`;
   });
 }

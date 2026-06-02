@@ -162,12 +162,12 @@ export interface AgendaEvent {
 export async function getAgendaEvents(userId: string): Promise<AgendaEvent[]> {
   await ensureAgendaTable();
   const rows = await prisma.$queryRaw<Array<any>>`
-    SELECT id, title, date, type, note, completed, start_time, end_time, color, recurrence, recurrence_end, recurrence_days, notification_minutes, notification_sound
+    SELECT id, title, date, type, note, completed, start_time, end_time, color, recurrence, recurrence_end, recurrence_days, notification_minutes, notification_sound, created_at
     FROM sovereign_agenda
     WHERE user_id = ${userId}
     ORDER BY date ASC, created_at ASC
   `;
-  return rows.map(r => ({
+  const agendaEvents = rows.map(r => ({
     id: r.id,
     title: r.title,
     date: r.date,
@@ -181,8 +181,44 @@ export async function getAgendaEvents(userId: string): Promise<AgendaEvent[]> {
     recurrenceEnd: r.recurrence_end,
     recurrenceDays: r.recurrence_days,
     notificationMinutes: r.notification_minutes !== null ? Number(r.notification_minutes) : 0,
-    notificationSound: !!r.notification_sound
+    notificationSound: !!r.notification_sound,
+    created_at: r.created_at
   }));
+
+  // Bi-directional sync: fetch Registros and map them as Agenda events
+  let regRows: any[] = [];
+  try {
+    regRows = await prisma.$queryRaw<Array<any>>`
+      SELECT id, idea, next_deadline, status, created_at
+      FROM user_registros
+      WHERE user_id = ${userId} AND next_deadline IS NOT NULL AND next_deadline != ''
+    `;
+  } catch (e) {
+    console.error("Error fetching registries for agenda sync:", e);
+  }
+
+  const mappedRegEvents = regRows.map(r => ({
+    id: 'reg-' + r.id,
+    title: r.idea || 'Registro sem Título',
+    date: r.next_deadline,
+    type: 'Lembrete',
+    completed: r.status === 'Concluído',
+    note: 'Sincronizado do módulo Registros',
+    startTime: '00:00',
+    endTime: '23:59',
+    color: '#6b2c9e', // Purple color for registries
+    recurrence: 'none',
+    recurrenceEnd: null,
+    recurrenceDays: null,
+    notificationMinutes: 0,
+    notificationSound: false,
+    created_at: r.created_at || new Date()
+  }));
+
+  return [...agendaEvents, ...mappedRegEvents].sort((a: any, b: any) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.created_at.getTime() - b.created_at.getTime();
+  });
 }
 
 export async function saveAgendaEvent(

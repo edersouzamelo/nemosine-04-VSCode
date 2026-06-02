@@ -16,6 +16,7 @@ import { openai as vercelOpenai } from '@ai-sdk/openai';
 import { buildSystemPrompt } from '@/app/lib/nemosine/llm_client';
 import { ENTITIES } from '@/app/data/entities';
 import { isPrivateMemorySpace } from '@/app/lib/nemosine/privacy';
+import { createUserRegistry } from '@/app/lib/userFeatureStore';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
 
         const t0 = Date.now();
         const body = await req.json();
-        const { messages, personaId, placeId, threadId, language } = body;
+        const { messages, personaId, placeId, threadId, language, voiceTranscript } = body;
 
         if (!Array.isArray(messages) || messages.length === 0 || typeof personaId !== 'string' || !personaId.trim()) {
             return NextResponse.json({ error: 'Invalid request format or missing personaId' }, { status: 400 });
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
         if (typeof userText !== 'string') {
             return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
         }
+        const displayUserText = userText;
         if (userText.length > MAX_MESSAGE_TEXT_LENGTH) {
             return NextResponse.json({ error: 'Message content exceeds the allowed limit' }, { status: 413 });
         }
@@ -113,6 +115,10 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        if (typeof voiceTranscript === 'string' && voiceTranscript.trim()) {
+            userText += `\n\n[TRANSCRICAO DE AUDIO ANEXADO]\n${voiceTranscript.trim()}`;
+        }
+
         if (userText.length > MAX_MESSAGE_TEXT_LENGTH) {
             return NextResponse.json({ error: 'Message content exceeds the allowed limit' }, { status: 413 });
         }
@@ -126,7 +132,8 @@ export async function POST(req: NextRequest) {
         }> = [];
 
         if (typeof threadId !== 'string' || !threadId) {
-            const newTitle = userText.length > 30 ? `${userText.substring(0, 30).trim()}...` : userText;
+            const titleBase = displayUserText.trim() || 'Anexo';
+            const newTitle = titleBase.length > 30 ? `${titleBase.substring(0, 30).trim()}...` : titleBase;
             const thread = await createThread(userId, conversationScope, newTitle);
             activeThreadId = thread.id;
             priorHistory = thread.messages;
@@ -144,7 +151,7 @@ export async function POST(req: NextRequest) {
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
         const [, , systemPrompt] = await Promise.all([
-            addMessageToThread(userId, activeThreadId, 'user', userText),
+            addMessageToThread(userId, activeThreadId, 'user', displayUserText),
             retainConversationEpisode(userId, memoryScope, userText),
             buildSystemPrompt(userId, personaId, selectedLanguage, normalizedPlaceId)
         ]);
@@ -176,7 +183,40 @@ export async function POST(req: NextRequest) {
                 }
 
                 if (memoryMatches.length > 0) {
-                    finalResponse = text.replace(/\[MEMORY:\s*[^\]\r\n]{1,1000}\]/gi, '').trim();
+                    finalResponse = finalResponse.replace(/\[MEMORY:\s*[^\]\r\n]{1,1000}\]/gi, '').trim();
+                }
+
+                // Parse and persist dynamic registries
+                const registryMatches = [...text.matchAll(/\[REGISTRY:\s*([^|\]\r\n]{1,500})(?:\|\s*([^|\]\r\n]{0,50}))?(?:\|\s*([^\]\r\n]{0,50}))?\]/gi)];
+                for (const match of registryMatches) {
+                    const idea = match[1]?.trim();
+                    if (!idea) continue;
+
+                    let deadlineVal = match[2]?.trim() || null;
+                    if (deadlineVal && !/^\d{4}-\d{2}-\d{2}$/.test(deadlineVal)) {
+                        deadlineVal = null;
+                    }
+                    const statusVal = match[3]?.trim() || "Pendente";
+
+                    try {
+                        await createUserRegistry(userId, {
+                            id: crypto.randomUUID(),
+                            idea,
+                            chat_origin_id: activeThreadId,
+                            persona: personaId,
+                            status: statusVal,
+                            last_interaction: new Date().toISOString().split("T")[0],
+                            next_deadline: deadlineVal,
+                            external_links: "",
+                            custom_columns: "{}"
+                        });
+                    } catch (err) {
+                        console.error("[Chat/API onFinish] Failed to auto-create registry:", err);
+                    }
+                }
+
+                if (registryMatches.length > 0) {
+                    finalResponse = finalResponse.replace(/\[REGISTRY:\s*[^\]\r\n]+?\]/gi, '').trim();
                 }
 
                 await addMessageToThread(userId, activeThreadId, 'assistant', finalResponse);

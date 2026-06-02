@@ -52,12 +52,14 @@ async function extractText(file: File) {
   throw new Error("Formato ainda não suportado. Envie PDF, DOCX, TXT, MD ou CSV.");
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const userId = await getUserId();
     if (!userId) return unauthorized();
 
-    const sources = await listUserSources(userId);
+    const { searchParams } = new URL(req.url);
+    const personaId = searchParams.get("personaId")?.trim() || null;
+    const sources = await listUserSources(userId, personaId);
     return NextResponse.json({
       sources: sources.map((source) => ({
         id: source.id,

@@ -86,11 +86,11 @@ export default function InicioPage() {
         <Navbar />
       </div>
 
-      <section className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center px-5 py-9 sm:px-8 sm:py-12">
+      <section className="relative z-10 mx-auto flex w-full max-w-3xl flex-col items-center px-5 py-9 sm:px-8 sm:py-12 onboarding-container">
         <div className="onboarding-card w-full rounded-[28px] border-2 border-[#c5a059]/35 bg-black/60 px-6 py-9 text-center shadow-[0_35px_100px_rgba(0,0,0,0.9),0_0_50px_rgba(197,160,89,0.08)] backdrop-blur-xl sm:px-14 sm:py-12 relative overflow-hidden">
           {/* Inner Golden Sacred Frame */}
           <div className="absolute inset-3 rounded-[20px] border border-[#c5a059]/15 pointer-events-none z-0" />
-          
+
           {/* Elegant Medieval Gothic Ornaments */}
           <div className="absolute top-5 left-5 w-8 h-8 border-t border-l border-[#c5a059]/50 pointer-events-none z-10" />
           <div className="absolute top-5 right-5 w-8 h-8 border-t border-r border-[#c5a059]/50 pointer-events-none z-10" />
@@ -151,17 +151,17 @@ export default function InicioPage() {
                 <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-[#fde68a]/20 to-transparent"></div>
               </button>
             </div>
-          </form>
 
-          <Link
-            href="/agents"
-            className="mt-8 inline-flex font-display text-xs uppercase tracking-[0.25em] text-[#c5a059]/70 transition-all duration-300 hover:text-[#fde68a] hover:scale-105 relative z-10"
-          >
-            {t("explorePersonas")}
-          </Link>
+            <Link
+              href="/agents"
+              className="self-center font-display text-xs uppercase tracking-[0.25em] text-[#c5a059]/70 transition-all duration-300 hover:text-[#fde68a] hover:scale-105"
+            >
+              {t("explorePersonas")}
+            </Link>
+          </form>
         </div>
 
-        <div className="mt-6 grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+        <div className="mt-6 grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 video-grid-container">
           {introductoryVideos.map((video) => (
             <a
               key={video.href}
@@ -188,6 +188,147 @@ export default function InicioPage() {
             </a>
           ))}
         </div>
+
+        <style dangerouslySetInnerHTML={{ __html: `
+          @media (min-width: 900px) {
+            .onboarding-container {
+              flex-direction: row !important;
+              max-width: 1250px !important;
+              align-items: stretch !important;
+              justify-content: center !important;
+              gap: 28px !important;
+              padding-top: 24px !important;
+              padding-bottom: 24px !important;
+              height: auto !important;
+              min-height: 0 !important;
+            }
+            .onboarding-card {
+              flex: 1 !important;
+              height: 520px !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: center !important;
+              padding: 36px 48px !important;
+              border-radius: 24px !important;
+            }
+            .onboarding-card h1 img {
+              height: 78px !important;
+              margin: 0 auto !important;
+            }
+            .onboarding-heading {
+              font-size: 2.25rem !important;
+              margin-top: 15px !important;
+            }
+            .onboarding-card p {
+              margin-top: 8px !important;
+              font-size: 16.5px !important;
+              line-height: 1.5 !important;
+            }
+            .onboarding-card p.italic {
+              font-size: 21px !important;
+            }
+            .onboarding-card form {
+              margin-top: 24px !important;
+              gap: 15px !important;
+            }
+            .onboarding-card form input {
+              padding: 14px 20px !important;
+              font-size: 18px !important;
+            }
+            .onboarding-card form button {
+              padding: 16px 28px !important;
+            }
+            .onboarding-card a.mt-8 {
+              margin-top: 18px !important;
+              font-size: 14px !important;
+            }
+            .video-grid-container {
+              display: flex !important;
+              flex-direction: column !important;
+              width: 360px !important;
+              gap: 10px !important;
+              margin-top: 0 !important;
+              flex-shrink: 0 !important;
+              height: 520px !important;
+              max-height: 520px !important;
+              overflow-y: auto !important;
+              padding-right: 6px !important;
+            }
+            /* Custom scrollbar for video column */
+            .video-grid-container::-webkit-scrollbar {
+              width: 5px;
+            }
+            .video-grid-container::-webkit-scrollbar-thumb {
+              background: rgba(197, 160, 89, 0.35);
+              border-radius: 5px;
+            }
+            .video-card {
+              display: flex !important;
+              flex-direction: row !important;
+              align-items: center !important;
+              gap: 14px !important;
+              padding: 10px !important;
+              text-align: left !important;
+              background: rgba(0, 0, 0, 0.5) !important;
+              border-radius: 12px !important;
+              height: 118px !important;
+              flex-shrink: 0 !important;
+            }
+            .video-card .relative {
+              width: 130px !important;
+              height: 73px !important;
+              flex-shrink: 0 !important;
+              aspect-ratio: auto !important;
+              border-radius: 8px !important;
+              overflow: hidden !important;
+            }
+            .video-card p {
+              padding: 0 4px !important;
+              text-align: left !important;
+              font-size: 15px !important;
+              line-height: 1.4 !important;
+              color: rgba(231, 212, 170, 0.9) !important;
+            }
+          }
+
+          /* Sophisticated entry and float animations */
+          @keyframes subtle-float-up {
+            0% {
+              opacity: 0;
+              transform: translateY(18px);
+            }
+            100% {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          .onboarding-card {
+            animation: subtle-float-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transition: border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+          }
+          .onboarding-card:hover {
+            border-color: rgba(197, 160, 89, 0.65) !important;
+            box-shadow: 0 45px 120px rgba(0,0,0,0.92), 0 0 60px rgba(197,160,89,0.15) !important;
+            transform: translateY(-2px);
+          }
+
+          .video-card {
+            opacity: 0;
+            animation: subtle-float-up 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transition: border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          }
+          .video-card:nth-child(1) { animation-delay: 0.15s; }
+          .video-card:nth-child(2) { animation-delay: 0.3s; }
+          .video-card:nth-child(3) { animation-delay: 0.45s; }
+          .video-card:nth-child(4) { animation-delay: 0.6s; }
+
+          .video-card:hover {
+            border-color: rgba(197, 160, 89, 0.55) !important;
+            transform: translateY(-3px) scale(1.015);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.65), 0 0 20px rgba(197,160,89,0.12) !important;
+          }
+        `}} />
       </section>
 
       {sensitiveRoute && (

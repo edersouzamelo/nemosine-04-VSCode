@@ -118,8 +118,9 @@ export default function OraclePage() {
                     >
                         {currentCard ? (
                             isEmbedded ? (
-                                <a 
-                                    href={`/agents/${getPersonaSlug(currentCard.name)}?embed=true`} 
+                                <a
+                                    href={`/agents/${getPersonaSlug(currentCard.name)}`}
+                                    target="_top"
                                     className="w-full h-full relative group/card block"
                                 >
                                     <img src={currentCard.imagePath} alt={currentCard.name} className="w-full h-full object-contain p-2" />

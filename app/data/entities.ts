@@ -221,6 +221,23 @@ Tom: silêncio, vazio, espera.
 Risco: confundir com o fim. É apenas o intervalo.`
 };
 
+const getPlaceMission = (name: string) => {
+    const prompt = PLACE_PROMPTS[name];
+    if (!prompt) return "Um cenário moldado pelo pensamento e pela memória.";
+
+    const missionStart = prompt.indexOf("Central:");
+    if (missionStart === -1) return prompt;
+
+    const missionBody = prompt.slice(missionStart + "Central:".length).trim();
+    const endMarkers = ["\nObserva", "\nAtive", "\nTom:", "\nArqu"];
+    const missionEnd = endMarkers.reduce((current, marker) => {
+        const markerIndex = missionBody.indexOf(marker);
+        return markerIndex === -1 ? current : Math.min(current, markerIndex);
+    }, missionBody.length);
+
+    return missionBody.slice(0, missionEnd).trim();
+};
+
 export const PLACES = [
     "Não-Lugar", "Labirinto", "Arquivo", "Porão", "Masmorra", "Biblioteca", "Claustro", "Galeria",
     "Oficina", "Teatro", "Mercado Real", "Núcleo", "Tribunal", "Jardim", "Observatório", "Mosteiro",
@@ -12725,6 +12742,7 @@ PLACES.forEach((name) => {
     // Use the SAME image for landscape to ensure it always shows up in the dossier
     // (As per user request to reuse the same figure from the panel)
     const landscapeImagePath = imagePath;
+    const mission = getPlaceMission(name);
 
     ENTITIES[slug] = {
         name,
@@ -12732,7 +12750,8 @@ PLACES.forEach((name) => {
         image: imagePath,
         landscapeImage: landscapeImagePath,
         phrase: "Um cenário moldado pelo pensamento e pela memória.",
-        transcription: `Você entrou em ${name}. Este ambiente aguarda a manifestação de sons e visões. No silêncio destes muros, a consciência encontra seu refúgio e o processamento atinge sua clareza máxima.`,
+        transcription: mission,
+        script: mission,
         prompt: PLACE_PROMPTS[name] || `Você é o ${name}, um dos Lugares da Mente do sistema Nemosine. Sua função é acolher o Criador e permitir a exploração de suas faculdades cognitivas e emocionais neste ambiente específico.`
     };
 });

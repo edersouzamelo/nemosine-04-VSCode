@@ -440,7 +440,7 @@ export default function DominiosHubPage() {
         const params = new URLSearchParams(window.location.search);
         const appParam = params.get("app");
         if (appParam) {
-            const validApps = ["arauto", "timer", "treinador", "mordomo", "medico", "oracle", "solitaire", "chess"];
+            const validApps = ["arauto", "timer", "treinador", "mordomo", "medico", "nexus-chat", "oracle", "solitaire", "memory", "chess"];
             if (validApps.includes(appParam)) {
                 setSelectedApp(appParam);
             }
@@ -832,6 +832,19 @@ export default function DominiosHubPage() {
             version: "v1.1.5"
         },
         {
+            id: "nexus-chat",
+            title: "Nemo Chat",
+            label: "Nemo Chat",
+            description: language.startsWith("pt")
+                ? "Abra um assistente generalista e neutro, sem persona ativa, para conversas diretas no estilo chat puro."
+                : language === "es"
+                    ? "Abra un asistente generalista y neutro, sin persona activa, para conversaciones directas de estilo chat puro."
+                    : "Open a neutral general assistant with no active persona for direct pure-chat conversations.",
+            emoji: "N",
+            developer: "Nemo",
+            version: "v1.1.0"
+        },
+        {
             id: "oracle",
             title: language.startsWith("pt") ? "Oráculo de Personas" : language === "es" ? "Oráculo de Personas" : "Persona Oracle",
             label: language.startsWith("pt") ? "Oráculo" : language === "es" ? "Oráculo" : "Oracle",
@@ -854,6 +867,19 @@ export default function DominiosHubPage() {
                     ? "Organiza el grimorio de cartas sagradas y entrena tu enfoque mental y resiliencia."
                     : "Organize the grimoire of sacred cards and train your mental focus and resilience.",
             emoji: "🃏",
+            developer: "Conselho de Nous",
+            version: "v1.0.0"
+        },
+        {
+            id: "memory",
+            title: language.startsWith("pt") ? "Jogo da Memoria" : language === "es" ? "Juego de Memoria" : "Memory Game",
+            label: language.startsWith("pt") ? "Memoria" : language === "es" ? "Memoria" : "Memory",
+            description: language.startsWith("pt")
+                ? "Encontre pares de personagens e lugares da mente em quatro niveis de dificuldade nemosinica."
+                : language === "es"
+                    ? "Encuentra pares de personajes y lugares de la mente en cuatro niveles de dificultad nemosinica."
+                    : "Find pairs of characters and mind places across four Nemosine difficulty levels.",
+            emoji: "M",
             developer: "Conselho de Nous",
             version: "v1.0.0"
         },
@@ -1052,6 +1078,19 @@ export default function DominiosHubPage() {
                             : "Train your mental focus, logical reasoning, and patience by organizing the board.",
                     emoji: "🧩",
                     developer: "Módulo Conselho",
+                    version: "v1.0.0"
+                },
+                {
+                    id: "memory",
+                    title: language.startsWith("pt") ? "Jogo da Memoria" : language === "es" ? "Juego de Memoria" : "Memory Game",
+                    label: language.startsWith("pt") ? "Memoria" : language === "es" ? "Memoria" : "Memory",
+                    description: language.startsWith("pt")
+                        ? "Treine reconhecimento visual encontrando pares de personagens e lugares da mente."
+                        : language === "es"
+                            ? "Entrena reconocimiento visual encontrando pares de personajes y lugares de la mente."
+                            : "Train visual recognition by finding pairs of characters and mind places.",
+                    emoji: "M",
+                    developer: "Modulo Conselho",
                     version: "v1.0.0"
                 },
                 {
@@ -1478,6 +1517,12 @@ export default function DominiosHubPage() {
         const expandedEvents = expandRecurringEvents(agendaEvents, startRange, endRange);
 
         const hours = Array.from({ length: 24 }, (_, i) => i);
+        const getBaseAgendaEventId = (eventId: string) => eventId.replace(/-\d{4}-\d{2}-\d{2}$/, "");
+        const isRegistrySyncedEvent = (eventId: string) => getBaseAgendaEventId(eventId).startsWith("reg-");
+        const isEditableAgendaEvent = (eventId: string) => {
+            const baseId = getBaseAgendaEventId(eventId);
+            return !isRegistrySyncedEvent(eventId) && agendaEvents.some(ev => ev.id === baseId);
+        };
 
         const handleCellClick = (dateStr: string, hour: number) => {
             const startStr = `${String(hour).padStart(2, '0')}:00`;
@@ -1501,8 +1546,12 @@ export default function DominiosHubPage() {
         const handleEditEventSubmit = (e: React.FormEvent) => {
             e.preventDefault();
             if (!activeEditEvent || !activeEditEvent.title || !activeEditEvent.date) return;
+            if (isRegistrySyncedEvent(activeEditEvent.id)) {
+                setActiveEditEvent(null);
+                return;
+            }
             
-            const cleanId = activeEditEvent.id.includes('-') ? activeEditEvent.id.split('-')[0] : activeEditEvent.id;
+            const cleanId = getBaseAgendaEventId(activeEditEvent.id);
             
             const eventToSave: Omit<AgendaEvent, "completed"> = {
                 id: cleanId,
@@ -1525,7 +1574,7 @@ export default function DominiosHubPage() {
         };
 
         const handleDeleteEvent = (eventId: string) => {
-            const cleanId = eventId.includes('-') ? eventId.split('-')[0] : eventId;
+            const cleanId = getBaseAgendaEventId(eventId);
             deleteAgendaEventLocal(cleanId);
             setActiveEditEvent(null);
         };
@@ -1577,7 +1626,7 @@ export default function DominiosHubPage() {
         };
 
         return (
-            <div className="flex-1 flex flex-col h-full text-stone-200 select-none relative">
+            <div className="flex-1 flex flex-col h-full text-white select-none relative">
                 {/* Header Section */}
                 <div className="border-b border-[#c5a059]/20 pb-3 mb-3 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
@@ -1675,12 +1724,12 @@ export default function DominiosHubPage() {
                             </div>
 
                             {/* Scrollable Hourly Area */}
-                            <div className="flex-1 overflow-y-auto relative min-h-[300px] sm:min-h-[350px]">
+                            <div className="flex-1 overflow-y-auto relative min-h-[340px] sm:min-h-[460px]">
                                 <div className="flex w-full relative">
                                     {/* Hours indicator column */}
                                     <div className="w-9 flex flex-col bg-black/40 border-r border-[#c5a059]/10 select-none">
                                         {hours.map((h) => (
-                                            <div key={h} className="h-[45px] text-right pr-1.5 text-[8.5px] text-stone-500 pt-1 border-b border-[#c5a059]/5 flex justify-end">
+                                            <div key={h} className="h-[45px] text-right pr-1.5 text-[8.5px] text-white/55 pt-1 border-b border-[#c5a059]/5 flex justify-end">
                                                 {String(h).padStart(2, '0')}:00
                                             </div>
                                         ))}
@@ -1723,25 +1772,25 @@ export default function DominiosHubPage() {
                                                                     e.stopPropagation();
                                                                     setActiveEditEvent({ ...ev });
                                                                 }}
-                                                                className={`absolute left-[3%] right-[3%] rounded p-1 text-[8.5px] overflow-hidden flex flex-col justify-between shadow-md border-l-[3px] select-none hover:scale-[1.03] hover:z-30 transition-all cursor-pointer ${ev.completed ? "opacity-40" : "opacity-90"}`}
+                                                                className={`absolute left-[3%] right-[3%] rounded p-1 text-[8.5px] overflow-hidden flex flex-col justify-between shadow-md border-l-[3px] select-none hover:scale-[1.03] hover:z-30 transition-all cursor-pointer ${ev.completed ? "opacity-40" : "opacity-100 font-bold"}`}
                                                                 style={{ 
                                                                     top: `${top}px`, 
                                                                     height: `${height}px`,
-                                                                    backgroundColor: `${eventColor}1c`, 
+                                                                    backgroundColor: `${eventColor}40`, // Increased opacity for better contrast
                                                                     borderColor: eventColor,
-                                                                    color: '#eae3d5'
+                                                                    color: '#ffffff' // Pure white for legibility
                                                                 }}
                                                             >
                                                                 <div className="font-semibold truncate">
                                                                     {ev.title}
                                                                 </div>
                                                                 {height > 25 && (
-                                                                    <div className="text-[7px] text-stone-300 truncate opacity-90">
+                                                                    <div className="text-[7px] text-white truncate opacity-90">
                                                                         {ev.startTime} - {ev.endTime}
                                                                     </div>
                                                                 )}
                                                                 {height > 40 && ev.note && (
-                                                                    <div className="text-[7px] italic text-stone-400 truncate opacity-80 mt-0.5">
+                                                                    <div className="text-[7px] italic text-white/85 truncate opacity-80 mt-0.5">
                                                                         {ev.note}
                                                                     </div>
                                                                 )}
@@ -1767,7 +1816,7 @@ export default function DominiosHubPage() {
                             </div>
                             
                             {/* Scrollable Month Days Grid */}
-                            <div className="flex-1 overflow-y-auto p-1.5 grid grid-cols-7 gap-1 min-h-[300px] sm:min-h-[350px]">
+                            <div className="flex-1 overflow-y-auto p-1.5 grid grid-cols-7 gap-1 min-h-[340px] sm:min-h-[460px]">
                                 {getMonthGridDays(selectedDate).map((day) => {
                                     const dayEvents = expandedEvents.filter(ev => ev.date === day.dateStr);
                                     const isToday = new Date().toISOString().split('T')[0] === day.dateStr;
@@ -1780,7 +1829,7 @@ export default function DominiosHubPage() {
                                         >
                                             {/* Day number header */}
                                             <div className="flex justify-between items-center select-none">
-                                                <span className={`text-[8.5px] font-bold ${isToday ? "bg-[#c5a059] text-black w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-[0_0_6px_#c5a059]" : "text-stone-400"}`}>
+                                                <span className={`text-[8.5px] font-bold ${isToday ? "bg-[#c5a059] text-black w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-[0_0_6px_#c5a059]" : "text-white/80"}`}>
                                                      {day.label}
                                                 </span>
                                             </div>
@@ -1796,11 +1845,11 @@ export default function DominiosHubPage() {
                                                                 e.stopPropagation();
                                                                 setActiveEditEvent({ ...ev });
                                                             }}
-                                                            className={`rounded px-1 py-0.5 text-[6.5px] truncate font-medium border-l-2 select-none hover:scale-[1.03] transition-all cursor-pointer ${ev.completed ? "opacity-30" : "opacity-90"}`}
+                                                            className={`rounded px-1 py-0.5 text-[6.5px] truncate font-bold border-l-2 select-none hover:scale-[1.03] transition-all cursor-pointer ${ev.completed ? "opacity-40" : "opacity-100"}`}
                                                             style={{ 
-                                                                backgroundColor: `${eventColor}1c`, 
+                                                                backgroundColor: `${eventColor}40`, // Increased opacity for better contrast
                                                                 borderColor: eventColor,
-                                                                color: '#eae3d5'
+                                                                color: '#ffffff' // Pure white for legibility
                                                             }}
                                                         >
                                                             {ev.title}
@@ -1808,7 +1857,7 @@ export default function DominiosHubPage() {
                                                     );
                                                 })}
                                                 {dayEvents.length > 3 && (
-                                                    <div className="text-[6px] text-stone-500 font-bold pl-1">
+                                                    <div className="text-[6px] text-white/55 font-bold pl-1">
                                                         +{dayEvents.length - 3} mais
                                                     </div>
                                                 )}
@@ -1821,7 +1870,7 @@ export default function DominiosHubPage() {
                     )}
 
                     {agendaViewMode === "year" && (
-                        <div className="flex-1 overflow-y-auto p-3 bg-[#0b0a0f]/45 min-h-[300px] sm:min-h-[350px]">
+                        <div className="flex-1 overflow-y-auto p-3 bg-[#0b0a0f]/45 min-h-[340px] sm:min-h-[460px]">
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                 {Array.from({ length: 12 }, (_, monthIdx) => {
                                     const [y] = selectedDate.split('-').map(Number);
@@ -1842,7 +1891,7 @@ export default function DominiosHubPage() {
                                             </span>
                                             
                                             {/* Mini weekdays header */}
-                                            <div className="grid grid-cols-7 text-center text-[5.5px] font-bold text-stone-500 mb-1">
+                                            <div className="grid grid-cols-7 text-center text-[5.5px] font-bold text-white/50 mb-1">
                                                 {["S", "T", "Q", "Q", "S", "S", "D"].map((d, i) => (
                                                     <div key={i}>{d}</div>
                                                 ))}
@@ -1870,7 +1919,7 @@ export default function DominiosHubPage() {
                                                                 setSelectedDate(dayStr);
                                                                 setAgendaViewMode("day");
                                                             }}
-                                                            className={`h-3.5 w-full rounded flex items-center justify-center text-[6px] font-bold cursor-pointer relative hover:bg-[#c5a059]/30 transition-colors ${isToday ? "bg-[#c5a059] text-black" : "text-stone-300"}`}
+                                                            className={`h-3.5 w-full rounded flex items-center justify-center text-[6px] font-bold cursor-pointer relative hover:bg-[#c5a059]/30 transition-colors ${isToday ? "bg-[#c5a059] text-black" : "text-white/80"}`}
                                                         >
                                                             {dayNum}
                                                             {hasEvent && !isToday && (
@@ -1894,7 +1943,7 @@ export default function DominiosHubPage() {
                         <div className="bg-[#0f0e15] border border-[#c5a059]/30 rounded-xl shadow-2xl p-4 w-full max-w-sm max-h-[85vh] overflow-y-auto space-y-3 animate-fade-in">
                             <div className="flex items-center justify-between border-b border-[#c5a059]/10 pb-2">
                                 <span className="text-[10px] uppercase font-bold text-[#c5a059]">
-                                    {activeEditEvent.id.includes('-') ? "Editar Compromisso" : "Agendar Compromisso"}
+                                    {isRegistrySyncedEvent(activeEditEvent.id) ? "Registro sincronizado" : isEditableAgendaEvent(activeEditEvent.id) ? "Editar Compromisso" : "Agendar Compromisso"}
                                 </span>
                                 <button 
                                     type="button" 
@@ -2058,15 +2107,21 @@ export default function DominiosHubPage() {
                                 </div>
 
                                 {/* Complete Toggle (if editing) */}
-                                {!activeEditEvent.id.includes('-') && agendaEvents.some(ev => ev.id === activeEditEvent.id) && (
+                                {isEditableAgendaEvent(activeEditEvent.id) && (
                                     <div className="flex items-center justify-between bg-black/20 p-1.5 px-3 border border-[#c5a059]/5 rounded-lg">
                                         <label className="text-[8px] uppercase font-bold text-[#c5a059]">Compromisso Concluído</label>
                                         <input
                                             type="checkbox"
                                             checked={activeEditEvent.completed}
-                                            onChange={(e) => toggleAgendaEventLocal(activeEditEvent.id, e.target.checked)}
+                                            onChange={(e) => toggleAgendaEventLocal(getBaseAgendaEventId(activeEditEvent.id), e.target.checked)}
                                             className="w-3.5 h-3.5 rounded border-[#c5a059]/30 bg-black text-emerald-600 focus:ring-0 cursor-pointer"
                                         />
+                                    </div>
+                                )}
+
+                                {isRegistrySyncedEvent(activeEditEvent.id) && (
+                                    <div className="rounded-lg border border-[#c5a059]/15 bg-black/25 px-3 py-2 text-[9px] leading-relaxed text-white/75">
+                                        Este item veio de Memórias &gt; Registros. Para alterar a origem, abra Memórias; a Agenda apenas reflete o prazo.
                                     </div>
                                 )}
 
@@ -2081,7 +2136,7 @@ export default function DominiosHubPage() {
                                     </button>
                                     
                                     {/* Show delete only for existing events (or non-expanded items) */}
-                                    {!activeEditEvent.id.includes('-') && agendaEvents.some(ev => ev.id === activeEditEvent.id) && (
+                                    {isEditableAgendaEvent(activeEditEvent.id) && (
                                         <button 
                                             type="button" 
                                             onClick={() => handleDeleteEvent(activeEditEvent.id)}
@@ -2091,12 +2146,21 @@ export default function DominiosHubPage() {
                                         </button>
                                     )}
 
-                                    <button 
-                                        type="submit" 
-                                        className="flex-1 py-1 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 border border-[#c5a059]/50 text-stone-200 rounded font-display text-[9px] uppercase tracking-wider transition-colors cursor-pointer"
-                                    >
-                                        Salvar
-                                    </button>
+                                    {isRegistrySyncedEvent(activeEditEvent.id) ? (
+                                        <a
+                                            href="/space/registros"
+                                            className="flex-1 py-1 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 border border-[#c5a059]/50 text-white rounded font-display text-[9px] uppercase tracking-wider transition-colors text-center"
+                                        >
+                                            Abrir Memórias
+                                        </a>
+                                    ) : (
+                                        <button
+                                            type="submit"
+                                            className="flex-1 py-1 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 border border-[#c5a059]/50 text-white rounded font-display text-[9px] uppercase tracking-wider transition-colors cursor-pointer"
+                                        >
+                                            Salvar
+                                        </button>
+                                    )}
                                 </div>
                             </form>
                         </div>
@@ -2884,11 +2948,17 @@ export default function DominiosHubPage() {
     };
 
     const renderIFrameApp = (src: string, compact: boolean) => {
+        const isMemoryApp = src.includes("/memory");
+        const sizeClass = compact
+            ? isMemoryApp ? "h-[420px] min-h-[420px]" : "h-[300px] min-h-[300px]"
+            : isMemoryApp
+                ? isFullscreen ? "h-[min(72vh,680px)] min-h-[520px]" : "h-full min-h-0"
+                : "h-[500px] min-h-[400px] sm:min-h-[480px] md:min-h-[520px]";
         return (
-            <div className={`w-full flex-1 flex flex-col rounded-xl overflow-hidden border border-[#c5a059]/20 bg-black/60 shadow-inner ${compact ? "h-[300px] min-h-[300px]" : "h-[500px] min-h-[400px] sm:min-h-[480px] md:min-h-[520px]"}`}>
+            <div className={`w-full flex-1 flex flex-col rounded-lg overflow-hidden border border-[#c5a059]/15 bg-black/55 shadow-inner ${sizeClass}`}>
                 <iframe 
                     src={src} 
-                    className="w-full h-full border-0 rounded-xl"
+                    className="w-full h-full border-0 rounded-lg"
                     title="Sovereign App"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation allow-top-navigation-by-user-activation"
                 />
@@ -2908,10 +2978,14 @@ export default function DominiosHubPage() {
                 return renderMordomoApp();
             case "medico":
                 return renderMedicoApp();
+            case "nexus-chat":
+                return renderIFrameApp("/space/apps/nexus-chat?embed=true", compact);
             case "oracle":
                 return renderIFrameApp("/space/games/oracle?embed=true", compact);
             case "solitaire":
                 return renderIFrameApp("/space/games/solitaire?embed=true", compact);
+            case "memory":
+                return renderIFrameApp("/space/games/memory?embed=true", compact);
             case "chess":
                 return renderIFrameApp("/space/games/chess?embed=true", compact);
             default:
@@ -3095,7 +3169,7 @@ export default function DominiosHubPage() {
                         </div>
 
                         {/* Inner Fullscreen UI Workspace */}
-                        <div className="relative z-10 flex-1 flex flex-col justify-center items-center max-w-5xl w-full mx-auto my-6 overflow-hidden pr-1">
+                        <div className="relative z-10 flex-1 flex flex-col justify-center items-center max-w-7xl w-full mx-auto my-3 overflow-hidden pr-1">
                             {loadingApp ? (
                                 <div className="flex flex-col items-center justify-center animate-fade-in">
                                     <div className="relative flex items-center justify-center mb-6">
@@ -3108,17 +3182,8 @@ export default function DominiosHubPage() {
                                 </div>
                             ) : selectedApp && currentApp ? (
                                 /* Fullscreen app details display */
-                                <div className="w-full max-w-4xl mx-auto flex-1 flex flex-col justify-between animate-fade-in py-2 text-left overflow-y-auto pr-1">
+                                <div className="w-full max-w-6xl mx-auto flex-1 flex flex-col justify-between animate-fade-in py-1 text-left overflow-y-auto pr-1">
                                     {renderUnifiedApp(selectedApp, false)}
-                                    <div className="pt-4 flex justify-end">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedApp(null)}
-                                            className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-6 py-2 rounded-xl font-display text-[9px] uppercase tracking-widest text-[#fde68a] hover:text-white transition-all font-semibold"
-                                        >
-                                            {language.startsWith("pt") ? "← Retornar ao OS" : language === "es" ? "← Retornar al OS" : "← Return to OS"}
-                                        </button>
-                                    </div>
                                 </div>
                             ) : (
                                 /* Fullscreen Grid of apps */
@@ -3213,7 +3278,7 @@ export default function DominiosHubPage() {
                         )}
 
                         {/* Bottom OS Bar — Android-style Navigation */}
-                        <div className="relative z-10 flex flex-col items-center">
+                        <div className="relative z-10 flex flex-col items-center translate-y-3">
                             <div className="glass-medieval rounded-2xl px-6 py-3 border border-[#c5a059]/20 bg-black/60 backdrop-blur-md flex justify-around gap-10 items-center select-none max-w-xs w-full mx-auto">
                                 {/* Back */}
                                 <button
@@ -3291,7 +3356,6 @@ export default function DominiosHubPage() {
                                     ) : selectedApp && currentApp ? (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in py-1 text-left overflow-y-auto pr-0.5">
                                             {renderUnifiedApp(selectedApp, true)}
-                                            <button type="button" onClick={() => setSelectedApp(null)} className="w-full border border-[#c5a059]/40 bg-[#c5a059]/10 px-3 py-2 rounded-lg font-display text-[8px] uppercase tracking-wider text-[#fde68a] mt-3 cursor-pointer">{language.startsWith("pt") ? "Fechar App" : language === "es" ? "Cerrar App" : "Close App"}</button>
                                         </div>
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-3">
@@ -3325,7 +3389,7 @@ export default function DominiosHubPage() {
                                                 ))}
                                             </div>
                                             {/* Phone nav bar */}
-                                            <div className="glass-medieval rounded-xl px-4 py-2 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-4">
+                                            <div className="glass-medieval rounded-xl px-4 py-2 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-6 translate-y-1">
                                                 <button type="button" onClick={handleNavBack} className="p-1 opacity-60 hover:opacity-100 cursor-pointer">
                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="#c5a059" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                                 </button>
@@ -3345,8 +3409,8 @@ export default function DominiosHubPage() {
 
                         {/* TABLET MOCKUP FRAME */}
                         {deviceType === "tablet" && (
-                            <div className="relative w-[480px] sm:w-[520px] aspect-[3/4] bg-black border-[8px] border-[#c5a059]/60 rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-4 pb-5 overflow-hidden select-none">
-                                <div className="absolute inset-2 rounded-[2rem] border border-[#c5a059]/10 pointer-events-none z-45"></div>
+                            <div className="relative w-[500px] sm:w-[560px] aspect-[4/5] bg-black border-[5px] border-[#c5a059]/50 rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-3 pb-4 overflow-hidden select-none">
+                                <div className="absolute inset-1.5 rounded-[1.7rem] border border-[#c5a059]/10 pointer-events-none z-45"></div>
 
                                 {/* Status Bar */}
                                 <div className="flex justify-between items-center text-[10px] font-bold text-[#c5a059]/75 px-6 pt-2 pb-2 z-30 select-none">
@@ -3360,7 +3424,7 @@ export default function DominiosHubPage() {
                                 </div>
 
                                 {/* Simulated Virtual Screen */}
-                                <div className="flex-1 rounded-[1.8rem] overflow-hidden relative bg-[#090a0f] flex flex-col justify-between p-5 border border-[#c5a059]/5 z-10 max-h-full">
+                                <div className="flex-1 rounded-[1.4rem] overflow-hidden relative bg-[#090a0f] flex flex-col justify-between p-3 border border-[#c5a059]/5 z-10 max-h-full">
                                     <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
                                     <div className="nemosine-mental-castle-bg absolute inset-0 bg-cover bg-center blur-xl pointer-events-none"></div>
 
@@ -3372,7 +3436,6 @@ export default function DominiosHubPage() {
                                     ) : selectedApp && currentApp ? (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in py-2 text-left overflow-y-auto pr-0.5">
                                             {renderUnifiedApp(selectedApp, false)}
-                                            <button type="button" onClick={() => setSelectedApp(null)} className="w-full border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-4 py-2.5 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a] mt-3 cursor-pointer">{language.startsWith("pt") ? "← Fechar Aplicativo" : language === "es" ? "← Cerrar Aplicativo" : "← Close Application"}</button>
                                         </div>
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-4">
@@ -3406,7 +3469,7 @@ export default function DominiosHubPage() {
                                                 ))}
                                             </div>
                                             {/* Tablet nav bar */}
-                                            <div className="glass-medieval rounded-2xl px-6 py-2.5 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-8 max-w-xs w-full mx-auto">
+                                            <div className="glass-medieval rounded-2xl px-6 py-2.5 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-10 max-w-xs w-full mx-auto translate-y-1">
                                                 <button type="button" onClick={handleNavBack} className="p-1 opacity-60 hover:opacity-100 cursor-pointer">
                                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="#c5a059" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                                 </button>
@@ -3426,8 +3489,8 @@ export default function DominiosHubPage() {
 
                         {/* DESKTOP MOCKUP FRAME */}
                         {deviceType === "desktop" && (
-                            <div className="relative w-[750px] md:w-[820px] aspect-[16/10] bg-black border-[10px] border-[#c5a059]/60 rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-4 pb-6 overflow-hidden select-none">
-                                <div className="absolute inset-2.5 rounded-[2rem] border border-[#c5a059]/15 pointer-events-none z-45"></div>
+                            <div className="relative w-[900px] max-w-[94vw] aspect-[16/9] bg-black border-[5px] border-[#c5a059]/50 rounded-[1.8rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-3 pb-4 overflow-hidden select-none">
+                                <div className="absolute inset-1.5 rounded-[1.45rem] border border-[#c5a059]/12 pointer-events-none z-45"></div>
 
                                 {/* Status Bar Desktop style */}
                                 <div className="flex justify-between items-center text-[10px] font-bold text-[#c5a059]/75 px-6 pt-2 pb-2 z-30 select-none border-b border-[#c5a059]/10">
@@ -3443,7 +3506,7 @@ export default function DominiosHubPage() {
                                 </div>
 
                                 {/* Simulated Virtual Screen */}
-                                <div className="flex-1 rounded-b-[1.5rem] overflow-hidden relative bg-[#090a0f] flex flex-col justify-between p-6 border border-[#c5a059]/5 z-10 max-h-full">
+                                <div className="flex-1 rounded-b-[1.2rem] overflow-hidden relative bg-[#090a0f] flex flex-col justify-between p-3 border border-[#c5a059]/5 z-10 max-h-full">
                                     <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
                                     <div className="nemosine-mental-castle-bg absolute inset-0 bg-cover bg-center blur-md pointer-events-none"></div>
 
@@ -3453,11 +3516,8 @@ export default function DominiosHubPage() {
                                             <p className="font-display text-[10px] tracking-[0.2em] text-[#c5a059] uppercase animate-pulse">{loadingTexts[loadingTextIndex]}</p>
                                         </div>
                                     ) : selectedApp && currentApp ? (
-                                        <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in py-2 max-w-xl mx-auto w-full text-left overflow-y-auto pr-0.5">
+                                        <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in py-1 max-w-full mx-auto w-full text-left overflow-y-auto pr-0.5">
                                             {renderUnifiedApp(selectedApp, false)}
-                                            <div className="pt-4 flex justify-end">
-                                                <button type="button" onClick={() => setSelectedApp(null)} className="cursor-pointer border border-[#c5a059]/40 bg-[#c5a059]/10 hover:bg-[#c5a059]/20 px-6 py-2 rounded-xl font-display text-[9px] uppercase tracking-wider text-[#fde68a] mt-3">{language.startsWith("pt") ? "← Fechar Domínio" : language === "es" ? "← Cerrar Dominio" : "← Close Domain"}</button>
-                                            </div>
                                         </div>
                                     ) : (
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-2">
@@ -3497,7 +3557,7 @@ export default function DominiosHubPage() {
                                             </div>
 
                                             {/* Desktop nav bar */}
-                                            <div className="glass-medieval rounded-2xl px-8 py-2.5 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-8 max-w-xs w-full mx-auto">
+                                            <div className="glass-medieval rounded-2xl px-8 py-2.5 border border-[#c5a059]/15 bg-black/60 flex justify-around items-center select-none mt-10 max-w-xs w-full mx-auto translate-y-1">
                                                 <button type="button" onClick={handleNavBack} title="Voltar" className="p-1.5 opacity-60 hover:opacity-100 cursor-pointer transition-opacity">
                                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="#c5a059" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                                 </button>

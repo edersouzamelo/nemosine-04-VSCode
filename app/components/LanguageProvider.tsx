@@ -60,6 +60,7 @@ const soberTranslations: Partial<Record<AppLanguage, Record<string, string>>> = 
         constitution: "Diretrizes & Políticas",
         travessia: "Progresso e Metas",
         dominios: "Workspace",
+        registros: "Memórias",
         mySpace: "Painel Pessoal",
         logout: "Desconectar Sessão",
         dossierAgent: "Especificações do Agente",
@@ -80,6 +81,7 @@ const soberTranslations: Partial<Record<AppLanguage, Record<string, string>>> = 
         constitution: "Diretrizes & Políticas",
         travessia: "Progresso e Metas",
         dominios: "Workspace",
+        registros: "Memórias",
         mySpace: "Painel Pessoal",
         logout: "Desligar Sessão",
         dossierAgent: "Especificações do Agente",
@@ -100,6 +102,7 @@ const soberTranslations: Partial<Record<AppLanguage, Record<string, string>>> = 
         constitution: "Políticas y Reglas",
         travessia: "Progreso y Metas",
         dominios: "Workspace",
+        registros: "Memorias",
         mySpace: "Panel Personal",
         logout: "Cerrar Sesión",
         dossierAgent: "Especificación del Agente",
@@ -120,6 +123,7 @@ const soberTranslations: Partial<Record<AppLanguage, Record<string, string>>> = 
         constitution: "Policies & Rules",
         travessia: "Progress & Goals",
         dominios: "Workspace",
+        registros: "Memories",
         mySpace: "Personal Dashboard",
         logout: "Disconnect Session",
         dossierAgent: "Agent Specification",
@@ -222,14 +226,15 @@ const soberEntityNames: Partial<Record<AppLanguage, Record<string, string>>> = {
 
 const translations = {
     "pt-BR": {
-        start: "Início",
+        start: "Origens",
         personas: "Personas",
-        places: "Lugares da Mente",
+        places: "Lugares",
         constitution: "Constituição",
         games: "Jogos",
-        travessia: "Travessia",
+        travessia: "Travessias",
         dominios: "Domínios",
-        community: "Comunidade Nemosine",
+        registros: "Memórias",
+        community: "Comunidade",
         mySpace: "Meu Espaço",
         adminPanel: "Painel do Criador",
         video: "Vídeo",
@@ -311,14 +316,15 @@ const translations = {
         vizLarge: "Grande"
     },
     "pt-PT": {
-        start: "Início",
+        start: "Origens",
         personas: "Personas",
-        places: "Lugares da Mente",
+        places: "Lugares",
         constitution: "Constituição",
         games: "Jogos",
-        travessia: "Travessia",
+        travessia: "Travessias",
         dominios: "Domínios",
-        community: "Comunidade Nemosine",
+        registros: "Memórias",
+        community: "Comunidade",
         mySpace: "Meu Espaço",
         adminPanel: "Painel do Criador",
         video: "Vídeo",
@@ -402,12 +408,13 @@ const translations = {
     es: {
         start: "Inicio",
         personas: "Personas",
-        places: "Lugares de la Mente",
+        places: "Lugares",
         constitution: "Constitución",
         games: "Juegos",
-        travessia: "Travesía",
+        travessia: "Travesías",
         dominios: "Dominios",
-        community: "Comunidad Nemosine",
+        registros: "Memorias",
+        community: "Comunidad",
         mySpace: "Mi Espacio",
         adminPanel: "Panel Admin",
         video: "Vídeo",
@@ -491,12 +498,13 @@ const translations = {
     en: {
         start: "Home",
         personas: "Personas",
-        places: "Places of the Mind",
+        places: "Places",
         constitution: "Constitution",
         games: "Games",
-        travessia: "Crossing",
+        travessia: "Crossings",
         dominios: "Domains",
-        community: "Nemosine Community",
+        registros: "Memories",
+        community: "Community",
         mySpace: "My Space",
         adminPanel: "Admin Panel",
         video: "Video",
@@ -580,12 +588,13 @@ const translations = {
     fr: {
         start: "Accueil",
         personas: "Personas",
-        places: "Lieux de l'Esprit",
+        places: "Lieux",
         constitution: "Constitution",
         games: "Jeux",
-        travessia: "Traversée",
+        travessia: "Traversées",
         dominios: "Domaines",
-        community: "Communauté Nemosine",
+        registros: "Mémoires",
+        community: "Communauté",
         mySpace: "Mon Espace",
         adminPanel: "Panneau Admin",
         video: "Vidéo",
@@ -669,12 +678,13 @@ const translations = {
     it: {
         start: "Inizio",
         personas: "Personas",
-        places: "Luoghi della Mente",
+        places: "Luoghi",
         constitution: "Costituzione",
         games: "Giochi",
-        travessia: "Traversata",
+        travessia: "Traversate",
         dominios: "Domini",
-        community: "Comunità Nemosine",
+        registros: "Memorie",
+        community: "Comunità",
         mySpace: "Il Mio Spazio",
         adminPanel: "Pannello Creatore",
         video: "Video",
@@ -758,12 +768,13 @@ const translations = {
     de: {
         start: "Start",
         personas: "Personas",
-        places: "Orte des Geistes",
+        places: "Orte",
         constitution: "Verfassung",
         games: "Spiele",
-        travessia: "Überquerung",
+        travessia: "Überquerungen",
         dominios: "Domänen",
-        community: "Nemosine-Gemeinschaft",
+        registros: "Erinnerungen",
+        community: "Gemeinschaft",
         mySpace: "Mein Bereich",
         adminPanel: "Schöpfer-Panel",
         video: "Video",
@@ -847,11 +858,12 @@ const translations = {
     ar: {
         start: "الرئيسية",
         personas: "الشخصيات",
-        places: "أماكن العقل",
+        places: "أماكن",
         constitution: "الدستور",
         games: "الألعاب",
-        travessia: "العبور",
+        travessia: "العبour",
         dominios: "النطاقات",
+        registros: "الذكريات",
         community: "مجتمع نيموسين",
         mySpace: "مساحتي",
         adminPanel: "لوحة المبدع",
@@ -936,11 +948,12 @@ const translations = {
     zh: {
         start: "首页",
         personas: "角色",
-        places: "心智之境",
+        places: "心智之地",
         constitution: "宪章",
         games: "游戏",
         travessia: "渡越",
         dominios: "领地",
+        registros: "记忆",
         community: "记忆女神社区",
         mySpace: "我的空间",
         adminPanel: "创造者面板",
@@ -1030,6 +1043,7 @@ const translations = {
         games: "ゲーム",
         travessia: "渡航",
         dominios: "ドメイン",
+        registros: "記憶",
         community: "ネモシネ・コミュニティ",
         mySpace: "マイスペース",
         adminPanel: "創作者パネル",
@@ -1146,7 +1160,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [fontSize, setFontSizeState] = useState<AppFontSize>("small");
     const [cardOrderMode, setCardOrderModeState] = useState<CardOrderMode>("original");
     const [level, setLevelState] = useState<NemosineLevel>("Peregrino");
-    const [singularity, setSingularityState] = useState<"on" | "off">("off");
+    const [singularity, setSingularityState] = useState<"on" | "off">("on");
     const [cognitiveMode, setCognitiveModeState] = useState<CognitiveMode>("symbolic");
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
@@ -1193,18 +1207,29 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             ) {
                 const mainElement = document.querySelector("main");
                 if (mainElement) {
+                    const originRoute = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+                    const targetUrl = new URL(href, window.location.origin);
+                    const targetRoute = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+
                     event.preventDefault();
+                    if (targetRoute === originRoute) {
+                        router.push(href);
+                        return;
+                    }
+
                     mainElement.classList.add("singularity-fade-out");
                     setTimeout(() => {
                         router.push(href);
-                        
-                        // Safety-valve to restore visibility after transition window (e.g. if navigation is slow or target is same route)
+
+                        // Only restore if navigation appears to have failed; otherwise the pathname effect clears it on the new screen.
                         setTimeout(() => {
+                            const currentRoute = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+                            if (currentRoute !== originRoute) return;
                             const currentMain = document.querySelector("main");
                             if (currentMain) {
                                 currentMain.classList.remove("singularity-fade-out");
                             }
-                        }, 600);
+                        }, 4000);
                     }, 380);
                 }
             }
@@ -1248,6 +1273,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         if (storedSingularity === "on" || storedSingularity === "off") {
             setSingularityState(storedSingularity);
             document.documentElement.classList.toggle("is-singularity", storedSingularity === "on");
+        } else {
+            setSingularityState("on");
+            document.documentElement.classList.toggle("is-singularity", true);
         }
         const storedFontSize = window.localStorage.getItem("nemosine-fontsize") as AppFontSize | null;
         if (storedFontSize === "small" || storedFontSize === "medium" || storedFontSize === "large") {

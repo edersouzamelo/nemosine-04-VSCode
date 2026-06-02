@@ -9,6 +9,16 @@ import { ENTITIES, PLACES } from "../data/entities";
 import { useLanguage } from "../components/LanguageProvider";
 import AgentCard from "../components/AgentCard";
 
+const buildCardSummary = (slug: string) => {
+    const entity = ENTITIES[slug];
+    const source = [entity?.phrase, entity?.transcription || entity?.script]
+        .filter(Boolean)
+        .join(". ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return source.length > 150 ? `${source.slice(0, 147).trim()}...` : source;
+};
+
 export default function PlacesPage() {
     const { language, entityName, t } = useLanguage();
     const [carouselMode, setCarouselMode] = useState(false);
@@ -21,7 +31,7 @@ export default function PlacesPage() {
             return 0;
         }).map((name) => {
             const slug = name.toLowerCase().replace(/\s+/g, "-");
-            return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}` };
+            return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}`, summary: buildCardSummary(slug) };
         });
     }, []);
 
@@ -106,6 +116,7 @@ export default function PlacesPage() {
                                                 image={item.image}
                                                 href={item.href}
                                                 label="Lugar"
+                                                summary={item.summary}
                                                 className="aspect-[4/7]"
                                                 flipOnMount={true}
                                                 index={placesItems.indexOf(item)}

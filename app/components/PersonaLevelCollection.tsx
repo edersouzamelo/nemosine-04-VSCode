@@ -18,6 +18,7 @@ interface PersonaItem {
     name: string;
     image?: string;
     href: string;
+    summary?: string;
 }
 
 const PEREGRINO_AGENTS = [
@@ -106,13 +107,14 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
                         style={{ paddingLeft: "calc(50% - 44vw)", paddingRight: "calc(50% - 44vw)" }}
                     >
                         {visibleItems.map((item) => (
-                            <div key={item.name} className="shrink-0 w-[65vw] sm:w-[180px] md:w-[200px] max-w-[220px] snap-center">
+                            <div key={item.name} className="relative shrink-0 w-[65vw] sm:w-[180px] md:w-[200px] max-w-[220px] snap-center hover:z-[120]">
                                 <AgentCard
                                     name={item.name}
                                     displayName={entityName(item.name)}
                                     image={item.image}
                                     href={item.href}
                                     label="Persona"
+                                    summary={item.summary}
                                 />
                             </div>
                         ))}

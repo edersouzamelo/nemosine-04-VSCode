@@ -1023,28 +1023,38 @@ export default function TravessiaPage() {
 
             <div className="relative z-10 max-w-6xl w-full mx-auto px-4 sm:px-8 py-10 md:py-16 flex-1 flex flex-col gap-10">
                 
+                {/* Solene Centralized Page Title */}
+                <header className="mb-2 text-center flex flex-col items-center">
+                    <h1 className="font-display text-4xl uppercase tracking-widest text-[#c5a059] mb-2 drop-shadow-[0_2px_10px_rgba(197,160,89,0.3)]">
+                        Travessias
+                    </h1>
+                    <p className="text-[10px] uppercase tracking-[0.25em] text-[#c5a059]/50 font-bold">
+                        Cartografia de amadurecimento existencial e superação de obstáculos
+                    </p>
+                </header>
+
                 {/* 1. TOP SECTION: CASTE HEADER */}
                 <header className="glass-medieval w-full rounded-3xl p-6 md:p-8 border-2 border-[#c5a059]/40 bg-black/60 shadow-[0_15px_40px_rgba(0,0,0,0.8)] relative overflow-hidden text-left flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="absolute inset-0 bg-gradient-to-r from-[#c5a059]/5 to-transparent pointer-events-none"></div>
                     
                     <div className="space-y-3 max-w-xl">
                         <div className="flex items-center gap-3">
-                            <span className="text-3xl drop-shadow-[0_0_10px_rgba(197,160,89,0.5)]">🛡️</span>
+                            <span className="text-4xl drop-shadow-[0_0_10px_rgba(197,160,89,0.5)]">🛡️</span>
                             <div>
-                                <span className="text-[9px] uppercase tracking-[0.3em] text-[#c5a059]/60 font-bold block">
+                                <span className="text-xs uppercase tracking-[0.3em] text-[#c5a059]/60 font-bold block">
                                     {language.startsWith("pt") ? "Nível de Acesso Estrutural" : language === "es" ? "Nivel de Acceso Estructural" : "Structural Access Level"}
                                 </span>
-                                <h1 className="font-display text-2xl uppercase tracking-widest text-[#c5a059] font-bold">
+                                <h1 className="font-display text-3xl uppercase tracking-widest text-[#c5a059] font-bold">
                                     {language.startsWith("pt") ? "Casta" : language === "es" ? "Casta" : "Caste"}: {activeCasteDetails.title}
                                 </h1>
                             </div>
                         </div>
-                        <p className="font-body text-xs md:text-sm italic text-stone-400">
+                        <p className="font-body text-sm md:text-base italic text-stone-300">
                             "{activeCasteDetails.description}"
                         </p>
                         <div className="flex flex-wrap gap-2 pt-1">
                             {activeCasteDetails.perks.map((p, idx) => (
-                                <span key={idx} className="bg-[#c5a059]/5 border border-[#c5a059]/20 text-stone-300 text-[8.5px] uppercase tracking-wider px-2 py-0.5 rounded font-mono font-bold">
+                                <span key={idx} className="bg-[#c5a059]/10 border border-[#c5a059]/30 text-stone-200 text-xs uppercase tracking-wider px-3 py-1 rounded-lg font-mono font-bold">
                                     ✓ {p}
                                 </span>
                             ))}
@@ -1052,15 +1062,15 @@ export default function TravessiaPage() {
                     </div>
 
                     <div className="flex flex-col items-end gap-2 text-right">
-                        <div className="flex items-center gap-1.5 bg-black/75 px-3 py-1 rounded-full border border-stone-850 text-[8px] uppercase tracking-widest text-stone-400 font-bold font-mono">
-                            <span className={`w-1.5 h-1.5 rounded-full ${dbSyncStatus === 'synced' ? 'bg-emerald-500 animate-pulse' : dbSyncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-stone-500'}`}></span>
+                        <div className="flex items-center gap-2 bg-black/75 px-4 py-2 rounded-full border border-stone-800 text-xs uppercase tracking-widest text-stone-300 font-bold font-mono">
+                            <span className={`w-2 h-2 rounded-full ${dbSyncStatus === 'synced' ? 'bg-emerald-500 animate-pulse' : dbSyncStatus === 'syncing' ? 'bg-amber-500 animate-spin' : 'bg-stone-500'}`}></span>
                             {dbSyncStatus === 'synced' 
                                 ? (language.startsWith("pt") ? "Atlas Sincronizado" : language === "es" ? "Atlas Sincronizado" : "Synchronized Atlas") 
                                 : dbSyncStatus === 'syncing' 
                                     ? (language.startsWith("pt") ? "Sincronizando..." : language === "es" ? "Sincronizando..." : "Synchronizing...") 
                                     : (language.startsWith("pt") ? "Atlas Local" : language === "es" ? "Atlas Local" : "Local Atlas")}
                         </div>
-                        <p className="text-[7.5px] text-stone-500 uppercase tracking-wider font-semibold">
+                        <p className="text-[10px] text-stone-400 uppercase tracking-wider font-semibold">
                             {language.startsWith("pt") 
                                 ? "Casta atualizada automaticamente conforme seu amadurecimento existencial." 
                                 : language === "es" 
@@ -1117,7 +1127,7 @@ export default function TravessiaPage() {
                                         }`}
                                     >
                                         {/* Chapter Label */}
-                                        <div className="absolute -top-3 left-4 bg-[#0a0a0c] border border-[#c5a059]/40 text-[#c5a059] text-[7.5px] uppercase tracking-widest font-mono font-bold px-2 py-0.5 rounded-full">
+                                        <div className="absolute -top-3 left-4 bg-[#0a0a0c] border border-[#c5a059]/40 text-[#c5a059] text-[10px] uppercase tracking-widest font-mono font-bold px-2.5 py-0.5 rounded-full">
                                             {chapter.number}
                                         </div>
                                         
@@ -1129,29 +1139,29 @@ export default function TravessiaPage() {
                                                     </span>
                                                     <div className="flex flex-col items-end gap-1">
                                                         {isCurrent && (
-                                                            <span className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[6px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded font-mono animate-pulse">
+                                                            <span className="bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[9px] uppercase tracking-widest font-bold px-2 py-1 rounded font-mono animate-pulse">
                                                                 {dict.activeFocus}
                                                             </span>
                                                         )}
-                                                        <span className="bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#fde68a] text-[6.5px] uppercase font-bold px-1.5 py-0.5 rounded font-mono">
+                                                        <span className="bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#fde68a] text-[9px] uppercase font-bold px-2 py-1 rounded font-mono">
                                                             {dict.active}
                                                         </span>
                                                     </div>
                                                 </div>
                                                 
                                                 <div className="space-y-1">
-                                                    <h3 className="font-display text-xs font-bold uppercase tracking-wider text-[#c5a059] group-hover/chapter:text-amber-300 transition-colors">
+                                                    <h3 className="font-display text-base font-bold uppercase tracking-wider text-[#c5a059] group-hover/chapter:text-amber-300 transition-colors">
                                                         {chapter.name.replace(/Capítulo [I|V|X]+: /, '')}
                                                     </h3>
-                                                    <p className="text-[8.5px] text-stone-400 font-bold uppercase tracking-wider">
+                                                    <p className="text-xs text-stone-300 font-bold uppercase tracking-wider">
                                                         {dict.focus}{chapter.focus}
                                                     </p>
-                                                    <p className="text-[8px] text-stone-500 line-clamp-2 leading-relaxed italic pt-1 border-t border-stone-850">
+                                                    <p className="text-xs text-stone-400 line-clamp-2 leading-relaxed italic pt-1 border-t border-stone-850">
                                                         "{chapter.description}"
                                                     </p>
                                                 </div>
                                                 
-                                                <div className="mt-4 pt-2 border-t border-stone-850 w-full flex justify-between items-center text-[7.5px] text-[#c5a059] font-mono font-bold uppercase">
+                                                <div className="mt-4 pt-2 border-t border-stone-850 w-full flex justify-between items-center text-[10px] text-[#c5a059] font-mono font-bold uppercase">
                                                     <span>{dict.viewDiary}</span>
                                                     <span className="group-hover/chapter:translate-x-1 transition-transform">→</span>
                                                 </div>
@@ -1160,16 +1170,16 @@ export default function TravessiaPage() {
                                             <>
                                                 <div className="flex justify-between items-start mt-2 mb-4">
                                                     <span className="text-3xl filter grayscale opacity-25">🔒</span>
-                                                    <span className="bg-stone-900 border border-stone-800 text-stone-500 text-[6.5px] uppercase font-bold px-1.5 py-0.5 rounded font-mono">
+                                                    <span className="bg-stone-900 border border-stone-800 text-stone-450 text-[9px] uppercase font-bold px-2 py-1 rounded font-mono">
                                                         {dict.locked}
                                                     </span>
                                                 </div>
                                                 
                                                 <div className="space-y-1.5">
-                                                    <h3 className="font-display text-xs font-bold uppercase tracking-wider text-stone-600">
+                                                    <h3 className="font-display text-base font-bold uppercase tracking-wider text-stone-600">
                                                         {chapter.name.replace(/Capítulo [I|V|X]+: /, '')}
                                                     </h3>
-                                                    <div className="p-1.5 bg-black/40 border border-stone-850 rounded text-[7.5px] text-stone-500 font-bold uppercase tracking-wide leading-tight">
+                                                    <div className="p-2 bg-black/40 border border-stone-850 rounded text-xs text-stone-500 font-bold uppercase tracking-wide leading-tight">
                                                         {dict.requirement}{chapter.unlockCondition}
                                                     </div>
                                                 </div>
@@ -1582,12 +1592,7 @@ export default function TravessiaPage() {
                     </div>
                 )}
 
-                {/* Footnotes navigation back to domains */}
-                <div className="pt-4 flex justify-center">
-                    <MedievalButton onClick={() => router.push("/space/dominios")} variant="secondary" className="text-[10px] py-3 px-12 tracking-widest uppercase">
-                        ← Retornar aos Domínios
-                    </MedievalButton>
-                </div>
+
             </div>
 
             <InstitutionalFooter />

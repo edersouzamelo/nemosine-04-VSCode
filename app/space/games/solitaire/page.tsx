@@ -121,6 +121,41 @@ export default function SolitairePage() {
         }
     };
 
+    const createCardDragPreview = (e: React.DragEvent, card: MinCard, loc: CardLocation) => {
+        const preview = document.createElement('div');
+        preview.style.position = 'fixed';
+        preview.style.top = '-1000px';
+        preview.style.left = '-1000px';
+        preview.style.width = `${(e.currentTarget as HTMLElement).offsetWidth}px`;
+        preview.style.pointerEvents = 'none';
+        preview.style.zIndex = '9999';
+        preview.style.filter = 'drop-shadow(0 18px 28px rgba(0,0,0,0.62))';
+        preview.style.transform = 'rotate(-2deg) scale(1.03)';
+
+        const movingCards = loc.type === 'tableau'
+            ? tableau[loc.index].slice(tableau[loc.index].findIndex(c => c.id === card.id))
+            : [card];
+        preview.style.height = `${(e.currentTarget as HTMLElement).offsetHeight + Math.max(0, movingCards.length - 1) * 22}px`;
+
+        movingCards.forEach((movingCard, index) => {
+            const img = document.createElement('img');
+            img.src = movingCard.faceUp ? movingCard.imagePath : BACK_OF_CARD_IMAGE;
+            img.alt = '';
+            img.style.width = '100%';
+            img.style.display = 'block';
+            img.style.borderRadius = '0.5rem';
+            img.style.position = index === 0 ? 'relative' : 'absolute';
+            img.style.top = index === 0 ? '0' : `${index * 22}px`;
+            img.style.left = '0';
+            img.style.boxShadow = '0 8px 18px rgba(0,0,0,0.35)';
+            preview.appendChild(img);
+        });
+
+        document.body.appendChild(preview);
+        e.dataTransfer.setDragImage(preview, preview.offsetWidth / 2, 24);
+        window.setTimeout(() => preview.remove(), 0);
+    };
+
     const handleDragStart = (e: React.DragEvent, card: MinCard, loc: CardLocation) => {
         if (!card.faceUp) {
             e.preventDefault();
@@ -133,6 +168,7 @@ export default function SolitairePage() {
         setSelected({ loc, card });
         e.dataTransfer.setData('text/plain', card.id);
         e.dataTransfer.effectAllowed = 'move';
+        createCardDragPreview(e, card, loc);
     };
 
     const handleDragOver = (e: React.DragEvent) => {

@@ -13,6 +13,7 @@ interface MedievalChatProps {
     currentThreadId: string | null;
     onThreadCreated: (threadId: string) => void;
     onNewChat: () => void;
+    actionMenu?: React.ReactNode;
 }
 
 const FEMININE_PLACES_PT = new Set([
@@ -28,6 +29,45 @@ function getMessageText(message: UIMessage): string {
     return message.parts
         ? message.parts.filter(part => part.type === "text").map(part => part.text).join("")
         : (message as UIMessage & { content?: string }).content || "";
+}
+
+function normalizeSpeechSegment(value: string): string {
+    return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function AttachmentChip({ icon, label }: { icon: string; label: string }) {
+    return (
+        <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-[#c5a059]/35 bg-black/35 px-3 py-1.5 text-[11px] uppercase tracking-[0.18em] text-[#ecd49c]">
+            <span className="material-icons text-[16px] leading-none">{icon}</span>
+            <span className="truncate">{label}</span>
+        </span>
+    );
+}
+
+function UserMessageContent({ content }: { content: string }) {
+    const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const hasAttachment = lines.some((line) => line.startsWith("[NEMOSINE_FILE:") || line === "[NEMOSINE_AUDIO]");
+
+    if (!hasAttachment) return <>{content}</>;
+
+    return (
+        <div className="flex flex-col items-end gap-2">
+            {lines.map((line, index) => {
+                const fileMatch = line.match(/^\[NEMOSINE_FILE:(.*)\]$/);
+                if (fileMatch) {
+                    return <AttachmentChip key={`${line}-${index}`} icon="description" label={fileMatch[1] || "Arquivo anexado"} />;
+                }
+                if (line === "[NEMOSINE_AUDIO]") {
+                    return <AttachmentChip key={`${line}-${index}`} icon="graphic_eq" label="Audio anexado" />;
+                }
+                return (
+                    <span key={`${line}-${index}`} className="whitespace-pre-wrap text-left">
+                        {line}
+                    </span>
+                );
+            })}
+        </div>
+    );
 }
 
 function RichAssistantMessage({ content }: { content: string }) {
@@ -84,7 +124,7 @@ function RichAssistantMessage({ content }: { content: string }) {
     );
 }
 
-export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat }: MedievalChatProps) {
+export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat, actionMenu }: MedievalChatProps) {
     const { language, t, entityName } = useLanguage();
     const displayedPersonaName = entityName(personaId);
     const placeArticle = placeId && FEMININE_PLACES_PT.has(placeId) ? "na" : "no";
@@ -105,6 +145,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [threadTitle, setThreadTitle] = useState("");
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [input, setInput] = useState("");
+    const [actionsOpen, setActionsOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -124,10 +165,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     // Feature: Speech to Text & File Upload
     const [isListening, setIsListening] = useState(false);
     const recognitionRef = useRef<any>(null);
-    const speechInputBaseRef = useRef("");
-    const lastDictationTranscriptRef = useRef("");
+    const shouldKeepListeningRef = useRef(false);
+    const finalVoiceSegmentsRef = useRef<string[]>([]);
+    const finalVoiceSegmentKeysRef = useRef<Set<string>>(new Set());
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [voiceTranscript, setVoiceTranscript] = useState("");
+    const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
 
     const currentThreadIdRef = useRef(currentThreadId);
     useEffect(() => {
@@ -178,9 +222,14 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() && !selectedFile) return;
+        const hiddenVoiceTranscript = voiceTranscript.trim();
+        if (!input.trim() && !selectedFile && !hiddenVoiceTranscript) return;
 
-        const messageText = input;
+        const messageText = [
+            input.trim(),
+            selectedFile ? `[NEMOSINE_FILE:${selectedFile.name || "Arquivo anexado"}]` : "",
+            hiddenVoiceTranscript ? "[NEMOSINE_AUDIO]" : ""
+        ].filter(Boolean).join("\n");
         let files: FileList | undefined;
         if (selectedFile) {
             const transfer = new DataTransfer();
@@ -188,22 +237,36 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             files = transfer.files;
         }
         clearError();
+        shouldKeepListeningRef.current = false;
+        recognitionRef.current?.stop();
         setInput("");
         setSelectedFile(null);
+        setVoiceTranscript("");
+        setLiveVoiceTranscript("");
+        finalVoiceSegmentsRef.current = [];
+        finalVoiceSegmentKeysRef.current = new Set();
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
-        await sendMessage({ text: messageText, files });
+        await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
     };
 
     const toggleListening = () => {
         if (isListening) {
+            shouldKeepListeningRef.current = false;
             recognitionRef.current?.stop();
             setIsListening(false);
         } else {
-            speechInputBaseRef.current = input.trim();
-            lastDictationTranscriptRef.current = "";
-            recognitionRef.current?.start();
+            shouldKeepListeningRef.current = true;
+            setVoiceTranscript("");
+            setLiveVoiceTranscript("");
+            finalVoiceSegmentsRef.current = [];
+            finalVoiceSegmentKeysRef.current = new Set();
+            try {
+                recognitionRef.current?.start();
+            } catch {
+                // Browsers can throw if recognition is already starting.
+            }
             setIsListening(true);
         }
     };
@@ -218,32 +281,61 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             recognitionRef.current.lang = language;
 
             recognitionRef.current.onresult = (event: any) => {
-                const segments: string[] = [];
-                for (let i = 0; i < event.results.length; ++i) {
+                const interimSegments: string[] = [];
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
                     const segment = event.results[i][0].transcript.trim();
-                    const previousSegment = segments[segments.length - 1];
-                    if (segment && (!previousSegment || previousSegment.toLowerCase() !== segment.toLowerCase())) {
-                        segments.push(segment);
+                    if (!segment) continue;
+
+                    if (event.results[i].isFinal) {
+                        const key = normalizeSpeechSegment(segment);
+                        if (!finalVoiceSegmentKeysRef.current.has(key)) {
+                            finalVoiceSegmentKeysRef.current.add(key);
+                            finalVoiceSegmentsRef.current.push(segment);
+                        }
+                    } else {
+                        interimSegments.push(segment);
                     }
                 }
 
-                const transcript = segments.join(' ').trim();
-                if (transcript && transcript !== lastDictationTranscriptRef.current) {
-                    lastDictationTranscriptRef.current = transcript;
-                    setInput([speechInputBaseRef.current, transcript].filter(Boolean).join(' '));
-                }
+                setVoiceTranscript(finalVoiceSegmentsRef.current.join(" ").trim());
+                setLiveVoiceTranscript(interimSegments.join(" ").trim());
             };
 
             recognitionRef.current.onerror = (event: any) => {
                 console.error("Speech recognition error:", event.error);
+                if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+                    shouldKeepListeningRef.current = false;
+                }
                 setIsListening(false);
             };
 
             recognitionRef.current.onend = () => {
+                setLiveVoiceTranscript("");
+                if (shouldKeepListeningRef.current) {
+                    window.setTimeout(() => {
+                        if (!shouldKeepListeningRef.current || !recognitionRef.current) return;
+                        try {
+                            recognitionRef.current.start();
+                            setIsListening(true);
+                        } catch {
+                            window.setTimeout(() => {
+                                if (!shouldKeepListeningRef.current || !recognitionRef.current) return;
+                                try {
+                                    recognitionRef.current.start();
+                                    setIsListening(true);
+                                } catch {
+                                    setIsListening(false);
+                                }
+                            }, 500);
+                        }
+                    }, 180);
+                    return;
+                }
                 setIsListening(false);
             };
 
             return () => {
+                shouldKeepListeningRef.current = false;
                 recognitionRef.current?.abort();
                 recognitionRef.current = null;
             };
@@ -343,17 +435,40 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2">
+                <div className="relative flex gap-2">
                     <button
-                        onClick={onNewChat}
-                        className="p-2 hover:bg-[#c5a059]/20 rounded-full transition-colors text-[#c5a059] flex items-center gap-2 group"
-                        title={t("newChat")}
+                        type="button"
+                        onClick={() => setActionsOpen((open) => !open)}
+                        className="grid h-10 w-10 place-items-center rounded-full border border-[#c5a059]/25 bg-black/45 text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
+                        title="Opcoes"
+                        aria-label="Abrir opcoes do chat"
                     >
-                        <span className="text-[10px] uppercase font-bold hidden group-hover:block transition-all">{t("newChat")}</span>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
+                        <span className="material-icons text-[22px]">more_horiz</span>
                     </button>
+
+                    {actionsOpen && (
+                        <div
+                            className="absolute right-0 top-full z-50 mt-3 w-64 rounded-xl border border-[#c5a059]/25 bg-[#050507]/95 p-3 shadow-2xl backdrop-blur-md lg:w-auto"
+                            onClickCapture={() => window.setTimeout(() => setActionsOpen(false), 80)}
+                        >
+                            <div className="flex flex-col gap-2 lg:grid lg:grid-cols-3">
+                                <button
+                                    type="button"
+                                    onClick={onNewChat}
+                                    title={t("newChat")}
+                                    aria-label={t("newChat")}
+                                    className="group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 lg:w-10 lg:justify-center lg:gap-0 lg:px-0"
+                                >
+                                    <span className="material-icons text-[18px]">add_comment</span>
+                                    <span className="lg:hidden">{t("newChat")}</span>
+                                    <span className="pointer-events-none absolute left-1/2 top-full z-[80] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-[#c5a059]/25 bg-[#07070a]/95 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-[#c5a059] opacity-0 shadow-xl transition-opacity group-hover/action:opacity-100 lg:block">
+                                        {t("newChat")}
+                                    </span>
+                                </button>
+                                {actionMenu}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -380,7 +495,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         >
                             {msg.role === "assistant"
                                 ? <RichAssistantMessage content={cleanContent(getMessageText(msg))} />
-                                : cleanContent(getMessageText(msg))}
+                                : <UserMessageContent content={cleanContent(getMessageText(msg))} />}
                         </div>
                     </div>
                 )))}
@@ -408,8 +523,34 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 {/* File Preview */}
                 {selectedFile && (
                     <div className="flex items-center gap-2 p-2 bg-[#c5a059]/10 border border-[#c5a059]/30 rounded-lg text-sm text-[#e1e1e6]">
-                        📎 {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                        <button type="button" onClick={() => setSelectedFile(null)} className="ml-auto text-red-500 hover:text-red-400">✕</button>
+                        <span className="material-icons text-[18px] text-[#c5a059]">description</span>
+                        <span className="truncate">{selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                        <button type="button" onClick={() => setSelectedFile(null)} className="ml-auto text-red-500 hover:text-red-400"><span className="material-icons text-[18px]">close</span></button>
+                    </div>
+                )}
+
+                {voiceTranscript && (
+                    <div className="flex items-center gap-2 p-2 bg-[#c5a059]/10 border border-[#c5a059]/30 rounded-lg text-sm text-[#e1e1e6]">
+                        <span className="material-icons text-[18px] text-[#c5a059]">graphic_eq</span>
+                        <span className="truncate">Audio capturado como anexo de contexto</span>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setVoiceTranscript("");
+                                setLiveVoiceTranscript("");
+                                finalVoiceSegmentsRef.current = [];
+                                finalVoiceSegmentKeysRef.current = new Set();
+                            }}
+                            className="ml-auto text-red-500 hover:text-red-400"
+                        >
+                            <span className="material-icons text-[18px]">close</span>
+                        </button>
+                    </div>
+                )}
+
+                {isListening && liveVoiceTranscript && (
+                    <div className="rounded-lg border border-[#c5a059]/20 bg-black/40 px-3 py-2 text-xs italic text-[#c5a059]/70">
+                        Ouvindo: {liveVoiceTranscript}
                     </div>
                 )}
 
@@ -417,10 +558,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="p-3 text-[#c5a059] bg-black/50 border border-[#c5a059]/30 hover:bg-[#c5a059]/10 transition-colors rounded-xl"
+                        className="grid h-12 w-12 place-items-center rounded-xl border border-[#c5a059]/35 bg-black/50 text-[0px] text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] transition-colors hover:bg-[#c5a059]/10"
                         title="Anexar PDF ou arquivo de texto"
                     >
-                        📎
+                        <span className="material-icons text-[22px]">attach_file</span>
                     </button>
                     <input
                         type="file"
@@ -437,10 +578,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     <button
                         type="button"
                         onClick={toggleListening}
-                        className={`p-3 rounded-xl transition-all ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/50 animate-pulse' : 'bg-black/50 border border-[#c5a059]/30 text-[#c5a059] hover:bg-[#c5a059]/10'}`}
-                        title={isListening ? "Parar Gravação" : "Ditado (🎤)"}
+                        className={`grid h-12 w-12 place-items-center rounded-xl text-[0px] transition-all ${isListening ? 'animate-pulse border border-red-500/50 bg-red-500/20 text-red-300 shadow-[0_0_18px_rgba(239,68,68,0.15)]' : 'border border-[#c5a059]/35 bg-black/50 text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] hover:bg-[#c5a059]/10'}`}
+                        title={isListening ? "Parar gravacao" : "Anexar audio"}
                     >
-                        🎤
+                        <span className="material-icons text-[22px]">{isListening ? "stop_circle" : "mic"}</span>
                     </button>
 
                     <input
@@ -452,7 +593,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     />
                     <button
                         type="submit"
-                        disabled={isLoading || (!input.trim() && !selectedFile)}
+                        disabled={isLoading || (!input.trim() && !selectedFile && !voiceTranscript.trim())}
                         className="px-6 py-3 bg-[#c5a059] hover:bg-[#b08d48] text-black font-bold uppercase tracking-widest text-xs transition-colors rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

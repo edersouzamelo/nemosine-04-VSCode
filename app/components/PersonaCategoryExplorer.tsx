@@ -7,6 +7,7 @@ interface PersonaItem {
     name: string;
     image?: string;
     href: string;
+    summary?: string;
 }
 
 type PersonaCategory = "strategic" | "symbolic" | "operational" | "emotional" | "all" | "favorites";

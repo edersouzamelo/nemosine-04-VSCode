@@ -11,7 +11,7 @@ type SourceItem = {
     preview: string;
 };
 
-export default function SourcesPanelButton({ personaName }: { personaName: string }) {
+export default function SourcesPanelButton({ personaName, variant = "side" }: { personaName: string; variant?: "side" | "icon" }) {
     const fileRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
     const [sources, setSources] = useState<SourceItem[]>([]);
@@ -20,7 +20,8 @@ export default function SourcesPanelButton({ personaName }: { personaName: strin
     const [mounted, setMounted] = useState(false);
 
     async function loadSources() {
-        const response = await fetch("/api/sources");
+        const params = new URLSearchParams({ personaId: personaName });
+        const response = await fetch(`/api/sources?${params.toString()}`);
         const data = await response.json();
         setSources(data.sources || []);
     }
@@ -156,9 +157,23 @@ export default function SourcesPanelButton({ personaName }: { personaName: strin
             <button
                 type="button"
                 onClick={() => setOpen(true)}
-                className="side-action-button flex min-h-36 w-12 items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 text-[8px] font-bold uppercase tracking-[0.18em]"
+                title="Fontes"
+                aria-label="Fontes"
+                className={variant === "icon"
+                    ? "group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[#c5a059]/75 transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059] lg:w-10 lg:justify-center lg:gap-0 lg:px-0"
+                    : "side-action-button flex min-h-36 w-12 items-center justify-center overflow-hidden rounded-lg px-1.5 py-3 text-[8px] font-bold uppercase tracking-[0.18em]"}
             >
-                <span className="writing-vertical-rl whitespace-nowrap text-orientation-mixed">Fontes</span>
+                {variant === "icon" ? (
+                    <>
+                        <span className="material-icons text-[18px]">source</span>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] lg:hidden">Fontes</span>
+                        <span className="pointer-events-none absolute left-1/2 top-full z-[80] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-[#c5a059]/25 bg-[#07070a]/95 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-[#c5a059] opacity-0 shadow-xl transition-opacity group-hover/action:opacity-100 lg:block">
+                            Fontes
+                        </span>
+                    </>
+                ) : (
+                    <span className="writing-vertical-rl whitespace-nowrap text-orientation-mixed">Fontes</span>
+                )}
             </button>
 
             {mounted ? createPortal(panel, document.body) : null}

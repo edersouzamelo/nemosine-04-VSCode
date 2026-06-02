@@ -8,6 +8,7 @@ interface CardItem {
     name: string;
     image?: string;
     href: string;
+    summary?: string;
 }
 
 interface CardCollectionGridProps {
@@ -171,7 +172,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                         onPointerUp={isCustom ? finishDrag : undefined}
                         onPointerCancel={isCustom ? finishDrag : undefined}
                         onContextMenu={isCustom ? (event) => event.preventDefault() : undefined}
-                        className={`group relative transition-[transform,filter,opacity] duration-200 ${isCustom ? "touch-none select-none cursor-grab active:cursor-grabbing" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
+                        className={`group relative transition-[transform,filter,opacity] duration-200 hover:z-[120] ${isCustom ? "touch-none select-none cursor-grab active:cursor-grabbing" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
                     >
                         <div
                             className={isReordering ? "card-shuffle-motion" : ""}
@@ -182,6 +183,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                                 displayName={entityName(name)}
                                 label={collection === "places" ? "Lugar" : "Persona"}
                                 image={item.image}
+                                summary={item.summary}
                                 className={collection === "places" ? "aspect-[4/7]" : ""}
                                 flipOnMount={collection === "places"}
                                 index={displayNames.indexOf(name)}

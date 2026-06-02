@@ -34,16 +34,23 @@ export async function POST(request: Request) {
     const email = String(body.email || "").trim();
     const subject = String(body.subject || "").trim();
     const message = String(body.message || "").trim();
+    const city = String(body.city || "").trim();
+    const whatsapp = String(body.whatsapp || "").trim();
 
     if (!name || !email || !message) {
       return NextResponse.json({ error: "Preencha nome, email e mensagem." }, { status: 400 });
+    }
+
+    let formattedMessage = message;
+    if (city || whatsapp) {
+      formattedMessage = `--- INFO CONTATO ADICIONAL ---\n${city ? `Cidade: ${city}\n` : ""}${whatsapp ? `WhatsApp: ${whatsapp}\n` : ""}------------------------------\n\n${message}`;
     }
 
     await createDeveloperMessage({
       name,
       email,
       subject,
-      message,
+      message: formattedMessage,
       userId: session?.user?.id,
       userEmail: session?.user?.email,
     });
