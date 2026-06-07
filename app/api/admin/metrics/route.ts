@@ -29,6 +29,25 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
+    const termsAcceptances = await prisma.termsAcceptance.findMany({
+      select: {
+        id: true,
+        termsVersion: true,
+        acceptedAt: true,
+        ipApprox: true,
+        sessionRecord: true,
+        userAgent: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { acceptedAt: "desc" },
+      take: 200,
+    });
+
     // 2. Buscar todas as threads com suas contagens e datas de modificação
     const allThreads = await prisma.thread.findMany({
       select: {
@@ -181,6 +200,15 @@ export async function GET() {
       globalMetrics,
       organicMetrics,
       creatorMetrics,
+      termsAcceptances: termsAcceptances.map((acceptance) => ({
+        id: acceptance.id,
+        termsVersion: acceptance.termsVersion,
+        acceptedAt: acceptance.acceptedAt.toISOString(),
+        ipApprox: acceptance.ipApprox,
+        sessionRecord: acceptance.sessionRecord,
+        userAgent: acceptance.userAgent,
+        user: acceptance.user,
+      })),
     });
   } catch (error) {
     console.error("Admin API error:", error);

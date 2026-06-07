@@ -9,15 +9,24 @@ export default function InstitutionalFooter() {
                         href="https://linktr.ee/nemosinenous"
                         target="_blank"
                         rel="noopener noreferrer"
+                        data-tour="comunidade"
                         className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
                     >
                         Comunidade
                     </a>
                     <Link
                         href="/constitution"
+                        data-tour="constituicao"
                         className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
                     >
                         Constituição
+                    </Link>
+                    <Link
+                        href="/legal"
+                        data-tour="termos-politicas"
+                        className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
+                    >
+                        Termos e Políticas
                     </Link>
                 </div>
                 <p className="text-[#c5a059]/75 font-semibold">

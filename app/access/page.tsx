@@ -1,10 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import MedievalButton from "../components/MedievalButton";
 import { LanguageSelector, useLanguage, AppTheme } from "../components/LanguageProvider";
+import { NEMOSINE_LEGAL_CHECKBOX_LABEL } from "../lib/legalConsent";
 
 export default function AccessPage() {
   const router = useRouter();
@@ -15,8 +16,10 @@ export default function AccessPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [vortexReady, setVortexReady] = useState(false);
 
   useEffect(() => {
     const target = new URLSearchParams(window.location.search).get("callbackUrl");
@@ -41,6 +44,10 @@ export default function AccessPage() {
   const handleAuth = async (event: FormEvent) => {
     event.preventDefault();
     if (!email || !password || isLoading) return;
+    if (isRegistering && !termsAccepted) {
+      setError("E necessario aceitar os termos para criar sua conta.");
+      return;
+    }
     setIsLoading(true);
     setError("");
 
@@ -49,7 +56,7 @@ export default function AccessPage() {
         const registration = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password })
+          body: JSON.stringify({ name, email, password, termsAccepted })
         });
         const data = await registration.json();
         if (!registration.ok) {
@@ -86,7 +93,10 @@ export default function AccessPage() {
             loop
             muted
             playsInline
-            className="absolute inset-0 h-full w-full object-cover opacity-60 animate-fade-in-slow"
+            preload="auto"
+            onCanPlay={() => setVortexReady(true)}
+            onLoadedData={() => setVortexReady(true)}
+            className={`nemosine-vortex-intro absolute inset-0 h-full w-full object-cover ${vortexReady ? "nemosine-vortex-intro-ready" : ""}`}
           >
             <source src="/assets/background.mp4" type="video/mp4" />
           </video>
@@ -97,11 +107,21 @@ export default function AccessPage() {
               alt="Nemosine Nous"
               className="h-auto w-full max-w-3xl object-contain drop-shadow-[0_0_25px_rgba(197,160,89,0.4)] animate-fade-in-slow"
             />
-            <div onClick={() => setShowGrimoire(true)} className="cursor-pointer">
-              <MedievalButton className="px-12 py-4 text-lg">
-                {t("enter")}
-              </MedievalButton>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowGrimoire(true)}
+              className="access-entry-button group"
+            >
+              <span className="access-entry-corner access-entry-corner-tl" />
+              <span className="access-entry-corner access-entry-corner-tr" />
+              <span className="access-entry-corner access-entry-corner-bl" />
+              <span className="access-entry-corner access-entry-corner-br" />
+              <span className="relative z-10 flex items-center justify-center gap-5">
+                <span className="text-base text-[#ffd36b] transition-transform duration-500 group-hover:scale-110">✦</span>
+                <span>{t("enter")}</span>
+                <span className="text-base text-[#ffd36b] transition-transform duration-500 group-hover:scale-110">✦</span>
+              </span>
+            </button>
           </div>
         </div>
       )}
@@ -148,32 +168,50 @@ export default function AccessPage() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={handleGoogleAuth}
-                      disabled={isLoading}
-                      className="font-display flex w-full cursor-pointer items-center justify-center gap-3 border border-primary/40 bg-white/50 px-6 py-3 text-sm tracking-widest text-stone-900 shadow-sm transition-all duration-300 hover:border-primary hover:bg-white/80 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950/40 dark:text-stone-100 dark:hover:bg-stone-950/70"
-                    >
-                      <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 18 18">
-                        <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.23-.16-1.8H9v3.4h4.84a4.14 4.14 0 0 1-1.8 2.72v2.25h2.92c1.7-1.57 2.68-3.88 2.68-6.57Z" />
-                        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.25c-.81.54-1.84.86-3.04.86-2.35 0-4.34-1.58-5.05-3.72H.93v2.32A9 9 0 0 0 9 18Z" />
-                        <path fill="#FBBC05" d="M3.95 10.71A5.42 5.42 0 0 1 3.67 9c0-.6.1-1.17.28-1.71V4.97H.93A9 9 0 0 0 0 9c0 1.45.35 2.82.93 4.03l3.02-2.32Z" />
-                        <path fill="#EA4335" d="M9 3.57c1.32 0 2.5.45 3.44 1.34l2.58-2.58C13.46.88 11.43 0 9 0A9 9 0 0 0 .93 4.97l3.02 2.32C4.66 5.15 6.65 3.57 9 3.57Z" />
-                      </svg>
-                      <span>{isLoading ? t("processing") : t("continueWithGoogle")}</span>
-                    </button>
+                    {!isRegistering && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleGoogleAuth}
+                          disabled={isLoading}
+                          className="font-display flex w-full cursor-pointer items-center justify-center gap-3 border border-primary/40 bg-white/50 px-6 py-3 text-sm tracking-widest text-stone-900 shadow-sm transition-all duration-300 hover:border-primary hover:bg-white/80 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950/40 dark:text-stone-100 dark:hover:bg-stone-950/70"
+                        >
+                          <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 18 18">
+                            <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.23-.16-1.8H9v3.4h4.84a4.14 4.14 0 0 1-1.8 2.72v2.25h2.92c1.7-1.57 2.68-3.88 2.68-6.57Z" />
+                            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.25c-.81.54-1.84.86-3.04.86-2.35 0-4.34-1.58-5.05-3.72H.93v2.32A9 9 0 0 0 9 18Z" />
+                            <path fill="#FBBC05" d="M3.95 10.71A5.42 5.42 0 0 1 3.67 9c0-.6.1-1.17.28-1.71V4.97H.93A9 9 0 0 0 0 9c0 1.45.35 2.82.93 4.03l3.02-2.32Z" />
+                            <path fill="#EA4335" d="M9 3.57c1.32 0 2.5.45 3.44 1.34l2.58-2.58C13.46.88 11.43 0 9 0A9 9 0 0 0 .93 4.97l3.02 2.32C4.66 5.15 6.65 3.57 9 3.57Z" />
+                          </svg>
+                          <span>{isLoading ? t("processing") : t("continueWithGoogle")}</span>
+                        </button>
 
-                    <div className="flex items-center gap-3 text-[10px] tracking-widest text-[#72552c]/70 dark:text-[#fde68a]/60">
-                      <div className="h-px flex-1 bg-[#c5a059]/30" />
-                      <span>{t("or")}</span>
-                      <div className="h-px flex-1 bg-[#c5a059]/30" />
-                    </div>
+                        <div className="flex items-center gap-3 text-[10px] tracking-widest text-[#72552c]/70 dark:text-[#fde68a]/60">
+                          <div className="h-px flex-1 bg-[#c5a059]/30" />
+                          <span>{t("or")}</span>
+                          <div className="h-px flex-1 bg-[#c5a059]/30" />
+                        </div>
+                      </>
+                    )}
 
                     {isRegistering && (
                       <LoginInput value={name} onChange={setName} placeholder={t("namePlaceholder")} disabled={isLoading} />
                     )}
                     <LoginInput value={email} onChange={setEmail} placeholder="seu-email@dominio.com" type="email" disabled={isLoading} />
                     <LoginInput value={password} onChange={setPassword} placeholder={t("passwordPlaceholder")} type="password" disabled={isLoading} />
+
+                    {isRegistering && (
+                      <label className="flex cursor-pointer items-start gap-3 rounded border border-[#c5a059]/25 bg-[#c5a059]/5 p-3 text-left text-xs leading-5 text-stone-700 transition-colors hover:border-[#c5a059]/45 dark:text-[#eee8dc]/75">
+                        <input
+                          type="checkbox"
+                          checked={termsAccepted}
+                          onChange={(event) => setTermsAccepted(event.target.checked)}
+                          required
+                          disabled={isLoading}
+                          className="mt-1 h-4 w-4 shrink-0 accent-[#c5a059]"
+                        />
+                        <span>{NEMOSINE_LEGAL_CHECKBOX_LABEL}</span>
+                      </label>
+                    )}
 
                     <div className="space-y-3 pt-2">
                       <button
@@ -188,7 +226,11 @@ export default function AccessPage() {
                         type="button"
                         disabled={isLoading}
                         onClick={() => {
-                          setIsRegistering((current) => !current);
+                          setIsRegistering((current) => {
+                            const next = !current;
+                            if (!next) setTermsAccepted(false);
+                            return next;
+                          });
                           setError("");
                         }}
                         className="font-display w-full cursor-pointer overflow-hidden border border-[#c5a059]/40 bg-transparent px-6 py-3.5 tracking-widest text-[#72552c] dark:text-[#c5a059] hover:bg-[#c5a059]/10 transition-all duration-300 disabled:cursor-wait disabled:opacity-50 text-xs uppercase font-bold"
@@ -200,9 +242,20 @@ export default function AccessPage() {
                 </div>
 
                 <footer className="relative z-10 mt-auto pt-7 text-center">
-                  <p className="text-[10px] uppercase tracking-wider text-stone-600 dark:text-[#eee8dc]/60">
-                    Ao prosseguir, você concorda com as <br />
-                    <span className="underline cursor-pointer hover:text-[#c5a059] transition-colors">Leis de Serviço do Sistema</span>
+                  <p className="text-xs leading-5 tracking-wider text-stone-600 dark:text-[#eee8dc]/60">
+                    Ao continuar, você declara que leu e concorda com os{" "}
+                    <Link href="/legal/termos-de-uso" className="underline transition-colors hover:text-[#c5a059]">
+                      Termos de Uso
+                    </Link>
+                    , a{" "}
+                    <Link href="/legal/privacidade" className="underline transition-colors hover:text-[#c5a059]">
+                      Política de Privacidade
+                    </Link>{" "}
+                    e o{" "}
+                    <Link href="/legal/uso-de-ia" className="underline transition-colors hover:text-[#c5a059]">
+                      Aviso de Uso de Inteligência Artificial
+                    </Link>{" "}
+                    do Sistema Nemosine.
                   </p>
                 </footer>
               </div>

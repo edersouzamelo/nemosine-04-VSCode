@@ -6,14 +6,7 @@ import Google from "next-auth/providers/google"
 import bcrypt from "bcryptjs"
 
 const GOOGLE_AUTHORIZATION_PARAMS = {
-  scope: [
-    "openid",
-    "email",
-    "profile",
-    "https://www.googleapis.com/auth/calendar.readonly",
-  ].join(" "),
-  access_type: "offline",
-  include_granted_scopes: "true",
+  scope: "openid email profile",
   response_type: "code",
 }
 
@@ -96,6 +89,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     })
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        const email = user.email?.trim().toLowerCase();
+        if (!email) return false;
+
+        const existingUser = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true },
+        });
+
+        return Boolean(existingUser);
+      }
+
+      return true;
+    },
     async session({ session, token }) {
       if (session.user && token.sub) {
         session.user.id = token.sub;

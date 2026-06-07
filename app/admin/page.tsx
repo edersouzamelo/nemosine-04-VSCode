@@ -40,13 +40,24 @@ interface MultiScopedMetrics {
   globalMetrics: AdminMetrics;
   organicMetrics: AdminMetrics;
   creatorMetrics: AdminMetrics;
+  termsAcceptances: Array<{
+    id: string;
+    termsVersion: string;
+    acceptedAt: string;
+    ipApprox: string | null;
+    sessionRecord: string | null;
+    userAgent: string | null;
+    user: { name: string | null; email: string | null };
+  }>;
 }
+
+type MetricScope = "organic" | "global" | "creator";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<MultiScopedMetrics | null>(null);
-  const [activeScope, setActiveScope] = useState<"organic" | "global" | "creator">("organic");
+  const [activeScope, setActiveScope] = useState<MetricScope>("organic");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -95,7 +106,12 @@ export default function AdminPage() {
   if (!data) return null;
 
   // Seleciona a métrica ativa com base na aba escolhida
-  const metrics = data[`${activeScope}Metrics` as keyof MultiScopedMetrics];
+  const metricKeys: Record<MetricScope, "organicMetrics" | "globalMetrics" | "creatorMetrics"> = {
+    organic: "organicMetrics",
+    global: "globalMetrics",
+    creator: "creatorMetrics",
+  };
+  const metrics = data[metricKeys[activeScope]];
 
   const maxPersonaCount = Math.max(
     ...metrics.personaUsage.map((p) => p._count.id),
@@ -338,6 +354,57 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Registros de Consentimento */}
+        <div className="bg-black/40 border border-[#c5a059]/20 rounded-lg p-6 backdrop-blur-md mb-10">
+          <h2 className="text-xs uppercase tracking-widest text-[#c5a059] font-bold mb-6 flex items-center gap-2">
+            <span>Termos</span> Registros de Consentimento
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[9px] uppercase tracking-widest text-[#c5a059]/60 border-b border-[#c5a059]/15">
+                  <th className="p-2">Usuário</th>
+                  <th className="p-2">Versão</th>
+                  <th className="p-2">IP aproximado</th>
+                  <th className="p-2">Sessão</th>
+                  <th className="p-2 text-right">Aceite</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#c5a059]/5">
+                {data.termsAcceptances.map((acceptance) => (
+                  <tr key={acceptance.id} className="hover:bg-[#c5a059]/5 transition-colors duration-150">
+                    <td className="p-2.5 text-white/70 text-xs font-body">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-white/95">{acceptance.user.name || "Sem nome"}</span>
+                        <span className="text-[9px] text-white/40 font-mono">{acceptance.user.email || "sem email"}</span>
+                      </div>
+                    </td>
+                    <td className="p-2.5 text-[#c5a059]/80 text-xs font-mono">
+                      {acceptance.termsVersion}
+                    </td>
+                    <td className="p-2.5 text-white/50 text-[10px] font-mono">
+                      {acceptance.ipApprox || "nao informado"}
+                    </td>
+                    <td className="p-2.5 text-white/40 text-[10px] font-mono max-w-[220px] truncate" title={acceptance.sessionRecord || acceptance.userAgent || ""}>
+                      {acceptance.sessionRecord || acceptance.userAgent || "nao informado"}
+                    </td>
+                    <td className="p-2.5 text-right text-white/45 text-[10px] font-mono">
+                      {new Date(acceptance.acceptedAt).toLocaleString("pt-BR")}
+                    </td>
+                  </tr>
+                ))}
+                {data.termsAcceptances.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-center text-white/30 text-xs italic p-8">
+                      Nenhum aceite de termos registrado ainda.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* Atividade Recente */}
         <div className="bg-black/40 border border-[#c5a059]/20 rounded-lg p-6 backdrop-blur-md">
           <h2 className="text-xs uppercase tracking-widest text-[#c5a059] font-bold mb-6 flex items-center gap-2">
@@ -426,4 +493,3 @@ function StatCard({ label, value, icon, subtitle }: StatCardProps) {
     </div>
   );
 }
-
