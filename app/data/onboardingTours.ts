@@ -137,3 +137,66 @@ export const travessiaDevTourSteps: TourStep[] = [
         text: "As metas mostram como evidencias reais alimentam o progresso da Travessia.",
     },
 ];
+
+export const chatTourSteps: TourStep[] = [
+    {
+        target: "chat-persona-card",
+        title: "Persona ativa",
+        text: "Esta carta mostra com quem voce esta conversando agora. Cada persona tem uma funcao diferente, entao a escolha da voz muda a qualidade da resposta.",
+    },
+    {
+        target: "chat-history",
+        title: "Memorias recentes",
+        text: "Aqui ficam conversas anteriores com esta persona. Use este painel para retomar um fio sem misturar tudo em uma unica sessao.",
+    },
+    {
+        target: "chat-header",
+        title: "Titulo da conversa",
+        text: "Depois que uma conversa existe, voce pode tocar no titulo para renomear a sessao e reconhecer melhor aquele contexto no futuro.",
+    },
+    {
+        target: "chat-actions-trigger",
+        title: "Menu do chat",
+        text: "O menu reune acoes da conversa: criar nova sessao, abrir dossie, favoritar, consultar fontes, compartilhar, registrar e rever este guia.",
+    },
+    {
+        target: "chat-guide-button",
+        title: "Guia",
+        text: "A bussola reabre esta explicacao quando quiser. Ela fica dentro do menu para orientar sem ocupar espaco da conversa.",
+    },
+    {
+        target: "chat-new-thread",
+        title: "Nova sessao",
+        text: "Use este botao para separar assuntos. Uma nova conversa ajuda a manter cada decisao, ideia ou problema com seu proprio contexto.",
+    },
+    {
+        target: "chat-messages",
+        title: "Corpo do dialogo",
+        text: "As respostas aparecem aqui. Observe se a persona esta ajudando do jeito certo; se a necessidade mudar, talvez outra voz seja melhor.",
+    },
+    {
+        target: "chat-input",
+        title: "Mensagem",
+        text: "Escreva uma necessidade real, de preferencia concreta. Quanto mais claro o pedido, mais util sera a travessia.",
+    },
+    {
+        target: "chat-attachments",
+        title: "Arquivos",
+        text: "Anexe PDF ou texto quando a conversa precisar de contexto externo. Isso ajuda a persona a trabalhar sobre material especifico.",
+    },
+    {
+        target: "chat-voice",
+        title: "Audio",
+        text: "Use o microfone quando for mais facil falar do que escrever. O audio entra como contexto para a mensagem.",
+    },
+    {
+        target: "chat-send",
+        title: "Enviar",
+        text: "Envie a primeira mensagem e deixe a persona responder. Depois dessa primeira troca, experimente chamar outra persona para olhar o mesmo tema por outro angulo.",
+    },
+    {
+        target: "personas",
+        title: "Trocar de persona",
+        text: "Quando terminar a primeira conversa, volte para Personas e escolha outra voz. O Mentor orienta, o Cientista analisa, o Mordomo organiza, o Psicologo escuta e assim por diante.",
+    },
+];

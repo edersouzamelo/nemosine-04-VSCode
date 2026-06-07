@@ -12,9 +12,11 @@ import ExternalConnectionsPanel from "@/app/components/ExternalConnectionsPanel"
 import FavoritePersonaButton from "@/app/components/FavoritePersonaButton";
 import SharePersonaButton from "@/app/components/SharePersonaButton";
 import SourcesPanelButton from "@/app/components/SourcesPanelButton";
+import OnboardingTour from "@/app/components/OnboardingTour";
 import { useLanguage } from "@/app/components/LanguageProvider";
 import { useParams, useSearchParams } from "next/navigation";
 import { ENTITIES, PERSONAS } from "../../data/entities";
+import { chatTourSteps } from "../../data/onboardingTours";
 
 const soberEmojis: Record<string, string> = {
     "Não-Lugar": "🌌", "Labirinto": "🌀", "Arquivo": "📁", "Porão": "🕳️", "Masmorra": "⛓️", 
@@ -83,8 +85,10 @@ export default function AgentDetailPage() {
     const [refreshHistory, setRefreshHistory] = useState(0);
     const [summonedPersona, setSummonedPersona] = useState("");
     const [dossierOpen, setDossierOpen] = useState(false);
+    const [chatGuideAutoStart, setChatGuideAutoStart] = useState(false);
 
     const entity = ENTITIES[id];
+    const activePersonaName = entity?.type === "place" ? summonedPersona : entity?.name || "";
 
     React.useEffect(() => {
         if (entity) {
@@ -103,6 +107,20 @@ export default function AgentDetailPage() {
         if (threadId) setCurrentThreadId(threadId);
     }, [searchParams]);
 
+    React.useEffect(() => {
+        let cameFromOrigins = false;
+        try {
+            const stored = window.localStorage.getItem("nemosine-onboarding-entry");
+            if (stored) {
+                const entry = JSON.parse(stored) as { destination?: string; text?: string };
+                cameFromOrigins = entry.destination === activePersonaName && Boolean(entry.text?.trim());
+            }
+        } catch {
+            cameFromOrigins = false;
+        }
+        setChatGuideAutoStart(!cameFromOrigins);
+    }, [activePersonaName]);
+
     if (!entity) {
         return (
             <main className="min-h-screen bg-[#050507] text-[#e1e1e6] flex flex-col items-center justify-center p-8">
@@ -118,7 +136,6 @@ export default function AgentDetailPage() {
     }
 
     const displayedEntityName = entityName(entity.name);
-    const activePersonaName = entity.type === "place" ? summonedPersona : entity.name;
     const conversationScope = entity.type === "place" && activePersonaName
         ? `${activePersonaName} @ ${entity.name}`
         : activePersonaName;
@@ -294,7 +311,8 @@ export default function AgentDetailPage() {
                     <div className="lg:hidden flex items-center h-auto shrink-0 bg-black/20 border-b border-[#c5a059]/10 p-2 gap-2">
                     {/* Small Image for Mobile */}
                     {cognitiveMode === "sober" ? (
-                        <div 
+                        <div
+                            data-tour="chat-persona-card"
                             className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center text-2xl shrink-0 cursor-pointer shadow-sm select-none"
                             onClick={toggleAudio}
                         >
@@ -315,6 +333,7 @@ export default function AgentDetailPage() {
                         </div>
                     ) : (
                         <div
+                            data-tour="chat-persona-card"
                             className={`relative w-12 ${entity.type === "place" ? "aspect-[3/4.35]" : "aspect-square"} glass-medieval overflow-hidden group cursor-pointer rounded-lg shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.3)]`}
                             onClick={toggleAudio}
                         >
@@ -360,6 +379,7 @@ export default function AgentDetailPage() {
                     )}
 
                     {/* Memories in Retractable Panel (Mobile) */}
+                    <div data-tour="chat-history" className="flex-1 min-w-0">
                     <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="flex-1 min-w-0">
                         {conversationScope ? (
                             <ChatHistoryList
@@ -372,6 +392,7 @@ export default function AgentDetailPage() {
                             <p className="mt-3 text-xs italic text-[#c5a059]/60">Convoque uma persona para iniciar uma memória neste lugar.</p>
                         )}
                     </CollapsiblePanel>
+                    </div>
                     </div >
                 )}
 
@@ -381,7 +402,8 @@ export default function AgentDetailPage() {
                     <div className="flex w-full items-start justify-center gap-3">
                     {/* Desktop Image */}
                     {cognitiveMode === "sober" ? (
-                        <div 
+                        <div
+                            data-tour="chat-persona-card"
                             className="w-[180px] h-[180px] rounded-2xl bg-[#fafafa] dark:bg-[#121214] border border-zinc-200 dark:border-zinc-850 flex items-center justify-center text-7xl cursor-pointer shadow-sm select-none shrink-0"
                             onClick={toggleAudio}
                         >
@@ -402,6 +424,7 @@ export default function AgentDetailPage() {
                         </div>
                     ) : (
                         <div
+                            data-tour="chat-persona-card"
                             className={`relative w-full ${entity.type === "place" ? "aspect-[3/4.35]" : "aspect-square"} max-w-[220px] glass-medieval overflow-hidden group cursor-pointer shadow-[0_8px_24px_rgba(0,0,0,0.4)] rounded-lg shrink-0`}
                             onClick={toggleAudio}
                         >
@@ -448,6 +471,7 @@ export default function AgentDetailPage() {
                     </div>
 
                     {/* Desktop Memories Panel */}
+                    <div data-tour="chat-history" className="w-full">
                     <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
                         {conversationScope ? (
                             <ChatHistoryList
@@ -460,6 +484,7 @@ export default function AgentDetailPage() {
                             <p className="mt-3 text-xs italic text-[#c5a059]/60">Convoque uma persona para iniciar uma memória neste lugar.</p>
                         )}
                     </CollapsiblePanel>
+                    </div>
                     </div>
                 )}
 
@@ -542,6 +567,12 @@ export default function AgentDetailPage() {
                     onClick={() => setDossierOpen(false)}
                 />
             )}
+            <OnboardingTour
+                tourId="chat"
+                storageKey="nemosine_onboarding_chat_completed"
+                steps={chatTourSteps}
+                autoStart={chatGuideAutoStart && Boolean(activePersonaName)}
+            />
         </main>
     );
 }

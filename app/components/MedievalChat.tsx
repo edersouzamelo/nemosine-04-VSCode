@@ -149,6 +149,17 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        const openMenuForTourStep = (event: Event) => {
+            const target = (event as CustomEvent<{ tourId?: string; target?: string }>).detail?.target;
+            if (target === "chat-actions" || target === "chat-guide-button" || target === "chat-new-thread") {
+                setActionsOpen(true);
+            }
+        };
+        window.addEventListener("nemosine:onboarding-step", openMenuForTourStep);
+        return () => window.removeEventListener("nemosine:onboarding-step", openMenuForTourStep);
+    }, []);
+
+    useEffect(() => {
         try {
             const stored = window.localStorage.getItem("nemosine-onboarding-entry");
             if (!stored) return;
@@ -407,11 +418,16 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         return text.replace(/\[MEMORY:\s*.*?\]/ig, '').trim();
     };
 
+    const restartGuide = () => {
+        window.dispatchEvent(new Event("nemosine:restart-onboarding-tour", { cancelable: true }));
+        setActionsOpen(false);
+    };
+
     return (
-        <div className="w-full h-full flex flex-col relative overflow-hidden bg-black/20 rounded-lg border border-[#c5a059]/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+        <div data-tour="chat-shell" className="w-full h-full flex flex-col relative overflow-hidden bg-black/20 rounded-lg border border-[#c5a059]/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
 
             {/* Header / Toolbar */}
-            <div className="shrink-0 border-b border-[#c5a059]/20 p-3 bg-black/80 backdrop-blur-md flex items-center justify-between z-10 h-16">
+            <div data-tour="chat-header" className="shrink-0 border-b border-[#c5a059]/20 p-3 bg-black/80 backdrop-blur-md flex items-center justify-between z-10 h-16">
 
                 {/* Editable Title */}
                 <div className="flex-1 mr-4">
@@ -439,6 +455,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     <button
                         type="button"
                         onClick={() => setActionsOpen((open) => !open)}
+                        data-tour="chat-actions-trigger"
                         className="grid h-10 w-10 place-items-center rounded-full border border-[#c5a059]/25 bg-black/45 text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10"
                         title="Opcoes"
                         aria-label="Abrir opcoes do chat"
@@ -448,11 +465,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
                     {actionsOpen && (
                         <div
+                            data-tour="chat-actions"
                             className="absolute right-0 top-full z-[70] mt-3 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-[#c5a059]/25 bg-[#050507]/95 p-3 shadow-2xl backdrop-blur-md lg:w-48"
                         >
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:justify-items-center">
                                 <button
                                     type="button"
+                                    data-tour="chat-new-thread"
                                     onClick={() => {
                                         onNewChat();
                                         setActionsOpen(false);
@@ -467,6 +486,20 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         {t("newChat")}
                                     </span>
                                 </button>
+                                <button
+                                    type="button"
+                                    data-tour="chat-guide-button"
+                                    onClick={restartGuide}
+                                    title="Guia do chat"
+                                    aria-label="Guia do chat"
+                                    className="group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 lg:w-10 lg:justify-center lg:gap-0 lg:px-0"
+                                >
+                                    <span className="material-icons text-[18px]">explore</span>
+                                    <span className="lg:hidden">Guia</span>
+                                    <span className="pointer-events-none absolute left-1/2 top-full z-[80] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-[#c5a059]/25 bg-[#07070a]/95 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-[#c5a059] opacity-0 shadow-xl transition-opacity group-hover/action:opacity-100 lg:block">
+                                        Guia
+                                    </span>
+                                </button>
                                 {actionMenu}
                             </div>
                         </div>
@@ -475,7 +508,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             </div>
 
             {/* Messages Area - SCROLLABLE CONTAINER */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[#c5a059]/30 scrollbar-track-transparent bg-black/40">
+            <div data-tour="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[#c5a059]/30 scrollbar-track-transparent bg-black/40">
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-[#c5a059]/30 gap-4">
                         <div className="w-16 h-16 rounded-full border border-[#c5a059]/20 flex items-center justify-center">
@@ -559,6 +592,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 <div className="relative flex gap-3 items-center">
                     <button
                         type="button"
+                        data-tour="chat-attachments"
                         onClick={() => fileInputRef.current?.click()}
                         className="grid h-12 w-12 place-items-center rounded-xl border border-[#c5a059]/35 bg-black/50 text-[0px] text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] transition-colors hover:bg-[#c5a059]/10"
                         title="Anexar PDF ou arquivo de texto"
@@ -579,6 +613,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
                     <button
                         type="button"
+                        data-tour="chat-voice"
                         onClick={toggleListening}
                         className={`grid h-12 w-12 place-items-center rounded-xl text-[0px] transition-all ${isListening ? 'animate-pulse border border-red-500/50 bg-red-500/20 text-red-300 shadow-[0_0_18px_rgba(239,68,68,0.15)]' : 'border border-[#c5a059]/35 bg-black/50 text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] hover:bg-[#c5a059]/10'}`}
                         title={isListening ? "Parar gravacao" : "Anexar audio"}
@@ -588,6 +623,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
                     <input
                         type="text"
+                        data-tour="chat-input"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder={t("messagePlaceholder")}
@@ -595,6 +631,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     />
                     <button
                         type="submit"
+                        data-tour="chat-send"
                         disabled={isLoading || (!input.trim() && !selectedFile && !voiceTranscript.trim())}
                         className="px-6 py-3 bg-[#c5a059] hover:bg-[#b08d48] text-black font-bold uppercase tracking-widest text-xs transition-colors rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                     >

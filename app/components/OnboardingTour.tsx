@@ -109,10 +109,12 @@ export default function OnboardingTour({
     steps = defaultTourSteps,
     tourId = "inicio",
     storageKey = STORAGE_KEY,
+    autoStart = true,
 }: {
     steps?: TourStep[];
     tourId?: string;
     storageKey?: string;
+    autoStart?: boolean;
 }) {
     const { data: session, status } = useSession();
     const [active, setActive] = useState(false);
@@ -142,14 +144,17 @@ export default function OnboardingTour({
         setCompleted(storedCompleted);
         setActive(false);
         setStepIndex(0);
-        if (!storedCompleted) {
+        if (!storedCompleted && autoStart) {
             const timer = window.setTimeout(() => setActive(true), 650);
             return () => window.clearTimeout(timer);
         }
-    }, [scopedStorageKey, status]);
+    }, [autoStart, scopedStorageKey, status]);
 
     useEffect(() => {
         if (!active) return;
+        window.dispatchEvent(new CustomEvent("nemosine:onboarding-step", {
+            detail: { tourId, target: step?.target, stepIndex },
+        }));
         const target = getTourElement(step?.target);
         target?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
 
@@ -166,7 +171,7 @@ export default function OnboardingTour({
             window.visualViewport?.removeEventListener("scroll", updateHighlight);
             window.removeEventListener("scroll", updateHighlight, true);
         };
-    }, [active, step?.target, updateHighlight]);
+    }, [active, step?.target, stepIndex, tourId, updateHighlight]);
 
     const tooltipStyle = useMemo(() => {
         const margin = 16;
