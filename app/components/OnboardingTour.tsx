@@ -217,6 +217,18 @@ export default function OnboardingTour({
         return () => window.removeEventListener("nemosine:restart-onboarding-tour", handleRestartRequest);
     });
 
+    useEffect(() => {
+        if (!ready) return;
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("guia") !== "1") return;
+
+        restartTour();
+        params.delete("guia");
+        const query = params.toString();
+        window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    }, [ready]);
+
     if (!ready) return null;
 
     return (

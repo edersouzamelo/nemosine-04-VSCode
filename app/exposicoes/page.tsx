@@ -3,7 +3,7 @@ import InstitutionalFooter from "../components/InstitutionalFooter";
 import Navbar from "../components/Navbar";
 
 const exhibitionLinks = {
-  slides: "#slides-placeholder", // TODO: substituir pelo link definitivo dos slides.
+  slides: "/exposicoes/cifm26-enquadramento-por-persona-llms-v5.pdf",
   prototype: "#prototipo-placeholder", // TODO: substituir pelo link definitivo do prototipo.
   orcid: "#orcid-placeholder", // TODO: substituir pelo link ORCID definitivo.
 };

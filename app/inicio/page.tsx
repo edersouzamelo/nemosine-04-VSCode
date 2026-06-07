@@ -360,7 +360,7 @@ export default function InicioPage() {
         </div>
       )}
 
-      <InstitutionalFooter showGuideButton />
+      <InstitutionalFooter />
       <OnboardingTour />
     </main>
   );
