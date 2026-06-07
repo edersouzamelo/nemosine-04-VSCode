@@ -4,8 +4,6 @@ import Navbar from "../components/Navbar";
 
 const exhibitionLinks = {
   slides: "/exposicoes/cifm26-enquadramento-por-persona-llms-v5.pdf",
-  prototype: "#prototipo-placeholder", // TODO: substituir pelo link definitivo do prototipo.
-  orcid: "#orcid-placeholder", // TODO: substituir pelo link ORCID definitivo.
 };
 
 export default function ExposicoesPage() {
@@ -53,18 +51,6 @@ export default function ExposicoesPage() {
               className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
             >
               Ver slides
-            </Link>
-            <Link
-              href={exhibitionLinks.prototype}
-              className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
-            >
-              Acessar protótipo
-            </Link>
-            <Link
-              href={exhibitionLinks.orcid}
-              className="inline-flex min-h-9 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-2 text-[10px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
-            >
-              Ver ORCID
             </Link>
           </div>
         </article>
