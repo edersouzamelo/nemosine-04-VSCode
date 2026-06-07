@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://nemosine-04-vs-code.vercel.app");
+  || "https://app.nemosinenous.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),

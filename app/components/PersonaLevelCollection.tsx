@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "./LanguageProvider";
 import PersonaCategoryExplorer from "./PersonaCategoryExplorer";
@@ -21,6 +21,11 @@ interface PersonaItem {
     summary?: string;
 }
 
+const normalizeSearchText = (value: string) => value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 const PEREGRINO_AGENTS = [
     "Mentor", "Inimigo", "Bruxo", "Vidente", "Estrategista", "Cientista", "Narrador", "Psicólogo"
 ];
@@ -34,7 +39,10 @@ const VASSALO_AGENTS = [
 export default function PersonaLevelCollection({ items }: { items: PersonaItem[] }) {
     const { level, language, entityName } = useLanguage();
     const [carouselMode, setCarouselMode] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const allowedNames = useMemo(() => {
         return level === "Peregrino"
@@ -51,6 +59,22 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
                 .filter((item): item is PersonaItem => Boolean(item))
             : items;
     }, [allowedNames, items]);
+
+    const normalizedSearch = normalizeSearchText(searchTerm.trim());
+
+    const filteredItems = useMemo(() => {
+        if (!normalizedSearch) return visibleItems;
+        return visibleItems.filter((item) =>
+            normalizeSearchText(item.name).includes(normalizedSearch)
+            || normalizeSearchText(entityName(item.name)).includes(normalizedSearch)
+        );
+    }, [entityName, normalizedSearch, visibleItems]);
+
+    useEffect(() => {
+        if (searchOpen) {
+            searchInputRef.current?.focus();
+        }
+    }, [searchOpen]);
         
     const showCategories = level === "Regente" || level === "Soberano";
 
@@ -68,11 +92,40 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-end pr-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pr-2">
+                {searchOpen && (
+                    <div className="flex min-w-0 flex-1 justify-end sm:flex-none">
+                        <input
+                            ref={searchInputRef}
+                            type="search"
+                            value={searchTerm}
+                            onChange={(event) => setSearchTerm(event.target.value)}
+                            placeholder={language.startsWith("pt") ? "Buscar persona..." : language === "es" ? "Buscar persona..." : "Search persona..."}
+                            aria-label={language.startsWith("pt") ? "Buscar persona" : language === "es" ? "Buscar persona" : "Search persona"}
+                            className="h-10 w-full min-w-0 max-w-[220px] rounded-lg border border-[#c5a059]/40 bg-black/70 px-3 font-body text-sm text-[#eee8dc] outline-none transition-all placeholder:text-[#c5a059]/35 focus:border-[#c5a059] focus:bg-black/85"
+                        />
+                    </div>
+                )}
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (searchOpen && searchTerm) {
+                            setSearchTerm("");
+                            return;
+                        }
+                        setSearchOpen((current) => !current);
+                    }}
+                    title={language.startsWith("pt") ? "Buscar persona" : language === "es" ? "Buscar persona" : "Search persona"}
+                    aria-expanded={searchOpen}
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 font-bold text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10"
+                >
+                    <span className="material-icons text-xl">{searchOpen && searchTerm ? "close" : "search"}</span>
+                </button>
                 <button
                     type="button"
                     onClick={() => setCarouselMode(!carouselMode)}
                     title={carouselMode ? (language.startsWith("pt") ? "Ver em Grade" : "View in Grid") : (language.startsWith("pt") ? "Ver em Carrossel" : "View in Carousel")}
+                    data-tour="personas-view-toggle"
                     className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
                 >
                     <span className="material-icons text-xl">{carouselMode ? "grid_on" : "view_carousel"}</span>
@@ -106,7 +159,7 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
                         className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-8 pt-4 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
                         style={{ paddingLeft: "calc(50% - 44vw)", paddingRight: "calc(50% - 44vw)" }}
                     >
-                        {visibleItems.map((item) => (
+                        {filteredItems.map((item) => (
                             <div key={item.name} className="relative shrink-0 w-[65vw] sm:w-[180px] md:w-[200px] max-w-[220px] snap-center hover:z-[120]">
                                 <AgentCard
                                     name={item.name}
@@ -125,8 +178,13 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
                     key={level}
                     showCategories={showCategories}
                     initialCategory={level === "Regente" ? "all" : "strategic"}
-                    items={visibleItems}
+                    items={filteredItems}
                 />
+            )}
+            {searchOpen && normalizedSearch && filteredItems.length === 0 && (
+                <p className="py-8 text-center text-[10px] uppercase tracking-[0.24em] text-[#c5a059]/50">
+                    {language.startsWith("pt") ? "Nenhuma persona permitida encontrada." : language === "es" ? "No se encontro ninguna persona permitida." : "No allowed persona found."}
+                </p>
             )}
         </div>
     );

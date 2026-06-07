@@ -52,15 +52,18 @@ export default function DeveloperContactPage() {
       <section className="relative z-10 mx-auto grid w-full max-w-5xl gap-8 px-5 py-8 sm:p-12 lg:grid-cols-[0.8fr_1.2fr]">
         <aside className="rounded-lg border border-[#c5a059]/20 bg-black/35 p-6 backdrop-blur-md flex flex-col justify-between">
           <div>
-            <img
-              src="/assets/developer-photo.jpg"
-              alt="Desenvolvedor do Nemosine"
-              className="aspect-square w-full rounded-lg border border-[#c5a059]/20 object-cover shadow-lg shadow-black/50"
-              onError={(event) => {
-                event.currentTarget.src = "/assets/nemosine-logo.png";
-                event.currentTarget.className = "w-full rounded-lg border border-[#c5a059]/20 bg-black/40 p-8 object-contain";
-              }}
-            />
+            <div className="overflow-hidden rounded-lg border border-[#c5a059]/25 bg-black/45 shadow-lg shadow-black/50">
+              <div className="aspect-video w-full">
+                <iframe
+                  className="h-full w-full"
+                  src="https://www.youtube.com/embed/XNji1VZJApA"
+                  title="Mensagem do desenvolvedor do Nemosine"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allowFullScreen
+                />
+              </div>
+            </div>
             <h1 className="mt-6 font-display text-4xl uppercase tracking-widest text-[#c5a059] mb-2 drop-shadow-[0_2px_10px_rgba(197,160,89,0.2)]">
               Fale com o Desenvolvedor
             </h1>

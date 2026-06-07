@@ -448,13 +448,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
                     {actionsOpen && (
                         <div
-                            className="absolute right-0 top-full z-50 mt-3 w-64 rounded-xl border border-[#c5a059]/25 bg-[#050507]/95 p-3 shadow-2xl backdrop-blur-md lg:w-auto"
-                            onClickCapture={() => window.setTimeout(() => setActionsOpen(false), 80)}
+                            className="absolute right-0 top-full z-[70] mt-3 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-[#c5a059]/25 bg-[#050507]/95 p-3 shadow-2xl backdrop-blur-md lg:w-48"
                         >
-                            <div className="flex flex-col gap-2 lg:grid lg:grid-cols-3">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:justify-items-center">
                                 <button
                                     type="button"
-                                    onClick={onNewChat}
+                                    onClick={() => {
+                                        onNewChat();
+                                        setActionsOpen(false);
+                                    }}
                                     title={t("newChat")}
                                     aria-label={t("newChat")}
                                     className="group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 lg:w-10 lg:justify-center lg:gap-0 lg:px-0"

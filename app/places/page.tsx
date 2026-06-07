@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import CardCollectionGrid from "../components/CardCollectionGrid";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
@@ -8,21 +8,29 @@ import PlacesLevelGate from "../components/PlacesLevelGate";
 import { ENTITIES, PLACES } from "../data/entities";
 import { useLanguage } from "../components/LanguageProvider";
 import AgentCard from "../components/AgentCard";
+import OnboardingTour from "../components/OnboardingTour";
+import { lugaresTourSteps } from "../data/onboardingTours";
 
 const buildCardSummary = (slug: string) => {
     const entity = ENTITIES[slug];
-    const source = [entity?.phrase, entity?.transcription || entity?.script]
-        .filter(Boolean)
-        .join(". ")
+    const source = (entity?.transcription || entity?.script || entity?.phrase || "")
         .replace(/\s+/g, " ")
         .trim();
     return source.length > 150 ? `${source.slice(0, 147).trim()}...` : source;
 };
 
+const normalizeSearchText = (value: string) => value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 export default function PlacesPage() {
     const { language, entityName, t } = useLanguage();
     const [carouselMode, setCarouselMode] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
     const scrollRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const placesItems = useMemo(() => {
         return [...PLACES].sort((a, b) => {
@@ -34,6 +42,22 @@ export default function PlacesPage() {
             return { name, image: ENTITIES[slug]?.image, href: `/agents/${slug}`, summary: buildCardSummary(slug) };
         });
     }, []);
+
+    const normalizedSearch = normalizeSearchText(searchTerm.trim());
+
+    const filteredPlacesItems = useMemo(() => {
+        if (!normalizedSearch) return placesItems;
+        return placesItems.filter((item) =>
+            normalizeSearchText(item.name).includes(normalizedSearch)
+            || normalizeSearchText(entityName(item.name)).includes(normalizedSearch)
+        );
+    }, [entityName, normalizedSearch, placesItems]);
+
+    useEffect(() => {
+        if (searchOpen) {
+            searchInputRef.current?.focus();
+        }
+    }, [searchOpen]);
 
     const scrollLeft = () => {
         if (scrollRef.current) {
@@ -62,13 +86,39 @@ export default function PlacesPage() {
                 {/* Dashboard Grid */}
                 <section className="relative z-10 p-4 md:p-8 lg:p-12">
                     <div className="max-w-[1600px] mx-auto">
-                        <header className="mb-12 text-center relative flex flex-col items-center justify-center">
+                        <header data-tour="lugares-header" className="mb-12 text-center relative flex flex-col items-center justify-center">
                             <h2 className="text-4xl font-display text-[#c5a059] mb-2 uppercase tracking-widest">{t("places")}</h2>
                             <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">
                                 {language.startsWith("pt") ? "Cenários de Processamento Cognitivo" : language === "es" ? "Escenarios de Procesamiento Cognitivo" : "Cognitive Processing Scenarios"}
                             </p>
                             
-                            <div className="absolute right-0 bottom-0 pr-2">
+                            <div data-tour="lugares-view-toggle" className="absolute right-0 bottom-0 flex max-w-full items-center justify-end gap-2 pr-2">
+                                {searchOpen && (
+                                    <input
+                                        ref={searchInputRef}
+                                        type="search"
+                                        value={searchTerm}
+                                        onChange={(event) => setSearchTerm(event.target.value)}
+                                        placeholder={language.startsWith("pt") ? "Buscar lugar..." : language === "es" ? "Buscar lugar..." : "Search place..."}
+                                        aria-label={language.startsWith("pt") ? "Buscar lugar" : language === "es" ? "Buscar lugar" : "Search place"}
+                                        className="h-10 w-[min(52vw,220px)] rounded-lg border border-[#c5a059]/40 bg-black/70 px-3 font-body text-sm text-[#eee8dc] outline-none transition-all placeholder:text-[#c5a059]/35 focus:border-[#c5a059] focus:bg-black/85"
+                                    />
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (searchOpen && searchTerm) {
+                                            setSearchTerm("");
+                                            return;
+                                        }
+                                        setSearchOpen((current) => !current);
+                                    }}
+                                    title={language.startsWith("pt") ? "Buscar lugar" : language === "es" ? "Buscar lugar" : "Search place"}
+                                    aria-expanded={searchOpen}
+                                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 font-bold text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10"
+                                >
+                                    <span className="material-icons text-xl">{searchOpen && searchTerm ? "close" : "search"}</span>
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setCarouselMode(!carouselMode)}
@@ -108,7 +158,7 @@ export default function PlacesPage() {
                                     className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-8 pt-4 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
                                     style={{ paddingLeft: "calc(50% - 44vw)", paddingRight: "calc(50% - 44vw)" }}
                                 >
-                                    {placesItems.map((item) => (
+                                    {filteredPlacesItems.map((item, index) => (
                                         <div key={item.name} className="shrink-0 w-[65vw] sm:w-[180px] md:w-[200px] max-w-[220px] snap-center">
                                             <AgentCard
                                                 name={item.name}
@@ -119,14 +169,19 @@ export default function PlacesPage() {
                                                 summary={item.summary}
                                                 className="aspect-[4/7]"
                                                 flipOnMount={true}
-                                                index={placesItems.indexOf(item)}
+                                                index={index}
                                             />
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         ) : (
-                            <CardCollectionGrid collection="places" items={placesItems} />
+                            <CardCollectionGrid collection="places" items={filteredPlacesItems} />
+                        )}
+                        {searchOpen && normalizedSearch && filteredPlacesItems.length === 0 && (
+                            <p className="py-8 text-center text-[10px] uppercase tracking-[0.24em] text-[#c5a059]/50">
+                                {language.startsWith("pt") ? "Nenhum lugar permitido encontrado." : language === "es" ? "No se encontro ningun lugar permitido." : "No allowed place found."}
+                            </p>
                         )}
                     </div>
                 </section>
@@ -138,6 +193,11 @@ export default function PlacesPage() {
                     </p>
                 </footer>
                 <InstitutionalFooter />
+                <OnboardingTour
+                    tourId="lugares"
+                    storageKey="nemosine_onboarding_lugares_completed"
+                    steps={lugaresTourSteps}
+                />
             </main>
         </PlacesLevelGate>
     );

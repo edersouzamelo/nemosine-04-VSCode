@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import InstitutionalFooter from "../components/InstitutionalFooter";
 import Navbar from "../components/Navbar";
+import OnboardingTour from "../components/OnboardingTour";
 import { routeInitialIntent } from "../lib/onboardingRouting";
 import { useLanguage } from "../components/LanguageProvider";
 
@@ -123,6 +124,7 @@ export default function InicioPage() {
               value={need}
               onChange={(event) => setNeed(event.target.value)}
               placeholder={t("searchPlaceholder")}
+              data-tour="travessia-input"
               className="onboarding-input w-full rounded-xl border border-[#c5a059]/25 bg-black/55 px-5 py-4 font-body text-lg text-[#eee8dc] outline-none transition-all placeholder:text-[#b8ad97]/30 focus:border-[#c5a059]/60 focus:bg-black/75 shadow-[inset_0_2px_5px_rgba(0,0,0,0.7)]"
             />
             
@@ -133,6 +135,7 @@ export default function InicioPage() {
               <button
                 type="submit"
                 disabled={isRouting}
+                data-tour="iniciar-travessia"
                 className="w-full relative px-8 py-5 font-display font-bold uppercase tracking-[0.35em] text-xs sm:text-sm bg-gradient-to-r from-[#6b1e0f] via-[#993b1b] to-[#6b1e0f] text-[#fde68a] hover:from-[#7f2412] hover:via-[#ad431f] hover:to-[#7f2412] hover:text-[#fffbeb] border-y-2 border-[#c5a059] transition-all duration-300 disabled:cursor-wait disabled:opacity-70 cursor-pointer shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
               >
                 <span className="relative z-10 flex items-center justify-center gap-3 drop-shadow-[0_0_6px_rgba(253,230,138,0.4)]">
@@ -357,7 +360,8 @@ export default function InicioPage() {
         </div>
       )}
 
-      <InstitutionalFooter />
+      <InstitutionalFooter showGuideButton />
+      <OnboardingTour />
     </main>
   );
 }

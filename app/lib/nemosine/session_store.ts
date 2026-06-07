@@ -1,6 +1,7 @@
 import { SessionState, ChatThread } from './types';
 import { PrismaClient } from '@prisma/client';
 import { isPrivateMemorySpace, PRIVATE_MEMORY_SPACES } from './privacy';
+import { getPersonaLexicalHints } from './persona_behavior_contracts';
 
 export const prisma = new PrismaClient();
 
@@ -164,7 +165,67 @@ export const getUserMemories = async (userId: string, targetPersonaId: string): 
     return memories.reverse().map(m => m.content);
 };
 
-export const getVisibleConversationEpisodes = async (userId: string, targetPersonaId: string): Promise<string[]> => {
+const normalizeForScoring = (text: string) => text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const buildScoringTerms = (personaId: string, userText: string) => {
+    const stopwords = new Set([
+        "a", "o", "os", "as", "um", "uma", "de", "do", "da", "dos", "das", "e", "em",
+        "para", "por", "com", "que", "como", "qual", "quais", "me", "meu", "minha",
+        "voce", "hoje", "agora", "sobre", "isso", "esse", "essa", "este", "esta",
+    ]);
+    const normalizedTextTerms = normalizeForScoring(`${personaId} ${userText}`)
+        .split(" ")
+        .filter((term) => term.length > 2 && !stopwords.has(term));
+    const contractTerms = getPersonaLexicalHints(personaId)
+        .flatMap((hint) => normalizeForScoring(hint).split(" "))
+        .filter((term) => term.length > 2 && !stopwords.has(term));
+
+    return Array.from(new Set([...normalizedTextTerms, ...contractTerms]));
+};
+
+const rankRelevantSnippets = (
+    snippets: string[],
+    personaId: string,
+    userText: string,
+    limit: number,
+) => {
+    const terms = buildScoringTerms(personaId, userText);
+
+    return snippets
+        .map((content, index) => {
+            const normalizedContent = normalizeForScoring(content);
+            const score = terms.reduce((total, term) => {
+                if (!normalizedContent.includes(term)) return total;
+                const occurrences = normalizedContent.split(term).length - 1;
+                return total + 1 + Math.min(occurrences, 3);
+            }, 0);
+
+            return { content, score, index };
+        })
+        .filter((item) => item.score > 0 || item.index < 4)
+        .sort((a, b) => b.score - a.score || b.index - a.index)
+        .slice(0, limit)
+        .sort((a, b) => a.index - b.index)
+        .map((item) => item.content);
+};
+
+export const getRelevantUserMemories = async (
+    userId: string,
+    targetPersonaId: string,
+    userText: string,
+    limit = 10,
+): Promise<string[]> => {
+    const memories = await getUserMemories(userId, targetPersonaId);
+    return rankRelevantSnippets(memories, targetPersonaId, userText, limit);
+};
+
+const getVisibleConversationEpisodeCandidates = async (userId: string, targetPersonaId: string): Promise<string[]> => {
     const threads = await prisma.thread.findMany({
         where: {
             userId
@@ -188,7 +249,6 @@ export const getVisibleConversationEpisodes = async (userId: string, targetPerso
                 || thread.personaId.endsWith(` @ ${targetPersonaId}`);
         })
         .filter(thread => thread.messages.length > 0)
-        .slice(0, 8)
         .map(thread => {
             const excerpt = [...thread.messages]
                 .reverse()
@@ -200,6 +260,21 @@ export const getVisibleConversationEpisodes = async (userId: string, targetPerso
 
             return `[Conversa com ${thread.personaId}]\n${excerpt}`;
         });
+};
+
+export const getVisibleConversationEpisodes = async (userId: string, targetPersonaId: string): Promise<string[]> => {
+    const candidates = await getVisibleConversationEpisodeCandidates(userId, targetPersonaId);
+    return candidates.slice(0, 8);
+};
+
+export const getRelevantConversationEpisodes = async (
+    userId: string,
+    targetPersonaId: string,
+    userText: string,
+    limit = 6,
+): Promise<string[]> => {
+    const candidates = await getVisibleConversationEpisodeCandidates(userId, targetPersonaId);
+    return rankRelevantSnippets(candidates, targetPersonaId, userText, limit);
 };
 
 export const addUserMemory = async (userId: string, content: string, personaId?: string): Promise<void> => {

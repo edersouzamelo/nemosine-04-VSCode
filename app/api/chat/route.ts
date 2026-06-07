@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import pdfParse from 'pdf-parse';
 import {
     createThread,
@@ -13,10 +13,15 @@ import {
 import { auth } from '@/auth';
 import { streamText } from 'ai';
 import { openai as vercelOpenai } from '@ai-sdk/openai';
-import { buildSystemPrompt } from '@/app/lib/nemosine/llm_client';
+import { buildSystemPromptAssembly, DEFAULT_CHAT_MAX_OUTPUT_TOKENS, DEFAULT_CHAT_MODEL, DEFAULT_CHAT_TEMPERATURE } from '@/app/lib/nemosine/llm_client';
 import { ENTITIES } from '@/app/data/entities';
 import { isPrivateMemorySpace } from '@/app/lib/nemosine/privacy';
 import { createUserRegistry } from '@/app/lib/userFeatureStore';
+import {
+    buildRuntimePersonaGuard,
+    sanitizeConversationHistory,
+    writePromptDebugAudit,
+} from '@/app/lib/nemosine/payload_hygiene';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -150,13 +155,21 @@ export async function POST(req: NextRequest) {
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
-        const [, , systemPrompt] = await Promise.all([
+        const [, , promptAssembly] = await Promise.all([
             addMessageToThread(userId, activeThreadId, 'user', displayUserText),
             retainConversationEpisode(userId, memoryScope, userText),
-            buildSystemPrompt(userId, personaId, selectedLanguage, normalizedPlaceId)
+            buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, userText)
         ]);
+        const systemPrompt = promptAssembly.systemPrompt;
+        const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(priorHistory);
         const history = [
-            ...priorHistory,
+            ...sanitizedHistory,
+            {
+                id: 'runtime-persona-guard',
+                role: 'system' as const,
+                content: buildRuntimePersonaGuard(personaId, userText),
+                timestamp: Date.now()
+            },
             {
                 id: 'current-user-message',
                 role: 'user' as const,
@@ -164,16 +177,30 @@ export async function POST(req: NextRequest) {
                 timestamp: Date.now()
             }
         ];
+        const modelMessages = history.map((message) => ({
+            role: message.role as 'user' | 'assistant' | 'system',
+            content: message.content
+        }));
+
+        await writePromptDebugAudit({
+            personaId,
+            threadId: activeThreadId,
+            model: DEFAULT_CHAT_MODEL,
+            temperature: DEFAULT_CHAT_TEMPERATURE,
+            maxOutputTokens: DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
+            systemPrompt,
+            messages: modelMessages,
+            filteredHistory,
+            debug: promptAssembly.debug,
+        });
 
         console.log(`[API/Chat] Starting stream after ${Date.now() - t0}ms total prep time`);
         const result = await streamText({
-            model: vercelOpenai('gpt-4o'),
+            model: vercelOpenai(DEFAULT_CHAT_MODEL),
             system: systemPrompt,
-            messages: history.map((message) => ({
-                role: message.role as 'user' | 'assistant' | 'system',
-                content: message.content
-            })),
-            temperature: 0.7,
+            messages: modelMessages,
+            temperature: DEFAULT_CHAT_TEMPERATURE,
+            maxOutputTokens: DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
             onFinish: async ({ text }) => {
                 let finalResponse = text;
                 const memoryMatches = [...text.matchAll(/\[MEMORY:\s*([^\]\r\n]{1,1000})\]/gi)];

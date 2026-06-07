@@ -7,7 +7,7 @@ import MedievalButton from "@/app/components/MedievalButton";
 import Navbar from "@/app/components/Navbar";
 import InstitutionalFooter from "@/app/components/InstitutionalFooter";
 
-// Tiers of Caste
+// Tiers of level
 interface CasteDetails {
     id: string;
     title: string;
@@ -132,7 +132,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "⚖️",
             description: "A jornada interior de integração e equilíbrio mental. Aprenda a compreender e canalizar seus impulsos, anseios e estados emocionais sem se deixar escravizar por eles.",
             focus: "Integração das sombras e equilíbrio emocional",
-            unlockCondition: "Derrotar a 'Inércia' e ascender à casta de Vassalo.",
+            unlockCondition: "Derrotar a 'Inércia' e ascender ao nível de Vassalo.",
             milestones: [
                 "Equilibrar a Impulsividade",
                 "Acolher e canalizar a Ansiedade",
@@ -146,7 +146,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "💰",
             description: "A sabedoria prática da Mordomia. Governe seus recursos materiais, finanças, tempo e energia com responsabilidade estratégica e consumo consciente.",
             focus: "Organização prática, finanças e mordomia",
-            unlockCondition: "Concluir o Capítulo II e atingir a casta de Regente.",
+            unlockCondition: "Concluir o Capítulo II e atingir o nível de Regente.",
             milestones: [
                 "Superar o sentimento de Escassez",
                 "Dominar o impulso do Consumismo",
@@ -160,7 +160,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "⚕️",
             description: "O templo do corpo físico. Otimize sua nutrição, sono, respiração e movimento para sustentar a clareza da mente e a alta energia existencial necessária para governar sua vida.",
             focus: "Cuidado corporal, sono sã e vigor vital",
-            unlockCondition: "Concluir o Capítulo III e atingir a casta de Soberano.",
+            unlockCondition: "Concluir o Capítulo III e atingir o nível de Soberano.",
             milestones: [
                 "Superar a letargia do Sedentarismo",
                 "Equilibrar a Exaustão nervosa",
@@ -191,7 +191,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "⚖️",
             description: "El viaje interior de integración y equilibrio mental. Aprende a comprender y canalizar tus impulsos, anhelos y estados emocionales sin dejarte esclavizar por ellos.",
             focus: "Integración de sombras y equilibrio emocional",
-            unlockCondition: "Derrotar a la 'Inercia' y ascender a la casta de Vasallo.",
+            unlockCondition: "Derrotar a la 'Inercia' y ascender al nivel de Vasallo.",
             milestones: [
                 "Equilibrar la Impulsividad",
                 "Acoger y canalizar la Ansiedad",
@@ -205,7 +205,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "💰",
             description: "La sabiduría práctica de la Mayordomía. Gobierna tus recursos materiales, finanzas, tiempo y energía con responsabilidad estratégica y consumo consciente.",
             focus: "Organización práctica, finanzas y mayordomía",
-            unlockCondition: "Terminar el Capítulo II y alcanzar la casta de Regente.",
+            unlockCondition: "Terminar el Capítulo II y alcanzar el nivel de Regente.",
             milestones: [
                 "Superar el sentimiento de Escasez",
                 "Dominar el impulso del Consumismo",
@@ -219,7 +219,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "⚕️",
             description: "El templo del cuerpo físico. Optimiza tu nutrición, sueño, respiración y movimiento para mantener la claridad mental y la alta energía existencial necesaria para gobernar tu vida.",
             focus: "Cuidado corporal, sueño sano y vigor vital",
-            unlockCondition: "Terminar el Capítulo III y alcanzar la casta de Soberano.",
+            unlockCondition: "Terminar el Capítulo III y alcanzar el nivel de Soberano.",
             milestones: [
                 "Superar el letargo del Sedentarismo",
                 "Equilibrar la Fatiga nerviosa",
@@ -250,7 +250,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "⚖️",
             description: "The inner journey of mental integration and balance. Learn to understand and channel your impulses, desires, and emotional states without letting yourself be enslaved by them.",
             focus: "Shadow integration and emotional balance",
-            unlockCondition: "Defeat 'Inertia' and ascend to Vassal caste.",
+            unlockCondition: "Defeat 'Inertia' and ascend to Vassal level.",
             milestones: [
                 "Balance Impulsivity",
                 "Acknowledge and channel Anxiety",
@@ -264,7 +264,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "💰",
             description: "The practical wisdom of Stewardship. Govern your material resources, finances, time, and energy with strategic responsibility and conscious consumption.",
             focus: "Practical organization, finances, and stewardship",
-            unlockCondition: "Complete Chapter II and reach Regent caste.",
+            unlockCondition: "Complete Chapter II and reach Regent level.",
             milestones: [
                 "Overcome feeling of Scarcity",
                 "Master impulse of Consumerism",
@@ -278,7 +278,7 @@ const LOCALIZED_CHAPTERS: Record<string, ChapterDetails[]> = {
             emoji: "⚕️",
             description: "The temple of the physical body. Optimize your nutrition, sleep, breathing, and movement to sustain mental clarity and high existential energy required to govern your life.",
             focus: "Physical care, healthy sleep, and vital vigor",
-            unlockCondition: "Complete Chapter III and reach Sovereign caste.",
+            unlockCondition: "Complete Chapter III and reach Sovereign level.",
             milestones: [
                 "Overcome sedentary lethargy",
                 "Balance nervous exhaustion",
@@ -733,7 +733,7 @@ export default function TravessiaPage() {
                     loadedChapters.push("capitulo_1");
                 }
                 
-                // Keep chapters unlocked in sync with Caste levels for seamless transition
+                // Keep chapters unlocked in sync with access levels for seamless transition
                 const caste = data.caste || "Peregrino";
                 if (caste === "Vassalo" && !loadedChapters.includes("capitulo_2")) loadedChapters.push("capitulo_2");
                 if (caste === "Regente") {
@@ -855,7 +855,7 @@ export default function TravessiaPage() {
         setBossLogs(updatedLogs);
         setRelics(updatedRelics);
 
-        // Automatic Caste progress & Chapter unlock checks
+        // Automatic level progress & Chapter unlock checks
         let updatedCaste = currentCaste;
         if (log.bossId === "inercia") {
             updatedCaste = "Vassalo";
@@ -982,7 +982,7 @@ export default function TravessiaPage() {
         conqueredText: language.startsWith("pt") ? "Conquistados" : language.startsWith("es") ? "Conquistados" : "Conquered",
         relicsText: language.startsWith("pt") ? "Relíquias de Campanha:" : language.startsWith("es") ? "Reliquias de Campaña:" : "Campaign Relics:",
         artifacts: language.startsWith("pt") ? "Artefatos" : language.startsWith("es") ? "Artefactos" : "Artifacts",
-        accessSeal: language.startsWith("pt") ? "Chancela de Acesso:" : language.startsWith("es") ? "Sello de Acceso:" : "Access Seal:",
+        accessSeal: language.startsWith("pt") ? "Nivel de acesso:" : language.startsWith("es") ? "Nivel de acceso:" : "Access level:",
         imperialSeal: language.startsWith("pt") ? "Chancela Imperial de Nous" : language.startsWith("es") ? "Sello Imperial de Nous" : "Imperial Seal of Nous",
         diaryWins: language.startsWith("pt") ? "Diário de Vitórias e Aprendizados" : language.startsWith("es") ? "Diario de Victorias y Aprendizajes" : "Diary of Victories and Learnings",
         victory: language.startsWith("pt") ? "Vitória: " : language.startsWith("es") ? "Victoria: " : "Victory: ",
@@ -1045,7 +1045,7 @@ export default function TravessiaPage() {
                                     {language.startsWith("pt") ? "Nível de Acesso Estrutural" : language === "es" ? "Nivel de Acceso Estructural" : "Structural Access Level"}
                                 </span>
                                 <h1 className="font-display text-3xl uppercase tracking-widest text-[#c5a059] font-bold">
-                                    {language.startsWith("pt") ? "Casta" : language === "es" ? "Casta" : "Caste"}: {activeCasteDetails.title}
+                                    {language.startsWith("pt") ? "Nível" : language === "es" ? "Nivel" : "Level"}: {activeCasteDetails.title}
                                 </h1>
                             </div>
                         </div>
@@ -1072,10 +1072,10 @@ export default function TravessiaPage() {
                         </div>
                         <p className="text-[10px] text-stone-400 uppercase tracking-wider font-semibold">
                             {language.startsWith("pt") 
-                                ? "Casta atualizada automaticamente conforme seu amadurecimento existencial." 
+                                ? "Nível atualizado automaticamente conforme seu amadurecimento existencial."
                                 : language === "es" 
-                                    ? "Casta actualizada automáticamente según tu maduración existencial." 
-                                    : "Caste updated automatically in accordance with your existential maturity."}
+                                    ? "Nivel actualizado automáticamente según tu maduración existencial."
+                                    : "Level updated automatically in accordance with your existential maturity."}
                         </p>
                     </div>
                 </header>

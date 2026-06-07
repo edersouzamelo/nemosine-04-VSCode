@@ -14,6 +14,7 @@ interface AgentCardProps {
     flipOnMount?: boolean;
     index?: number;
     summary?: string;
+    forceTooltip?: boolean;
 }
  
 const soberEmojis: Record<string, string> = {
@@ -48,16 +49,36 @@ function cleanTooltipSummary(value: string) {
     return `${withoutQuotes.slice(0, 89).trim()}...`;
 }
 
-export default function AgentCard({ name, displayName, label = "Persona", image, className = "", href, flipOnMount = false, index = 0, summary }: AgentCardProps) {
+function normalizeTooltipSummary(value: string, label: string) {
+    const withoutGreeting = value
+        .replace(/\s+/g, " ")
+        .split(/Sauda|Saudacoes/i)[0]
+        .trim();
+    const withoutGenericPlaceIntro = label === "Lugar"
+        ? withoutGreeting
+            .replace(/^Um cen.{0,8}rio moldado pelo pensamento e pela mem.{0,8}ria\.?\s*/i, "")
+            .replace(/^Modulo de contexto para orientar a experiencia mental\.?\s*/i, "")
+            .replace(/^Ajuda a situar o pensamento no lugar certo\.?\s*/i, "")
+            .trim()
+        : withoutGreeting;
+    const withoutQuotes = withoutGenericPlaceIntro.replace(/[â€œâ€"]/g, "").trim();
+    if (withoutQuotes.length <= 92) return withoutQuotes;
+    return `${withoutQuotes.slice(0, 89).trim()}...`;
+}
+
+export default function AgentCard({ name, displayName, label = "Persona", image, className = "", href, flipOnMount = false, index = 0, summary, forceTooltip = false }: AgentCardProps) {
     const { cognitiveMode } = useLanguage();
     const cardDisplayName = displayName ?? name;
     const [isRevealed, setIsRevealed] = React.useState(!flipOnMount);
     const rawTooltipText = summary || (label === "Lugar"
         ? "Modulo de contexto para orientar a experiencia mental. Ajuda a situar o pensamento no lugar certo."
         : "Persona de apoio cognitivo para interpretar demandas. Ajuda a escolher a melhor forma de agir.");
-    const tooltipText = cleanTooltipSummary(rawTooltipText);
+    const tooltipText = normalizeTooltipSummary(rawTooltipText, label);
+    const tooltipHeading = label === "Lugar" ? cardDisplayName : label;
     const tooltipSideOffset = index % 2 === 0 ? "left-[56%]" : "left-[44%]";
-    const tooltipTilt = index % 2 === 0 ? "group-hover:rotate-[0.5deg]" : "group-hover:-rotate-[0.5deg]";
+    const tooltipTilt = forceTooltip ? (index % 2 === 0 ? "rotate-[0.5deg]" : "-rotate-[0.5deg]") : (index % 2 === 0 ? "group-hover:rotate-[0.5deg]" : "group-hover:-rotate-[0.5deg]");
+    const tooltipVertical = `bottom-full mb-3 ${forceTooltip ? "translate-y-0" : "-translate-y-2 group-hover:translate-y-0"}`;
+    const tooltipVisibility = forceTooltip ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
     React.useEffect(() => {
         if (flipOnMount) {
@@ -84,7 +105,7 @@ export default function AgentCard({ name, displayName, label = "Persona", image,
                     {tooltipText}
                 </p>
             </div>
-            <div className={`pointer-events-none absolute ${tooltipSideOffset} top-full z-[999] mt-3 w-56 -translate-x-1/2 translate-y-2 rounded-lg border border-[#c5a059]/45 bg-[#07070a]/95 px-3 py-2 text-center font-serif text-[13px] leading-snug text-[#d8b766] opacity-0 shadow-[0_18px_45px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all duration-300 ease-out group-hover:translate-y-0 ${tooltipTilt} group-hover:opacity-100`}>
+            <div className={`pointer-events-none absolute ${tooltipSideOffset} ${tooltipVertical} z-[9999] w-56 -translate-x-1/2 rounded-lg border border-[#c5a059]/45 bg-[#07070a]/95 px-3 py-2 text-center font-serif text-[13px] leading-snug text-[#d8b766] shadow-[0_18px_45px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all duration-300 ease-out ${tooltipTilt} ${tooltipVisibility}`}>
                 {tooltipText}
             </div>
         </div>
@@ -102,7 +123,7 @@ export default function AgentCard({ name, displayName, label = "Persona", image,
     }
 
     const cardContent = (
-        <div className="group relative z-0 flex h-full select-none flex-col gap-2 cursor-pointer hover:z-[90]" style={{ perspective: "1000px" }}>
+        <div className={`group relative z-0 flex h-full select-none flex-col gap-2 cursor-pointer hover:z-[9999] ${forceTooltip ? "z-[9999]" : ""}`} style={{ perspective: "1000px" }}>
             <div 
                 className="relative aspect-[3/4.35] transition-transform duration-700"
                 style={{
@@ -176,8 +197,8 @@ export default function AgentCard({ name, displayName, label = "Persona", image,
                     {cardDisplayName}
                 </h3>
             </div>
-            <div className={`pointer-events-none absolute ${tooltipSideOffset} top-full z-[999] mt-2 w-60 -translate-x-1/2 translate-y-2 rounded-lg border border-[#c5a059]/45 bg-[#07070a]/95 px-4 py-3 text-center font-serif text-[13px] leading-snug text-[#d8b766] opacity-0 shadow-[0_18px_45px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all duration-300 ease-out group-hover:translate-y-0 ${tooltipTilt} group-hover:opacity-100`}>
-                <span className="mb-1 block font-sans text-[8px] font-bold uppercase tracking-[0.24em] text-[#c5a059]/70">{label}</span>
+            <div className={`pointer-events-none absolute ${tooltipSideOffset} ${tooltipVertical} z-[9999] w-60 -translate-x-1/2 rounded-lg border border-[#c5a059]/45 bg-[#07070a]/95 px-4 py-3 text-center font-serif text-[13px] leading-snug text-[#d8b766] shadow-[0_18px_45px_rgba(0,0,0,0.75)] backdrop-blur-md transition-all duration-300 ease-out ${tooltipTilt} ${tooltipVisibility}`}>
+                <span className="mb-1 block font-sans text-[8px] font-bold uppercase tracking-[0.24em] text-[#c5a059]/70">{tooltipHeading}</span>
                 {tooltipText}
             </div>
         </div>

@@ -96,7 +96,7 @@ export default function PersonaCategoryExplorer({
         <>
             {showCategories && (
                 <>
-                    <div className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-6">
+                    <div data-tour="personas-categories" className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-6">
                         {categories.map((option) => (
                             <button
                                 key={option.id}

@@ -4,7 +4,9 @@ import React from "react";
 import PersonaLevelCollection, { PersonaLevelFooter } from "../components/PersonaLevelCollection";
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
+import OnboardingTour from "../components/OnboardingTour";
 import { ENTITIES } from "../data/entities";
+import { personasTourSteps } from "../data/onboardingTours";
 import { useLanguage } from "../components/LanguageProvider";
 
 const AGENTS = [
@@ -44,7 +46,7 @@ export default function AgentsPage() {
             {/* Dashboard Grid */}
             <section className="relative z-10 p-4 md:p-8 lg:p-12">
                 <div className="max-w-[1600px] mx-auto">
-                    <header className="mb-12 text-center pt-6 sm:pt-0">
+                    <header data-tour="personas-header" className="mb-12 text-center pt-6 sm:pt-0">
                         <h2 className="text-4xl font-display text-[#c5a059] mb-2 uppercase tracking-widest">{t("personas")}</h2>
                         <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40">
                             {language.startsWith("pt") ? "Agentes Ativos no Sistema" : language === "es" ? "Agentes Activos en el Sistema" : "Active Agents in the System"}
@@ -62,6 +64,11 @@ export default function AgentsPage() {
 
             <PersonaLevelFooter />
             <InstitutionalFooter />
+            <OnboardingTour
+                tourId="personas"
+                storageKey="nemosine_onboarding_personas_completed"
+                steps={personasTourSteps}
+            />
         </main>
     );
 }

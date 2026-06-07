@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { isAdminEmail } from "../lib/accessControl";
 
@@ -1165,10 +1165,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const [customCardOrders, setCustomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [randomCardOrders, setRandomCardOrders] = useState<CardOrders>(emptyCardOrders);
     const [cardUsage, setCardUsage] = useState<CardUsage>(emptyCardUsage);
-    const router = useRouter();
     const pathname = usePathname();
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const isAdmin = isAdminEmail(session?.user?.email);
+    const userStorageSuffix = useMemo(() => {
+        const userKey = session?.user?.id || session?.user?.email || "anonymous";
+        return userKey.toLowerCase();
+    }, [session?.user?.email, session?.user?.id]);
 
     // Restrict sober mode to admins only
     useEffect(() => {
@@ -1187,57 +1190,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         }
     }, [pathname]);
 
-    useEffect(() => {
-        if (singularity !== "on") return;
-        
-        const handleLinkClick = (event: MouseEvent) => {
-            const anchor = (event.target as HTMLElement).closest("a");
-            if (!anchor) return;
-            
-            const href = anchor.getAttribute("href");
-            // Only intercept local paths
-            if (
-                href && 
-                href.startsWith("/") && 
-                !href.startsWith("//") && 
-                anchor.getAttribute("target") !== "_blank" &&
-                !event.defaultPrevented &&
-                event.button === 0 && 
-                !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
-            ) {
-                const mainElement = document.querySelector("main");
-                if (mainElement) {
-                    const originRoute = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-                    const targetUrl = new URL(href, window.location.origin);
-                    const targetRoute = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
-
-                    event.preventDefault();
-                    if (targetRoute === originRoute) {
-                        router.push(href);
-                        return;
-                    }
-
-                    mainElement.classList.add("singularity-fade-out");
-                    setTimeout(() => {
-                        router.push(href);
-
-                        // Only restore if navigation appears to have failed; otherwise the pathname effect clears it on the new screen.
-                        setTimeout(() => {
-                            const currentRoute = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-                            if (currentRoute !== originRoute) return;
-                            const currentMain = document.querySelector("main");
-                            if (currentMain) {
-                                currentMain.classList.remove("singularity-fade-out");
-                            }
-                        }, 4000);
-                    }, 380);
-                }
-            }
-        };
-        
-        document.addEventListener("click", handleLinkClick);
-        return () => document.removeEventListener("click", handleLinkClick);
-    }, [singularity, router]);
+    // Keep route navigation native while the transition animation is being rebuilt.
+    // A broken transition must never block access to the next module.
 
     useEffect(() => {
         const stored = window.localStorage.getItem("nemosine-language") as AppLanguage | null;
@@ -1251,14 +1205,23 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        const storedTheme = window.localStorage.getItem("nemosine-theme") as AppTheme | null;
-        const initialTheme: AppTheme = (storedTheme === "light" || storedTheme === "luanova" || storedTheme === "crepusculo") ? storedTheme : "dark";
+        if (status === "loading") return;
+
+        const themeKey = `nemosine-theme:${userStorageSuffix}`;
+        const themeSelectedKey = `nemosine-theme-user-selected:${userStorageSuffix}`;
+        const storedTheme = window.localStorage.getItem(themeKey) as AppTheme | null;
+        const userSelectedTheme = window.localStorage.getItem(themeSelectedKey) === "true";
+        const storedThemeIsValid = storedTheme === "light" || storedTheme === "dark" || storedTheme === "luanova" || storedTheme === "crepusculo";
+        const initialTheme: AppTheme = userSelectedTheme && storedThemeIsValid ? storedTheme : "dark";
+        if (!userSelectedTheme || !storedThemeIsValid) {
+            window.localStorage.setItem(themeKey, initialTheme);
+        }
         setThemeState(initialTheme);
         document.documentElement.classList.toggle("dark", initialTheme === "dark");
         document.documentElement.classList.toggle("light-theme", initialTheme === "light");
         document.documentElement.classList.toggle("luanova-theme", initialTheme === "luanova");
         document.documentElement.classList.toggle("crepusculo-theme", initialTheme === "crepusculo");
-    }, []);
+    }, [status, userStorageSuffix]);
 
     useEffect(() => {
         const storedMode = window.localStorage.getItem("nemosine-card-order") as CardOrderMode | null;
@@ -1310,7 +1273,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
     const setTheme = (nextTheme: AppTheme) => {
         setThemeState(nextTheme);
-        window.localStorage.setItem("nemosine-theme", nextTheme);
+        window.localStorage.setItem(`nemosine-theme:${userStorageSuffix}`, nextTheme);
+        window.localStorage.setItem(`nemosine-theme-user-selected:${userStorageSuffix}`, "true");
         document.documentElement.classList.toggle("dark", nextTheme === "dark");
         document.documentElement.classList.toggle("light-theme", nextTheme === "light");
         document.documentElement.classList.toggle("luanova-theme", nextTheme === "luanova");

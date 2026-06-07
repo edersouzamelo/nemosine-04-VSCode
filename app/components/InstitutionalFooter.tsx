@@ -1,30 +1,53 @@
+"use client";
+
 import Link from "next/link";
 
-export default function InstitutionalFooter() {
+const footerButtonClassName = "inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]";
+
+export default function InstitutionalFooter({ showGuideButton = false }: { showGuideButton?: boolean }) {
+    const restartGuide = () => {
+        window.dispatchEvent(new Event("nemosine:restart-onboarding-tour"));
+    };
+
     return (
         <footer className="relative z-20 mt-auto border-t border-[#c5a059]/15 bg-black/70 px-6 py-8 text-center text-[10px] leading-relaxed text-[#c8bfaf]/60">
             <div className="mx-auto max-w-4xl space-y-1.5 font-serif tracking-wide">
                 <div className="mb-3 flex flex-wrap items-center justify-center gap-3">
+                    {showGuideButton && (
+                        <button
+                            type="button"
+                            onClick={restartGuide}
+                            className={footerButtonClassName}
+                        >
+                            Guia
+                        </button>
+                    )}
                     <a
                         href="https://linktr.ee/nemosinenous"
                         target="_blank"
                         rel="noopener noreferrer"
                         data-tour="comunidade"
-                        className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
+                        className={footerButtonClassName}
                     >
                         Comunidade
                     </a>
                     <Link
+                        href="/exposicoes"
+                        className={footerButtonClassName}
+                    >
+                        ExposiÃ§Ãµes
+                    </Link>
+                    <Link
                         href="/constitution"
                         data-tour="constituicao"
-                        className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
+                        className={footerButtonClassName}
                     >
                         Constituição
                     </Link>
                     <Link
                         href="/legal"
                         data-tour="termos-politicas"
-                        className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]"
+                        className={footerButtonClassName}
                     >
                         Termos e Políticas
                     </Link>

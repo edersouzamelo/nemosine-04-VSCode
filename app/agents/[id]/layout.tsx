@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ENTITIES } from "@/app/data/entities";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    || "https://nemosine-04-vs-code.vercel.app";
+    || "https://app.nemosinenous.com";
 
 type AgentLayoutProps = {
     children: React.ReactNode;

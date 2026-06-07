@@ -139,7 +139,7 @@ const USER_STORAGE_TABLES = [
     `,
   },
   {
-    label: "Travessia castas",
+    label: "Travessia niveis",
     tableName: "sovereign_user_caste",
     sql: `
       SELECT COALESCE(SUM(pg_column_size(c)), 0)::bigint AS bytes

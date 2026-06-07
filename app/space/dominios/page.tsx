@@ -6,6 +6,8 @@ import { useLanguage } from "../../components/LanguageProvider";
 import Navbar from "../../components/Navbar";
 import InstitutionalFooter from "../../components/InstitutionalFooter";
 import PushToggle from "../../components/PushToggle";
+import OnboardingTour from "../../components/OnboardingTour";
+import { dominiosTourSteps } from "../../data/onboardingTours";
 
 interface DomainApp {
     id: string;
@@ -3053,7 +3055,7 @@ export default function DominiosHubPage() {
                 
                 {/* PAGE HEADER (Hidden completely in fullscreen F11-style mode) */}
                 {!isFullscreen && (
-                    <header className="mb-12 text-center w-full max-w-2xl mx-auto space-y-4">
+                    <header data-tour="dominios-header" className="mb-12 text-center w-full max-w-2xl mx-auto space-y-4">
                         <span className="text-[10px] uppercase tracking-[0.25em] text-[#c5a059]/60 font-semibold block">
                             Sovereign OS v1.5 - Multi-App
                         </span>
@@ -3089,6 +3091,7 @@ export default function DominiosHubPage() {
                                 type="button"
                                 onClick={enterFullscreen}
                                 title={language.startsWith("pt") ? "Expandir Sistema (Tela Cheia)" : "Expand System (Fullscreen)"}
+                                data-tour="dominios-fullscreen"
                                 className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-10 h-10 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
                             >
                                 <span className="material-icons text-xl">open_in_full</span>
@@ -3108,7 +3111,7 @@ export default function DominiosHubPage() {
                 {/* SIMULATED DEVICE ENVIRONMENT */}
                 {isFullscreen ? (
                     /* 100% IMMERSIVE FULL-SCREEN SYSTEM OPERATIONAL MODE (F11-style full viewport OS) */
-                    <div className="fixed inset-0 w-screen h-screen z-45 bg-[#07070a] flex flex-col justify-between p-6 sm:p-12 overflow-hidden select-none animate-fade-in">
+                    <div data-tour="dominios-device" className="fixed inset-0 w-screen h-screen z-45 bg-[#07070a] flex flex-col justify-between p-6 sm:p-12 overflow-hidden select-none animate-fade-in">
                         {/* Immersive space wallpaper */}
                         <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
                         <div className="nemosine-mental-castle-bg absolute inset-0 bg-cover bg-center blur-md pointer-events-none"></div>
@@ -3189,10 +3192,11 @@ export default function DominiosHubPage() {
                                 /* Fullscreen Grid of apps */
                                 <div className="w-full flex flex-col justify-between py-6 relative">
                                     <div className={`grid gap-5 w-full px-4 max-w-6xl mx-auto grid-cols-4 sm:grid-cols-6`}>
-                                        {getOrderedDomains().map((app) => (
+                                        {getOrderedDomains().map((app, index) => (
                                             <div
                                                 key={app.id}
                                                 data-app-id={app.id}
+                                                data-tour={index === 0 ? "dominios-first-app" : undefined}
                                                 draggable
                                                 onDragStart={(e) => handleDragStart(e, app.id)}
                                                 onDragOver={(e) => handleDragOver(e, app.id)}
@@ -3361,10 +3365,11 @@ export default function DominiosHubPage() {
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-3">
                                             <p className="font-display text-[8px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-4">{language.startsWith("pt") ? "Grimório de Bolso" : language === "es" ? "Grimorio de Bolsillo" : "Pocket Grimoire"}</p>
                                             <div className="grid grid-cols-4 gap-x-2 gap-y-3 px-1 overflow-y-auto pr-0.5 flex-1">
-                                                {getOrderedDomains().map((app) => (
+                                                {getOrderedDomains().map((app, index) => (
                                                     <div
                                                         key={app.id}
                                                         data-app-id={app.id}
+                                                        data-tour={index === 0 ? "dominios-first-app" : undefined}
                                                         draggable
                                                         onDragStart={(e) => handleDragStart(e, app.id)}
                                                         onDragOver={(e) => handleDragOver(e, app.id)}
@@ -3441,10 +3446,11 @@ export default function DominiosHubPage() {
                                         <div className="flex-1 flex flex-col justify-between z-10 animate-fade-in pt-4">
                                             <p className="font-display text-[9px] uppercase tracking-widest text-[#c5a059]/40 text-center mb-6">{language.startsWith("pt") ? "Grimório de Bolso - Modo Tablet" : language === "es" ? "Grimorio de Bolsillo - Modo Tablet" : "Pocket Grimoire - Tablet Mode"}</p>
                                             <div className="grid grid-cols-4 gap-x-3 gap-y-4 px-4 overflow-y-auto pr-0.5 flex-1">
-                                                {getOrderedDomains().map((app) => (
+                                                {getOrderedDomains().map((app, index) => (
                                                     <div
                                                         key={app.id}
                                                         data-app-id={app.id}
+                                                        data-tour={index === 0 ? "dominios-first-app" : undefined}
                                                         draggable
                                                         onDragStart={(e) => handleDragStart(e, app.id)}
                                                         onDragOver={(e) => handleDragOver(e, app.id)}
@@ -3489,7 +3495,7 @@ export default function DominiosHubPage() {
 
                         {/* DESKTOP MOCKUP FRAME */}
                         {deviceType === "desktop" && (
-                            <div className="relative w-[900px] max-w-[94vw] aspect-[16/9] bg-black border-[5px] border-[#c5a059]/50 rounded-[1.8rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-3 pb-4 overflow-hidden select-none">
+                            <div data-tour="dominios-device" className="relative w-[900px] max-w-[94vw] aspect-[16/9] bg-black border-[5px] border-[#c5a059]/50 rounded-[1.8rem] shadow-[0_25px_60px_rgba(0,0,0,0.85)] flex flex-col p-3 pb-4 overflow-hidden select-none">
                                 <div className="absolute inset-1.5 rounded-[1.45rem] border border-[#c5a059]/12 pointer-events-none z-45"></div>
 
                                 {/* Status Bar Desktop style */}
@@ -3525,10 +3531,11 @@ export default function DominiosHubPage() {
                                             
                                             {/* Desktop app icon grid with drag & drop */}
                                             <div className="grid grid-cols-6 gap-3 px-4 overflow-y-auto pr-0.5 flex-1">
-                                                {getOrderedDomains().map((app) => (
+                                                {getOrderedDomains().map((app, index) => (
                                                     <div
                                                         key={app.id}
                                                         data-app-id={app.id}
+                                                        data-tour={index === 0 ? "dominios-first-app" : undefined}
                                                         draggable
                                                         onDragStart={(e) => handleDragStart(e, app.id)}
                                                         onDragOver={(e) => handleDragOver(e, app.id)}
@@ -3651,6 +3658,13 @@ export default function DominiosHubPage() {
             )}
 
             {!isFullscreen && <InstitutionalFooter />}
+            {!isFullscreen && (
+                <OnboardingTour
+                    tourId="dominios"
+                    storageKey="nemosine_onboarding_dominios_completed"
+                    steps={dominiosTourSteps}
+                />
+            )}
 
             {/* PWA Dedicated Installation Guide Modal */}
             {showPwaInstallGuide && (

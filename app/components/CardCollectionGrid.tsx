@@ -33,10 +33,13 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
     const completeOrderedNames = useMemo(() => getOrderedCards(collection, orderingNames), [getOrderedCards, collection, orderingNames]);
     const orderedNames = useMemo(() => completeOrderedNames.filter((name) => visibleNames.has(name)), [completeOrderedNames, visibleNames]);
     const [draggingName, setDraggingName] = useState<string | null>(null);
+    const [pressedTooltipName, setPressedTooltipName] = useState<string | null>(null);
     const [draftOrder, setDraftOrder] = useState<string[]>(orderedNames);
     const [isReordering, setIsReordering] = useState(true);
     const previousModeRef = useRef(cardOrderMode);
     const motionTimeoutRef = useRef<number | null>(null);
+    const longPressTimeoutRef = useRef<number | null>(null);
+    const suppressNextOpenRef = useRef<string | null>(null);
     const previousPositionsRef = useRef<Map<string, DOMRect> | null>(null);
     const cardNodesRef = useRef<Map<string, HTMLDivElement>>(new Map());
     const isCustom = cardOrderMode === "custom";
@@ -53,6 +56,7 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
         playCardMotion();
         return () => {
             if (motionTimeoutRef.current) window.clearTimeout(motionTimeoutRef.current);
+            if (longPressTimeoutRef.current) window.clearTimeout(longPressTimeoutRef.current);
         };
     // Run the deal-in motion when a module opens or its visible group changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,6 +121,36 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
         setDraggingName(name);
     };
 
+    const clearLongPressTimer = () => {
+        if (longPressTimeoutRef.current) {
+            window.clearTimeout(longPressTimeoutRef.current);
+            longPressTimeoutRef.current = null;
+        }
+    };
+
+    const handlePreviewPointerDown = (event: React.PointerEvent<HTMLDivElement>, name: string) => {
+        if (isCustom || (event.pointerType !== "touch" && event.pointerType !== "pen")) return;
+        clearLongPressTimer();
+        longPressTimeoutRef.current = window.setTimeout(() => {
+            suppressNextOpenRef.current = name;
+            setPressedTooltipName(name);
+        }, 520);
+    };
+
+    const finishPreviewPress = (name: string) => {
+        clearLongPressTimer();
+        if (pressedTooltipName === name) {
+            window.setTimeout(() => setPressedTooltipName((current) => (current === name ? null : current)), 220);
+        }
+    };
+
+    const handlePreviewOpenClick = (event: React.MouseEvent<HTMLAnchorElement>, name: string) => {
+        if (suppressNextOpenRef.current !== name) return;
+        event.preventDefault();
+        event.stopPropagation();
+        suppressNextOpenRef.current = null;
+    };
+
     const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
         if (!draggingName) return;
         event.preventDefault();
@@ -155,28 +189,33 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
     };
 
     return (
-        <div className="grid grid-cols-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-4 md:gap-6">
-            {displayNames.map((name) => {
+        <div data-tour={`${collection}-grid`} className="relative z-20 grid grid-cols-4 gap-2 overflow-visible md:grid-cols-4 sm:gap-4 md:gap-6 lg:grid-cols-6 xl:grid-cols-8">
+            {displayNames.map((name, index) => {
                 const item = itemsByName.get(name);
                 if (!item) return null;
                 return (
                     <div
                         key={name}
                         data-card-name={name}
+                        data-tour={index === 0 ? `${collection}-first-card` : undefined}
                         ref={(node) => {
                             if (node) cardNodesRef.current.set(name, node);
                             else cardNodesRef.current.delete(name);
                         }}
-                        onPointerDown={isCustom ? (event) => handlePointerDown(event, name) : undefined}
+                        onPointerDown={isCustom ? (event) => handlePointerDown(event, name) : (event) => handlePreviewPointerDown(event, name)}
                         onPointerMove={isCustom ? handlePointerMove : undefined}
-                        onPointerUp={isCustom ? finishDrag : undefined}
-                        onPointerCancel={isCustom ? finishDrag : undefined}
-                        onContextMenu={isCustom ? (event) => event.preventDefault() : undefined}
-                        className={`group relative transition-[transform,filter,opacity] duration-200 hover:z-[120] ${isCustom ? "touch-none select-none cursor-grab active:cursor-grabbing" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
+                        onPointerUp={isCustom ? finishDrag : () => finishPreviewPress(name)}
+                        onPointerCancel={isCustom ? finishDrag : () => finishPreviewPress(name)}
+                        onPointerLeave={isCustom ? undefined : () => finishPreviewPress(name)}
+                        onContextMenu={(event) => {
+                            if (isCustom || pressedTooltipName === name) event.preventDefault();
+                        }}
+                        className={`group relative transition-[transform,filter,opacity] duration-200 hover:z-[9999] ${isCustom ? "touch-none select-none cursor-grab active:cursor-grabbing" : ""} ${pressedTooltipName === name ? "z-[9999]" : ""} ${draggingName === name ? "z-20 scale-[1.06] rotate-1 drop-shadow-[0_15px_18px_rgba(197,160,89,0.4)]" : ""}`}
                     >
                         <div
                             className={isReordering ? "card-shuffle-motion" : ""}
-                            style={{ animationDelay: isReordering ? `${Math.min(displayNames.indexOf(name), 15) * 22}ms` : undefined }}
+                            style={{ animationDelay: isReordering ? `${Math.min(index, 15) * 22}ms` : undefined }}
+                            onPointerDown={(event) => handlePreviewPointerDown(event, name)}
                         >
                             <AgentCard
                                 name={name}
@@ -186,13 +225,15 @@ export default function CardCollectionGrid({ collection, items, orderUniverse, m
                                 summary={item.summary}
                                 className={collection === "places" ? "aspect-[4/7]" : ""}
                                 flipOnMount={collection === "places"}
-                                index={displayNames.indexOf(name)}
+                                index={index}
+                                forceTooltip={pressedTooltipName === name}
                             />
                         </div>
                         {!isCustom && (
                             <a
                                 href={item.href}
                                 aria-label={`Abrir ${name}`}
+                                onClick={(event) => handlePreviewOpenClick(event, name)}
                                 className="absolute inset-0 z-10 touch-manipulation rounded-lg"
                             />
                         )}

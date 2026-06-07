@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import Navbar from "../../components/Navbar";
 import InstitutionalFooter from "../../components/InstitutionalFooter";
 import { PERSONAS } from "../../data/entities";
+import OnboardingTour from "../../components/OnboardingTour";
+import { memoriasTourSteps } from "../../data/onboardingTours";
 
 interface RegistryRow {
   id: string;
@@ -1587,7 +1589,7 @@ export default function RegistrosPage() {
       </div>
 
       <section className="relative z-10 flex-1 p-4 pt-12 md:p-8 md:pt-16 lg:p-12 lg:pt-20 max-w-[1550px] mx-auto w-full">
-        <header className="mb-10 text-center flex flex-col items-center">
+        <header data-tour="memorias-header" className="mb-10 text-center flex flex-col items-center">
           <h1 className="font-display text-4xl uppercase tracking-widest text-[#c5a059] mb-2 drop-shadow-[0_2px_10px_rgba(197,160,89,0.2)]">
             Memórias
           </h1>
@@ -1596,7 +1598,7 @@ export default function RegistrosPage() {
           </p>
         </header>
 
-        <div className="mb-6 grid gap-3 md:grid-cols-3">
+        <div data-tour="memorias-tabs" className="mb-6 grid gap-3 md:grid-cols-3">
           {memoryTabs.map((tab) => {
             const selected = activeTab === tab.id;
             return (
@@ -1624,7 +1626,7 @@ export default function RegistrosPage() {
         {activeTab === "registros" && (
           <>
         {/* Notion-style Configuration Bar */}
-        <div className="bg-black/60 border border-[#c5a059]/20 p-4 rounded-xl backdrop-blur-md mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div data-tour="registros-toolbar" className="bg-black/60 border border-[#c5a059]/20 p-4 rounded-xl backdrop-blur-md mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
             {/* Search Input */}
             <div className="relative">
@@ -1845,6 +1847,7 @@ export default function RegistrosPage() {
 
         {/* Notion Table container */}
         <div
+          data-tour="registros-table"
           className="bg-black/40 border border-[#c5a059]/20 rounded-xl backdrop-blur-md overflow-x-auto shadow-2xl relative w-full scrollbar-thin scrollbar-thumb-[#c5a059]/20"
           onTouchStart={handleTableTouchStart}
           onTouchMove={handleTableTouchMove}
@@ -2432,6 +2435,11 @@ export default function RegistrosPage() {
       )}
 
       <InstitutionalFooter />
+      <OnboardingTour
+        tourId="memorias"
+        storageKey="nemosine_onboarding_memorias_completed"
+        steps={memoriasTourSteps}
+      />
     </main>
   );
 }

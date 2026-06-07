@@ -109,13 +109,14 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     }, [defaultMobileCollapsed]);
 
     const navItems = [
-        { name: t("start"), href: "/inicio" },
-        { name: t("personas"), href: "/agents" },
-        ...(level === "Soberano" ? [{ name: t("places"), href: "/places" }] : []),
-        { name: t("travessia"), href: "/space/travessia" },
-        { name: t("dominios"), href: "/space/dominios" },
-        { name: t("registros"), href: "/space/registros" },
-    ];
+        { name: t("start"), href: "/inicio", tour: "origens" },
+        { name: "Castelo", href: "/castelo", developerOnly: true },
+        { name: t("personas"), href: "/agents", tour: "personas" },
+        ...(level === "Soberano" ? [{ name: t("places"), href: "/places", tour: "lugares" }] : []),
+        { name: t("travessia"), href: "/space/travessia/devonly", developerOnly: true },
+        { name: t("dominios"), href: "/space/dominios", tour: "dominios" },
+        { name: t("registros"), href: "/space/registros", tour: "memorias" },
+    ].filter((item) => !("developerOnly" in item) || !item.developerOnly || isAdmin);
 
     const toggleMobileCollapse = () => {
         setMenuOpen(false);
@@ -441,19 +442,35 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     <nav className="relative z-[102] order-2 flex w-full max-w-full flex-wrap items-center justify-center gap-1 overflow-x-auto sm:gap-4 md:order-3 md:basis-full md:justify-center md:gap-4 xl:order-2 xl:min-w-0 xl:flex-1 xl:basis-auto xl:justify-start xl:gap-4 2xl:gap-6">
                         {navItems.map((item, index) => {
                             const isActive = pathname === item.href;
+                            const isDeveloperOnly = "developerOnly" in item && item.developerOnly;
+                            const navTextClass = isDeveloperOnly
+                                ? isActive
+                                    ? "text-[#4169e1] drop-shadow-[0_0_10px_rgba(65,105,225,0.65)]"
+                                    : "text-[#4169e1]/70 group-hover:text-[#4169e1]"
+                                : isActive
+                                    ? "text-[#c5a059]"
+                                    : "text-[#c5a059]/40 group-hover:text-[#c5a059]/80";
+                            const activeLineClass = isDeveloperOnly
+                                ? "bg-[#4169e1] shadow-[0_0_10px_rgba(65,105,225,0.8)]"
+                                : "bg-[#c5a059] shadow-[0_0_10px_rgba(197,160,89,0.8)]";
                             return (
                                 <React.Fragment key={item.href}>
                                     {index > 0 && <div className="hidden sm:block h-4 w-[1px] bg-[#c5a059]/10" />}
                                     {item.href.startsWith("http") ? (
-                                        <a href={item.href} target="_blank" rel="noopener noreferrer" className="relative z-[103] inline-flex min-h-10 touch-manipulation select-none items-center rounded-lg px-2 text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300 whitespace-nowrap">
+                                        <a href={item.href} target="_blank" rel="noopener noreferrer" data-tour={"tour" in item ? item.tour : undefined} className="relative z-[103] inline-flex min-h-10 touch-manipulation select-none items-center rounded-lg px-2 text-[11px] uppercase tracking-[0.2em] font-bold text-[#c5a059]/40 hover:text-[#c5a059]/80 transition-all duration-300 whitespace-nowrap">
                                             {item.name}
                                         </a>
                                     ) : (
-                                        <Link href={item.href} className="relative z-[103] flex min-h-10 touch-manipulation select-none flex-col justify-center items-center rounded-lg px-2 group whitespace-nowrap">
-                                            <span className={`text-[11px] uppercase tracking-[0.2em] font-bold transition-all duration-300 ${isActive ? "text-[#c5a059]" : "text-[#c5a059]/40 group-hover:text-[#c5a059]/80"}`}>
+                                        <Link href={item.href} data-tour={"tour" in item ? item.tour : undefined} className="relative z-[103] flex min-h-10 touch-manipulation select-none flex-col justify-center items-center rounded-lg px-2 group whitespace-nowrap">
+                                            <span className={`text-[11px] uppercase tracking-[0.2em] font-bold transition-all duration-300 ${navTextClass}`}>
                                                 {item.name}
                                             </span>
-                                            {isActive && <div className="absolute bottom-1 left-2 right-2 h-[2px] bg-[#c5a059] shadow-[0_0_10px_rgba(197,160,89,0.8)]"></div>}
+                                            {isDeveloperOnly && (
+                                                <span className="mt-0.5 text-[7px] font-bold uppercase tracking-[0.18em] text-[#4169e1]/70">
+                                                    devonly
+                                                </span>
+                                            )}
+                                            {isActive && <div className={`absolute bottom-1 left-2 right-2 h-[2px] ${activeLineClass}`}></div>}
                                         </Link>
                                     )}
                                 </React.Fragment>

@@ -69,7 +69,7 @@ export default function SourcesPanelButton({ personaName, variant = "side" }: { 
 
     const panel = (
         <>
-            <div className={`fixed right-0 top-0 z-50 h-full w-full max-w-[420px] transform border-l border-[#c5a059]/30 bg-[#050507]/95 shadow-2xl backdrop-blur-xl transition-transform duration-500 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
+            <div className={`fixed right-0 top-0 z-[100] h-full w-full max-w-[420px] transform border-l border-[#c5a059]/30 bg-[#050507]/95 shadow-2xl backdrop-blur-xl transition-transform duration-500 ease-in-out ${open ? "translate-x-0" : "translate-x-full"}`}>
                 <button
                     type="button"
                     onClick={() => setOpen(false)}
@@ -145,7 +145,7 @@ export default function SourcesPanelButton({ personaName, variant = "side" }: { 
 
             {open && (
                 <div
-                    className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                    className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm"
                     onClick={() => setOpen(false)}
                 />
             )}

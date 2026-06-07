@@ -1,3 +1,5 @@
+import { resolveNativePersonaPrompt } from "@/app/data/nativePersonaPrompts";
+
 export interface EntityData {
     name: string;
     type: "persona" | "place";
@@ -12658,6 +12660,11 @@ const normalizePersonaKey = (name: string) => name
     .trim();
 
 const resolvePersonaPrompt = (name: string) => {
+    const nativePrompt = resolveNativePersonaPrompt(name);
+    if (nativePrompt) {
+        return nativePrompt;
+    }
+
     const normalizedName = normalizePersonaKey(name);
     const promptEntry = Object.entries(PERSONA_PROMPTS).find(
         ([promptName]) => normalizePersonaKey(promptName) === normalizedName
