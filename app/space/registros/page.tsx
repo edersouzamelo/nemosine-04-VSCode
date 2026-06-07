@@ -39,6 +39,20 @@ const DEFAULT_REGISTRY_STATUSES = [
 
 const REGISTRY_FILTERS_STORAGE_KEY = "nemosine-registros-search-params";
 const REGISTRY_PERSONA_OVERRIDES_STORAGE_KEY = "nemosine-registros-manual-personas";
+const LEGACY_DRAFTS_STORAGE_KEY = "nemosine-memory-drafts";
+
+const toStorageSafeUserKey = (value: string) => {
+  const bytes = new TextEncoder().encode(value.trim().toLowerCase());
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+
+const getScopedStorageKey = (baseKey: string, userKey?: string | null) => (
+  userKey ? `${baseKey}:${toStorageSafeUserKey(userKey)}` : `${baseKey}:anonymous`
+);
 
 interface DraftChecklistItem {
   id: string;
@@ -211,6 +225,7 @@ export default function RegistrosPage() {
   const [draftImageData, setDraftImageData] = useState<string | null>(null);
   const [draggedDraftId, setDraggedDraftId] = useState<string | null>(null);
   const [dragOverDraftId, setDragOverDraftId] = useState<string | null>(null);
+  const [loadedDraftStorageKey, setLoadedDraftStorageKey] = useState<string | null>(null);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [availableStatuses, setAvailableStatuses] = useState<string[]>(DEFAULT_REGISTRY_STATUSES);
   
@@ -235,6 +250,13 @@ export default function RegistrosPage() {
   const tableZoomContentRef = useRef<HTMLDivElement | null>(null);
   const pendingTableZoomRef = useRef(1);
   const tableZoomFrameRef = useRef<number | null>(null);
+  const currentUserStorageKey = session?.user?.id || session?.user?.email || null;
+  const draftStorageKey = getScopedStorageKey(LEGACY_DRAFTS_STORAGE_KEY, currentUserStorageKey);
+  const registryOrderStorageKey = getScopedStorageKey("nemosine-registros-order", currentUserStorageKey);
+  const registryFiltersStorageKey = getScopedStorageKey(REGISTRY_FILTERS_STORAGE_KEY, currentUserStorageKey);
+  const registryPersonaOverridesStorageKey = getScopedStorageKey(REGISTRY_PERSONA_OVERRIDES_STORAGE_KEY, currentUserStorageKey);
+  const registryColsStorageKey = getScopedStorageKey("nemosine-registros-cols", currentUserStorageKey);
+  const registryStatusesStorageKey = getScopedStorageKey("nemosine-registros-statuses", currentUserStorageKey);
 
   // Drag and Drop States
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -247,22 +269,22 @@ export default function RegistrosPage() {
   // Load drag-and-drop order
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedOrder = localStorage.getItem("nemosine-registros-order");
+      const savedOrder = localStorage.getItem(registryOrderStorageKey);
       if (savedOrder) {
         setSortedRowIds(JSON.parse(savedOrder));
       }
     }
-  }, []);
+  }, [registryOrderStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const savedOverrides = JSON.parse(localStorage.getItem(REGISTRY_PERSONA_OVERRIDES_STORAGE_KEY) || "[]");
+      const savedOverrides = JSON.parse(localStorage.getItem(registryPersonaOverridesStorageKey) || "[]");
       if (Array.isArray(savedOverrides)) setManualPersonaOverrides(savedOverrides.filter((id) => typeof id === "string"));
     } catch {
-      localStorage.removeItem(REGISTRY_PERSONA_OVERRIDES_STORAGE_KEY);
+      localStorage.removeItem(registryPersonaOverridesStorageKey);
     }
-  }, []);
+  }, [registryPersonaOverridesStorageKey]);
 
   const rememberManualPersonaOverride = (rowId: string, persona: string | null) => {
     setManualPersonaOverrides((current) => {
@@ -270,7 +292,7 @@ export default function RegistrosPage() {
         ? Array.from(new Set([...current, rowId]))
         : current.filter((id) => id !== rowId);
       if (typeof window !== "undefined") {
-        localStorage.setItem(REGISTRY_PERSONA_OVERRIDES_STORAGE_KEY, JSON.stringify(next));
+        localStorage.setItem(registryPersonaOverridesStorageKey, JSON.stringify(next));
       }
       return next;
     });
@@ -282,7 +304,7 @@ export default function RegistrosPage() {
       return;
     }
     try {
-      const savedFilters = localStorage.getItem(REGISTRY_FILTERS_STORAGE_KEY);
+      const savedFilters = localStorage.getItem(registryFiltersStorageKey);
       if (!savedFilters) {
         setRegistryFiltersLoaded(true);
         return;
@@ -298,21 +320,21 @@ export default function RegistrosPage() {
       if (parsed.filterDeadline) setFilterDeadline(parsed.filterDeadline);
       if (typeof parsed.tableZoom === "number") setTableZoom(clampTableZoom(parsed.tableZoom));
     } catch {
-      localStorage.removeItem(REGISTRY_FILTERS_STORAGE_KEY);
+      localStorage.removeItem(registryFiltersStorageKey);
     } finally {
       setRegistryFiltersLoaded(true);
     }
-  }, []);
+  }, [registryFiltersStorageKey]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !registryFiltersLoaded) return;
-    localStorage.setItem(REGISTRY_FILTERS_STORAGE_KEY, JSON.stringify({
+    localStorage.setItem(registryFiltersStorageKey, JSON.stringify({
       searchQuery,
       selectedStatuses,
       filterDeadline,
       tableZoom,
     }));
-  }, [searchQuery, selectedStatuses, filterDeadline, tableZoom, registryFiltersLoaded]);
+  }, [searchQuery, selectedStatuses, filterDeadline, tableZoom, registryFiltersLoaded, registryFiltersStorageKey]);
 
   useEffect(() => {
     tableZoomRef.current = tableZoom;
@@ -331,29 +353,23 @@ export default function RegistrosPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedDrafts = localStorage.getItem("nemosine-memory-drafts");
-      if (savedDrafts) {
-        try {
-          setDrafts(JSON.parse(savedDrafts));
-        } catch {
-          setDrafts([]);
-        }
-      }
-    }
-  }, []);
-
-  useEffect(() => {
     if (typeof window === "undefined" || status !== "authenticated") return;
+
+    localStorage.removeItem(LEGACY_DRAFTS_STORAGE_KEY);
+    setLoadedDraftStorageKey(null);
+    setDrafts([]);
 
     const loadPersistentDrafts = async () => {
       try {
         const response = await fetch("/api/space/rascunhos");
-        if (!response.ok) return;
+        if (!response.ok) {
+          setLoadedDraftStorageKey(draftStorageKey);
+          return;
+        }
 
         const data = await response.json();
         const serverDrafts = Array.isArray(data.drafts) ? data.drafts as DraftNote[] : [];
-        const savedDrafts = localStorage.getItem("nemosine-memory-drafts");
+        const savedDrafts = localStorage.getItem(draftStorageKey);
         const localDrafts = savedDrafts ? JSON.parse(savedDrafts) as DraftNote[] : [];
         const localDraftsById = new Map(localDrafts.filter((draft) => draft?.id).map((draft) => [draft.id, draft]));
         const mergedDrafts = serverDrafts.map((serverDraft, index) => {
@@ -380,11 +396,31 @@ export default function RegistrosPage() {
         setDrafts([...mergedDrafts, ...localOnlyDrafts]);
       } catch (error) {
         console.error("Erro ao carregar rascunhos persistentes:", error);
+      } finally {
+        setLoadedDraftStorageKey(draftStorageKey);
       }
     };
 
     loadPersistentDrafts();
-  }, [status]);
+  }, [draftStorageKey, status]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (status === "unauthenticated") {
+      setLoadedDraftStorageKey(null);
+      const savedDrafts = localStorage.getItem(draftStorageKey);
+      if (savedDrafts) {
+        try {
+          setDrafts(JSON.parse(savedDrafts));
+        } catch {
+          setDrafts([]);
+        }
+      } else {
+        setDrafts([]);
+      }
+      setLoadedDraftStorageKey(draftStorageKey);
+    }
+  }, [draftStorageKey, status]);
 
   useEffect(() => {
     if (typeof window === "undefined" || draftImportHandledRef.current) return;
@@ -426,10 +462,11 @@ export default function RegistrosPage() {
   }, []);
 
   useEffect(() => {
+    if (loadedDraftStorageKey !== draftStorageKey) return;
     if (typeof window !== "undefined") {
-      localStorage.setItem("nemosine-memory-drafts", JSON.stringify(drafts));
+      localStorage.setItem(draftStorageKey, JSON.stringify(drafts));
     }
-  }, [drafts]);
+  }, [draftStorageKey, drafts, loadedDraftStorageKey]);
 
   const handleDragStart = (e: React.DragEvent, rowId: string) => {
     setDraggedIndex(null);
@@ -457,7 +494,7 @@ export default function RegistrosPage() {
 
     const nextOrder = newRows.map((r) => r.id);
     setSortedRowIds(nextOrder);
-    localStorage.setItem("nemosine-registros-order", JSON.stringify(nextOrder));
+    localStorage.setItem(registryOrderStorageKey, JSON.stringify(nextOrder));
     setDraggedRowId(null);
   };
 
@@ -550,19 +587,19 @@ export default function RegistrosPage() {
   // Load dynamic configurations
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedCols = localStorage.getItem("nemosine-registros-cols");
+      const savedCols = localStorage.getItem(registryColsStorageKey);
       if (savedCols) {
         setCustomColumns(JSON.parse(savedCols));
       }
 
-      const savedStatuses = localStorage.getItem("nemosine-registros-statuses");
+      const savedStatuses = localStorage.getItem(registryStatusesStorageKey);
       if (savedStatuses) {
         const parsedStatuses = JSON.parse(savedStatuses);
         setAvailableStatuses(parsedStatuses);
         setSelectedStatuses(parsedStatuses);
       }
     }
-  }, []);
+  }, [registryColsStorageKey, registryStatusesStorageKey]);
 
   // Fetch registers once authenticated
   useEffect(() => {
@@ -624,13 +661,13 @@ export default function RegistrosPage() {
 
   const saveCols = (newCols: CustomColumn[]) => {
     setCustomColumns(newCols);
-    localStorage.setItem("nemosine-registros-cols", JSON.stringify(newCols));
+    localStorage.setItem(registryColsStorageKey, JSON.stringify(newCols));
   };
 
   const saveStatusesList = (newList: string[]) => {
     setAvailableStatuses(newList);
     setSelectedStatuses((current) => current.filter((status) => newList.includes(status)));
-    localStorage.setItem("nemosine-registros-statuses", JSON.stringify(newList));
+    localStorage.setItem(registryStatusesStorageKey, JSON.stringify(newList));
   };
 
   if (status === "loading" || status === "unauthenticated") {

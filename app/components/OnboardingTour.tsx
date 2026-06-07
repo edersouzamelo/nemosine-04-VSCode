@@ -212,7 +212,10 @@ export default function OnboardingTour({
     };
 
     useEffect(() => {
-        const handleRestartRequest = () => restartTour();
+        const handleRestartRequest = (event: Event) => {
+            event.preventDefault();
+            restartTour();
+        };
         window.addEventListener("nemosine:restart-onboarding-tour", handleRestartRequest);
         return () => window.removeEventListener("nemosine:restart-onboarding-tour", handleRestartRequest);
     });

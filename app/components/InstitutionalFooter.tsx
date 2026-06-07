@@ -1,20 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 const footerButtonClassName = "inline-flex min-h-8 items-center justify-center rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/10 px-5 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#c5a059] transition-colors hover:border-[#c5a059]/70 hover:bg-[#c5a059]/18 hover:text-[#e4c476]";
 
 export default function InstitutionalFooter() {
-    const pathname = usePathname();
     const router = useRouter();
 
     const restartGuide = () => {
-        if (pathname === "/inicio") {
-            window.dispatchEvent(new Event("nemosine:restart-onboarding-tour"));
+        const event = new Event("nemosine:restart-onboarding-tour", { cancelable: true });
+        const hadNoLocalGuide = window.dispatchEvent(event);
+        if (hadNoLocalGuide) {
+            router.push("/inicio?guia=1");
             return;
         }
-        router.push("/inicio?guia=1");
     };
 
     return (
