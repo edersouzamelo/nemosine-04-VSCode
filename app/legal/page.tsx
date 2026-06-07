@@ -11,8 +11,9 @@ const legalSections = [
     summary: "Regras gerais de acesso, conduta e limites operacionais do Sistema Nemosine.",
     documents: [
       { title: "Termos de Uso", slug: "termos-de-uso" },
-      { title: "Política de Uso Aceitável", slug: "politica-de-uso-aceitavel" },
+      { title: "Política de Uso Aceitável", slug: "uso-aceitavel" },
       { title: "Aviso de Uso de IA", slug: "uso-de-ia" },
+      { title: "Responsabilidade Ética e Antisseitização", slug: "responsabilidade-etica-antisseitizacao" },
     ],
   },
   {
@@ -20,8 +21,10 @@ const legalSections = [
     summary: "Documentos sobre tratamento de dados, proteção técnica e espaços sensíveis.",
     documents: [
       { title: "Política de Privacidade", slug: "privacidade" },
+      { title: "Cookies, Logs e Rastreamento", slug: "cookies-logs" },
+      { title: "Retenção e Exclusão de Dados", slug: "retencao-exclusao-dados" },
       { title: "Termo Técnico de Segurança", slug: "seguranca" },
-      { title: "Uso do Confessor e dados sensíveis", slug: "confessor-dados-sensiveis" },
+      { title: "Confessor, Porão e Dados Sensíveis", slug: "confessor-porao-dados-sensiveis" },
     ],
   },
   {
@@ -29,17 +32,18 @@ const legalSections = [
     summary: "Licenças, direitos autorais, registros e contribuições vinculadas ao projeto.",
     documents: [
       { title: "Licença de Uso", slug: "licenca" },
-      { title: "Direitos Autorais e Registro", slug: "direitos-autorais-registro" },
-      { title: "Contribuições da Comunidade", slug: "contribuicoes-comunidade" },
+      { title: "Direitos Autorais e Registro", slug: "direitos-autorais-e-registro" },
+      { title: "Termo de Contribuição", slug: "contribuicao" },
     ],
   },
   {
     title: "Relações Especiais",
     summary: "Condições específicas para testers, comunidade, parcerias e uso institucional.",
     documents: [
-      { title: "Termos de Beta Tester", slug: "termos-beta-tester" },
-      { title: "Termos Comerciais e Institucionais", slug: "termos-comerciais-institucionais" },
-      { title: "Termos da Comunidade", slug: "termos-comunidade" },
+      { title: "Termos de Beta Tester", slug: "beta" },
+      { title: "Termos Comerciais e Institucionais", slug: "comercial" },
+      { title: "Termos da Comunidade", slug: "comunidade" },
+      { title: "Menores, Dependentes e Responsáveis", slug: "menores-dependentes-responsaveis" },
     ],
   },
 ];
