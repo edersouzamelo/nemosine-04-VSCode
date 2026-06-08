@@ -1057,6 +1057,19 @@ export default function DominiosHubPage() {
                     version: "v1.1.5"
                 },
                 {
+                    id: "destiny-line",
+                    title: language.startsWith("pt") ? "Linha do Destino" : language === "es" ? "Linea del Destino" : "Destiny Line",
+                    label: language.startsWith("pt") ? "Destino" : language === "es" ? "Destino" : "Destiny",
+                    description: language.startsWith("pt")
+                        ? "Mapeie os marcos que fizeram de voce quem e."
+                        : language === "es"
+                            ? "Mapee los hitos que hicieron de usted quien es."
+                            : "Map the milestones that made you who you are.",
+                    emoji: "L",
+                    developer: "Modulo Soberano",
+                    version: "v1.0.0"
+                },
+                {
                     id: "oracle",
                     title: language.startsWith("pt") ? "Reflexão Arquetípica" : language === "es" ? "Reflexión Arquetípica" : "Archetypal Reflection",
                     label: language.startsWith("pt") ? "Reflexão" : language === "es" ? "Reflexión" : "Reflection",
@@ -2980,6 +2993,8 @@ export default function DominiosHubPage() {
                 return renderMordomoApp();
             case "medico":
                 return renderMedicoApp();
+            case "destiny-line":
+                return renderIFrameApp("/soberano/linha-do-destino?embed=true", compact);
             case "nexus-chat":
                 return renderIFrameApp("/space/apps/nexus-chat?embed=true", compact);
             case "oracle":

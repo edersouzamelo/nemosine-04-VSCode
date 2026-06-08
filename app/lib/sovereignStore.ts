@@ -123,6 +123,36 @@ async function ensureTravessiaTables() {
   `;
 }
 
+async function ensureDestinyLineTable() {
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_destiny_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      event_date DATE,
+      event_date_label TEXT,
+      category TEXT NOT NULL,
+      short_description TEXT NOT NULL,
+      long_description TEXT,
+      dominant_emotion TEXT,
+      symbolic_intensity INTEGER,
+      associated_persona TEXT,
+      associated_place TEXT,
+      life_phase TEXT,
+      visibility TEXT NOT NULL DEFAULT 'private',
+      source TEXT,
+      tags TEXT NOT NULL DEFAULT '[]',
+      image_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_user_id_idx ON sovereign_destiny_events(user_id)`;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_event_date_idx ON sovereign_destiny_events(event_date)`;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_category_idx ON sovereign_destiny_events(category)`;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_visibility_idx ON sovereign_destiny_events(visibility)`;
+}
+
 async function ensurePushSubscriptionsTable() {
   await prisma.$executeRaw`
     CREATE TABLE IF NOT EXISTS sovereign_push_subscriptions (
@@ -135,6 +165,200 @@ async function ensurePushSubscriptionsTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `;
+}
+
+// ==========================================
+// LINHA DO DESTINO OPERATIONS
+// ==========================================
+
+export type DestinyVisibility = "private" | "sensitive" | "legacy";
+
+export interface DestinyEvent {
+  id: string;
+  title: string;
+  eventDate?: string | null;
+  eventDateLabel?: string | null;
+  category: string;
+  shortDescription: string;
+  longDescription?: string | null;
+  dominantEmotion?: string | null;
+  symbolicIntensity?: number | null;
+  associatedPersona?: string | null;
+  associatedPlace?: string | null;
+  lifePhase?: string | null;
+  visibility: DestinyVisibility;
+  source?: string | null;
+  tags: string[];
+  imageUrl?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+function parseTags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 20);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parseTags(parsed);
+    } catch {
+      return value.split(",").map((tag) => tag.trim()).filter(Boolean).slice(0, 20);
+    }
+  }
+  return [];
+}
+
+function normalizeDate(value: unknown): string | null {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  return raw;
+}
+
+function normalizeDestinyPayload(payload: any, existingId?: string): DestinyEvent {
+  const title = String(payload?.title ?? "").trim();
+  const category = String(payload?.category ?? "").trim();
+  const shortDescription = String(payload?.shortDescription ?? "").trim();
+  const visibility = String(payload?.visibility ?? "private").trim() as DestinyVisibility;
+  const intensityRaw = payload?.symbolicIntensity;
+  const symbolicIntensity = intensityRaw === null || intensityRaw === undefined || intensityRaw === ""
+    ? null
+    : Number(intensityRaw);
+
+  if (title.length < 2) throw new Error("O titulo precisa ter pelo menos 2 caracteres.");
+  if (!category) throw new Error("A categoria e obrigatoria.");
+  if (!shortDescription) throw new Error("A descricao curta e obrigatoria.");
+  if (!["private", "sensitive", "legacy"].includes(visibility)) {
+    throw new Error("Visibilidade invalida.");
+  }
+  if (symbolicIntensity !== null && (!Number.isInteger(symbolicIntensity) || symbolicIntensity < 1 || symbolicIntensity > 5)) {
+    throw new Error("A intensidade simbolica deve ser um inteiro entre 1 e 5.");
+  }
+
+  return {
+    id: existingId || String(payload?.id || crypto.randomUUID()),
+    title,
+    eventDate: normalizeDate(payload?.eventDate),
+    eventDateLabel: payload?.eventDateLabel ? String(payload.eventDateLabel).trim().slice(0, 80) : null,
+    category,
+    shortDescription,
+    longDescription: payload?.longDescription ? String(payload.longDescription).trim() : null,
+    dominantEmotion: payload?.dominantEmotion ? String(payload.dominantEmotion).trim() : null,
+    symbolicIntensity,
+    associatedPersona: payload?.associatedPersona ? String(payload.associatedPersona).trim() : null,
+    associatedPlace: payload?.associatedPlace ? String(payload.associatedPlace).trim() : null,
+    lifePhase: payload?.lifePhase ? String(payload.lifePhase).trim() : null,
+    visibility,
+    source: payload?.source ? String(payload.source).trim() : null,
+    tags: parseTags(payload?.tags),
+    imageUrl: payload?.imageUrl ? String(payload.imageUrl).trim() : null,
+  };
+}
+
+function mapDestinyRow(row: any): DestinyEvent {
+  return {
+    id: row.id,
+    title: row.title,
+    eventDate: row.event_date ? new Date(row.event_date).toISOString().slice(0, 10) : null,
+    eventDateLabel: row.event_date_label,
+    category: row.category,
+    shortDescription: row.short_description,
+    longDescription: row.long_description,
+    dominantEmotion: row.dominant_emotion,
+    symbolicIntensity: row.symbolic_intensity === null ? null : Number(row.symbolic_intensity),
+    associatedPersona: row.associated_persona,
+    associatedPlace: row.associated_place,
+    lifePhase: row.life_phase,
+    visibility: row.visibility,
+    source: row.source,
+    tags: parseTags(row.tags),
+    imageUrl: row.image_url,
+    createdAt: row.created_at?.toISOString?.() || String(row.created_at),
+    updatedAt: row.updated_at?.toISOString?.() || String(row.updated_at),
+  };
+}
+
+export async function getDestinyEvents(userId: string): Promise<DestinyEvent[]> {
+  await ensureDestinyLineTable();
+  const rows = await prisma.$queryRaw<Array<any>>`
+    SELECT *
+    FROM sovereign_destiny_events
+    WHERE user_id = ${userId}
+    ORDER BY event_date ASC NULLS LAST, created_at ASC
+  `;
+  return rows.map(mapDestinyRow);
+}
+
+export async function getDestinyEventById(userId: string, eventId: string): Promise<DestinyEvent | null> {
+  await ensureDestinyLineTable();
+  const rows = await prisma.$queryRaw<Array<any>>`
+    SELECT *
+    FROM sovereign_destiny_events
+    WHERE id = ${eventId} AND user_id = ${userId}
+    LIMIT 1
+  `;
+  return rows[0] ? mapDestinyRow(rows[0]) : null;
+}
+
+export async function createDestinyEvent(userId: string, payload: any): Promise<DestinyEvent> {
+  await ensureDestinyLineTable();
+  const event = normalizeDestinyPayload(payload);
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_destiny_events (
+      id, user_id, title, event_date, event_date_label, category, short_description, long_description,
+      dominant_emotion, symbolic_intensity, associated_persona, associated_place, life_phase,
+      visibility, source, tags, image_url, updated_at
+    )
+    VALUES (
+      ${event.id}, ${userId}, ${event.title}, ${event.eventDate}::date, ${event.eventDateLabel}, ${event.category},
+      ${event.shortDescription}, ${event.longDescription}, ${event.dominantEmotion}, ${event.symbolicIntensity},
+      ${event.associatedPersona}, ${event.associatedPlace}, ${event.lifePhase}, ${event.visibility},
+      ${event.source}, ${JSON.stringify(event.tags)}, ${event.imageUrl}, NOW()
+    )
+  `;
+  const saved = await getDestinyEventById(userId, event.id);
+  if (!saved) throw new Error("Nao foi possivel recuperar o marco criado.");
+  return saved;
+}
+
+export async function updateDestinyEvent(userId: string, eventId: string, payload: any): Promise<DestinyEvent> {
+  await ensureDestinyLineTable();
+  const existing = await getDestinyEventById(userId, eventId);
+  if (!existing) throw new Error("Marco nao encontrado.");
+  const event = normalizeDestinyPayload(payload, eventId);
+  await prisma.$executeRaw`
+    UPDATE sovereign_destiny_events
+    SET title = ${event.title},
+        event_date = ${event.eventDate}::date,
+        event_date_label = ${event.eventDateLabel},
+        category = ${event.category},
+        short_description = ${event.shortDescription},
+        long_description = ${event.longDescription},
+        dominant_emotion = ${event.dominantEmotion},
+        symbolic_intensity = ${event.symbolicIntensity},
+        associated_persona = ${event.associatedPersona},
+        associated_place = ${event.associatedPlace},
+        life_phase = ${event.lifePhase},
+        visibility = ${event.visibility},
+        source = ${event.source},
+        tags = ${JSON.stringify(event.tags)},
+        image_url = ${event.imageUrl},
+        updated_at = NOW()
+    WHERE id = ${eventId} AND user_id = ${userId}
+  `;
+  const saved = await getDestinyEventById(userId, eventId);
+  if (!saved) throw new Error("Nao foi possivel recuperar o marco atualizado.");
+  return saved;
+}
+
+export async function deleteDestinyEvent(userId: string, eventId: string): Promise<void> {
+  await ensureDestinyLineTable();
+  await prisma.$executeRaw`
+    DELETE FROM sovereign_destiny_events
+    WHERE id = ${eventId} AND user_id = ${userId}
   `;
 }
 

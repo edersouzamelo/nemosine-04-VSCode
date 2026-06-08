@@ -126,6 +126,35 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // Linha do Destino Actions
+      case "get_destiny_events": {
+        const events = await db.getDestinyEvents(userId);
+        return NextResponse.json({ events });
+      }
+      case "get_destiny_event": {
+        const eventId = String(body.eventId || "");
+        if (!eventId) return NextResponse.json({ error: "Event id is required." }, { status: 400 });
+        const event = await db.getDestinyEventById(userId, eventId);
+        if (!event) return NextResponse.json({ error: "Destiny event not found." }, { status: 404 });
+        return NextResponse.json({ event });
+      }
+      case "create_destiny_event": {
+        const event = await db.createDestinyEvent(userId, body.event);
+        return NextResponse.json({ event });
+      }
+      case "update_destiny_event": {
+        const eventId = String(body.eventId || body.event?.id || "");
+        if (!eventId) return NextResponse.json({ error: "Event id is required." }, { status: 400 });
+        const event = await db.updateDestinyEvent(userId, eventId, body.event);
+        return NextResponse.json({ event });
+      }
+      case "delete_destiny_event": {
+        const eventId = String(body.eventId || "");
+        if (!eventId) return NextResponse.json({ error: "Event id is required." }, { status: 400 });
+        await db.deleteDestinyEvent(userId, eventId);
+        return NextResponse.json({ ok: true });
+      }
+
       default:
         return NextResponse.json({ error: `Invalid action: ${action}` }, { status: 400 });
     }

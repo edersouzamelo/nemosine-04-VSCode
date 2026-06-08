@@ -110,12 +110,12 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
 
     const navItems = [
         { name: t("start"), href: "/inicio", tour: "origens" },
-        { name: "Castelo", href: "/castelo", developerOnly: true },
         { name: t("personas"), href: "/agents", tour: "personas" },
-        ...(level === "Soberano" ? [{ name: t("places"), href: "/places", tour: "lugares" }] : []),
-        { name: t("travessia"), href: "/space/travessia/devonly", developerOnly: true },
+        { name: t("places"), href: "/places", tour: "lugares" },
         { name: t("dominios"), href: "/space/dominios", tour: "dominios" },
         { name: t("registros"), href: "/space/registros", tour: "memorias" },
+        { name: t("travessia"), href: "/space/travessia", tour: "travessia" },
+        { name: "Castelo", href: "/castelo", tour: "castelo" },
     ].filter((item) => !("developerOnly" in item) || !item.developerOnly || isAdmin);
 
     const toggleMobileCollapse = () => {
@@ -442,7 +442,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     <nav className="relative z-[102] order-2 flex w-full max-w-full flex-wrap items-center justify-center gap-1 overflow-x-auto sm:gap-4 md:order-3 md:basis-full md:justify-center md:gap-4 xl:order-2 xl:min-w-0 xl:flex-1 xl:basis-auto xl:justify-start xl:gap-4 2xl:gap-6">
                         {navItems.map((item, index) => {
                             const isActive = pathname === item.href;
-                            const isDeveloperOnly = "developerOnly" in item && item.developerOnly;
+                            const isDeveloperOnly = Boolean("developerOnly" in item && item.developerOnly);
                             const navTextClass = isDeveloperOnly
                                 ? isActive
                                     ? "text-[#4169e1] drop-shadow-[0_0_10px_rgba(65,105,225,0.65)]"
