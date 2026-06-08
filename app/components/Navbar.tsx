@@ -114,8 +114,8 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         { name: t("places"), href: "/places", tour: "lugares" },
         { name: t("dominios"), href: "/space/dominios", tour: "dominios" },
         { name: t("registros"), href: "/space/registros", tour: "memorias" },
-        { name: t("travessia"), href: "/space/travessia", tour: "travessia" },
-        { name: "Castelo", href: "/castelo", tour: "castelo" },
+        { name: t("travessia"), href: "/space/travessia/devonly", tour: "travessia", developerOnly: true },
+        { name: "Castelo", href: "/castelo", tour: "castelo", developerOnly: true },
     ].filter((item) => !("developerOnly" in item) || !item.developerOnly || isAdmin);
 
     const toggleMobileCollapse = () => {

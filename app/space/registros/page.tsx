@@ -28,6 +28,9 @@ interface CustomColumn {
 }
 
 type MemoryTab = "registros" | "rastros" | "rascunhos";
+type RegistryToolbarTheme = "dark" | "light";
+type RegistryFontKey = "system" | "arial" | "georgia" | "mono";
+type RegistryTextSize = "small" | "medium" | "large";
 
 const DEFAULT_REGISTRY_STATUSES = [
   "Pendente",
@@ -40,6 +43,19 @@ const DEFAULT_REGISTRY_STATUSES = [
 const REGISTRY_FILTERS_STORAGE_KEY = "nemosine-registros-search-params";
 const REGISTRY_PERSONA_OVERRIDES_STORAGE_KEY = "nemosine-registros-manual-personas";
 const LEGACY_DRAFTS_STORAGE_KEY = "nemosine-memory-drafts";
+
+const REGISTRY_FONT_OPTIONS: Array<{ key: RegistryFontKey; label: string; family: string }> = [
+  { key: "system", label: "Sistema", family: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" },
+  { key: "arial", label: "Arial", family: "Arial, Helvetica, sans-serif" },
+  { key: "georgia", label: "Georgia", family: "Georgia, Times New Roman, serif" },
+  { key: "mono", label: "Mono", family: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" },
+];
+
+const REGISTRY_TEXT_SIZE_LABELS: Record<RegistryTextSize, string> = {
+  small: "Pequena",
+  medium: "Media",
+  large: "Grande",
+};
 
 const toStorageSafeUserKey = (value: string) => {
   const bytes = new TextEncoder().encode(value.trim().toLowerCase());
@@ -233,6 +249,9 @@ export default function RegistrosPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(DEFAULT_REGISTRY_STATUSES);
   const [searchQuery, setSearchQuery] = useState("");
   const [tableZoom, setTableZoom] = useState(1);
+  const [registryToolbarTheme, setRegistryToolbarTheme] = useState<RegistryToolbarTheme>("dark");
+  const [registryFont, setRegistryFont] = useState<RegistryFontKey>("system");
+  const [registryTextSize, setRegistryTextSize] = useState<RegistryTextSize>("medium");
   const [registryFiltersLoaded, setRegistryFiltersLoaded] = useState(false);
   const [manualPersonaOverrides, setManualPersonaOverrides] = useState<string[]>([]);
   const [newColName, setNewColName] = useState("");
@@ -314,11 +333,23 @@ export default function RegistrosPage() {
         selectedStatuses?: string[];
         filterDeadline?: "all" | "today" | "week" | "month" | "overdue";
         tableZoom?: number;
+        registryToolbarTheme?: RegistryToolbarTheme;
+        registryFont?: RegistryFontKey;
+        registryTextSize?: RegistryTextSize;
       };
       if (typeof parsed.searchQuery === "string") setSearchQuery(parsed.searchQuery);
       if (Array.isArray(parsed.selectedStatuses)) setSelectedStatuses(parsed.selectedStatuses);
       if (parsed.filterDeadline) setFilterDeadline(parsed.filterDeadline);
       if (typeof parsed.tableZoom === "number") setTableZoom(clampTableZoom(parsed.tableZoom));
+      if (parsed.registryToolbarTheme === "dark" || parsed.registryToolbarTheme === "light") {
+        setRegistryToolbarTheme(parsed.registryToolbarTheme);
+      }
+      if (parsed.registryFont && REGISTRY_FONT_OPTIONS.some((font) => font.key === parsed.registryFont)) {
+        setRegistryFont(parsed.registryFont);
+      }
+      if (parsed.registryTextSize === "small" || parsed.registryTextSize === "medium" || parsed.registryTextSize === "large") {
+        setRegistryTextSize(parsed.registryTextSize);
+      }
     } catch {
       localStorage.removeItem(registryFiltersStorageKey);
     } finally {
@@ -333,8 +364,11 @@ export default function RegistrosPage() {
       selectedStatuses,
       filterDeadline,
       tableZoom,
+      registryToolbarTheme,
+      registryFont,
+      registryTextSize,
     }));
-  }, [searchQuery, selectedStatuses, filterDeadline, tableZoom, registryFiltersLoaded, registryFiltersStorageKey]);
+  }, [searchQuery, selectedStatuses, filterDeadline, tableZoom, registryToolbarTheme, registryFont, registryTextSize, registryFiltersLoaded, registryFiltersStorageKey]);
 
   useEffect(() => {
     tableZoomRef.current = tableZoom;
@@ -1599,6 +1633,20 @@ export default function RegistrosPage() {
     </section>
   );
 
+  const selectedRegistryFont = REGISTRY_FONT_OPTIONS.find((font) => font.key === registryFont) || REGISTRY_FONT_OPTIONS[0];
+  const toolbarThemeClasses = registryToolbarTheme === "light"
+    ? "border-[#c5a059]/30 bg-[#f4efe6]/92 text-stone-900 shadow-[0_18px_60px_rgba(0,0,0,0.22)]"
+    : "border-[#c5a059]/20 bg-black/62 text-[#e1e1e6] shadow-2xl";
+  const toolbarPanelClasses = registryToolbarTheme === "light"
+    ? "border-stone-300/80 bg-white/72 text-stone-800"
+    : "border-[#c5a059]/15 bg-black/42 text-white/75";
+  const toolbarInputClasses = registryToolbarTheme === "light"
+    ? "border-stone-300/90 bg-white/80 text-stone-900 placeholder:text-stone-500 focus:border-[#9a7333]"
+    : "border-[#c5a059]/20 bg-black/60 text-[#e1e1e6] placeholder:text-white/30 focus:border-[#c5a059]/50";
+  const toolbarLabelClasses = registryToolbarTheme === "light" ? "text-stone-600" : "text-[#c5a059]/65";
+  const toolbarTextClasses = registryTextSize === "large" ? "text-sm" : registryTextSize === "small" ? "text-[11px]" : "text-xs";
+  const toolbarMicroClasses = registryTextSize === "large" ? "text-[11px]" : registryTextSize === "small" ? "text-[8.5px]" : "text-[10px]";
+
   return (
     <main className="nemosine-main-container relative min-h-screen flex flex-col">
       {/* Background Overlay */}
@@ -1663,7 +1711,11 @@ export default function RegistrosPage() {
         {activeTab === "registros" && (
           <>
         {/* Notion-style Configuration Bar */}
-        <div data-tour="registros-toolbar" className="bg-black/60 border border-[#c5a059]/20 p-4 rounded-xl backdrop-blur-md mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div
+          data-tour="registros-toolbar"
+          className={`mb-6 flex flex-wrap items-start justify-between gap-4 rounded-xl border p-4 backdrop-blur-md ${toolbarThemeClasses}`}
+          style={{ fontFamily: selectedRegistryFont.family }}
+        >
           <div className="flex flex-wrap items-center gap-3">
             {/* Search Input */}
             <div className="relative">
@@ -1672,18 +1724,18 @@ export default function RegistrosPage() {
                 placeholder="🔍 Pesquisar..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-black/60 border border-[#c5a059]/20 text-[#e1e1e6] placeholder:text-white/30 text-xs px-3 py-2 rounded-lg outline-none focus:border-[#c5a059]/50 w-44 font-body"
+                className={`w-44 rounded-lg border px-3 py-2 outline-none ${toolbarTextClasses} ${toolbarInputClasses}`}
               />
             </div>
 
             {/* Filter by Status Multi-select */}
-            <div className="flex flex-wrap items-center gap-1.5 border border-[#c5a059]/15 px-3 py-1.5 rounded-lg bg-black/40">
-              <span className="text-[10px] uppercase tracking-widest text-[#c5a059]/65 font-bold mr-1">Status:</span>
+            <div className={`flex flex-wrap items-center gap-1.5 rounded-lg border px-3 py-1.5 ${toolbarPanelClasses}`}>
+              <span className={`${toolbarMicroClasses} uppercase tracking-widest font-bold mr-1 ${toolbarLabelClasses}`}>Status:</span>
               <div className="flex flex-wrap items-center gap-3">
                 {availableStatuses.map((st) => {
                   const isChecked = selectedStatuses.includes(st);
                   return (
-                    <label key={st} className="flex items-center gap-1.5 text-xs text-white/70 cursor-pointer hover:text-[#c5a059] transition-all select-none">
+                    <label key={st} className={`flex items-center gap-1.5 cursor-pointer hover:text-[#c5a059] transition-all select-none ${toolbarTextClasses} ${registryToolbarTheme === "light" ? "text-stone-700" : "text-white/70"}`}>
                       <input
                         type="checkbox"
                         checked={isChecked}
@@ -1721,11 +1773,11 @@ export default function RegistrosPage() {
 
             {/* Filter by Deadline */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-[#c5a059]/65 font-bold">Prazo:</span>
+              <span className={`${toolbarMicroClasses} uppercase tracking-widest font-bold ${toolbarLabelClasses}`}>Prazo:</span>
               <select
                 value={filterDeadline}
                 onChange={(e) => setFilterDeadline(e.target.value as any)}
-                className="bg-black/60 border border-[#c5a059]/20 text-white/80 text-xs px-2.5 py-1.5 rounded-lg outline-none focus:border-[#c5a059]/50 cursor-pointer"
+                className={`rounded-lg border px-2.5 py-1.5 outline-none cursor-pointer ${toolbarTextClasses} ${toolbarInputClasses}`}
               >
                 <option value="all">Todos os prazos</option>
                 <option value="today">Para hoje</option>
@@ -1734,9 +1786,49 @@ export default function RegistrosPage() {
                 <option value="overdue">Atrasados</option>
               </select>
             </div>
+
+            <div className={`flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 ${toolbarPanelClasses}`}>
+              <span className={`${toolbarMicroClasses} font-bold uppercase tracking-widest ${toolbarLabelClasses}`}>Visual:</span>
+              <select
+                value={registryTextSize}
+                onChange={(e) => setRegistryTextSize(e.target.value as RegistryTextSize)}
+                className={`rounded-lg border px-2.5 py-1.5 outline-none cursor-pointer ${toolbarTextClasses} ${toolbarInputClasses}`}
+                title="Tamanho das letras do painel"
+              >
+                {(["small", "medium", "large"] as RegistryTextSize[]).map((size) => (
+                  <option key={size} value={size}>Letras: {REGISTRY_TEXT_SIZE_LABELS[size]}</option>
+                ))}
+              </select>
+              <select
+                value={registryFont}
+                onChange={(e) => setRegistryFont(e.target.value as RegistryFontKey)}
+                className={`rounded-lg border px-2.5 py-1.5 outline-none cursor-pointer ${toolbarTextClasses} ${toolbarInputClasses}`}
+                title="Fonte do painel"
+              >
+                {REGISTRY_FONT_OPTIONS.map((font) => (
+                  <option key={font.key} value={font.key}>Fonte: {font.label}</option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[#c5a059]/20">
+                <button
+                  type="button"
+                  onClick={() => setRegistryToolbarTheme("dark")}
+                  className={`${toolbarMicroClasses} px-3 py-1.5 font-bold uppercase tracking-widest transition-colors ${registryToolbarTheme === "dark" ? "bg-[#c5a059] text-black" : "bg-black/30 text-[#c5a059] hover:bg-[#c5a059]/10"}`}
+                >
+                  Escuro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegistryToolbarTheme("light")}
+                  className={`${toolbarMicroClasses} px-3 py-1.5 font-bold uppercase tracking-widest transition-colors ${registryToolbarTheme === "light" ? "bg-[#c5a059] text-black" : "bg-white/20 text-[#c5a059] hover:bg-[#c5a059]/10"}`}
+                >
+                  Claro
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className={`flex flex-wrap items-center justify-end gap-2 rounded-lg border p-2 ${toolbarPanelClasses}`}>
             <div className="flex items-center gap-1.5 rounded-lg border border-[#c5a059]/20 bg-black/45 px-2 py-1.5">
               <button
                 type="button"
@@ -1891,7 +1983,10 @@ export default function RegistrosPage() {
           onTouchEnd={handleTableTouchEnd}
           onTouchCancel={handleTableTouchEnd}
         >
-          <div ref={tableZoomContentRef} style={{ zoom: tableZoom } as React.CSSProperties & { zoom: number }}>
+          <div
+            ref={tableZoomContentRef}
+            style={{ zoom: tableZoom, fontFamily: selectedRegistryFont.family } as React.CSSProperties & { zoom: number }}
+          >
           <table className="w-full text-left border-collapse min-w-[1700px]">
             <thead>
               <tr className="border-b border-[#c5a059]/20 bg-black/60 text-[9px] uppercase tracking-widest text-[#c5a059]/80 font-bold select-none">
