@@ -1402,6 +1402,7 @@ export default function DominiosHubPage() {
     }, []);
 
     const currentApp = memoizedDomains.find((app) => app.id === selectedApp);
+    const appIsOpen = Boolean(selectedApp && currentApp);
 
     // ==========================================
     // RENDER DETAILED SOVEREIGN APPLICATIONS
@@ -2966,14 +2967,19 @@ export default function DominiosHubPage() {
         const isMemoryApp = src.includes("/memory");
         const sizeClass = compact
             ? isMemoryApp ? "h-[420px] min-h-[420px]" : "h-[300px] min-h-[300px]"
-            : isMemoryApp
-                ? isFullscreen ? "h-[min(72vh,680px)] min-h-[520px]" : "h-full min-h-0"
-                : "h-[500px] min-h-[400px] sm:min-h-[480px] md:min-h-[520px]";
+            : isFullscreen
+                ? "h-full min-h-0"
+                : isMemoryApp
+                    ? "h-full min-h-0"
+                    : "h-[500px] min-h-[400px] sm:min-h-[480px] md:min-h-[520px]";
+        const immersiveClass = isFullscreen && !compact
+            ? "rounded-none border-0 bg-transparent shadow-none"
+            : "rounded-lg border border-[#c5a059]/15 bg-black/55 shadow-inner";
         return (
-            <div className={`w-full flex-1 flex flex-col rounded-lg overflow-hidden border border-[#c5a059]/15 bg-black/55 shadow-inner ${sizeClass}`}>
+            <div className={`w-full flex-1 flex flex-col overflow-hidden ${immersiveClass} ${sizeClass}`}>
                 <iframe 
                     src={src} 
-                    className="w-full h-full border-0 rounded-lg"
+                    className={`w-full h-full border-0 ${isFullscreen && !compact ? "rounded-none" : "rounded-lg"}`}
                     title="Sovereign App"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation allow-top-navigation-by-user-activation"
                 />
@@ -3126,14 +3132,14 @@ export default function DominiosHubPage() {
                 {/* SIMULATED DEVICE ENVIRONMENT */}
                 {isFullscreen ? (
                     /* 100% IMMERSIVE FULL-SCREEN SYSTEM OPERATIONAL MODE (F11-style full viewport OS) */
-                    <div data-tour="dominios-device" className="fixed inset-0 w-screen h-screen z-45 bg-[#07070a] flex flex-col justify-between p-6 sm:p-12 overflow-hidden select-none animate-fade-in">
+                    <div data-tour="dominios-device" className={`fixed inset-0 w-screen h-screen z-45 bg-[#07070a] flex flex-col justify-between overflow-hidden select-none animate-fade-in ${appIsOpen ? "p-2 sm:p-3" : "p-6 sm:p-12"}`}>
                         {/* Immersive space wallpaper */}
                         <div className="absolute inset-0 bg-radial-gradient from-indigo-950/20 via-black to-black z-0 pointer-events-none"></div>
                         <div className="nemosine-mental-castle-bg absolute inset-0 bg-cover bg-center blur-md pointer-events-none"></div>
 
                         {/* Top System Bar */}
-                        <div className="relative z-10 flex justify-between items-center border-b border-[#c5a059]/10 pb-4">
-                            <div className="flex items-center gap-3">
+                        <div className={`relative z-10 flex justify-between items-center transition-all ${appIsOpen ? "min-h-11 border-b-0 pb-0" : "border-b border-[#c5a059]/10 pb-4"}`}>
+                            <div className={`flex items-center gap-3 ${appIsOpen ? "invisible" : ""}`}>
                                 <span className="text-2xl drop-shadow-[0_0_10px_rgba(197,160,89,0.4)]">⚜️</span>
                                 <div>
                                     <h2 className="font-display text-sm tracking-wider text-[#c5a059] uppercase font-bold">
@@ -3145,7 +3151,7 @@ export default function DominiosHubPage() {
                                 </div>
                             </div>
                             
-                            <div className="flex items-center gap-2">
+                            <div className={`flex items-center gap-2 ${appIsOpen ? "hidden" : ""}`}>
                                 {!isPwaStandalone && (
                                     <button
                                         type="button"
@@ -3187,7 +3193,7 @@ export default function DominiosHubPage() {
                         </div>
 
                         {/* Inner Fullscreen UI Workspace */}
-                        <div className="relative z-10 flex-1 flex flex-col justify-center items-center max-w-7xl w-full mx-auto my-3 overflow-hidden pr-1">
+                        <div className={`relative z-10 flex-1 flex flex-col justify-center items-center w-full mx-auto overflow-hidden ${appIsOpen ? "max-w-none my-0 pr-0" : "max-w-7xl my-3 pr-1"}`}>
                             {loadingApp ? (
                                 <div className="flex flex-col items-center justify-center animate-fade-in">
                                     <div className="relative flex items-center justify-center mb-6">
@@ -3200,7 +3206,7 @@ export default function DominiosHubPage() {
                                 </div>
                             ) : selectedApp && currentApp ? (
                                 /* Fullscreen app details display */
-                                <div className="w-full max-w-6xl mx-auto flex-1 flex flex-col justify-between animate-fade-in py-1 text-left overflow-y-auto pr-1">
+                                <div className="w-full max-w-none mx-auto flex-1 flex flex-col justify-between animate-fade-in py-0 text-left overflow-hidden">
                                     {renderUnifiedApp(selectedApp, false)}
                                 </div>
                             ) : (
@@ -3297,8 +3303,8 @@ export default function DominiosHubPage() {
                         )}
 
                         {/* Bottom OS Bar — Android-style Navigation */}
-                        <div className="relative z-10 flex flex-col items-center translate-y-3">
-                            <div className="glass-medieval rounded-2xl px-6 py-3 border border-[#c5a059]/20 bg-black/60 backdrop-blur-md flex justify-around gap-10 items-center select-none max-w-xs w-full mx-auto">
+                        <div className={`relative z-10 flex flex-col items-center ${appIsOpen ? "translate-y-0 pt-2" : "translate-y-3"}`}>
+                            <div className={`glass-medieval rounded-2xl border border-[#c5a059]/20 bg-black/60 backdrop-blur-md flex justify-around gap-10 items-center select-none max-w-xs w-full mx-auto ${appIsOpen ? "px-6 py-2" : "px-6 py-3"}`}>
                                 {/* Back */}
                                 <button
                                     type="button"
