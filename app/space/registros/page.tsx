@@ -1662,6 +1662,8 @@ export default function RegistrosPage() {
   const registryInlineInputClasses = registryToolbarTheme === "light"
     ? "text-stone-800 placeholder:text-stone-400 focus:border-[#c5a059]/65"
     : "text-white/70 placeholder:text-white/10 focus:border-[#c5a059]/35";
+  const registryTableFontSize = registryTextSize === "large" ? "15px" : registryTextSize === "small" ? "11px" : "13px";
+  const registryTableTypographyClass = "[&_table]:!font-[inherit] [&_thead]:!font-[inherit] [&_tbody]:!font-[inherit] [&_tr]:!font-[inherit] [&_th]:!font-[inherit] [&_td]:!font-[inherit] [&_textarea]:!font-[inherit] [&_input]:!font-[inherit] [&_select]:!font-[inherit] [&_button]:!font-[inherit] [&_td]:!text-[inherit] [&_textarea]:!text-[inherit] [&_input]:!text-[inherit] [&_select]:!text-[inherit]";
 
   return (
     <main className="nemosine-main-container relative min-h-screen flex flex-col">
@@ -2001,7 +2003,8 @@ export default function RegistrosPage() {
         >
           <div
             ref={tableZoomContentRef}
-            style={{ zoom: tableZoom, fontFamily: selectedRegistryFont.family } as React.CSSProperties & { zoom: number }}
+            className={registryTableTypographyClass}
+            style={{ zoom: tableZoom, fontFamily: selectedRegistryFont.family, fontSize: registryTableFontSize } as React.CSSProperties & { zoom: number }}
           >
           <table className="w-full text-left border-collapse min-w-[1700px]">
             <thead>

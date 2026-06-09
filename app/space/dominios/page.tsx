@@ -207,7 +207,7 @@ export default function DominiosHubPage() {
         return expanded;
     };
 
-    const playCelestialChime = () => {
+    const playReminderChime = () => {
         try {
             const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
             if (!AudioContext) return;
@@ -269,7 +269,7 @@ export default function DominiosHubPage() {
                         setNotifiedEvents(prev => ({ ...prev, [trackingId]: true }));
 
                         if (hasSound) {
-                            playCelestialChime();
+                            playReminderChime();
                         }
 
                         if (notifMin >= 0) {
@@ -277,7 +277,7 @@ export default function DominiosHubPage() {
                                 ? `Seu compromisso "${ev.title}" está começando agora (${ev.startTime})!`
                                 : `Seu compromisso "${ev.title}" começa em ${diffMin} minutos às ${ev.startTime}.`;
 
-                            fetch('/api/push/send', {
+                            fetch('/api/push/due', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
@@ -2113,7 +2113,7 @@ export default function DominiosHubPage() {
                                     </div>
 
                                     <div className="flex items-center justify-between">
-                                        <label className="text-[7.5px] uppercase font-bold text-stone-300">Aviso Sonoro Celestial</label>
+                                        <label className="text-[7.5px] uppercase font-bold text-stone-300">Aviso sonoro</label>
                                         <input
                                             type="checkbox"
                                             checked={!!activeEditEvent.notificationSound}
@@ -3719,7 +3719,7 @@ export default function DominiosHubPage() {
                         </div>
 
                         <p className="text-[9.5px] text-stone-400 leading-relaxed italic">
-                            “Fixe esta ferramenta sagrada do Sovereign OS diretamente na tela de início do seu celular e use-a como um aplicativo totalmente dedicado e nativo.”
+                            Fixe esta ferramenta diretamente na tela de início do seu celular e use-a como um aplicativo dedicado.
                         </p>
 
                         <div className="space-y-3 text-left">
@@ -3747,7 +3747,7 @@ export default function DominiosHubPage() {
                             onClick={() => setShowPwaInstallGuide(false)}
                             className="w-full py-1.5 bg-[#c5a059]/15 hover:bg-[#c5a059]/25 border border-[#c5a059]/50 text-stone-200 rounded font-display text-[9px] uppercase tracking-wider transition-colors cursor-pointer"
                         >
-                            Entendido, Soberano
+                            Entendido
                         </button>
                     </div>
                 </div>

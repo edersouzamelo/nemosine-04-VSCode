@@ -362,6 +362,23 @@ export async function deleteDestinyEvent(userId: string, eventId: string): Promi
   `;
 }
 
+async function ensureAgendaNotificationDeliveriesTable() {
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_agenda_notification_deliveries (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      occurrence_date TEXT NOT NULL,
+      notification_minutes INTEGER NOT NULL DEFAULT 0,
+      delivered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await prisma.$executeRaw`
+    CREATE UNIQUE INDEX IF NOT EXISTS sovereign_agenda_notification_unique_idx
+    ON sovereign_agenda_notification_deliveries(user_id, event_id, occurrence_date, notification_minutes)
+  `;
+}
+
 // ==========================================
 // AGENDA OPERATIONS
 // ==========================================
@@ -381,6 +398,10 @@ export interface AgendaEvent {
   recurrenceDays?: string | null;
   notificationMinutes?: number | null;
   notificationSound?: boolean | null;
+}
+
+export interface AgendaNotificationCandidate extends AgendaEvent {
+  userId: string;
 }
 
 export async function getAgendaEvents(userId: string): Promise<AgendaEvent[]> {
@@ -909,5 +930,68 @@ export async function deletePushSubscription(endpoint: string): Promise<void> {
   await prisma.$executeRaw`
     DELETE FROM sovereign_push_subscriptions
     WHERE endpoint = ${endpoint}
+  `;
+}
+
+export async function getAgendaNotificationCandidates(): Promise<AgendaNotificationCandidate[]> {
+  await ensureAgendaTable();
+  const rows = await prisma.$queryRaw<Array<any>>`
+    SELECT id, user_id, title, date, type, note, completed, start_time, end_time, color, recurrence, recurrence_end, recurrence_days, notification_minutes, notification_sound
+    FROM sovereign_agenda
+    WHERE completed = FALSE
+      AND notification_minutes IS NOT NULL
+      AND notification_minutes >= 0
+  `;
+
+  return rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    title: r.title,
+    date: r.date,
+    type: r.type,
+    note: r.note,
+    completed: !!r.completed,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    color: r.color,
+    recurrence: r.recurrence,
+    recurrenceEnd: r.recurrence_end,
+    recurrenceDays: r.recurrence_days,
+    notificationMinutes: r.notification_minutes !== null ? Number(r.notification_minutes) : 0,
+    notificationSound: !!r.notification_sound,
+  }));
+}
+
+export async function hasAgendaNotificationDelivery(
+  userId: string,
+  eventId: string,
+  occurrenceDate: string,
+  notificationMinutes: number
+): Promise<boolean> {
+  await ensureAgendaNotificationDeliveriesTable();
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id
+    FROM sovereign_agenda_notification_deliveries
+    WHERE user_id = ${userId}
+      AND event_id = ${eventId}
+      AND occurrence_date = ${occurrenceDate}
+      AND notification_minutes = ${notificationMinutes}
+    LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+export async function markAgendaNotificationDelivered(
+  userId: string,
+  eventId: string,
+  occurrenceDate: string,
+  notificationMinutes: number
+): Promise<void> {
+  await ensureAgendaNotificationDeliveriesTable();
+  const id = `${userId}:${eventId}:${occurrenceDate}:${notificationMinutes}`;
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_agenda_notification_deliveries (id, user_id, event_id, occurrence_date, notification_minutes, delivered_at)
+    VALUES (${id}, ${userId}, ${eventId}, ${occurrenceDate}, ${notificationMinutes}, NOW())
+    ON CONFLICT (user_id, event_id, occurrence_date, notification_minutes) DO NOTHING
   `;
 }

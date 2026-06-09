@@ -45,8 +45,8 @@ export default function PlacesLevelGate({ children }: { children: React.ReactNod
         return (
             <main className="nemosine-main-container relative min-h-screen overflow-hidden">
                 <div className="fixed inset-0 z-0">
-                    <div className="absolute inset-0 z-10 bg-black/70 backdrop-blur-[2px]" />
-                    <div className="h-full w-full bg-[url('/places/Portal.png')] bg-cover bg-center opacity-45" />
+                    <div className="absolute inset-0 bg-[#050507]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,rgba(197,160,89,0.12),transparent_34%),linear-gradient(180deg,rgba(5,5,7,0.96),rgba(10,10,12,1))]" />
                 </div>
 
                 <Navbar />

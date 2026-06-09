@@ -353,8 +353,8 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
     return (
         <main className="nemosine-main-container relative min-h-screen overflow-hidden">
             <div className="fixed inset-0 z-0">
-                <div className="absolute inset-0 z-10 bg-black/72 backdrop-blur-[2px]" />
-                <div className="h-full w-full bg-[url('/places/Arquivo.png')] bg-cover bg-center opacity-35" />
+                <div className="absolute inset-0 bg-[#050507]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(197,160,89,0.11),transparent_32%),linear-gradient(180deg,rgba(5,5,7,0.98),rgba(10,10,12,1))]" />
             </div>
 
             {!embed && <Navbar />}

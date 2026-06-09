@@ -415,7 +415,11 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
     // Helper to clean up response text from hidden tags
     const cleanContent = (text: string) => {
-        return text.replace(/\[MEMORY:\s*.*?\]/ig, '').trim();
+        return text
+            .replace(/\[MEMORY:\s*.*?\]/ig, '')
+            .replace(/\[REGISTRY:\s*.*?\]/ig, '')
+            .replace(/\[DESTINY:\s*.*?\]/ig, '')
+            .trim();
     };
 
     const restartGuide = () => {

@@ -1,7 +1,7 @@
 import { ENTITIES } from "@/app/data/entities";
 import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
 import { getVisibleUserSources } from "@/app/lib/sourceStore";
-import { getAgendaEvents } from "@/app/lib/sovereignStore";
+import { getAgendaEvents, getDestinyEvents } from "@/app/lib/sovereignStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
   getRelevantConversationEpisodes,
@@ -166,6 +166,18 @@ const summarizeRegistries = (registries: Awaited<ReturnType<typeof getUserRegist
   const persona = registry.persona ? ` | persona: ${registry.persona}` : "";
   const deadline = registry.next_deadline ? ` | prazo: ${registry.next_deadline}` : "";
   return `${registry.idea}${persona}${deadline} | status: ${registry.status}`;
+});
+
+const summarizeDestinyEvents = (events: Awaited<ReturnType<typeof getDestinyEvents>>) => events.map((event) => {
+  const date = event.eventDate || event.eventDateLabel || "data simbolica nao definida";
+  const intensity = event.symbolicIntensity ? ` | intensidade: ${event.symbolicIntensity}/5` : "";
+  const emotion = event.dominantEmotion ? ` | emocao: ${event.dominantEmotion}` : "";
+  const persona = event.associatedPersona ? ` | persona associada: ${event.associatedPersona}` : "";
+  const place = event.associatedPlace ? ` | lugar associado: ${event.associatedPlace}` : "";
+  const phase = event.lifePhase ? ` | fase: ${event.lifePhase}` : "";
+  const details = event.longDescription ? ` | detalhes: ${event.longDescription}` : "";
+  const tags = event.tags.length > 0 ? ` | tags: ${event.tags.join(", ")}` : "";
+  return `${date}: ${event.title} (${event.category}) - ${event.shortDescription}${details}${intensity}${emotion}${persona}${place}${phase}${tags}`;
 });
 
 function buildPlaceContext(personaId: string, placeId?: string) {
@@ -405,6 +417,19 @@ function buildRegistryInstruction() {
   ].join("\n");
 }
 
+function buildDestinyLineInstruction(personaId: string) {
+  return [
+    "A Linha do Destino e o eixo biografico persistente do usuario. Marcos ali registrados devem ser tratados como fatos disponiveis para todas as personas, respeitando privacidade e veracidade.",
+    "Use os MARCOS DA LINHA DO DESTINO para responder perguntas sobre historia pessoal, fases de vida, familia, mudancas, perdas, conquistas e eventos estruturantes.",
+    "Nao diga que nao tem acesso a Linha do Destino se a secao MARCOS DA LINHA DO DESTINO estiver presente neste prompt.",
+    "Se a conversa revelar um fato biografico marcante que mereca entrar na Linha do Destino, a persona pode sugerir o registro em prosa natural.",
+    "So grave um novo marco se o usuario autorizar explicitamente nesta conversa, com linguagem como 'registre na linha do destino', 'pode incluir', 'sim, grave esse marco' ou equivalente claro.",
+    "Com autorizacao explicita, gere uma tag ao FINAL da resposta, invisivel ao usuario depois do processamento:",
+    "[DESTINY: Titulo | Data YYYY-MM-DD ou sem data | Categoria | Descricao curta | Intensidade 1-5 opcional | Emocao opcional]",
+    `Quando a tag for usada, associe internamente a persona atual (${personaId}) ao marco. Nao use a tag sem autorizacao clara.`,
+  ].join("\n");
+}
+
 function buildCommunicationRules() {
   return [
     "Nao comece declarando que opera sob o Sistema Nemosine Nous.",
@@ -439,12 +464,13 @@ export async function assemblePersonaContext({
     ? personaId
     : placeId && isPrivateMemorySpace(placeId) ? placeId : personaId;
 
-  const [memories, episodes, userSources, agendaEvents, registries] = await Promise.all([
+  const [memories, episodes, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
     getRelevantUserMemories(userId, memoryScope, userText, 10),
     getRelevantConversationEpisodes(userId, memoryScope, userText, 6),
     getVisibleUserSources(userId, personaId),
     getAgendaEvents(userId).catch(() => []),
     getUserRegistros(userId).catch(() => []),
+    getDestinyEvents(userId).catch(() => []),
   ]);
 
   const relevantAgenda = rankContextItems(
@@ -462,12 +488,14 @@ export async function assemblePersonaContext({
     8,
   );
   const relevantSources = rankContextItems(userSources, (source) => source, userText, contract, 5);
+  const destinyContext = destinyEvents.slice(-30);
 
   const hasSubstantiveContext = memories.length > 0
     || episodes.length > 0
     || relevantSources.length > 0
     || relevantAgenda.length > 0
-    || relevantRegistries.length > 0;
+    || relevantRegistries.length > 0
+    || destinyContext.length > 0;
 
   const now = new Date();
   const timeContext = `Hoje e ${now.toLocaleDateString("pt-BR", {
@@ -492,6 +520,7 @@ export async function assemblePersonaContext({
     listSection("MEMORIAS RELEVANTES", memories),
     listSection("EPISODIOS RECENTES RELEVANTES", episodes),
     listSection("FONTES PERSISTENTES AUTORIZADAS", relevantSources),
+    listSection("MARCOS DA LINHA DO DESTINO", summarizeDestinyEvents(destinyContext)),
     listSection("AGENDA RELEVANTE", summarizeAgenda(relevantAgenda)),
     listSection("REGISTROS RELEVANTES", summarizeRegistries(relevantRegistries)),
     section("LUGAR DA MENTE ATIVO", buildPlaceContext(personaId, placeId)),
@@ -500,6 +529,7 @@ export async function assemblePersonaContext({
     section("SEGURANCA, PRIVACIDADE E VERACIDADE", buildSafetyPrivacyVeracity(memoryScope, contract)),
     section("EXTRACAO DE MEMORIA", buildMemoryExtractionInstruction(memoryScope)),
     section("REGISTRO AUTOMATICO DE IDEIAS E PRAZOS", buildRegistryInstruction()),
+    section("LINHA DO DESTINO E AUTORIZACAO DE NOVOS MARCOS", buildDestinyLineInstruction(personaId)),
     section("REGRAS DE COMUNICACAO", buildCommunicationRules()),
     section("REGRA FINAL DE SAIDA VISIVEL", buildVisibleOutputRule(personaId)),
     section("PROIBICAO DE FECHAMENTO SINTETICO GENERICO", buildAntiGenericClosingRule()),

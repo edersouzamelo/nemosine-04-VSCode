@@ -17,6 +17,7 @@ import { buildSystemPromptAssembly, DEFAULT_CHAT_MAX_OUTPUT_TOKENS, DEFAULT_CHAT
 import { ENTITIES } from '@/app/data/entities';
 import { isPrivateMemorySpace } from '@/app/lib/nemosine/privacy';
 import { createUserRegistry } from '@/app/lib/userFeatureStore';
+import { createDestinyEvent } from '@/app/lib/sovereignStore';
 import {
     buildRuntimePersonaGuard,
     sanitizeConversationHistory,
@@ -30,6 +31,42 @@ const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_EXTRACTED_PDF_TEXT_LENGTH = 100_000;
 const MAX_TEXT_FILE_SIZE_BYTES = 1 * 1024 * 1024;
 const MAX_MESSAGE_TEXT_LENGTH = 120_000;
+
+function hasExplicitDestinyAuthorization(text: string) {
+    const normalized = text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+
+    return [
+        'registre na linha do destino',
+        'registrar na linha do destino',
+        'inclua na linha do destino',
+        'incluir na linha do destino',
+        'grave na linha do destino',
+        'gravar na linha do destino',
+        'pode incluir',
+        'pode registrar',
+        'pode gravar',
+        'sim, registre',
+        'sim registre',
+        'sim, grave',
+        'sim grave',
+    ].some((phrase) => normalized.includes(phrase));
+}
+
+function normalizeDestinyDate(value?: string) {
+    const raw = value?.trim();
+    if (!raw || raw.toLowerCase() === 'sem data') return null;
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
+}
+
+function normalizeDestinyIntensity(value?: string) {
+    const raw = value?.trim();
+    if (!raw) return null;
+    const parsed = Number(raw.match(/\d+/)?.[0]);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 5 ? parsed : null;
+}
 
 async function getAuthenticatedUserId(): Promise<string | null> {
     const session = await auth();
@@ -244,6 +281,45 @@ export async function POST(req: NextRequest) {
 
                 if (registryMatches.length > 0) {
                     finalResponse = finalResponse.replace(/\[REGISTRY:\s*[^\]\r\n]+?\]/gi, '').trim();
+                }
+
+                const destinyMatches = [...text.matchAll(/\[DESTINY:\s*([^\]\r\n]{1,1200})\]/gi)];
+                const destinyAuthorized = hasExplicitDestinyAuthorization(userText);
+                if (destinyAuthorized) {
+                    for (const match of destinyMatches.slice(0, 2)) {
+                        const parts = match[1].split('|').map((part) => part.trim());
+                        const title = parts[0];
+                        const eventDate = normalizeDestinyDate(parts[1]);
+                        const eventDateLabel = eventDate ? null : (parts[1] || null);
+                        const category = parts[2] || 'marco';
+                        const shortDescription = parts[3] || title;
+                        const symbolicIntensity = normalizeDestinyIntensity(parts[4]);
+                        const dominantEmotion = parts[5] || null;
+
+                        if (!title || !shortDescription) continue;
+
+                        try {
+                            await createDestinyEvent(userId, {
+                                title,
+                                eventDate,
+                                eventDateLabel,
+                                category,
+                                shortDescription,
+                                symbolicIntensity,
+                                dominantEmotion,
+                                associatedPersona: personaId,
+                                visibility: 'private',
+                                source: `persona:${personaId};thread:${activeThreadId}`,
+                                tags: ['sugerido-por-persona', personaId],
+                            });
+                        } catch (err) {
+                            console.error("[Chat/API onFinish] Failed to auto-create destiny event:", err);
+                        }
+                    }
+                }
+
+                if (destinyMatches.length > 0) {
+                    finalResponse = finalResponse.replace(/\[DESTINY:\s*[^\]\r\n]+?\]/gi, '').trim();
                 }
 
                 await addMessageToThread(userId, activeThreadId, 'assistant', finalResponse);
