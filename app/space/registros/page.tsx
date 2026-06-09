@@ -1646,6 +1646,22 @@ export default function RegistrosPage() {
   const toolbarLabelClasses = registryToolbarTheme === "light" ? "text-stone-600" : "text-[#c5a059]/65";
   const toolbarTextClasses = registryTextSize === "large" ? "text-sm" : registryTextSize === "small" ? "text-[11px]" : "text-xs";
   const toolbarMicroClasses = registryTextSize === "large" ? "text-[11px]" : registryTextSize === "small" ? "text-[8.5px]" : "text-[10px]";
+  const registrySurfaceClasses = registryToolbarTheme === "light"
+    ? "border-[#c5a059]/30 bg-[#f8f2e6]/92 text-stone-900 shadow-[0_18px_60px_rgba(0,0,0,0.24)] scrollbar-thumb-[#c5a059]/35"
+    : "border-[#c5a059]/20 bg-black/40 text-[#e1e1e6] shadow-2xl scrollbar-thumb-[#c5a059]/20";
+  const registryHeaderClasses = registryToolbarTheme === "light"
+    ? "border-[#c5a059]/25 bg-[#eadfce] text-[#7a5924]"
+    : "border-[#c5a059]/20 bg-black/60 text-[#c5a059]/80";
+  const registryRowClasses = registryToolbarTheme === "light"
+    ? "border-[#d8c7aa] bg-[#fffaf0] hover:bg-[#f3e7d1] text-stone-900"
+    : "border-[#c5a059]/10 hover:bg-white/[0.02]";
+  const registryCellBorderClasses = registryToolbarTheme === "light" ? "border-[#d8c7aa]" : "border-[#c5a059]/10";
+  const registryInputClasses = registryToolbarTheme === "light"
+    ? "bg-white/78 text-stone-900 placeholder:text-stone-400 focus:border-[#c5a059]/65"
+    : "bg-black/20 text-[#f4efe6] placeholder:text-white/15 focus:border-[#c5a059]/55 focus:bg-black/45";
+  const registryInlineInputClasses = registryToolbarTheme === "light"
+    ? "text-stone-800 placeholder:text-stone-400 focus:border-[#c5a059]/65"
+    : "text-white/70 placeholder:text-white/10 focus:border-[#c5a059]/35";
 
   return (
     <main className="nemosine-main-container relative min-h-screen flex flex-col">
@@ -1829,7 +1845,7 @@ export default function RegistrosPage() {
           </div>
 
           <div className={`flex flex-wrap items-center justify-end gap-2 rounded-lg border p-2 ${toolbarPanelClasses}`}>
-            <div className="flex items-center gap-1.5 rounded-lg border border-[#c5a059]/20 bg-black/45 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 rounded-lg border border-[#c5a059]/35 bg-[#c5a059]/12 px-2 py-1.5">
               <button
                 type="button"
                 onClick={() => setTableZoom((current) => clampTableZoom(Number((current - 0.1).toFixed(2))))}
@@ -1838,7 +1854,7 @@ export default function RegistrosPage() {
               >
                 <span className="material-icons text-sm">remove</span>
               </button>
-              <span className="min-w-11 text-center font-mono text-[10px] text-white/55">{Math.round(tableZoom * 100)}%</span>
+              <span className={`min-w-11 text-center font-mono text-[10px] ${registryToolbarTheme === "light" ? "text-[#7a5924]" : "text-white/65"}`}>{Math.round(tableZoom * 100)}%</span>
               <button
                 type="button"
                 onClick={() => setTableZoom((current) => clampTableZoom(Number((current + 0.1).toFixed(2))))}
@@ -1852,7 +1868,7 @@ export default function RegistrosPage() {
             {/* Status Manager Trigger */}
             <button
               onClick={() => setShowStatusSettings(!showStatusSettings)}
-              className="px-3 py-2 bg-gradient-to-r from-zinc-900 to-zinc-950 border border-zinc-800 hover:border-[#c5a059]/40 text-white/70 hover:text-[#c5a059] rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
+              className="px-3 py-2 bg-[#c5a059]/12 border border-[#c5a059]/38 hover:border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059]/20 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
               title="Gerenciar Status Customizados"
             >
               ⚙️ Status
@@ -1861,7 +1877,7 @@ export default function RegistrosPage() {
             {/* Dashboard Trigger */}
             <button
               onClick={() => setShowDashboard(true)}
-              className="px-3.5 py-2 bg-gradient-to-r from-black/80 to-black/40 border border-[#c5a059]/40 hover:border-[#c5a059] text-[#c5a059] rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition-all duration-200 shadow-md cursor-pointer hover:scale-[1.02]"
+              className="px-3.5 py-2 bg-[#c5a059]/16 border border-[#c5a059]/50 hover:border-[#c5a059] text-[#c5a059] rounded-lg text-[10px] font-extrabold tracking-wider uppercase transition-all duration-200 shadow-md cursor-pointer hover:scale-[1.02] hover:bg-[#c5a059]/24"
             >
               📊 Meu Dashboard
             </button>
@@ -1871,7 +1887,7 @@ export default function RegistrosPage() {
               type="button"
               onClick={downloadSpreadsheet}
               title="Baixar planilha de registros (CSV)"
-              className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-9 h-9 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+              className="flex items-center justify-center rounded-lg border border-[#c5a059]/45 bg-[#c5a059]/12 w-9 h-9 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/22 cursor-pointer font-bold"
             >
               <span className="material-icons text-lg">table_view</span>
             </button>
@@ -1881,7 +1897,7 @@ export default function RegistrosPage() {
               type="button"
               onClick={downloadPDF}
               title="Baixar relatório em PDF"
-              className="flex items-center justify-center rounded-lg border border-[#c5a059]/40 bg-black/45 w-9 h-9 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/10 cursor-pointer font-bold"
+              className="flex items-center justify-center rounded-lg border border-[#c5a059]/45 bg-[#c5a059]/12 w-9 h-9 text-[#c5a059] transition-all hover:border-[#c5a059] hover:bg-[#c5a059]/22 cursor-pointer font-bold"
             >
               <span className="material-icons text-lg">picture_as_pdf</span>
             </button>
@@ -1889,13 +1905,13 @@ export default function RegistrosPage() {
             {/* Add Column Trigger */}
             <div className="relative">
               {showAddCol ? (
-                <div className="flex items-center gap-1 bg-[#0a0a0c] border border-[#c5a059]/35 p-1.5 rounded-lg shadow-xl animate-fade-in absolute right-0 bottom-full mb-2 z-30 w-52">
+                <div className={`flex items-center gap-1 border border-[#c5a059]/35 p-1.5 rounded-lg shadow-xl animate-fade-in absolute right-0 bottom-full mb-2 z-30 w-52 ${registryToolbarTheme === "light" ? "bg-[#f8f2e6]" : "bg-[#0a0a0c]"}`}>
                   <input
                     type="text"
                     placeholder="Nome da coluna"
                     value={newColName}
                     onChange={(e) => setNewColName(e.target.value)}
-                    className="bg-black text-[#e1e1e6] text-[10px] p-1.5 rounded border border-[#c5a059]/20 outline-none flex-1 font-body"
+                    className={`text-[10px] p-1.5 rounded border border-[#c5a059]/20 outline-none flex-1 font-body ${registryToolbarTheme === "light" ? "bg-white text-stone-900" : "bg-black text-[#e1e1e6]"}`}
                     autoFocus
                   />
                   <button
@@ -1906,7 +1922,7 @@ export default function RegistrosPage() {
                   </button>
                   <button
                     onClick={() => setShowAddCol(false)}
-                    className="bg-zinc-800 text-white/70 text-[9px] px-2 py-1.5 rounded cursor-pointer hover:bg-zinc-700"
+                    className="bg-[#c5a059]/18 text-[#c5a059] text-[9px] px-2 py-1.5 rounded cursor-pointer hover:bg-[#c5a059]/28"
                   >
                     x
                   </button>
@@ -1915,7 +1931,7 @@ export default function RegistrosPage() {
 
               <button
                 onClick={() => setShowAddCol(!showAddCol)}
-                className="px-3.5 py-2 bg-gradient-to-r from-black/60 to-black/30 border border-[#c5a059]/30 hover:border-[#c5a059]/60 text-[#c5a059] rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
+                className="px-3.5 py-2 bg-[#c5a059]/12 border border-[#c5a059]/38 hover:border-[#c5a059]/70 text-[#c5a059] rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer hover:bg-[#c5a059]/22"
               >
                 ➕ Nova Coluna
               </button>
@@ -1977,7 +1993,7 @@ export default function RegistrosPage() {
         {/* Notion Table container */}
         <div
           data-tour="registros-table"
-          className="bg-black/40 border border-[#c5a059]/20 rounded-xl backdrop-blur-md overflow-x-auto shadow-2xl relative w-full scrollbar-thin scrollbar-thumb-[#c5a059]/20"
+          className={`rounded-xl border backdrop-blur-md overflow-x-auto relative w-full scrollbar-thin ${registrySurfaceClasses}`}
           onTouchStart={handleTableTouchStart}
           onTouchMove={handleTableTouchMove}
           onTouchEnd={handleTableTouchEnd}
@@ -1989,7 +2005,7 @@ export default function RegistrosPage() {
           >
           <table className="w-full text-left border-collapse min-w-[1700px]">
             <thead>
-              <tr className="border-b border-[#c5a059]/20 bg-black/60 text-[9px] uppercase tracking-widest text-[#c5a059]/80 font-bold select-none">
+              <tr className={`border-b text-[9px] uppercase tracking-widest font-bold select-none ${registryHeaderClasses}`}>
                 <th className="p-1.5 w-10 text-center"></th>
                 <th className="p-1.5 w-28 text-center">Ações</th>
                 <th className="p-1.5 min-w-[460px] w-[38rem] border-r border-[#c5a059]/10">Ideia</th>
@@ -2017,21 +2033,21 @@ export default function RegistrosPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#c5a059]/10 font-body">
+            <tbody className={`divide-y font-body ${registryToolbarTheme === "light" ? "divide-[#d8c7aa]" : "divide-[#c5a059]/10"}`}>
               {filteredRows.map((row, index) => {
                 const rowCols = row.custom_columns ? JSON.parse(row.custom_columns) : {};
                 const personaSlug = row.persona ? row.persona.toLowerCase().replace(/\s+/g, "-") : "";
                 
                 return (
-                  <tr 
+              <tr 
                     key={row.id} 
-                    className="hover:bg-white/[0.02] transition-colors group"
+                    className={`transition-colors group ${registryRowClasses}`}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDragEnd={handleDragEnd}
                     onDrop={(e) => handleDrop(e, row.id)}
                   >
                     {/* Drag indicator handle */}
-                    <td className="p-1 text-center select-none border-r border-[#c5a059]/10">
+                    <td className={`p-1 text-center select-none border-r ${registryCellBorderClasses}`}>
                       <button
                         type="button"
                         draggable
@@ -2045,7 +2061,7 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Row actions */}
-                    <td className="p-1 text-center border-r border-[#c5a059]/10">
+                    <td className={`p-1 text-center border-r ${registryCellBorderClasses}`}>
                       <div className="flex justify-center items-center gap-1.5">
                         {/* Duplicate Button */}
                         <button
@@ -2077,14 +2093,14 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Idea Cell */}
-                    <td className="relative p-1.5 border-r border-[#c5a059]/10 align-top group/idea">
+                    <td className={`relative p-1.5 border-r align-top group/idea ${registryCellBorderClasses}`}>
                       <textarea
                         value={row.idea}
                         onChange={(e) => updateCell(row.id, "idea", e.target.value)}
                         placeholder="Nova ideia..."
                         rows={2}
                         title={row.idea || "Nova ideia..."}
-                        className="min-h-14 max-h-36 w-full resize-y rounded-lg border border-transparent bg-black/20 px-3 py-2 font-body text-sm leading-relaxed text-[#f4efe6] placeholder:text-white/15 outline-none transition-all selection:bg-[#c5a059]/35 selection:text-white hover:border-[#c5a059]/20 focus:max-h-60 focus:border-[#c5a059]/55 focus:bg-black/45"
+                        className={`min-h-14 max-h-36 w-full resize-y rounded-lg border border-transparent px-3 py-2 font-body text-sm leading-relaxed outline-none transition-all selection:bg-[#c5a059]/35 selection:text-white hover:border-[#c5a059]/30 focus:max-h-60 ${registryInputClasses}`}
                         onMouseDown={(e) => e.stopPropagation()}
                         onPointerDown={(e) => e.stopPropagation()}
                       />
@@ -2096,14 +2112,14 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Chat de Origem Cell */}
-                    <td className="p-1 border-r border-[#c5a059]/10 text-center">
-                      <div className="flex items-center gap-1 bg-black/35 rounded border border-transparent focus-within:border-[#c5a059]/35 px-1">
+                    <td className={`p-1 border-r text-center ${registryCellBorderClasses}`}>
+                      <div className={`flex items-center gap-1 rounded border border-transparent focus-within:border-[#c5a059]/35 px-1 ${registryToolbarTheme === "light" ? "bg-white/65" : "bg-black/35"}`}>
                         <input
                           type="text"
                           value={row.chat_origin_id || ""}
                           onChange={(e) => updateCell(row.id, "chat_origin_id", e.target.value)}
                           placeholder="ID ou Link..."
-                          className="bg-transparent text-white/70 placeholder:text-white/10 text-[10px] outline-none border-none py-0.5 font-mono flex-1 w-full text-center"
+                          className={`bg-transparent text-[10px] outline-none border-none py-0.5 font-mono flex-1 w-full text-center ${registryInlineInputClasses}`}
                         />
                         {row.chat_origin_id && (
                           <a
@@ -2124,14 +2140,14 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Link Externo Cell */}
-                    <td className="p-1 border-r border-[#c5a059]/10">
+                    <td className={`p-1 border-r ${registryCellBorderClasses}`}>
                       <div className="flex items-center gap-1">
                         <input
                           type="text"
                           value={row.external_links || ""}
                           onChange={(e) => updateCell(row.id, "external_links", e.target.value)}
                           placeholder="Adicionar link..."
-                          className="w-full bg-transparent text-white/70 placeholder:text-white/10 text-xs outline-none border-b border-transparent focus:border-[#c5a059]/35 px-1 py-0.5 font-body"
+                          className={`w-full bg-transparent text-xs outline-none border-b border-transparent px-1 py-0.5 font-body ${registryInlineInputClasses}`}
                         />
                         {row.external_links && (
                           <a
@@ -2148,12 +2164,12 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Persona Cell */}
-                    <td className="p-1 border-r border-[#c5a059]/10">
+                    <td className={`p-1 border-r ${registryCellBorderClasses}`}>
                       <div className="flex items-center justify-between gap-1">
                         <select
                           value={row.persona || ""}
                           onChange={(e) => updateCell(row.id, "persona", e.target.value)}
-                          className="bg-black/85 text-[11px] text-[#c5a059] border border-transparent focus:border-[#c5a059]/20 px-1 py-0.5 rounded outline-none font-serif capitalize flex-1 cursor-pointer"
+                          className={`text-[11px] text-[#c5a059] border border-transparent focus:border-[#c5a059]/35 px-1 py-0.5 rounded outline-none font-serif capitalize flex-1 cursor-pointer ${registryToolbarTheme === "light" ? "bg-white/78" : "bg-black/85"}`}
                         >
                           <option value="">A definir</option>
                           {PERSONAS.map((p) => (
@@ -2177,7 +2193,7 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Status Cell */}
-                    <td className="p-1 border-r border-[#c5a059]/10 text-center">
+                    <td className={`p-1 border-r text-center ${registryCellBorderClasses}`}>
                       <select
                         value={row.status}
                         onChange={(e) => updateCell(row.id, "status", e.target.value)}
@@ -2199,17 +2215,17 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Last Interaction Date Cell */}
-                    <td className="p-1 border-r border-[#c5a059]/10 text-center">
+                    <td className={`p-1 border-r text-center ${registryCellBorderClasses}`}>
                       <input
                         type="date"
                         value={row.last_interaction || ""}
                         onChange={(e) => updateCell(row.id, "last_interaction", e.target.value)}
-                        className="bg-transparent text-white/70 text-xs outline-none border border-transparent focus:border-[#c5a059]/20 px-1 py-0.5 rounded text-center max-w-full font-mono"
+                        className={`bg-transparent text-xs outline-none border border-transparent focus:border-[#c5a059]/35 px-1 py-0.5 rounded text-center max-w-full font-mono ${registryInlineInputClasses}`}
                       />
                     </td>
 
                     {/* Done button */}
-                    <td className="p-1 border-r border-[#c5a059]/10 text-center">
+                    <td className={`p-1 border-r text-center ${registryCellBorderClasses}`}>
                       <button
                         onClick={() => handleDone(row.id)}
                         className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[8px] uppercase tracking-widest rounded transition-colors cursor-pointer shadow shadow-black"
@@ -2219,13 +2235,13 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Next Deadline Cell */}
-                    <td className="p-1 border-r border-[#c5a059]/10 text-center">
+                    <td className={`p-1 border-r text-center ${registryCellBorderClasses}`}>
                       <div className="relative inline-flex items-center justify-center gap-1">
                         <input
                           type="date"
                           value={row.next_deadline || ""}
                           onChange={(e) => updateCell(row.id, "next_deadline", e.target.value)}
-                          className="bg-transparent text-white/75 text-xs outline-none border border-transparent focus:border-[#c5a059]/20 px-1 py-0.5 rounded text-center font-mono font-bold w-28"
+                          className={`bg-transparent text-xs outline-none border border-transparent focus:border-[#c5a059]/35 px-1 py-0.5 rounded text-center font-mono font-bold w-28 ${registryInlineInputClasses}`}
                         />
                         <button
                           type="button"
@@ -2236,7 +2252,7 @@ export default function RegistrosPage() {
                             setActiveNotifRowId(activeNotifRowId === row.id ? null : row.id);
                           }}
                           className={`p-0.5 rounded text-xs transition-all hover:bg-white/5 cursor-pointer shrink-0
-                            ${rowCols.notif_active === "true" ? "text-amber-400 animate-pulse" : "text-white/20 hover:text-white/60"}
+                            ${rowCols.notif_active === "true" ? "text-amber-500 animate-pulse" : registryToolbarTheme === "light" ? "text-stone-400 hover:text-[#c5a059]" : "text-white/20 hover:text-white/60"}
                           `}
                           title="Configurar Alarme de Lembrete"
                         >
@@ -2279,18 +2295,18 @@ export default function RegistrosPage() {
                     </td>
 
                     {/* Adjust Deadlines Cell */}
-                    <td className="p-1 border-r border-[#c5a059]/10 text-center">
+                    <td className={`p-1 border-r text-center ${registryCellBorderClasses}`}>
                       <div className="flex items-center justify-center gap-1 font-sans">
                         <button
                           onClick={() => adjustDeadline(row.id, 1, "day")}
-                          className="px-1 py-0.5 bg-zinc-800 hover:bg-zinc-700 hover:text-white border border-white/5 text-white/60 text-[7.5px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer"
+                          className="px-1 py-0.5 bg-[#c5a059]/14 hover:bg-[#c5a059]/25 border border-[#c5a059]/25 text-[#c5a059] text-[7.5px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer"
                           title="Adicionar mais 1 dia ao prazo"
                         >
                           +1 D
                         </button>
                         <button
                           onClick={() => adjustDeadline(row.id, 1, "week")}
-                          className="px-1 py-0.5 bg-zinc-800 hover:bg-zinc-700 hover:text-white border border-white/5 text-white/60 text-[7.5px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer"
+                          className="px-1 py-0.5 bg-[#c5a059]/14 hover:bg-[#c5a059]/25 border border-[#c5a059]/25 text-[#c5a059] text-[7.5px] font-bold uppercase tracking-wider rounded transition-colors cursor-pointer"
                           title="Adicionar mais 1 semana ao prazo"
                         >
                           +1 S
@@ -2307,13 +2323,13 @@ export default function RegistrosPage() {
 
                     {/* Custom Dynamic Columns Cells */}
                     {customColumns.map((col) => (
-                      <td key={col.id} className="p-1 border-r border-[#c5a059]/10">
+                      <td key={col.id} className={`p-1 border-r ${registryCellBorderClasses}`}>
                         <input
                           type="text"
                           value={rowCols[col.id] || ""}
                           onChange={(e) => updateCustomCell(row.id, col.id, e.target.value)}
                           placeholder="..."
-                          className="w-full bg-transparent text-white/80 placeholder:text-white/5 text-xs outline-none border-b border-transparent focus:border-[#c5a059]/35 px-1 py-0.5 font-body"
+                          className={`w-full bg-transparent text-xs outline-none border-b border-transparent px-1 py-0.5 font-body ${registryInlineInputClasses}`}
                         />
                       </td>
                     ))}
@@ -2325,7 +2341,7 @@ export default function RegistrosPage() {
                 <tr>
                   <td
                     colSpan={11 + customColumns.length}
-                    className="text-center text-white/30 text-xs italic p-12 bg-black/10 select-none"
+                    className={`text-center text-xs italic p-12 select-none ${registryToolbarTheme === "light" ? "text-stone-500 bg-[#fffaf0]" : "text-white/30 bg-black/10"}`}
                   >
                     Nenhum registro correspondente encontrado. Pressione "+ Novo Registro" para começar!
                   </td>
