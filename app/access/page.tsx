@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,12 @@ export default function AccessPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [vortexReady, setVortexReady] = useState(false);
+  const [activeVortex, setActiveVortex] = useState(0);
+  const vortexARef = useRef<HTMLVideoElement>(null);
+  const vortexBRef = useRef<HTMLVideoElement>(null);
+  const vortexTimerRef = useRef<number | null>(null);
+  const vortexPauseTimerRef = useRef<number | null>(null);
+  const vortexStartedRef = useRef(false);
 
   useEffect(() => {
     const target = new URLSearchParams(window.location.search).get("callbackUrl");
@@ -27,6 +33,62 @@ export default function AccessPage() {
       setCallbackUrl(target);
     }
   }, []);
+
+  const clearVortexTimers = () => {
+    if (vortexTimerRef.current) {
+      window.clearTimeout(vortexTimerRef.current);
+      vortexTimerRef.current = null;
+    }
+    if (vortexPauseTimerRef.current) {
+      window.clearTimeout(vortexPauseTimerRef.current);
+      vortexPauseTimerRef.current = null;
+    }
+  };
+
+  const armVortexCrossfade = (currentIndex: number) => {
+    if (vortexTimerRef.current) {
+      window.clearTimeout(vortexTimerRef.current);
+      vortexTimerRef.current = null;
+    }
+    if (showGrimoire) return;
+
+    const currentVideo = currentIndex === 0 ? vortexARef.current : vortexBRef.current;
+    if (!currentVideo || !Number.isFinite(currentVideo.duration) || currentVideo.duration <= 2) {
+      vortexTimerRef.current = window.setTimeout(() => armVortexCrossfade(currentIndex), 300);
+      return;
+    }
+
+    const crossfadeMs = 2200;
+    const fadeLeadMs = 2600;
+    const delayMs = Math.max(700, currentVideo.duration * 1000 - fadeLeadMs);
+
+    vortexTimerRef.current = window.setTimeout(() => {
+      const nextIndex = currentIndex === 0 ? 1 : 0;
+      const nextVideo = nextIndex === 0 ? vortexARef.current : vortexBRef.current;
+      if (!nextVideo) return;
+
+      nextVideo.currentTime = 0;
+      nextVideo.play().catch(() => undefined);
+      setActiveVortex(nextIndex);
+
+      vortexPauseTimerRef.current = window.setTimeout(() => {
+        currentVideo.pause();
+        currentVideo.currentTime = 0;
+      }, crossfadeMs + 120);
+      armVortexCrossfade(nextIndex);
+    }, delayMs);
+  };
+
+  useEffect(() => {
+    return () => clearVortexTimers();
+  }, []);
+
+  useEffect(() => {
+    if (!showGrimoire) return;
+    clearVortexTimers();
+    vortexARef.current?.pause();
+    vortexBRef.current?.pause();
+  }, [showGrimoire]);
 
   const handleGoogleAuth = async () => {
     if (isLoading) return;
@@ -89,24 +151,42 @@ export default function AccessPage() {
       {!showGrimoire && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black animate-fade-in">
           <video
+            ref={vortexARef}
             autoPlay
-            loop
             muted
             playsInline
             preload="auto"
-            onCanPlay={() => setVortexReady(true)}
+            onCanPlay={() => {
+              setVortexReady(true);
+              if (!vortexStartedRef.current) {
+                vortexStartedRef.current = true;
+                armVortexCrossfade(0);
+              }
+            }}
             onLoadedData={() => setVortexReady(true)}
-            className={`nemosine-vortex-intro absolute inset-0 h-full w-full object-cover ${vortexReady ? "nemosine-vortex-intro-ready" : ""}`}
+            className={`nemosine-vortex-intro nemosine-vortex-layer absolute inset-0 h-full w-full object-cover ${vortexReady ? "nemosine-vortex-intro-ready" : ""} ${vortexReady && activeVortex === 0 ? "nemosine-vortex-layer-active" : ""}`}
+          >
+            <source src="/assets/background.mp4" type="video/mp4" />
+          </video>
+          <video
+            ref={vortexBRef}
+            muted
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+            className={`nemosine-vortex-intro nemosine-vortex-layer absolute inset-0 h-full w-full object-cover ${vortexReady ? "nemosine-vortex-intro-ready" : ""} ${vortexReady && activeVortex === 1 ? "nemosine-vortex-layer-active" : ""}`}
           >
             <source src="/assets/background.mp4" type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-[#1a0f0a]/25 to-black/80" />
           <div className="relative z-10 mt-16 flex flex-col items-center gap-6 px-6 text-center animate-fade-in">
-            <img
-              src="/assets/nemosine-logo.png"
-              alt="Nemosine Nous"
-              className="h-auto w-full max-w-3xl object-contain drop-shadow-[0_0_25px_rgba(197,160,89,0.4)] animate-fade-in-slow"
-            />
+            <div className="nemosine-logo-shine w-full max-w-3xl drop-shadow-[0_0_25px_rgba(197,160,89,0.4)]">
+              <img
+                src="/assets/nemosine-logo.png"
+                alt="Nemosine Nous"
+                className="relative z-10 h-auto w-full object-contain animate-fade-in-slow"
+              />
+            </div>
             <button
               type="button"
               onClick={() => setShowGrimoire(true)}

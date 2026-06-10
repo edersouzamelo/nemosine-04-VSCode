@@ -762,12 +762,10 @@ body {
 
 @keyframes nemosine-vortex-entry {
   from {
-    opacity: 0;
     transform: scale(1.035);
     filter: blur(8px);
   }
   to {
-    opacity: 0.6;
     transform: scale(1);
     filter: blur(0);
   }
@@ -780,6 +778,104 @@ body {
 
 .nemosine-vortex-intro-ready {
   animation: nemosine-vortex-entry 1.8s cubic-bezier(0.22, 1, 0.36, 1) 0.12s forwards;
+}
+
+.nemosine-vortex-layer {
+  opacity: 0;
+  transition: opacity 2.2s ease-in-out;
+}
+
+.nemosine-vortex-layer-active {
+  opacity: 0.6;
+}
+
+.nemosine-logo-shine {
+  position: relative;
+  isolation: isolate;
+}
+
+.nemosine-logo-shine::before,
+.nemosine-logo-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mask-image: url("/assets/nemosine-logo.png");
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-image: url("/assets/nemosine-logo.png");
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+.nemosine-logo-shine::before {
+  z-index: 20;
+  background:
+    linear-gradient(
+      102deg,
+      transparent 0%,
+      transparent 42%,
+      rgba(255, 246, 214, 0.16) 47%,
+      rgba(255, 255, 246, 0.68) 50%,
+      rgba(255, 219, 121, 0.26) 55%,
+      transparent 62%,
+      transparent 100%
+    );
+  background-size: 260% 100%;
+  background-position: 150% 50%;
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: nemosine-logo-light-sweep 9.2s ease-in-out 1.8s infinite;
+}
+
+.nemosine-logo-shine::after {
+  z-index: 5;
+  background: radial-gradient(circle at 50% 48%, rgba(255, 222, 132, 0.3), rgba(197, 160, 89, 0.13) 42%, transparent 70%);
+  filter: blur(12px);
+  opacity: 0.7;
+  animation: nemosine-logo-gold-pulse 5.8s ease-in-out infinite;
+}
+
+@keyframes nemosine-logo-light-sweep {
+  0%,
+  32% {
+    opacity: 0;
+    background-position: 150% 50%;
+  }
+  45% {
+    opacity: 0.78;
+  }
+  60% {
+    opacity: 0.5;
+  }
+  76%,
+  100% {
+    opacity: 0;
+    background-position: -50% 50%;
+  }
+}
+
+@keyframes nemosine-logo-gold-pulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.996);
+  }
+  50% {
+    opacity: 0.82;
+    transform: scale(1.01);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nemosine-vortex-layer,
+  .nemosine-logo-shine::before,
+  .nemosine-logo-shine::after {
+    animation: none;
+    transition: none;
+  }
 }
 
 @keyframes access-entry-button-rise {
@@ -891,6 +987,47 @@ body {
   bottom: 3px;
   border-right: 2px solid;
   border-bottom: 2px solid;
+}
+
+.account-action-button {
+  width: 100%;
+  border-radius: 0.25rem;
+  background: #c5a059;
+  padding: 0.85rem 1rem;
+  color: #050507;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transition: background-color 180ms ease, opacity 180ms ease;
+}
+
+.account-action-button:hover {
+  background: #e0bc72;
+}
+
+.account-action-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.account-secondary-button {
+  width: 100%;
+  border: 1px solid rgba(197, 160, 89, 0.28);
+  border-radius: 0.25rem;
+  background: rgba(197, 160, 89, 0.08);
+  padding: 0.85rem 1rem;
+  color: #f3dfb4;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.account-secondary-button:hover {
+  border-color: rgba(197, 160, 89, 0.62);
+  background: rgba(197, 160, 89, 0.14);
 }
 
 /* Eclipse (Padrão Dark Gold) */
