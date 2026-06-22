@@ -442,7 +442,7 @@ export default function DominiosHubPage() {
         const params = new URLSearchParams(window.location.search);
         const appParam = params.get("app");
         if (appParam) {
-            const validApps = ["arauto", "timer", "treinador", "mordomo", "medico", "nexus-chat", "oracle", "solitaire", "memory", "chess"];
+            const validApps = ["arauto", "timer", "treinador", "mordomo", "medico", "destiny-line", "persona-journals", "nexus-chat", "oracle", "solitaire", "memory", "chess"];
             if (validApps.includes(appParam)) {
                 setSelectedApp(appParam);
             }
@@ -847,6 +847,19 @@ export default function DominiosHubPage() {
             version: "v1.0.0"
         },
         {
+            id: "persona-journals",
+            title: language.startsWith("pt") ? "Manuscritos do Castelo" : language === "es" ? "Manuscritos del Castillo" : "Castle Manuscripts",
+            label: language.startsWith("pt") ? "Manuscritos" : language === "es" ? "Manuscritos" : "Manuscripts",
+            description: language.startsWith("pt")
+                ? "Registros produzidos pelas diferentes perspectivas das personas sobre acontecimentos reais da travessia."
+                : language === "es"
+                    ? "Registros producidos por diferentes perspectivas de las personas sobre acontecimientos reales de la travesia."
+                    : "Records produced by distinct persona perspectives from real events in the crossing.",
+            emoji: "M",
+            developer: "Modulo Soberano",
+            version: "v1.0.0"
+        },
+        {
             id: "nexus-chat",
             title: "Nemo Chat",
             label: "Nemo Chat",
@@ -1079,6 +1092,19 @@ export default function DominiosHubPage() {
                             ? "Mapee los hitos que hicieron de usted quien es."
                             : "Map the milestones that made you who you are.",
                     emoji: "L",
+                    developer: "Modulo Soberano",
+                    version: "v1.0.0"
+                },
+                {
+                    id: "persona-journals",
+                    title: language.startsWith("pt") ? "Manuscritos do Castelo" : language === "es" ? "Manuscritos del Castillo" : "Castle Manuscripts",
+                    label: language.startsWith("pt") ? "Cronica" : language === "es" ? "Cronica" : "Chronicle",
+                    description: language.startsWith("pt")
+                        ? "Consulte registros interpretativos gerados a partir de acontecimentos reais e autorizados do workspace."
+                        : language === "es"
+                            ? "Consulte registros interpretativos generados a partir de acontecimientos reales y autorizados del workspace."
+                            : "Review interpretive records generated from real and authorized workspace events.",
+                    emoji: "M",
                     developer: "Modulo Soberano",
                     version: "v1.0.0"
                 },
@@ -3014,6 +3040,8 @@ export default function DominiosHubPage() {
                 return renderMedicoApp();
             case "destiny-line":
                 return renderIFrameApp("/soberano/linha-do-destino?embed=true", compact);
+            case "persona-journals":
+                return renderIFrameApp("/soberano/manuscritos?embed=true", compact);
             case "nexus-chat":
                 return renderIFrameApp("/space/apps/nexus-chat?embed=true", compact);
             case "oracle":

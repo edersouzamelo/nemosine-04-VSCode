@@ -17,7 +17,7 @@ import { buildSystemPromptAssembly, DEFAULT_CHAT_MAX_OUTPUT_TOKENS, DEFAULT_CHAT
 import { ENTITIES } from '@/app/data/entities';
 import { isPrivateMemorySpace } from '@/app/lib/nemosine/privacy';
 import { createUserRegistry } from '@/app/lib/userFeatureStore';
-import { createDestinyEvent } from '@/app/lib/sovereignStore';
+import { createDestinyEvent, logPersonaManuscriptEvent } from '@/app/lib/sovereignStore';
 import {
     buildRuntimePersonaGuard,
     sanitizeConversationHistory,
@@ -357,6 +357,25 @@ export async function POST(req: NextRequest) {
                 }
 
                 await addMessageToThread(userId, activeThreadId, 'assistant', finalResponse);
+                const normalizedPersona = personaId.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                const significantInteraction = userText.trim().length >= 160 || finalResponse.trim().length >= 400 || registryMatches.length > 0 || destinyMatches.length > 0;
+                if (significantInteraction && !normalizedPersona.includes('confessor')) {
+                    await logPersonaManuscriptEvent(userId, {
+                        type: 'persona_interaction_significant',
+                        sourceModule: 'persona-chat',
+                        sourceEntityType: 'thread',
+                        sourceEntityId: activeThreadId,
+                        factualSummary: `Houve uma interacao significativa com a persona ${personaId}.`,
+                        metadata: {
+                            personaId,
+                            placeId: normalizedPlaceId || null,
+                            registryMarkers: registryMatches.length,
+                            destinyMarkers: destinyMatches.length,
+                        },
+                        sensitivity: 'internal',
+                        importanceScore: destinyMatches.length > 0 || registryMatches.length > 0 ? 64 : 42,
+                    });
+                }
 
                 if (runtimeConfig.mode === 'shadow') {
                     try {

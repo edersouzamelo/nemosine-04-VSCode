@@ -133,6 +133,108 @@ model UserMemory {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model PersonaManuscriptEvent {
+  id               String    @id
+  userId           String    @map("user_id")
+  type             String
+  sourceModule     String    @map("source_module")
+  sourceEntityType String?   @map("source_entity_type")
+  sourceEntityId   String?   @map("source_entity_id")
+  factualSummary   String    @map("factual_summary")
+  metadataJson     String    @default("{}") @map("metadata_json")
+  sensitivity      String    @default("internal")
+  importanceScore  Int       @default(50) @map("importance_score")
+  status           String    @default("pending")
+  occurredAt       DateTime  @default(now()) @map("occurred_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  processedAt      DateTime? @map("processed_at")
+  excludedReason   String?   @map("excluded_reason")
+
+  @@index([userId])
+  @@index([occurredAt])
+  @@index([processedAt])
+  @@index([sourceModule])
+  @@index([sourceEntityId])
+  @@map("persona_manuscript_events")
+}
+
+model PersonaManuscript {
+  id                  String   @id
+  userId              String   @map("user_id")
+  personaId           String   @map("persona_id")
+  dateKey             String   @map("date_key")
+  title               String?
+  body                String
+  entryType           String   @map("entry_type")
+  tone                String
+  confidence          Float    @default(0)
+  interpretationLevel String   @default("mixed") @map("interpretation_level")
+  salienceScore       Int      @default(0) @map("salience_score")
+  isPinned            Boolean  @default(false) @map("is_pinned")
+  isRead              Boolean  @default(false) @map("is_read")
+  isHidden            Boolean  @default(false) @map("is_hidden")
+  generationVersion   String   @default("v1") @map("generation_version")
+  idempotencyKey      String   @unique @map("idempotency_key")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @map("updated_at")
+
+  @@index([userId])
+  @@index([personaId])
+  @@index([dateKey])
+  @@map("persona_manuscripts")
+}
+
+model PersonaManuscriptSource {
+  id           String @id
+  manuscriptId String @map("manuscript_id")
+  eventId      String @map("event_id")
+
+  @@index([manuscriptId])
+  @@index([eventId])
+  @@map("persona_manuscript_sources")
+}
+
+model PersonaManuscriptPreference {
+  id                String   @id
+  userId            String   @map("user_id")
+  personaId         String   @map("persona_id")
+  enabled           Boolean  @default(true)
+  sourceModulesJson String   @default("[]") @map("source_modules_json")
+  minimumSalience   Int      @default(35) @map("minimum_salience")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
+
+  @@unique([userId, personaId])
+  @@map("persona_manuscript_preferences")
+}
+
+model PersonaManuscriptSetting {
+  userId                   String   @id @map("user_id")
+  enabled                  Boolean  @default(true)
+  frequency                String   @default("equilibrada")
+  notificationsEnabled     Boolean  @default(false) @map("notifications_enabled")
+  allowedSourceModulesJson String   @default("[\"agenda\",\"destiny-line\",\"registros\",\"projects\",\"tasks\",\"persona-chat\",\"system\"]") @map("allowed_source_modules_json")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @default(now()) @map("updated_at")
+
+  @@map("persona_manuscript_settings")
+}
+
+model PersonaManuscriptGeneration {
+  id             String    @id
+  userId         String    @map("user_id")
+  dateKey        String    @map("date_key")
+  status         String
+  startedAt      DateTime  @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  errorCode      String?   @map("error_code")
+  generatedCount Int       @default(0) @map("generated_count")
+  idempotencyKey String    @unique @map("idempotency_key")
+
+  @@index([userId, dateKey])
+  @@map("persona_manuscript_generations")
+}
+
 model CognitiveRunAudit {
   id                 String   @id
   userIdHash         String   @map("user_id_hash")

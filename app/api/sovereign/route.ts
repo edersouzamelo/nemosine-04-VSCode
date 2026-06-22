@@ -155,13 +155,85 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // Manuscritos do Castelo Actions
+      case "get_persona_manuscripts": {
+        const manuscripts = await db.getPersonaManuscripts(userId, {
+          personaId: body.personaId ? String(body.personaId) : undefined,
+          from: body.from ? String(body.from) : undefined,
+          to: body.to ? String(body.to) : undefined,
+          search: body.search ? String(body.search) : undefined,
+        });
+        const archives = await db.getPersonaManuscriptArchives(userId);
+        const settings = await db.getPersonaManuscriptSettings(userId);
+        const preferences = await db.getPersonaManuscriptPreferences(userId);
+        return NextResponse.json({ manuscripts, archives, settings, preferences });
+      }
+      case "process_persona_manuscripts": {
+        const result = await db.processPersonaManuscripts(userId, {
+          timeZone: body.timeZone ? String(body.timeZone) : undefined,
+        });
+        return NextResponse.json(result);
+      }
+      case "update_persona_manuscript": {
+        const manuscriptId = String(body.manuscriptId || "");
+        if (!manuscriptId) return NextResponse.json({ error: "Manuscript id is required." }, { status: 400 });
+        await db.updatePersonaManuscript(userId, manuscriptId, {
+          isPinned: body.isPinned,
+          isRead: body.isRead,
+          isHidden: body.isHidden,
+        });
+        return NextResponse.json({ ok: true });
+      }
+      case "delete_persona_manuscript": {
+        const manuscriptId = String(body.manuscriptId || "");
+        if (!manuscriptId) return NextResponse.json({ error: "Manuscript id is required." }, { status: 400 });
+        await db.deletePersonaManuscript(userId, manuscriptId);
+        return NextResponse.json({ ok: true });
+      }
+      case "delete_persona_manuscripts_for_persona": {
+        const personaId = String(body.personaId || "");
+        if (!personaId) return NextResponse.json({ error: "Persona id is required." }, { status: 400 });
+        await db.deletePersonaManuscriptsForPersona(userId, personaId);
+        return NextResponse.json({ ok: true });
+      }
+      case "mark_persona_manuscripts_read": {
+        await db.markPersonaManuscriptsRead(userId, body.personaId ? String(body.personaId) : undefined);
+        return NextResponse.json({ ok: true });
+      }
+      case "set_persona_manuscript_preference": {
+        const personaId = String(body.personaId || "");
+        if (!personaId) return NextResponse.json({ error: "Persona id is required." }, { status: 400 });
+        await db.setPersonaManuscriptPreference(userId, personaId, {
+          enabled: body.enabled,
+          sourceModules: Array.isArray(body.sourceModules) ? body.sourceModules.map(String) : undefined,
+          minimumSalience: body.minimumSalience,
+        });
+        return NextResponse.json({ ok: true });
+      }
+      case "update_persona_manuscript_settings": {
+        const settings = await db.updatePersonaManuscriptSettings(userId, {
+          enabled: body.enabled,
+          frequency: body.frequency,
+          notificationsEnabled: body.notificationsEnabled,
+          allowedSourceModules: Array.isArray(body.allowedSourceModules) ? body.allowedSourceModules.map(String) : undefined,
+        });
+        return NextResponse.json({ settings });
+      }
+
       default:
         return NextResponse.json({ error: `Invalid action: ${action}` }, { status: 400 });
     }
   } catch (error: any) {
     console.error("Sovereign API Error:", error);
+    const message = String(error?.message || "");
+    const safeMessage = message.includes("Can't reach database")
+      || message.includes("database server")
+      || message.includes("P1001")
+      || message.includes("supabase.co")
+      ? "Os acontecimentos foram preservados, mas ainda nao puderam ser transformados em manuscritos."
+      : error?.message || "Failed to process Sovereign action.";
     return NextResponse.json(
-      { error: error?.message || "Failed to process Sovereign action." },
+      { error: safeMessage },
       { status: 500 }
     );
   }

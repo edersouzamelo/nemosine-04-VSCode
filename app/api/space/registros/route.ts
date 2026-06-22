@@ -6,6 +6,7 @@ import {
   updateUserRegistry, 
   deleteUserRegistry 
 } from "@/app/lib/userFeatureStore";
+import { logPersonaManuscriptEvent } from "@/app/lib/sovereignStore";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,16 @@ export async function POST(request: NextRequest) {
     };
 
     await createUserRegistry(userId, registry);
+    await logPersonaManuscriptEvent(userId, {
+      type: "registry_created",
+      sourceModule: "registros",
+      sourceEntityType: "registry",
+      sourceEntityId: registry.id,
+      factualSummary: `Um registro persistente foi criado: "${registry.idea}".`,
+      metadata: { status: registry.status, persona: registry.persona, nextDeadline: registry.next_deadline },
+      sensitivity: registry.persona?.toLowerCase().includes("confessor") ? "confessor" : "internal",
+      importanceScore: registry.next_deadline ? 58 : 48,
+    });
     return NextResponse.json({ ok: true, registry });
   } catch (error) {
     console.error("[API/Registros POST] Error:", error);
@@ -81,6 +92,18 @@ export async function PUT(request: NextRequest) {
     if (body.custom_columns !== undefined) updates.custom_columns = body.custom_columns ? String(body.custom_columns) : null;
 
     await updateUserRegistry(userId, id, updates);
+    await logPersonaManuscriptEvent(userId, {
+      type: updates.status && String(updates.status).toLowerCase().includes("concl") ? "registry_completed" : "registry_updated",
+      sourceModule: "registros",
+      sourceEntityType: "registry",
+      sourceEntityId: id,
+      factualSummary: updates.idea
+        ? `Um registro persistente foi atualizado: "${updates.idea}".`
+        : `Um registro persistente recebeu uma atualizacao.`,
+      metadata: updates,
+      sensitivity: String(updates.persona || "").toLowerCase().includes("confessor") ? "confessor" : "internal",
+      importanceScore: updates.status && String(updates.status).toLowerCase().includes("concl") ? 64 : 50,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[API/Registros PUT] Error:", error);
@@ -100,6 +123,16 @@ export async function DELETE(request: NextRequest) {
     }
 
     await deleteUserRegistry(userId, id);
+    await logPersonaManuscriptEvent(userId, {
+      type: "registry_deleted",
+      sourceModule: "registros",
+      sourceEntityType: "registry",
+      sourceEntityId: id,
+      factualSummary: `Um registro persistente foi excluido.`,
+      metadata: {},
+      sensitivity: "internal",
+      importanceScore: 44,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[API/Registros DELETE] Error:", error);
