@@ -290,9 +290,9 @@ test("side-effect authorization requires explicit consent and isolates private r
       userText: "Lembre disso somente aqui.",
     }),
     extraction: extractionResultSchema.parse({
-      proposedMemoryActions: [{ id: "m", kind: "memory", source: "structured-extractor", scope: "Confessor 2.0", content: "tema privado" }],
-      proposedRegistryActions: [{ id: "r", kind: "registry", source: "structured-extractor", idea: "registro global" }],
-      proposedDestinyActions: [{ id: "d", kind: "destiny", source: "structured-extractor", title: "Marco", category: "marco", shortDescription: "privado" }],
+      proposedMemoryActions: [{ id: "m", kind: "memory", source: "structured-extractor", authorized: false, authorizationProvenance: "unauthorized", scope: "Confessor 2.0", content: "tema privado" }],
+      proposedRegistryActions: [{ id: "r", kind: "registry", source: "structured-extractor", authorized: false, authorizationProvenance: "unauthorized", idea: "registro global" }],
+      proposedDestinyActions: [{ id: "d", kind: "destiny", source: "structured-extractor", authorized: false, authorizationProvenance: "unauthorized", title: "Marco", category: "marco", shortDescription: "privado" }],
     }),
   });
 
