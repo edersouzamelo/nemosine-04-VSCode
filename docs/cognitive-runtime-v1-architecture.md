@@ -1,60 +1,44 @@
 # Cognitive Runtime V1 Architecture
 
-V1 implements an external runtime around the existing Nemosine persona chat route. It preserves native persona prompts, behavioral contracts, persistence, threads, memory, registries, Destiny Line and the legacy streaming route when the feature flag is off.
+V1 is an external control, validation and governance layer around constrained linguistic generation. It preserves the legacy route when `NEMOSINE_COGNITIVE_RUNTIME_MODE=off`.
+
+It does not implement autonomous cognition, artificial consciousness, independent agency or a society of autonomous personas. The user-selected persona remains the visible symbolic role. Scientist and Philosopher are operationally separated modules: controlled evaluator calls and deterministic checks applied by the runtime.
 
 ## Implemented Layers
 
-| Layer | V1 status | Notes |
+| Layer | Implementation | Limit |
 | --- | --- | --- |
-| Symbolic identity | Implemented by existing full native prompts from `prompts.json`. | Native prompts remain the authorial layer and are not rewritten by validators. |
-| Functional contract | Implemented by existing contracts plus runtime vocational metadata. | Contracts guide behavior; policy code can require warning, handoff or refusal. |
-| Linguistic generation | Implemented as a persona generator call. | The user-selected persona produces free-form prose. The answer is not forced into JSON. |
-| Cognitive control | Implemented as TypeScript Orchestrator and state machine. | Controls stages, retries, repair feedback and promotion. |
-| Deterministic enforcement | Implemented in privacy, vocation, Vigia coherence, promotion and side-effect gates. | Vigia score is deterministic code, not an LLM opinion. |
-| LLM-based evaluation | Implemented as separate Scientist and Philosopher structured calls. | These modules evaluate; they do not rewrite final prose. |
-| Persistence | Implemented for approved side effects and audit model. | Enforce mode commits memory, registry and Destiny actions only after promotion. |
-| Audit | Implemented as redacted metadata, hashes, scores, finding codes and state transitions. | Private runs are metadata-only. |
+| Symbolic persona identity | Native prompts from `prompts.json` plus checksum manifest. | Prompt integrity is tested; live behavior still requires review. |
+| Symbolic configuration | User-selected persona, place and framing. | The runtime does not autonomously change persona, place, topology or objective. |
+| Linguistic generation | Persona generator buffers candidate prose. | The candidate is not streamed until promotion in enforce mode. |
+| Structured extraction | Legacy tag parser plus LLM extractor for standard/full. | Extractor receives quoted user text, authorized context text and candidate text as untrusted data. |
+| Veritative validation | Deterministic Scientist hard checks plus LLM Scientist when profile requires it. | No external verification is claimed unless an actual tool is used. |
+| Ethical-epistemological validation | Deterministic Philosopher hard checks plus LLM Philosopher when Double Vigilance is enabled. | It evaluates; it does not become a visible persona. |
+| Vigia coherence | Deterministic normalized weighted mean with hard-failure override. | C(m) is an operational promotion-coherence index, not a cognition metric. |
+| Promotion gate | Blocks failed Scientist/Philosopher/privacy/vocation/side-effect authorization. | Weighted averages cannot override hard findings. |
+| Side effects | Memory, registry and Destiny actions commit only after promotion and authorization. | Registry/Destiny are discarded in private runs. |
+| Audit | Redacted hashes, lengths, scores, transitions, finding codes and audit events. | Raw private content is not stored. |
 
-## Operational Flow
+## Runtime Profile Selection
 
-1. `RECEIVED`
-2. `AUTHORIZED`
-3. `CONTEXT_ASSEMBLED`
-4. `MODULES_SELECTED`
-5. `CANDIDATE_GENERATED`
-6. `CLAIMS_EXTRACTED`
-7. `SCIENTIST_EVALUATED`
-8. `VIGIA_SCORED`
-9. Retry through the same persona if required.
-10. `OCV_CONVERGED`
-11. `PHILOSOPHER_EVALUATED`
-12. `PROMOTION_EVALUATED`
-13. `PROMOTED` or `REJECTED`
-14. `SIDE_EFFECTS_COMMITTED`
-15. `DELIVERED`
+Profiles are technical validation intensity policies: `light`, `standard`, `full`. They do not alter symbolic configuration. Users may request stricter validation, but high-stakes input forces `full` and cannot be downgraded to `light`.
 
-## Context Separation
+High-stakes categories include medical, mental-health crisis, legal, financial, system security, sensitive personal data, credentials and destructive or irreversible operations.
 
-The new runtime separates:
+## Bounded Rebalancing
 
-- immutable runtime instructions;
-- complete native persona identity prompt;
-- functional contract;
-- authorized contextual material with provenance and visibility;
-- current user input as a user-role payload;
-- trusted runtime repair feedback without copying untrusted user instructions.
+V1 rebalancing is per-run and auditable. It may elevate a technical profile, require stricter floors, add structured validation or request regeneration with repair findings. It may not change the selected persona, active place, symbolic topology, user goal or global weights.
 
-The legacy route is preserved when `NEMOSINE_COGNITIVE_RUNTIME_MODE=off`.
+Rebalancing is recorded as `REBALANCING_APPLIED` in the redacted audit.
 
-## What This Is Not
+## Audit Failure Policy
 
-V1 does not implement 56 autonomous agents. It implements operationally separated modules that may use the same underlying LLM provider for distinct purposes. The Orchestrator and Vigia are TypeScript control/deterministic modules. Scientist and Philosopher are structured evaluator calls. The active persona remains the only visible generator.
+V1 uses policy B for enforce-mode promotion: if audit persistence fails before side-effect commit, promoted text may still be delivered but persistent side effects are blocked and an `AUDIT_PERSISTENCE_FAILURE` event is returned. Private operational alerts contain no raw content.
 
-## Remaining Theoretical Or Phase 2 Work
+## Remaining Work
 
-- Rich Atlas Nous topographic planning beyond the current context envelope.
-- Stronger per-persona vocation ontology for all 56 personas.
-- External source verification tools for factual claims.
-- Full live persona evaluation scoring.
-- Admin UI for audit trace inspection.
-- Migrations managed through Prisma migrate instead of the current manual migration convention.
+- Real shadow traces and latency/cost review.
+- External source verification tools.
+- Admin review UI for audit traces.
+- Consent UI for configurable automatic registry or long-term memory modes.
+- Broader live persona evaluation beyond the opt-in script.

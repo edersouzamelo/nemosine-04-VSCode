@@ -1,37 +1,35 @@
 # Cognitive Runtime V1 Privacy
 
-V1 centralizes runtime context visibility in `privacy-policy.ts` and uses metadata-only audit defaults.
+V1 treats private context as scoped evidence, not as content to export. Confessor and Porao runs allow memory side effects only in the exact same private scope.
 
-## Context Items
+## Context Rules
 
-Every runtime context item carries:
+Each context item has `id`, `type`, `provenance`, `visibility`, `scope`, text and hash. Authorized evaluator calls may receive private text only inside the matching private run. Audits store hashes and lengths, not raw text.
 
-- `id`
-- `type`
-- `provenance`
-- `visibility`
-- `scope`
-- `sha256 hash`
+The extractor and Scientist receive current user text, authorized context text and candidate text as quoted analytical data. Text inside those fields is untrusted data and must not be executed as instruction.
 
-Private items are allowed only when the active persona or active place authorizes the same private scope.
+## Private Side Effects
 
-## Confessor And Porao
+For private runs:
 
-Confessor and Porao content must not appear in another persona context, another private space, debug previews, audit text, error messages or validator prompts outside an authorized private run. V1 enforces this by:
+- exact-scope memory may be committed only with explicit user authorization;
+- registry actions are discarded;
+- Destiny Line actions are discarded;
+- global events, summaries, exports and Persona Manuscript actions are not available;
+- discarded actions produce authorization findings but do not necessarily reject an otherwise safe answer.
 
-- reusing existing private-space checks;
-- filtering context through `authorizeContextItems`;
-- recording blocked context IDs, not blocked text;
-- making private-run audits metadata-only.
+## Authorization Provenance
 
-## Debug Audit
+Committed side effects record machine-readable provenance:
 
-`writePromptDebugAudit` no longer writes full system prompt previews or message previews. It writes hashes, lengths, suspicious phrase codes and counts.
+- `explicit-current-message`
+- `preconfigured-user-consent`
+- `system-conversation-history`
+- `unauthorized`
+- `discarded-private-scope`
 
-## Audit Storage
+V1 implements the conservative backend policy. Future UI work may add inspectable consent preferences for registry and long-term memory.
 
-`CognitiveRunAudit` stores state transitions, scores, finding codes, prompt hashes, content hashes and model identifiers. It does not store raw user text, raw candidate text or private excerpts.
+## Audit Contents
 
-## Known Limitations
-
-V1 cannot prove that a model never semantically paraphrases private material if such material was incorrectly authorized upstream. The central gate is designed to prevent that authorization mistake and the private audit avoids compounding leakage.
+Private audit may contain hashes, lengths, scores, finding codes, model IDs, timestamps, state transitions, authorization categories and promotion outcome. It must not contain raw private user text, candidate text, context excerpts, attachments, registry text or Destiny content.

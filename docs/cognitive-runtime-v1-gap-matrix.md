@@ -1,29 +1,30 @@
 # Cognitive Runtime V1 Gap Matrix
 
-Audited baseline: `152515a2efceb1a3a94c5eca1ef85301048c315c`
+Audited baseline for this repair: `7efec056bbf2f5734c794fad9993b9f6ce52f4e5`.
 
-This matrix records the gap between the legacy persona route and the first operational cognitive runtime. The goal of V1 is not to replace persona identity with validators, and not to claim autonomous agents. V1 separates generation, extraction, evaluation, coherence scoring, promotion, side-effect authorization, persistence and delivery into distinct runtime stages.
+V1 is not a replacement for human judgment and not an autonomous cognitive architecture. It is a bounded runtime that separates linguistic generation, evidence extraction, validation, coherence scoring, promotion and authorized persistence.
 
-| Requirement | Current implementation | Prompt-only or code-enforced | Files involved | Risk | V1 action | Test evidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| Persona generation | Main chat route assembles one large system prompt and streams `streamText` directly to the UI. | Mostly prompt-only; route code only transports output. | `app/api/chat/route.ts`, `app/lib/nemosine/llm_client.ts`, `app/lib/nemosine/persona_context_assembler.ts` | Generator also acts as implicit supervisor. | Add `persona-generator.ts` and orchestrated candidate buffering in enforce mode. | `test:cognitive-runtime` integration: first-iteration pass and rejected text not delivered. |
-| Context assembly | Context, native prompt, contracts, current user text and side-effect tag instructions are combined into one system prompt. | Mixed; retrieval is code-enforced, separation is not. | `persona_context_assembler.ts` | User text duplicated into system layer; validation feedback could be confused with user instruction. | Add `context-envelope.ts` with immutable instructions, native prompt, contract, authorized context, user payload and runtime feedback separated. | Unit test checks no raw user text in system context. |
-| Native prompt loading | `prompts.json` is resolved by `nativePersonaPrompts.ts`; route uses full prompt through assembler. | Code-enforced loading, no checksum guard. | `prompts.json`, `app/data/nativePersonaPrompts.ts` | Accidental prompt edits could pass unnoticed. | Add SHA-256 manifest and audit script; do not edit `prompts.json`. | `test:persona-identity` prompt checksum test. |
-| Behavioral contracts | Contracts exist as TypeScript metadata and are inserted into the prompt. | Code-enforced lookup; behavior mostly prompt-only. | `persona_behavior_contracts.ts` | Contract can be ignored by model output. | Reuse contracts in context envelope and add deterministic vocational policy. | Vocational policy unit test. |
-| Private-space isolation | Memory and episodes filter Confessor/Porao content for non-private spaces. | Partly code-enforced. | `privacy.ts`, `session_store.ts`, `persona_context_assembler.ts` | Debug previews and future providers could bypass the privacy rules. | Centralize runtime visibility metadata and privacy gate; redact audits; hard fail leakage. | Privacy scope and private audit tests. |
-| Prompt debug logging | `writePromptDebugAudit` can write full prompts and message previews to temp files when enabled. | Code path exists but unsafe for private content. | `payload_hygiene.ts` | Private content can be written outside app persistence. | Change debug audit to hashes, lengths and finding metadata; no raw prompt or message previews. | Payload hygiene source test and private audit test. |
-| Memory extraction | Persona emits `[MEMORY: ...]`; route parses after streamed output. | Prompt-only proposal, code-enforced persistence after streaming. | `chat/route.ts`, `session_store.ts`, `persona_context_assembler.ts` | Side effects can be committed from unvalidated text. | Move memory actions behind extraction, promotion and side-effect committer in enforce mode. | Side-effect-after-promotion tests. |
-| Registry creation | Persona emits `[REGISTRY: ...]`; route parses after streamed output. | Prompt-only proposal, code-enforced persistence after streaming. | `chat/route.ts`, `userFeatureStore.ts` | Invalid or rejected candidate can create registries. | Convert legacy tags to structured proposed actions, validate and commit only after promotion. | Rejected side-effect test. |
-| Destiny Line creation | Persona emits `[DESTINY: ...]`; route persists only with explicit user authorization. | Prompt-only proposal plus code authorization. | `chat/route.ts`, `sovereignStore.ts` | Still parsed after visible streaming; unauthorized tags are visible until client strips. | Enforce mode strips tags before evaluation, discards unauthorized actions and commits only after promotion. | Unauthorized Destiny integration test. |
-| Streaming delivery | Raw model output streams immediately to the user. | Code-enforced streaming, no pre-promotion buffer. | `chat/route.ts` | Rejected text can already be delivered. | Enforce mode buffers candidate and emits promoted text through AI SDK UI stream helpers. | Rejected text not delivered test. |
-| Response validation | Hygiene rules and contracts are prompt instructions; no external promotion gate. | Mostly prompt-only. | `payload_hygiene.ts`, `persona_context_assembler.ts` | Same model can generate and implicitly self-police. | Add Scientist structured evaluation, deterministic Vigia score and promotion gate. | Scientist retry and threshold tests. |
-| Vocational enforcement | Persona contracts describe vocation; no deterministic policy decision. | Prompt-only. | `persona_behavior_contracts.ts` | Persona can answer outside vocation without trace. | Add machine-readable vocational metadata and policy result. | Vocational policy unit test. |
-| Veracity enforcement | Prompt warns against unsupported claims and simulated access. | Prompt-only. | `persona_context_assembler.ts` | Unsupported claims can pass if fluent. | Scientist returns structured scores and findings; critical findings block promotion. | Promotion gate tests. |
-| Double Vigilance | No separate Scientist and Philosopher gates. | Not implemented. | N/A | Ethical/epistemological approval is absent. | Add Scientist axis and Philosopher axis as operationally separated evaluator calls. | Philosopher rejection integration test. |
-| O-C-V | No external loop; one generation call. | Not implemented. | `chat/route.ts` | No retry with structured findings. | Add orchestrator state loop with bounded retries. | Retry and exhaustion tests. |
-| Retries | Provider retries may occur, but not cognitive repair retries. | Provider-level only. | AI SDK call settings | Candidate failures do not produce structured repair. | `NEMOSINE_COGNITIVE_MAX_RETRIES`, max total candidates and repair feedback. | Iteration limit test. |
-| Coherence score | No deterministic coherence formula. | Not implemented. | N/A | Acceptance can be arbitrary or prompt-based. | Add Vigia weighted deterministic formula and hard-failure override. | Coherence tests. |
-| State machine | Route is linear code without explicit legal transitions. | Not implemented. | `chat/route.ts` | Transitions are not auditable. | Add typed state machine and illegal transition error. | State-machine tests. |
-| Audit persistence | No cognitive run audit model. Debug logs may contain raw prompt content. | Not implemented for cognitive runs. | `prisma/schema.prisma`, temp files | No traceability; sensitive leakage risk. | Add Prisma audit model/migration and redacted audit store. | Audit redaction and audit script. |
-| Failure-safe behavior | Route catches errors and returns generic 500. | Code-enforced HTTP fallback, not runtime-aware. | `chat/route.ts` | Enforce mode could accidentally fail open without explicit policy. | Typed runtime errors; enforce fails closed; shadow records failures while preserving legacy answer. | Failure-closed/open tests. |
-| Pure chat route | Separate sovereign pure chat route exists. | Code-separated today. | `app/api/sovereign/pure-chat/route.ts` | Accidental persona conversion would mix concerns. | Leave pure chat outside O-C-V. | Architecture doc and source audit. |
+| Requirement | Repair status | Enforcement | Evidence |
+| --- | --- | --- | --- |
+| Clean build independence | Persona Manuscripts dependency removed. | No import or file path allowed by audit script. | `audit:cognitive-runtime`, unit no-Manuscripts test. |
+| Native prompt integrity | `prompts.json` unchanged; manifest verified. | SHA-256 test. | `test:persona-identity`. |
+| Evidence-aware extraction | Extractor receives quoted user message, authorized context metadata/text and candidate text. | Prompt serialization with delimiters. | Integration captures extractor input. |
+| Evidence-aware Scientist | Scientist receives the same authorized evidence plus extracted claims. | Structured schema and prompt instruction. | Integration captures Scientist input. |
+| Deterministic hard checks | Scientist, privacy, vocation and Philosopher deterministic checks always run. | Merge functions preserve hard findings. | Unit/integration merge tests. |
+| Scientist semantics | `biographicalSafety` and `accessClaimSafety` replace ambiguous fields. | Zod schema, prompts, Vigia and tests. | Unit schema test. |
+| Scientist promotion gate | `approved=false`, error/critical findings and floors block promotion. | Promotion gate code. | Unit promotion tests. |
+| Full profile strength | High-stakes forces `full`; full floors are stricter. | Profile selector and promotion floors. | Unit/integration profile tests. |
+| Private side effects | Private runs only allow exact-scope authorized memory. | Side-effect authorizer. | Integration private-run test. |
+| Authorization provenance | Committed side effects record authorization category. | Proposed action schema and committer. | Unit side-effect test. |
+| Audit redaction | Audits store hashes, lengths, scores, findings and events. | Redaction builder and Prisma JSON fields. | Unit redaction test. |
+| Audit outage policy | Promoted text may deliver; side effects are blocked if pre-commit audit persistence fails. | Orchestrator policy. | Integration audit failure test. |
+| O-C-V retry | Failed coherence or promotion can retry within bounded max attempts. | State machine and repair findings. | Integration retry test. |
+| Runtime off | Legacy path remains default. | Config default `off`. | Unit/integration config tests. |
+
+## Remaining Gaps
+
+- No external factual verification tool is integrated.
+- Live persona evaluation is opt-in and not CI-gating.
+- Consent preferences for automatic registry/memory are not yet user-configurable in UI.
+- Prisma migration remains manual in this repository convention.
+- Shadow-mode empirical traces are still required before production enforce rollout.

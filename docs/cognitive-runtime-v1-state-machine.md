@@ -1,6 +1,8 @@
 # Cognitive Runtime V1 State Machine
 
-The runtime state machine is implemented in `app/lib/nemosine/cognitive-runtime/state-machine.ts`. It is not prompt prose.
+The state machine in `app/lib/nemosine/cognitive-runtime/state-machine.ts` represents operational execution state only. These states are not mental states, conscious states, autonomous symbolic states or evidence of artificial cognition.
+
+SCM symbolic configuration means the user-selected arrangement of personas, places, symbolic framing and interaction perspective. Runtime state means processing stage, validation status, retry status, promotion status and persistence status.
 
 ## States
 
@@ -22,14 +24,14 @@ The runtime state machine is implemented in `app/lib/nemosine/cognitive-runtime/
 - `DELIVERED`
 - `FAILED_SAFE`
 
-## Illegal Transitions
+## Transition Rules
 
-Illegal transitions throw `CognitiveRuntimeError` with code `ILLEGAL_STATE_TRANSITION`. The attempted transition is still appended to the trace with `allowed: false`.
+Illegal transitions throw `CognitiveRuntimeError` with code `ILLEGAL_STATE_TRANSITION`. The attempted transition is appended to the trace with `allowed: false`.
 
-## Retry Rule
+The Orchestrator may retry from `VIGIA_SCORED` or `PROMOTION_EVALUATED` to `OCV_RETRY_REQUESTED` only while retries remain. The next candidate uses the same active user-selected persona and structured repair findings.
 
-The Orchestrator may move from `VIGIA_SCORED` or `PROMOTION_EVALUATED` to `OCV_RETRY_REQUESTED` only while retries remain. The next legal state is `CANDIDATE_GENERATED`, using the same active persona and structured repair findings.
+## Failure Policy
 
-## Failure Rule
+Validator failure, privacy failure, malformed structured output, illegal transitions and side-effect commit failure fail safe. Rejected candidates are not streamed or persisted as assistant answers.
 
-Enforce mode fails closed. Validator failures, malformed structured output, illegal transitions and side-effect failures move to `FAILED_SAFE` and then `DELIVERED` with a safe runtime message, not the rejected candidate.
+Audit persistence failure is classified separately. In enforce mode, a pre-side-effect audit outage blocks side effects, emits `AUDIT_PERSISTENCE_FAILURE` and may still deliver promoted text.

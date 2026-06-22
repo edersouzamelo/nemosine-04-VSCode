@@ -142,6 +142,7 @@ model CognitiveRunAudit {
   runtimeMode        String   @map("runtime_mode")
   executionProfile   String   @map("execution_profile")
   stateTransitions   Json     @map("state_transitions")
+  auditEvents        Json     @map("audit_events")
   iterationCount     Int      @map("iteration_count")
   coherence          Float?
   dimensionScores    Json     @map("dimension_scores")
@@ -152,6 +153,7 @@ model CognitiveRunAudit {
   modelIdentifiers   Json     @map("model_identifiers")
   promptHashes       Json     @map("prompt_hashes")
   contentHashes      Json     @map("content_hashes")
+  contentLengths     Json     @map("content_lengths")
   privateRun         Boolean  @default(false) @map("private_run")
   metadataOnly       Boolean  @default(true) @map("metadata_only")
   createdAt          DateTime @default(now()) @map("created_at")

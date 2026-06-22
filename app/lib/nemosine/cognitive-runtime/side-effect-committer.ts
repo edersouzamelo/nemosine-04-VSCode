@@ -1,5 +1,5 @@
 import { addMessageToThread, addUserMemory, retainConversationEpisode } from "@/app/lib/nemosine/session_store";
-import { createDestinyEvent, logPersonaManuscriptEvent } from "@/app/lib/sovereignStore";
+import { createDestinyEvent } from "@/app/lib/sovereignStore";
 import { createUserRegistry } from "@/app/lib/userFeatureStore";
 import {
   CognitiveFinding,
@@ -37,6 +37,33 @@ export function hasExplicitDestinyAuthorization(text: string) {
   ].some((phrase) => normalized.includes(phrase));
 }
 
+export function hasExplicitMemoryAuthorization(text: string) {
+  const normalized = normalizeForAuth(text);
+  return [
+    "lembre disso",
+    "registre na memoria",
+    "guardar na memoria",
+    "guarde na memoria",
+    "pode lembrar",
+    "pode guardar",
+    "memorize",
+  ].some((phrase) => normalized.includes(phrase));
+}
+
+export function hasExplicitRegistryAuthorization(text: string) {
+  const normalized = normalizeForAuth(text);
+  return [
+    "registre essa tarefa",
+    "registre esta tarefa",
+    "crie um registro",
+    "criar um registro",
+    "guarde nos registros",
+    "adicione aos registros",
+    "pode registrar isso como tarefa",
+    "pode criar o registro",
+  ].some((phrase) => normalized.includes(phrase));
+}
+
 function authFinding(code: string, severity: CognitiveFinding["severity"], explanation: string): CognitiveFinding {
   return {
     code,
@@ -57,32 +84,54 @@ export function authorizeProposedSideEffects(input: {
   const approvedDestinyActions: ProposedDestinyAction[] = [];
   const discardedActions: SideEffectAuthorization["discardedActions"] = [];
   const destinyAuthorized = hasExplicitDestinyAuthorization(input.request.userText);
+  const memoryAuthorized = hasExplicitMemoryAuthorization(input.request.userText);
+  const registryAuthorized = hasExplicitRegistryAuthorization(input.request.userText);
 
   for (const action of input.extraction.proposedMemoryActions) {
     if (action.scope !== input.request.memoryScope) {
-      discardedActions.push(action);
-      findings.push(authFinding("SIDE_EFFECT_MEMORY_SCOPE_MISMATCH", "error", "Memory action tried to write outside the authorized memory scope."));
+      discardedActions.push({ ...action, authorized: false, authorizationProvenance: "unauthorized" });
+      findings.push(authFinding("SIDE_EFFECT_MEMORY_SCOPE_MISMATCH", "warning", "Memory action tried to write outside the authorized memory scope and was discarded."));
       continue;
     }
-    approvedMemoryActions.push({ ...action, authorized: true });
+    if (!memoryAuthorized) {
+      discardedActions.push({ ...action, authorized: false, authorizationProvenance: "unauthorized" });
+      findings.push(authFinding("SIDE_EFFECT_MEMORY_UNAUTHORIZED_DISCARDED", "warning", "Long-term memory action was discarded because the current message did not explicitly authorize memory persistence."));
+      continue;
+    }
+    approvedMemoryActions.push({ ...action, authorized: true, authorizationProvenance: "explicit-current-message" });
   }
 
   for (const action of input.extraction.proposedRegistryActions) {
+    if (input.request.privateRun) {
+      discardedActions.push({ ...action, authorized: false, authorizationProvenance: "discarded-private-scope" });
+      findings.push(authFinding("SIDE_EFFECT_REGISTRY_PRIVATE_SCOPE_DISCARDED", "warning", "Registry action was discarded because private runs cannot create global registry entries."));
+      continue;
+    }
     if (!action.idea.trim()) {
-      discardedActions.push(action);
+      discardedActions.push({ ...action, authorized: false, authorizationProvenance: "unauthorized" });
       findings.push(authFinding("SIDE_EFFECT_REGISTRY_INVALID", "warning", "Registry action had no idea text."));
       continue;
     }
-    approvedRegistryActions.push({ ...action, authorized: true });
+    if (!registryAuthorized) {
+      discardedActions.push({ ...action, authorized: false, authorizationProvenance: "unauthorized" });
+      findings.push(authFinding("SIDE_EFFECT_REGISTRY_UNAUTHORIZED_DISCARDED", "warning", "Registry action was discarded because the current message did not explicitly authorize registry persistence."));
+      continue;
+    }
+    approvedRegistryActions.push({ ...action, authorized: true, authorizationProvenance: "explicit-current-message" });
   }
 
   for (const action of input.extraction.proposedDestinyActions) {
+    if (input.request.privateRun) {
+      discardedActions.push({ ...action, authorized: false, authorizationProvenance: "discarded-private-scope" });
+      findings.push(authFinding("SIDE_EFFECT_DESTINY_PRIVATE_SCOPE_DISCARDED", "warning", "Destiny Line action was discarded because private runs cannot export content to global biographical persistence."));
+      continue;
+    }
     if (!destinyAuthorized) {
-      discardedActions.push(action);
+      discardedActions.push({ ...action, authorized: false, authorizationProvenance: "unauthorized" });
       findings.push(authFinding("SIDE_EFFECT_DESTINY_UNAUTHORIZED_DISCARDED", "warning", "Destiny Line action was discarded because the user did not explicitly authorize it."));
       continue;
     }
-    approvedDestinyActions.push({ ...action, authorized: true });
+    approvedDestinyActions.push({ ...action, authorized: true, authorizationProvenance: "explicit-current-message" });
   }
 
   return {
@@ -152,31 +201,6 @@ export async function commitApprovedSideEffects(input: CommitSideEffectsInput): 
       tags: ["sugerido-por-persona", input.request.personaId, "cognitive-runtime-v1"],
     });
     destinyCount += 1;
-  }
-
-  const normalizedPersona = normalizeForAuth(input.request.personaId);
-  const significantInteraction = input.request.userText.trim().length >= 160
-    || input.answer.trim().length >= 400
-    || registryCount > 0
-    || destinyCount > 0;
-
-  if (significantInteraction && !normalizedPersona.includes("confessor")) {
-    await logPersonaManuscriptEvent(input.request.userId, {
-      type: "persona_interaction_significant",
-      sourceModule: "persona-chat",
-      sourceEntityType: "thread",
-      sourceEntityId: input.request.threadId,
-      factualSummary: `Houve uma interacao significativa com a persona ${input.request.personaId}.`,
-      metadata: {
-        personaId: input.request.personaId,
-        placeId: input.request.placeId || null,
-        registryMarkers: registryCount,
-        destinyMarkers: destinyCount,
-        cognitiveRunId: input.request.runId,
-      },
-      sensitivity: "internal",
-      importanceScore: destinyCount > 0 || registryCount > 0 ? 64 : 42,
-    });
   }
 
   return {

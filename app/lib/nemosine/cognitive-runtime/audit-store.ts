@@ -3,30 +3,38 @@ import { CognitiveRuntimeError, RedactedCognitiveAudit } from "./types";
 
 export async function storeCognitiveAudit(audit: RedactedCognitiveAudit) {
   try {
-    await prisma.cognitiveRunAudit.create({
-      data: {
+    const data = {
+      userIdHash: audit.userIdHash,
+      threadIdHash: audit.threadIdHash,
+      personaId: audit.personaId,
+      placeId: audit.placeId || null,
+      runtimeMode: audit.runtimeMode,
+      executionProfile: audit.executionProfile,
+      stateTransitions: audit.stateTransitions,
+      auditEvents: audit.auditEvents,
+      iterationCount: audit.iterationCount,
+      coherence: audit.coherence ?? null,
+      dimensionScores: audit.dimensionScores,
+      findingCodes: audit.findingCodes,
+      promotionDecision: audit.promotionDecision,
+      failureReason: audit.failureReason || null,
+      latencyPerStageMs: audit.latencyPerStageMs,
+      modelIdentifiers: audit.modelIdentifiers,
+      promptHashes: audit.promptHashes,
+      contentHashes: audit.contentHashes,
+      contentLengths: audit.contentLengths,
+      privateRun: audit.privateRun,
+      metadataOnly: audit.metadataOnly,
+      completedAt: new Date(audit.completedAt),
+    };
+
+    await prisma.cognitiveRunAudit.upsert({
+      where: { id: audit.runId },
+      create: {
         id: audit.runId,
-        userIdHash: audit.userIdHash,
-        threadIdHash: audit.threadIdHash,
-        personaId: audit.personaId,
-        placeId: audit.placeId || null,
-        runtimeMode: audit.runtimeMode,
-        executionProfile: audit.executionProfile,
-        stateTransitions: audit.stateTransitions,
-        iterationCount: audit.iterationCount,
-        coherence: audit.coherence ?? null,
-        dimensionScores: audit.dimensionScores,
-        findingCodes: audit.findingCodes,
-        promotionDecision: audit.promotionDecision,
-        failureReason: audit.failureReason || null,
-        latencyPerStageMs: audit.latencyPerStageMs,
-        modelIdentifiers: audit.modelIdentifiers,
-        promptHashes: audit.promptHashes,
-        contentHashes: audit.contentHashes,
-        privateRun: audit.privateRun,
-        metadataOnly: audit.metadataOnly,
-        completedAt: new Date(audit.completedAt),
+        ...data,
       },
+      update: data,
     });
   } catch (error) {
     throw new CognitiveRuntimeError(

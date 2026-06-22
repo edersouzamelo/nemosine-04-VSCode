@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import {
+  CognitiveAuditEvent,
   CognitiveIteration,
   CognitiveRequest,
   RedactedCognitiveAudit,
@@ -31,6 +32,7 @@ export function buildRedactedAudit(input: {
   executionProfile: RedactedCognitiveAudit["executionProfile"];
   transitions: StateTransitionRecord[];
   iterations: CognitiveIteration[];
+  auditEvents: CognitiveAuditEvent[];
   promptHashes: Record<string, string>;
   finalStatus: RedactedCognitiveAudit["finalStatus"];
   promotionDecision: RedactedCognitiveAudit["promotionDecision"];
@@ -53,6 +55,7 @@ export function buildRedactedAudit(input: {
     runtimeMode: input.request.runtimeMode,
     executionProfile: input.executionProfile,
     stateTransitions: input.transitions,
+    auditEvents: [...input.auditEvents],
     iterationCount: input.iterations.length,
     coherence: lastIteration?.vigia?.totalCoherence,
     dimensionScores,
@@ -70,6 +73,11 @@ export function buildRedactedAudit(input: {
       userText: hashText(input.request.userText),
       displayUserText: hashText(input.request.displayUserText),
       finalCandidate: lastIteration?.candidate?.visibleText ? hashText(lastIteration.candidate.visibleText) : "",
+    },
+    contentLengths: {
+      userText: contentLength(input.request.userText),
+      displayUserText: contentLength(input.request.displayUserText),
+      finalCandidate: contentLength(lastIteration?.candidate?.visibleText),
     },
     privateRun: input.request.privateRun,
     metadataOnly: input.request.privateRun,

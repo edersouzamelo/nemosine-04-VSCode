@@ -63,3 +63,26 @@ export function deterministicPhilosopherEvaluation(input: {
     modelId: "deterministic-philosopher-v1",
   };
 }
+
+export function mergePhilosopherEvaluations(
+  deterministic: PhilosopherEvaluation,
+  structured?: PhilosopherEvaluation,
+): PhilosopherEvaluation {
+  if (!structured) return deterministic;
+
+  const findings = [...deterministic.findings, ...structured.findings];
+  const hasBlockingFinding = findings.some((finding) => finding.severity === "error" || finding.severity === "critical");
+
+  return {
+    constitutionalConformity: Math.min(deterministic.constitutionalConformity, structured.constitutionalConformity),
+    userSovereignty: Math.min(deterministic.userSovereignty, structured.userSovereignty),
+    nonIdolatry: Math.min(deterministic.nonIdolatry, structured.nonIdolatry),
+    ethicalLegitimacy: Math.min(deterministic.ethicalLegitimacy, structured.ethicalLegitimacy),
+    epistemologicalHumility: Math.min(deterministic.epistemologicalHumility, structured.epistemologicalHumility),
+    vocationIntegrity: Math.min(deterministic.vocationIntegrity, structured.vocationIntegrity),
+    manipulationDependencyRisk: Math.min(deterministic.manipulationDependencyRisk, structured.manipulationDependencyRisk),
+    approved: deterministic.approved && structured.approved && !hasBlockingFinding,
+    findings,
+    modelId: [deterministic.modelId, structured.modelId].filter(Boolean).join("+"),
+  };
+}

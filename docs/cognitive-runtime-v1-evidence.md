@@ -1,33 +1,34 @@
 # Cognitive Runtime V1 Evidence
 
-This file records the evidence expected for the V1 PR. The final command results are reported by Codex at handoff.
+Final command evidence is reported at handoff from the clean worktree. This file records the expected evidence shape.
 
-## Example Redacted Audit Trace
+## Example Redacted Audit
 
 ```json
 {
   "runId": "example-run",
   "runtimeMode": "enforce",
-  "executionProfile": "standard",
-  "stateTransitions": [
-    { "from": "RECEIVED", "to": "AUTHORIZED", "allowed": true },
-    { "from": "AUTHORIZED", "to": "CONTEXT_ASSEMBLED", "allowed": true },
-    { "from": "CONTEXT_ASSEMBLED", "to": "MODULES_SELECTED", "allowed": true },
-    { "from": "MODULES_SELECTED", "to": "CANDIDATE_GENERATED", "allowed": true },
-    { "from": "CANDIDATE_GENERATED", "to": "CLAIMS_EXTRACTED", "allowed": true },
-    { "from": "CLAIMS_EXTRACTED", "to": "SCIENTIST_EVALUATED", "allowed": true },
-    { "from": "SCIENTIST_EVALUATED", "to": "VIGIA_SCORED", "allowed": true },
-    { "from": "VIGIA_SCORED", "to": "OCV_CONVERGED", "allowed": true },
-    { "from": "OCV_CONVERGED", "to": "PHILOSOPHER_EVALUATED", "allowed": true },
-    { "from": "PHILOSOPHER_EVALUATED", "to": "PROMOTION_EVALUATED", "allowed": true },
-    { "from": "PROMOTION_EVALUATED", "to": "PROMOTED", "allowed": true },
-    { "from": "PROMOTED", "to": "SIDE_EFFECTS_COMMITTED", "allowed": true },
-    { "from": "SIDE_EFFECTS_COMMITTED", "to": "DELIVERED", "allowed": true }
+  "executionProfile": "full",
+  "auditEvents": [
+    {
+      "code": "REBALANCING_APPLIED",
+      "detail": {
+        "requestedProfile": "light",
+        "selectedProfile": "full",
+        "highStakes": true,
+        "symbolicConfigurationChanged": false
+      }
+    }
   ],
   "contentHashes": {
     "userText": "sha256...",
     "displayUserText": "sha256...",
     "finalCandidate": "sha256..."
+  },
+  "contentLengths": {
+    "userText": 120,
+    "displayUserText": 120,
+    "finalCandidate": 480
   },
   "findingCodes": [],
   "metadataOnly": true
@@ -36,8 +37,13 @@ This file records the evidence expected for the V1 PR. The final command results
 
 ## Required Demonstrations
 
-- Rejected text is retained internally for tests but not streamed in enforce mode.
-- Rejected proposed side effects are not committed.
-- Unauthorized Destiny actions are discarded.
-- Native prompt manifest verifies `prompts.json` byte content.
-- `app/api/sovereign/pure-chat/route.ts` remains outside the persona O-C-V pipeline.
+- Clean worktree builds independently from commit `7efec056bbf2f5734c794fad9993b9f6ce52f4e5`.
+- No Persona Manuscripts files or imports enter the branch.
+- Native prompt checksums remain unchanged.
+- Deterministic Scientist and Philosopher findings survive permissive LLM validators.
+- Scientist `approved=false`, error findings and dimension floors block promotion.
+- High-stakes input cannot run as `light`.
+- Private runs discard registry and Destiny actions.
+- Rejected candidate text is not streamed or persisted as an assistant answer.
+- Theta `0.80` boundary and hard-failure override are tested.
+- Audit persistence failure follows the documented policy and uses no raw private content.

@@ -80,6 +80,7 @@ export type CognitiveRequest = {
   memoryScope: string;
   runtimeMode: CognitiveRuntimeMode;
   requestedProfile?: ExecutionProfile;
+  requestedProfileSource?: "user" | "runtime" | "test";
   privateRun: boolean;
   startedAt: Date;
   priorHistory?: Array<{
@@ -149,7 +150,15 @@ export const extractedClaimSchema = z.object({
   id: z.string().min(1).max(80),
   type: z.enum(["factual", "inferential", "uncertainty", "access_or_verification"]),
   text: z.string().min(1).max(1200),
-  support: z.enum(["context", "user_message", "candidate_only", "unknown"]).default("unknown"),
+  support: z.enum([
+    "current_user_message",
+    "authorized_context",
+    "inferential",
+    "candidate_only",
+    "unknown",
+    "contradicted",
+    "externally_unverifiable",
+  ]).default("unknown"),
   confidence: z.number().min(0).max(1).default(0.5),
 });
 
@@ -159,6 +168,13 @@ const proposedActionBaseSchema = z.object({
   id: z.string().min(1).max(80),
   source: z.enum(["legacy-tag", "structured-extractor", "runtime"]),
   authorized: z.boolean().default(false),
+  authorizationProvenance: z.enum([
+    "explicit-current-message",
+    "preconfigured-user-consent",
+    "system-conversation-history",
+    "unauthorized",
+    "discarded-private-scope",
+  ]).default("unauthorized"),
   reason: z.string().max(500).optional(),
 });
 
@@ -212,10 +228,12 @@ export const scientistEvaluationSchema = z.object({
   factualSupport: scoreSchema,
   contradictionRisk: scoreSchema,
   honestUncertainty: scoreSchema,
-  unsupportedBiographicalClaims: scoreSchema,
-  simulatedAccessClaims: scoreSchema,
+  biographicalSafety: scoreSchema.describe("0 = unsafe unsupported biographical claim risk; 1 = safe/passing."),
+  accessClaimSafety: scoreSchema.describe("0 = unsafe simulated access or verification claim risk; 1 = safe/passing."),
   internalConsistency: scoreSchema,
   responseRelevance: scoreSchema,
+  externalVerificationAvailable: z.boolean().default(false),
+  evidenceSummary: z.string().max(1200).optional(),
   approved: z.boolean(),
   findings: z.array(findingSchema).default([]),
   modelId: z.string().max(120).optional(),
@@ -270,6 +288,7 @@ export type VigiaCoherenceResult = {
   passed: boolean;
   recommendedNextTransition: CognitiveState;
   formula: string;
+  profile: ExecutionProfile;
 };
 
 export type SideEffectAuthorization = {
@@ -279,6 +298,12 @@ export type SideEffectAuthorization = {
   approvedDestinyActions: ProposedDestinyAction[];
   discardedActions: Array<ProposedMemoryAction | ProposedRegistryAction | ProposedDestinyAction>;
   findings: CognitiveFinding[];
+};
+
+export type CognitiveAuditEvent = {
+  code: "REBALANCING_APPLIED" | "AUDIT_PERSISTENCE_FAILURE" | "PROFILE_SELECTED";
+  at: string;
+  detail: Record<string, string | number | boolean | null>;
 };
 
 export type PromotionDecision = {
@@ -323,6 +348,7 @@ export type RedactedCognitiveAudit = {
   runtimeMode: CognitiveRuntimeMode;
   executionProfile: ExecutionProfile;
   stateTransitions: StateTransitionRecord[];
+  auditEvents: CognitiveAuditEvent[];
   iterationCount: number;
   coherence?: number;
   dimensionScores: Record<string, number>;
@@ -333,6 +359,7 @@ export type RedactedCognitiveAudit = {
   modelIdentifiers: string[];
   promptHashes: Record<string, string>;
   contentHashes: Record<string, string>;
+  contentLengths: Record<string, number>;
   privateRun: boolean;
   metadataOnly: boolean;
   createdAt: string;
@@ -351,6 +378,7 @@ export type CognitiveRunResult = {
   iterations: CognitiveIteration[];
   audit: RedactedCognitiveAudit;
   sideEffectsCommitted: boolean;
+  auditPersisted: boolean;
 };
 
 export type CognitiveModelProvider = {

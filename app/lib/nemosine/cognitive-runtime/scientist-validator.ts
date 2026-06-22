@@ -60,19 +60,31 @@ export function deterministicScientistEvaluation(input: {
     ));
   }
 
+  if (input.extraction.claims.some((claim) => claim.support === "contradicted")) {
+    findings.push(finding(
+      "SCIENTIST_CONTRADICTED_BY_AVAILABLE_EVIDENCE",
+      "error",
+      "A claim is contradicted by the current user message or authorized context.",
+      "Remove or correct the contradicted claim.",
+    ));
+  }
+
   const hasCritical = findings.some((item) => item.severity === "critical");
+  const hasError = findings.some((item) => item.severity === "error");
   const hasWarning = findings.some((item) => item.severity === "warning");
 
   return {
     logicalConsistency: hasCritical ? 0.45 : 0.9,
-    factualSupport: hasWarning ? 0.72 : 0.88,
+    factualSupport: hasError ? 0.42 : hasWarning ? 0.72 : 0.88,
     contradictionRisk: hasCritical ? 0.85 : 0.1,
     honestUncertainty: hasWarning ? 0.72 : 0.88,
-    unsupportedBiographicalClaims: genericUnsupportedBioPatterns.some((pattern) => pattern.test(text)) ? 0 : 1,
-    simulatedAccessClaims: simulatedAccessPatterns.some((pattern) => pattern.test(text)) ? 0 : 1,
+    biographicalSafety: genericUnsupportedBioPatterns.some((pattern) => pattern.test(text)) ? 0 : 1,
+    accessClaimSafety: simulatedAccessPatterns.some((pattern) => pattern.test(text)) ? 0 : 1,
     internalConsistency: hasCritical ? 0.55 : 0.9,
     responseRelevance: text.trim().length > 0 ? 0.86 : 0,
-    approved: !hasCritical,
+    externalVerificationAvailable: false,
+    evidenceSummary: "Deterministic hard checks only; no external verification was performed.",
+    approved: !hasCritical && !hasError,
     findings,
     modelId: "deterministic-scientist-v1",
   };
@@ -80,4 +92,30 @@ export function deterministicScientistEvaluation(input: {
 
 export function scientistHasCriticalFailure(scientist: ScientistEvaluation) {
   return scientist.findings.some((finding) => finding.severity === "critical");
+}
+
+export function mergeScientistEvaluations(
+  deterministic: ScientistEvaluation,
+  structured?: ScientistEvaluation,
+): ScientistEvaluation {
+  if (!structured) return deterministic;
+
+  const findings = [...deterministic.findings, ...structured.findings];
+  const hasBlockingFinding = findings.some((finding) => finding.severity === "error" || finding.severity === "critical");
+
+  return {
+    logicalConsistency: Math.min(deterministic.logicalConsistency, structured.logicalConsistency),
+    factualSupport: Math.min(deterministic.factualSupport, structured.factualSupport),
+    contradictionRisk: Math.max(deterministic.contradictionRisk, structured.contradictionRisk),
+    honestUncertainty: Math.min(deterministic.honestUncertainty, structured.honestUncertainty),
+    biographicalSafety: Math.min(deterministic.biographicalSafety, structured.biographicalSafety),
+    accessClaimSafety: Math.min(deterministic.accessClaimSafety, structured.accessClaimSafety),
+    internalConsistency: Math.min(deterministic.internalConsistency, structured.internalConsistency),
+    responseRelevance: Math.min(deterministic.responseRelevance, structured.responseRelevance),
+    externalVerificationAvailable: deterministic.externalVerificationAvailable || structured.externalVerificationAvailable,
+    evidenceSummary: structured.evidenceSummary || deterministic.evidenceSummary,
+    approved: deterministic.approved && structured.approved && !hasBlockingFinding,
+    findings,
+    modelId: [deterministic.modelId, structured.modelId].filter(Boolean).join("+"),
+  };
 }

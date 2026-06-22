@@ -21,8 +21,32 @@ const requiredFiles = [
   "docs/cognitive-runtime-v1-privacy.md",
   "docs/cognitive-runtime-v1-rollout.md",
   "docs/cognitive-runtime-v1-evidence.md",
+  "docs/cognitive-runtime-v1-patent-traceability.md",
+  "docs/cognitive-runtime-v1-scm-fidelity.md",
+  "docs/cognitive-runtime-v1-coherence-formalization.md",
   "prisma/manual_migrations/20260622_add_cognitive_run_audits.sql",
   "app/data/nativePersonaPromptManifest.json",
+];
+
+const forbiddenPaths = [
+  "app/lib/personaManuscripts.ts",
+  "app/soberano/manuscritos",
+  "app/sovereign/manuscritos",
+  "prisma/manual_migrations/20260615_add_persona_manuscripts.sql",
+  "test_persona_manuscripts.js",
+];
+
+const runtimeFiles = [
+  "app/lib/nemosine/cognitive-runtime/side-effect-committer.ts",
+  "app/lib/nemosine/cognitive-runtime/orchestrator.ts",
+  "app/lib/nemosine/cognitive-runtime/types.ts",
+];
+
+const forbiddenRuntimePatterns = [
+  "logPersonaManuscriptEvent",
+  "personaManuscript",
+  "PersonaManuscript",
+  "manuscritos",
 ];
 
 const prompts = JSON.parse(fs.readFileSync("prompts.json", "utf8"));
@@ -35,11 +59,27 @@ const promptMismatches = Object.entries(prompts).flatMap(([key, prompt]) => {
 });
 
 const missingFiles = requiredFiles.filter((file) => !exists(file));
+const presentForbiddenPaths = forbiddenPaths.filter((file) => exists(file));
+const runtimePatternHits = runtimeFiles.flatMap((file) => {
+  if (!exists(file)) return [];
+  const source = fs.readFileSync(file, "utf8");
+  return forbiddenRuntimePatterns
+    .filter((pattern) => source.includes(pattern))
+    .map((pattern) => ({ file, pattern }));
+});
 const report = {
-  ok: missingFiles.length === 0 && promptMismatches.length === 0,
+  ok: missingFiles.length === 0
+    && promptMismatches.length === 0
+    && presentForbiddenPaths.length === 0
+    && runtimePatternHits.length === 0,
   checkedAt: new Date().toISOString(),
   requiredFiles,
   missingFiles,
+  forbiddenPaths: {
+    checked: forbiddenPaths,
+    present: presentForbiddenPaths,
+    runtimePatternHits,
+  },
   promptManifest: {
     promptCount: manifest.promptCount,
     actualPromptCount: Object.keys(prompts).length,

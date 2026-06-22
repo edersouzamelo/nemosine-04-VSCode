@@ -3,7 +3,7 @@ import { assembleCognitiveContextEnvelope } from "./context-envelope";
 import { buildRedactedAudit } from "./audit-redaction";
 import { storeCognitiveAudit } from "./audit-store";
 import { extractClaimsAndActions } from "./claim-extractor";
-import { deterministicPhilosopherEvaluation } from "./philosopher-validator";
+import { deterministicPhilosopherEvaluation, mergePhilosopherEvaluations } from "./philosopher-validator";
 import { createAiSdkCognitiveModelProvider } from "./persona-generator";
 import { evaluatePromotion } from "./promotion-gate";
 import { evaluatePrivacy } from "./privacy-policy";
@@ -13,13 +13,14 @@ import {
   CommitSideEffectsInput,
   CommitSideEffectsResult,
 } from "./side-effect-committer";
-import { deterministicScientistEvaluation } from "./scientist-validator";
+import { deterministicScientistEvaluation, mergeScientistEvaluations } from "./scientist-validator";
 import { CognitiveStateMachine } from "./state-machine";
 import { calculateVigiaCoherence } from "./vigia-coherence";
-import { selectExecutionProfile, selectRuntimeModules } from "./module-registry";
+import { buildProfileAuditEvent, classifyRequestRisk, selectExecutionProfile, selectRuntimeModules } from "./module-registry";
 import { evaluateVocationalPolicy } from "./vocational-policy";
 import {
   CandidateResponse,
+  CognitiveAuditEvent,
   CognitiveContextEnvelope,
   CognitiveFinding,
   CognitiveIteration,
@@ -28,6 +29,8 @@ import {
   CognitiveRunResult,
   CognitiveRuntimeError,
   RedactedCognitiveAudit,
+  philosopherEvaluationSchema,
+  scientistEvaluationSchema,
 } from "./types";
 
 type RuntimeDependencies = {
@@ -51,21 +54,6 @@ function makeCandidateFromOverride(text: string, iteration: number): CandidateRe
     visibleText: text,
     modelId: "candidate-override",
     latencyMs: 0,
-  };
-}
-
-function philosopherBypass() {
-  return {
-    constitutionalConformity: 1,
-    userSovereignty: 1,
-    nonIdolatry: 1,
-    ethicalLegitimacy: 1,
-    epistemologicalHumility: 1,
-    vocationIntegrity: 1,
-    manipulationDependencyRisk: 1,
-    approved: true,
-    findings: [],
-    modelId: "double-vigilance-disabled",
   };
 }
 
@@ -102,14 +90,35 @@ function collectRepairFindings(iteration: CognitiveIteration): CognitiveFinding[
   }));
 }
 
-async function persistAuditSafely(input: {
+function auditPersistenceFailureEvent(): CognitiveAuditEvent {
+  return {
+    code: "AUDIT_PERSISTENCE_FAILURE",
+    at: new Date().toISOString(),
+    detail: {
+      policy: "delivery_allowed_side_effects_blocked",
+      rawContentStored: false,
+      sideEffectsBlocked: true,
+    },
+  };
+}
+
+async function persistAuditWithPolicy(input: {
   audit: RedactedCognitiveAudit;
   storeAudit: (audit: RedactedCognitiveAudit) => Promise<void>;
+  auditEvents: CognitiveAuditEvent[];
 }) {
   try {
     await input.storeAudit(input.audit);
+    return true;
   } catch (error) {
-    console.error("[CognitiveRuntime] audit persistence failed:", error);
+    const event = auditPersistenceFailureEvent();
+    input.auditEvents.push(event);
+    input.audit.auditEvents.push(event);
+    console.error(
+      "[CognitiveRuntime] audit persistence failed:",
+      error instanceof CognitiveRuntimeError ? error.code : "store_error",
+    );
+    return false;
   }
 }
 
@@ -123,6 +132,8 @@ function buildResult(input: {
   promoted: boolean;
   rejectedCandidateTexts: string[];
   sideEffectsCommitted: boolean;
+  auditPersisted: boolean;
+  auditEvents: CognitiveAuditEvent[];
   promptHashes: Record<string, string>;
   createdAt: Date;
   promotionDecision: RedactedCognitiveAudit["promotionDecision"];
@@ -140,6 +151,7 @@ function buildResult(input: {
     executionProfile: input.executionProfile,
     transitions: input.stateMachine.transitions,
     iterations: input.iterations,
+    auditEvents: input.auditEvents,
     promptHashes: input.promptHashes,
     finalStatus: input.stateMachine.current,
     promotionDecision: input.promotionDecision,
@@ -160,6 +172,7 @@ function buildResult(input: {
     iterations: input.iterations,
     audit,
     sideEffectsCommitted: input.sideEffectsCommitted,
+    auditPersisted: input.auditPersisted,
   } satisfies CognitiveRunResult;
 }
 
@@ -175,8 +188,10 @@ export async function runCognitiveRuntime(
   const storeAudit = dependencies.storeAudit || storeCognitiveAudit;
   const iterations: CognitiveIteration[] = [];
   const rejectedCandidateTexts: string[] = [];
+  const auditEvents: CognitiveAuditEvent[] = [];
   let promptHashes: Record<string, string> = {};
   let executionProfile = request.requestedProfile || config.defaultProfile;
+  let auditRequired = config.auditEnabled;
 
   try {
     stateMachine.transition("AUTHORIZED");
@@ -188,7 +203,15 @@ export async function runCognitiveRuntime(
     promptHashes = contextResult.envelope.promptHashes;
     stateMachine.transition("CONTEXT_ASSEMBLED");
 
+    const requestRisk = classifyRequestRisk(request.userText);
     executionProfile = selectExecutionProfile(request, config.defaultProfile);
+    auditRequired = config.auditEnabled || executionProfile === "full";
+    auditEvents.push(buildProfileAuditEvent({
+      requested: request.requestedProfile,
+      selected: executionProfile,
+      fallback: config.defaultProfile,
+      highStakes: requestRisk.highStakes,
+    }));
     const selectedModules = selectRuntimeModules(request, executionProfile);
     stateMachine.transition("MODULES_SELECTED");
 
@@ -213,7 +236,7 @@ export async function runCognitiveRuntime(
       iteration.candidate = candidate;
       stateMachine.transition("CANDIDATE_GENERATED", `iteration:${index}`);
 
-      const structuredValidators = executionProfile !== "light" || request.runtimeMode === "enforce";
+      const structuredValidators = executionProfile !== "light";
       const extraction = await extractClaimsAndActions({
         request,
         context: contextResult.envelope,
@@ -224,14 +247,28 @@ export async function runCognitiveRuntime(
       iteration.extraction = extraction;
       stateMachine.transition("CLAIMS_EXTRACTED", `iteration:${index}`);
 
-      const scientist = structuredValidators
-        ? await provider.evaluateScientist({
-          request,
-          context: contextResult.envelope,
-          candidate,
-          extraction,
-        })
-        : deterministicScientistEvaluation({ candidate, extraction });
+      const deterministicScientist = deterministicScientistEvaluation({ candidate, extraction });
+      let structuredScientist;
+      if (structuredValidators) {
+        try {
+          structuredScientist = scientistEvaluationSchema.parse(await provider.evaluateScientist({
+            request,
+            context: contextResult.envelope,
+            candidate,
+            extraction,
+          }));
+        } catch (error) {
+          throw new CognitiveRuntimeError(
+            "MALFORMED_STRUCTURED_OUTPUT",
+            `Scientist structured evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
+            {
+              retryable: true,
+              safeMessage: "A avaliacao estruturada do Scientist falhou.",
+            },
+          );
+        }
+      }
+      const scientist = mergeScientistEvaluations(deterministicScientist, structuredScientist);
       iteration.scientist = scientist;
       stateMachine.transition("SCIENTIST_EVALUATED", `iteration:${index}`);
 
@@ -251,6 +288,7 @@ export async function runCognitiveRuntime(
         privacy,
         vocation,
         config,
+        profile: executionProfile,
       });
       iteration.vigia = vigia;
       stateMachine.transition("VIGIA_SCORED", `iteration:${index}`);
@@ -279,27 +317,45 @@ export async function runCognitiveRuntime(
           promoted: false,
           rejectedCandidateTexts,
           sideEffectsCommitted: false,
+          auditPersisted: false,
+          auditEvents,
           promptHashes,
           createdAt,
           promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "rejected",
           failureReason: "coherence_exhaustion",
         });
-        if (config.auditEnabled) await persistAuditSafely({ audit: result.audit, storeAudit });
+        if (auditRequired) {
+          result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
+        }
         return result;
       }
 
       stateMachine.transition("OCV_CONVERGED", `iteration:${index}`);
 
-      const philosopher = config.doubleVigilance
-        ? await provider.evaluatePhilosopher({
-          request,
-          context: contextResult.envelope,
-          candidate,
-          extraction,
-          scientist,
-          vigia,
-        })
-        : philosopherBypass();
+      const deterministicPhilosopher = deterministicPhilosopherEvaluation({ candidate });
+      let structuredPhilosopher;
+      if (config.doubleVigilance && structuredValidators) {
+        try {
+          structuredPhilosopher = philosopherEvaluationSchema.parse(await provider.evaluatePhilosopher({
+            request,
+            context: contextResult.envelope,
+            candidate,
+            extraction,
+            scientist,
+            vigia,
+          }));
+        } catch (error) {
+          throw new CognitiveRuntimeError(
+            "MALFORMED_STRUCTURED_OUTPUT",
+            `Philosopher structured evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
+            {
+              retryable: true,
+              safeMessage: "A avaliacao estruturada do Philosopher falhou.",
+            },
+          );
+        }
+      }
+      const philosopher = mergePhilosopherEvaluations(deterministicPhilosopher, structuredPhilosopher);
       iteration.philosopher = philosopher;
       stateMachine.transition("PHILOSOPHER_EVALUATED", `iteration:${index}`);
 
@@ -314,6 +370,7 @@ export async function runCognitiveRuntime(
         vocation,
         sideEffects: sideEffectAuthorization,
         retriesRemaining: config.maxRetries - index,
+        executionProfile,
       });
       iteration.promotion = promotion;
       stateMachine.transition("PROMOTION_EVALUATED", `iteration:${index}`);
@@ -341,17 +398,71 @@ export async function runCognitiveRuntime(
           promoted: false,
           rejectedCandidateTexts,
           sideEffectsCommitted: false,
+          auditPersisted: false,
+          auditEvents,
           promptHashes,
           createdAt,
           promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "rejected",
           failureReason: promotion.reasons.join(",") || "promotion_rejected",
         });
-        if (config.auditEnabled) await persistAuditSafely({ audit: result.audit, storeAudit });
+        if (auditRequired) {
+          result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
+        }
         return result;
       }
 
       stateMachine.transition("PROMOTED", `iteration:${index}`);
+      iteration.completedAt = new Date().toISOString();
+      iterations.push(iteration);
+
       let sideEffectsCommitted = false;
+      let auditPersisted = false;
+
+      if (request.runtimeMode === "enforce" && auditRequired) {
+        const preCommitAuditResult = buildResult({
+          request,
+          config,
+          executionProfile,
+          stateMachine,
+          iterations,
+          answer: candidate.visibleText,
+          promoted: true,
+          rejectedCandidateTexts,
+          sideEffectsCommitted: false,
+          auditPersisted: false,
+          auditEvents,
+          promptHashes,
+          createdAt,
+          promotionDecision: "promoted",
+        });
+        auditPersisted = await persistAuditWithPolicy({
+          audit: preCommitAuditResult.audit,
+          storeAudit,
+          auditEvents,
+        });
+
+        if (!auditPersisted) {
+          stateMachine.transition("SIDE_EFFECTS_COMMITTED", "blocked-audit-persistence-failure");
+          stateMachine.transition("DELIVERED", "promoted answer delivered; side effects blocked");
+          return buildResult({
+            request,
+            config,
+            executionProfile,
+            stateMachine,
+            iterations,
+            answer: candidate.visibleText,
+            promoted: true,
+            rejectedCandidateTexts,
+            sideEffectsCommitted: false,
+            auditPersisted: false,
+            auditEvents,
+            promptHashes,
+            createdAt,
+            promotionDecision: "promoted",
+            failureReason: "audit_persistence_failure_side_effects_blocked",
+          });
+        }
+      }
 
       if (request.runtimeMode === "enforce") {
         try {
@@ -371,8 +482,6 @@ export async function runCognitiveRuntime(
       }
 
       stateMachine.transition("SIDE_EFFECTS_COMMITTED", request.runtimeMode === "enforce" ? "committed" : "shadow-no-commit");
-      iteration.completedAt = new Date().toISOString();
-      iterations.push(iteration);
       stateMachine.transition("DELIVERED", "promoted answer delivered");
 
       const result = buildResult({
@@ -385,11 +494,15 @@ export async function runCognitiveRuntime(
         promoted: true,
         rejectedCandidateTexts,
         sideEffectsCommitted,
+        auditPersisted,
+        auditEvents,
         promptHashes,
         createdAt,
         promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "promoted",
       });
-      if (config.auditEnabled) await persistAuditSafely({ audit: result.audit, storeAudit });
+      if (auditRequired) {
+        result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
+      }
       return result;
     }
 
@@ -401,7 +514,14 @@ export async function runCognitiveRuntime(
   } catch (error) {
     if (stateMachine.current !== "DELIVERED") {
       try {
-        stateMachine.transition("FAILED_SAFE", error instanceof Error ? error.message : "runtime failure");
+        const safeTransitionNote = error instanceof CognitiveRuntimeError
+          ? error.code
+          : request.privateRun
+            ? "runtime_failure"
+            : error instanceof Error
+              ? error.message
+              : "runtime failure";
+        stateMachine.transition("FAILED_SAFE", safeTransitionNote);
       } catch {
         // Keep the original transition trace if the failure itself came from an illegal edge.
       }
@@ -413,8 +533,8 @@ export async function runCognitiveRuntime(
     const failureReason = error instanceof CognitiveRuntimeError
       ? error.code
       : error instanceof Error
-        ? error.message
-        : String(error);
+        ? request.privateRun ? "runtime_failure" : error.message
+        : request.privateRun ? "runtime_failure" : String(error);
     const result = buildResult({
       request,
       config,
@@ -425,12 +545,16 @@ export async function runCognitiveRuntime(
       promoted: false,
       rejectedCandidateTexts,
       sideEffectsCommitted: false,
+      auditPersisted: false,
+      auditEvents,
       promptHashes,
       createdAt,
       promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "failed_safe",
       failureReason,
     });
-    if (config.auditEnabled) await persistAuditSafely({ audit: result.audit, storeAudit });
+    if (auditRequired && failureReason !== "AUDIT_PERSISTENCE_FAILURE") {
+      result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
+    }
     return result;
   }
 }

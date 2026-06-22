@@ -16,6 +16,7 @@ export function calculateVigiaCoherence(input: {
   privacy: PrivacyEvaluation;
   vocation: VocationalEvaluation;
   config: CognitiveRuntimeConfig;
+  profile?: "light" | "standard" | "full";
 }): VigiaCoherenceResult {
   const weights = input.config.coherenceWeights;
   const dimensionScores: Record<string, number> = {
@@ -23,8 +24,8 @@ export function calculateVigiaCoherence(input: {
     factualSupport: input.scientist.factualSupport,
     contradictionSafety: 1 - input.scientist.contradictionRisk,
     honestUncertainty: input.scientist.honestUncertainty,
-    biographicalSafety: input.scientist.unsupportedBiographicalClaims,
-    accessClaimSafety: input.scientist.simulatedAccessClaims,
+    biographicalSafety: input.scientist.biographicalSafety,
+    accessClaimSafety: input.scientist.accessClaimSafety,
     internalConsistency: input.scientist.internalConsistency,
     responseRelevance: input.scientist.responseRelevance,
   };
@@ -41,8 +42,9 @@ export function calculateVigiaCoherence(input: {
   const hardFailures = [
     ...(!input.privacy.hardPass ? ["privacy"] : []),
     ...(!input.vocation.hardPass ? ["vocation"] : []),
+    ...(!input.scientist.approved ? ["scientist:approved_false"] : []),
     ...input.scientist.findings
-      .filter((finding) => finding.severity === "critical")
+      .filter((finding) => finding.severity === "error" || finding.severity === "critical")
       .map((finding) => `scientist:${finding.code}`),
   ];
 
@@ -57,6 +59,7 @@ export function calculateVigiaCoherence(input: {
     threshold: input.config.coherenceThreshold,
     passed,
     recommendedNextTransition: passed ? "OCV_CONVERGED" : "OCV_RETRY_REQUESTED",
-    formula: "C(m)=sum(score_i*weight_i)/sum(weight_i); hard failures override weighted average.",
+    formula: "C(m)=sum(score_i*weight_i)/sum(weight_i); operational promotion-coherence index; hard failures override weighted average.",
+    profile: input.profile || "standard",
   };
 }
