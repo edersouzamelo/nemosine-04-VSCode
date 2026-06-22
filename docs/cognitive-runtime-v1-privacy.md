@@ -33,3 +33,11 @@ V1 implements the conservative backend policy. Future UI work may add inspectabl
 ## Audit Contents
 
 Private audit may contain hashes, lengths, scores, finding codes, model IDs, timestamps, state transitions, authorization categories and promotion outcome. It must not contain raw private user text, candidate text, context excerpts, attachments, registry text or Destiny content.
+
+## Delivery and Side-Effect Persistence Semantics
+
+Essential assistant delivery writes the final enforce-mode answer to thread history with `Message.cognitiveRunId`; the key is the cognitive run ID, not content or timestamp. This preserves exact-once assistant history while avoiding raw private content in audit metadata.
+
+Optional effects remain consent-gated and separate from delivery. Private runs may commit only exact-scope memory after explicit authorization. Registry and Destiny effects are discarded in private runs, and blocked or rolled-back optional effects are reported as such rather than as committed. Conversation episode retention follows Policy B: it is optional derived memory, idempotent by run ID content, and participates in the optional-effects transaction.
+
+Shadow mode does not persist a duplicate assistant message and does not create runtime memory, Registry or Destiny effects. Its audit is metadata-only for private runs.

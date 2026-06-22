@@ -1,6 +1,4 @@
-import { addMessageToThread, addUserMemory, retainConversationEpisode } from "@/app/lib/nemosine/session_store";
-import { createDestinyEvent } from "@/app/lib/sovereignStore";
-import { createUserRegistry } from "@/app/lib/userFeatureStore";
+import { persistAssistantMessageForCognitiveRun, prisma } from "@/app/lib/nemosine/session_store";
 import {
   CognitiveFinding,
   CognitiveRequest,
@@ -9,6 +7,8 @@ import {
   ProposedMemoryAction,
   ProposedRegistryAction,
   SideEffectAuthorization,
+  SideEffectCounts,
+  SideEffectStatus,
 } from "./types";
 
 function normalizeForAuth(text: string) {
@@ -144,69 +144,236 @@ export function authorizeProposedSideEffects(input: {
   };
 }
 
-export type CommitSideEffectsInput = {
+export type PersistDeliveredAssistantMessageInput = {
   request: CognitiveRequest;
   answer: string;
+};
+
+export type PersistDeliveredAssistantMessageResult = {
+  persisted: boolean;
+  messageId: string;
+};
+
+export async function persistDeliveredAssistantMessage(
+  input: PersistDeliveredAssistantMessageInput,
+): Promise<PersistDeliveredAssistantMessageResult> {
+  const message = await persistAssistantMessageForCognitiveRun(
+    input.request.userId,
+    input.request.threadId,
+    input.request.runId,
+    input.answer,
+  );
+
+  return {
+    persisted: true,
+    messageId: message.id,
+  };
+}
+
+export type CommitOptionalEffectsInput = {
+  request: CognitiveRequest;
   sideEffects: SideEffectAuthorization;
 };
 
-export type CommitSideEffectsResult = {
+export type CommitOptionalEffectsResult = {
+  status: SideEffectStatus;
   committed: boolean;
-  memoryCount: number;
-  registryCount: number;
-  destinyCount: number;
+  counts: SideEffectCounts;
+  errorCode?: string;
 };
 
-export async function commitApprovedSideEffects(input: CommitSideEffectsInput): Promise<CommitSideEffectsResult> {
-  let memoryCount = 0;
-  let registryCount = 0;
-  let destinyCount = 0;
+const zeroCounts: SideEffectCounts = {
+  memory: 0,
+  registry: 0,
+  destiny: 0,
+};
 
-  await addMessageToThread(input.request.userId, input.request.threadId, "assistant", input.answer);
+function runtimeEffectId(runId: string, actionId: string) {
+  return `cognitive-runtime:${runId}:${actionId}`.slice(0, 240);
+}
 
-  await retainConversationEpisode(input.request.userId, input.request.memoryScope, input.request.userText);
+async function ensureRuntimeOptionalEffectTables() {
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS user_registros (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      idea TEXT NOT NULL,
+      chat_origin_id TEXT,
+      persona TEXT,
+      status TEXT NOT NULL,
+      last_interaction TEXT,
+      next_deadline TEXT,
+      external_links TEXT,
+      custom_columns TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
 
-  for (const action of input.sideEffects.approvedMemoryActions) {
-    await addUserMemory(input.request.userId, action.content, input.request.memoryScope);
-    memoryCount += 1;
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_destiny_events (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      event_date DATE,
+      event_date_label TEXT,
+      category TEXT NOT NULL,
+      short_description TEXT NOT NULL,
+      long_description TEXT,
+      dominant_emotion TEXT,
+      symbolic_intensity INTEGER,
+      associated_persona TEXT,
+      associated_place TEXT,
+      life_phase TEXT,
+      visibility TEXT NOT NULL DEFAULT 'private',
+      source TEXT,
+      tags TEXT NOT NULL DEFAULT '[]',
+      image_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+}
+
+async function addUserMemoryInTransaction(tx: any, input: {
+  userId: string;
+  personaId: string;
+  content: string;
+}) {
+  const normalizedContent = input.content.trim().slice(0, 1000);
+  if (!normalizedContent) return false;
+
+  const existingMemory = await tx.userMemory.findFirst({
+    where: {
+      userId: input.userId,
+      personaId: input.personaId,
+      content: normalizedContent,
+    },
+  });
+  if (existingMemory) return false;
+
+  await tx.userMemory.create({
+    data: {
+      userId: input.userId,
+      personaId: input.personaId,
+      content: normalizedContent,
+    },
+  });
+  return true;
+}
+
+export async function retainDeliveredConversationEpisode(tx: any, request: CognitiveRequest) {
+  const normalizedMessage = request.userText.replace(/\s+/g, " ").trim();
+  if (normalizedMessage.length < 12) return false;
+
+  return addUserMemoryInTransaction(tx, {
+    userId: request.userId,
+    personaId: request.memoryScope,
+    content: `EPISODIO COGNITIVO ${request.runId} COM ${request.memoryScope} | O usuario escreveu: ${normalizedMessage.slice(0, 900)}`,
+  });
+}
+
+export async function commitAuthorizedOptionalEffects(
+  input: CommitOptionalEffectsInput,
+): Promise<CommitOptionalEffectsResult> {
+  const approvedEffectCount = input.sideEffects.approvedMemoryActions.length
+    + input.sideEffects.approvedRegistryActions.length
+    + input.sideEffects.approvedDestinyActions.length;
+
+  if (approvedEffectCount === 0) {
+    return {
+      status: "skipped",
+      committed: false,
+      counts: { ...zeroCounts },
+    };
   }
 
-  for (const action of input.sideEffects.approvedRegistryActions) {
-    await createUserRegistry(input.request.userId, {
-      id: crypto.randomUUID(),
-      idea: action.idea,
-      chat_origin_id: input.request.threadId,
-      persona: input.request.personaId,
-      status: action.status || "Pendente",
-      last_interaction: new Date().toISOString().split("T")[0],
-      next_deadline: action.deadline || null,
-      external_links: "",
-      custom_columns: "{}",
+  try {
+    await ensureRuntimeOptionalEffectTables();
+
+    const counts = await prisma.$transaction(async (tx) => {
+      const transactionCounts: SideEffectCounts = { ...zeroCounts };
+
+      await retainDeliveredConversationEpisode(tx, input.request);
+
+      for (const action of input.sideEffects.approvedMemoryActions) {
+        const inserted = await addUserMemoryInTransaction(tx, {
+          userId: input.request.userId,
+          personaId: input.request.memoryScope,
+          content: action.content,
+        });
+        if (inserted) transactionCounts.memory += 1;
+      }
+
+      for (const action of input.sideEffects.approvedRegistryActions) {
+        const id = runtimeEffectId(input.request.runId, action.id);
+        const inserted = await tx.$executeRaw`
+          INSERT INTO user_registros (
+            id, user_id, idea, chat_origin_id, persona, status, last_interaction, next_deadline, external_links, custom_columns
+          )
+          VALUES (
+            ${id},
+            ${input.request.userId},
+            ${action.idea},
+            ${input.request.threadId},
+            ${input.request.personaId},
+            ${action.status || "Pendente"},
+            ${new Date().toISOString().split("T")[0]},
+            ${action.deadline || null},
+            ${""},
+            ${"{}"}
+          )
+          ON CONFLICT (id) DO NOTHING
+        `;
+        if (inserted > 0) transactionCounts.registry += 1;
+      }
+
+      for (const action of input.sideEffects.approvedDestinyActions) {
+        const id = runtimeEffectId(input.request.runId, action.id);
+        const inserted = await tx.$executeRaw`
+          INSERT INTO sovereign_destiny_events (
+            id, user_id, title, event_date, event_date_label, category, short_description, long_description,
+            dominant_emotion, symbolic_intensity, associated_persona, associated_place, life_phase,
+            visibility, source, tags, image_url, updated_at
+          )
+          VALUES (
+            ${id},
+            ${input.request.userId},
+            ${action.title},
+            ${action.eventDate || null}::date,
+            ${action.eventDateLabel || null},
+            ${action.category},
+            ${action.shortDescription},
+            ${null},
+            ${action.dominantEmotion || null},
+            ${action.symbolicIntensity || null},
+            ${input.request.personaId},
+            ${input.request.placeId || null},
+            ${null},
+            ${"private"},
+            ${`persona:${input.request.personaId};thread:${input.request.threadId};runtime:${input.request.runId}`},
+            ${JSON.stringify(["sugerido-por-persona", input.request.personaId, "cognitive-runtime-v1"])},
+            ${null},
+            NOW()
+          )
+          ON CONFLICT (id) DO NOTHING
+        `;
+        if (inserted > 0) transactionCounts.destiny += 1;
+      }
+
+      return transactionCounts;
     });
-    registryCount += 1;
-  }
 
-  for (const action of input.sideEffects.approvedDestinyActions) {
-    await createDestinyEvent(input.request.userId, {
-      title: action.title,
-      eventDate: action.eventDate || null,
-      eventDateLabel: action.eventDateLabel || null,
-      category: action.category,
-      shortDescription: action.shortDescription,
-      symbolicIntensity: action.symbolicIntensity || null,
-      dominantEmotion: action.dominantEmotion || null,
-      associatedPersona: input.request.personaId,
-      visibility: "private",
-      source: `persona:${input.request.personaId};thread:${input.request.threadId};runtime:${input.request.runId}`,
-      tags: ["sugerido-por-persona", input.request.personaId, "cognitive-runtime-v1"],
-    });
-    destinyCount += 1;
+    return {
+      status: "committed",
+      committed: true,
+      counts,
+    };
+  } catch {
+    return {
+      status: "failed_rolled_back",
+      committed: false,
+      counts: { ...zeroCounts },
+      errorCode: "OPTIONAL_EFFECT_TRANSACTION_ROLLED_BACK",
+    };
   }
-
-  return {
-    committed: true,
-    memoryCount,
-    registryCount,
-    destinyCount,
-  };
 }

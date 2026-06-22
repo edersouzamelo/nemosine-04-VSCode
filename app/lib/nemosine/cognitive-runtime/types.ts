@@ -21,7 +21,12 @@ export const cognitiveStates = [
   "PROMOTION_EVALUATED",
   "PROMOTED",
   "REJECTED",
+  "FINAL_ANSWER_SELECTED",
+  "DELIVERY_PERSISTED",
   "SIDE_EFFECTS_COMMITTED",
+  "SIDE_EFFECTS_SKIPPED",
+  "SIDE_EFFECTS_BLOCKED",
+  "SIDE_EFFECTS_FAILED",
   "DELIVERED",
   "FAILED_SAFE",
 ] as const;
@@ -52,6 +57,7 @@ export type RuntimeErrorCode =
   | "VOCATION_VIOLATION"
   | "COHERENCE_EXHAUSTION"
   | "AUDIT_PERSISTENCE_FAILURE"
+  | "DELIVERY_PERSISTENCE_FAILURE"
   | "SIDE_EFFECT_FAILURE";
 
 export class CognitiveRuntimeError extends Error {
@@ -301,9 +307,27 @@ export type SideEffectAuthorization = {
 };
 
 export type CognitiveAuditEvent = {
-  code: "REBALANCING_APPLIED" | "AUDIT_PERSISTENCE_FAILURE" | "PROFILE_SELECTED";
+  code:
+    | "REBALANCING_APPLIED"
+    | "AUDIT_PERSISTENCE_FAILURE"
+    | "PROFILE_SELECTED"
+    | "DELIVERY_PERSISTED"
+    | "DELIVERY_PERSISTENCE_FAILED"
+    | "SIDE_EFFECTS_COMMITTED"
+    | "SIDE_EFFECTS_SKIPPED"
+    | "SIDE_EFFECTS_BLOCKED"
+    | "SIDE_EFFECTS_ROLLED_BACK";
   at: string;
   detail: Record<string, string | number | boolean | null>;
+};
+
+export type DeliveryStatus = "not_attempted" | "persisted" | "failed" | "shadow_external";
+export type SideEffectStatus = "none" | "skipped" | "blocked" | "committed" | "failed_rolled_back";
+
+export type SideEffectCounts = {
+  memory: number;
+  registry: number;
+  destiny: number;
 };
 
 export type PromotionDecision = {
@@ -349,6 +373,13 @@ export type RedactedCognitiveAudit = {
   executionProfile: ExecutionProfile;
   stateTransitions: StateTransitionRecord[];
   auditEvents: CognitiveAuditEvent[];
+  deliveryStatus: DeliveryStatus;
+  sideEffectStatus: SideEffectStatus;
+  memoryEffectCount: number;
+  registryEffectCount: number;
+  destinyEffectCount: number;
+  assistantMessagePersisted: boolean;
+  auditPersisted: boolean;
   iterationCount: number;
   coherence?: number;
   dimensionScores: Record<string, number>;
@@ -378,6 +409,11 @@ export type CognitiveRunResult = {
   iterations: CognitiveIteration[];
   audit: RedactedCognitiveAudit;
   sideEffectsCommitted: boolean;
+  deliveryPersisted: boolean;
+  deliveryStatus: DeliveryStatus;
+  assistantMessageId?: string;
+  sideEffectStatus: SideEffectStatus;
+  sideEffectCounts: SideEffectCounts;
   auditPersisted: boolean;
 };
 

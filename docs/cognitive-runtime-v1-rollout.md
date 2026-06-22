@@ -18,7 +18,15 @@ Production default remains `off`.
 
 `shadow`: legacy response remains visible. The runtime evaluates a candidate and records that enforcement did not occur. Validator-proposed side effects are not committed by the runtime.
 
-`enforce`: raw candidates are buffered. Only promoted text is sent through the UI-message stream. Authorized side effects are committed only after promotion and audit policy checks.
+`enforce`: raw candidates are buffered. Only selected final text is sent through the UI-message stream, and only after essential assistant delivery persistence succeeds. Authorized optional effects are committed only after promotion, required audit policy checks, explicit authorization and delivery persistence.
+
+## Delivery and Side-Effect Persistence Semantics
+
+Before enabling enforce mode, apply the migration that adds nullable `Message.cognitiveRunId`, the unique non-null index, and the audit read-model fields for delivery and side-effect status. The route persists the user message once, the runtime persists the assistant answer once by cognitive run ID, and the route streams only when `deliveryStatus=persisted`.
+
+Optional effects are operationally downstream. Memory, Registry, Destiny and conversation episode retention are committed in one transaction when authorized effects exist; failures leave the delivered answer in place and report `sideEffectStatus=failed_rolled_back`. Audit order is final answer selected, pre-effect audit attempted, delivery persisted, optional effects resolved, final audit upserted, stream.
+
+Shadow mode remains safe for rollout because the legacy answer and legacy persistence stay authoritative; the runtime records metadata with `deliveryStatus=shadow_external` and creates no duplicate assistant message or optional effects.
 
 ## Staged Deployment
 

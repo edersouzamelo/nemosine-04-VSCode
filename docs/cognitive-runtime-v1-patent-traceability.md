@@ -17,7 +17,15 @@ This engineering note maps deposited patent mechanisms to the bounded V1 impleme
 | Inter-module structured communication | Structured outputs between modules. | Zod schemas for extraction, Scientist and Philosopher. | Schema tests. | Implemented. | Malformed output fails safe. |
 | Promotion decision | Accept/retry/reject based on validation. | `promotion-gate.ts`. | Promotion unit tests. | Implemented. | Human still retains final judgment. |
 | Human authorization | Persistent effects require user authorization. | `side-effect-committer.ts`. | Side-effect tests. | Implemented conservative backend policy. | Future consent UI remains. |
+| Essential delivery persistence | Durable final-answer delivery record. | `persistDeliveredAssistantMessage`, `Message.cognitiveRunId`, route delivery guard. | Persistence integration tests. | Implemented V1. | Requires migration in deployed database. |
+| Optional effect transaction | Approved downstream effects after answer selection. | `commitAuthorizedOptionalEffects`. | Rollback integration tests. | Implemented V1 where database supports transaction. | Legacy raw-SQL tables are pre-created before transaction. |
 
 ## Patent-SCM Reconciliation
 
 Patent language may describe modular cognitive processing, internal deliberation, O-C-V and Double Vigilance. The SCM paper constrains interpretation by preserving human agency and treating LLMs as linguistic engines. In V1, internal deliberation means structured runtime evaluation and regeneration under human-defined policies. It does not mean autonomous goal formation, self-directed cognition or independent persona agency.
+
+## Delivery and Side-Effect Persistence Semantics
+
+For patent traceability, delivery persistence is treated as an operational safety invariant, not as cognition. Enforce-mode final answers are selected by the runtime, persisted exactly once by cognitive run ID, audited, then streamed. Optional memory, Registry, Destiny and conversation episode effects are downstream authorized effects and cannot alter the selected answer.
+
+The trace differentiates `DELIVERY_PERSISTED`, `SIDE_EFFECTS_COMMITTED`, `SIDE_EFFECTS_SKIPPED`, `SIDE_EFFECTS_BLOCKED`, `SIDE_EFFECTS_FAILED` and `DELIVERED`. Audit records expose `deliveryStatus`, `sideEffectStatus`, counts and persistence booleans for future Sala de Maquinas inspection without storing raw private content. Shadow mode records observation only and does not duplicate assistant history.

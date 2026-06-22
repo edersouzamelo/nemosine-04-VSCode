@@ -33,6 +33,15 @@ export function buildRedactedAudit(input: {
   transitions: StateTransitionRecord[];
   iterations: CognitiveIteration[];
   auditEvents: CognitiveAuditEvent[];
+  deliveryStatus: RedactedCognitiveAudit["deliveryStatus"];
+  sideEffectStatus: RedactedCognitiveAudit["sideEffectStatus"];
+  sideEffectCounts: {
+    memory: number;
+    registry: number;
+    destiny: number;
+  };
+  assistantMessagePersisted: boolean;
+  auditPersisted: boolean;
   promptHashes: Record<string, string>;
   finalStatus: RedactedCognitiveAudit["finalStatus"];
   promotionDecision: RedactedCognitiveAudit["promotionDecision"];
@@ -56,6 +65,13 @@ export function buildRedactedAudit(input: {
     executionProfile: input.executionProfile,
     stateTransitions: input.transitions,
     auditEvents: [...input.auditEvents],
+    deliveryStatus: input.deliveryStatus,
+    sideEffectStatus: input.sideEffectStatus,
+    memoryEffectCount: input.sideEffectCounts.memory,
+    registryEffectCount: input.sideEffectCounts.registry,
+    destinyEffectCount: input.sideEffectCounts.destiny,
+    assistantMessagePersisted: input.assistantMessagePersisted,
+    auditPersisted: input.auditPersisted,
     iterationCount: input.iterations.length,
     coherence: lastIteration?.vigia?.totalCoherence,
     dimensionScores,

@@ -9,9 +9,12 @@ import { evaluatePromotion } from "./promotion-gate";
 import { evaluatePrivacy } from "./privacy-policy";
 import {
   authorizeProposedSideEffects,
-  commitApprovedSideEffects,
-  CommitSideEffectsInput,
-  CommitSideEffectsResult,
+  commitAuthorizedOptionalEffects,
+  CommitOptionalEffectsInput,
+  CommitOptionalEffectsResult,
+  persistDeliveredAssistantMessage,
+  PersistDeliveredAssistantMessageInput,
+  PersistDeliveredAssistantMessageResult,
 } from "./side-effect-committer";
 import { deterministicScientistEvaluation, mergeScientistEvaluations } from "./scientist-validator";
 import { CognitiveStateMachine } from "./state-machine";
@@ -28,7 +31,10 @@ import {
   CognitiveRequest,
   CognitiveRunResult,
   CognitiveRuntimeError,
+  DeliveryStatus,
   RedactedCognitiveAudit,
+  SideEffectCounts,
+  SideEffectStatus,
   philosopherEvaluationSchema,
   scientistEvaluationSchema,
 } from "./types";
@@ -39,12 +45,14 @@ type RuntimeDependencies = {
   blockedContextIds?: string[];
   modelProvider?: CognitiveModelProvider;
   candidateOverride?: string;
-  commitSideEffects?: (input: CommitSideEffectsInput) => Promise<CommitSideEffectsResult>;
+  persistAssistantMessage?: (input: PersistDeliveredAssistantMessageInput) => Promise<PersistDeliveredAssistantMessageResult>;
+  commitOptionalEffects?: (input: CommitOptionalEffectsInput) => Promise<CommitOptionalEffectsResult>;
   storeAudit?: (audit: RedactedCognitiveAudit) => Promise<void>;
 };
 
 const SAFE_REJECTION = "Nao posso entregar a resposta gerada nesta execucao, porque ela nao passou pelos controles de coerencia e vigilancia do runtime.";
 const SAFE_FAILURE = "Nao posso concluir esta resposta com seguranca agora. A execucao cognitiva falhou fechada, sem entregar candidato nao validado.";
+const zeroSideEffectCounts: SideEffectCounts = { memory: 0, registry: 0, destiny: 0 };
 
 function makeCandidateFromOverride(text: string, iteration: number): CandidateResponse {
   return {
@@ -102,6 +110,17 @@ function auditPersistenceFailureEvent(): CognitiveAuditEvent {
   };
 }
 
+function auditEvent(
+  code: CognitiveAuditEvent["code"],
+  detail: CognitiveAuditEvent["detail"] = {},
+): CognitiveAuditEvent {
+  return {
+    code,
+    at: new Date().toISOString(),
+    detail,
+  };
+}
+
 async function persistAuditWithPolicy(input: {
   audit: RedactedCognitiveAudit;
   storeAudit: (audit: RedactedCognitiveAudit) => Promise<void>;
@@ -132,6 +151,11 @@ function buildResult(input: {
   promoted: boolean;
   rejectedCandidateTexts: string[];
   sideEffectsCommitted: boolean;
+  deliveryStatus: DeliveryStatus;
+  deliveryPersisted: boolean;
+  assistantMessageId?: string;
+  sideEffectStatus: SideEffectStatus;
+  sideEffectCounts: SideEffectCounts;
   auditPersisted: boolean;
   auditEvents: CognitiveAuditEvent[];
   promptHashes: Record<string, string>;
@@ -152,6 +176,11 @@ function buildResult(input: {
     transitions: input.stateMachine.transitions,
     iterations: input.iterations,
     auditEvents: input.auditEvents,
+    deliveryStatus: input.deliveryStatus,
+    sideEffectStatus: input.sideEffectStatus,
+    sideEffectCounts: input.sideEffectCounts,
+    assistantMessagePersisted: input.deliveryPersisted,
+    auditPersisted: input.auditPersisted,
     promptHashes: input.promptHashes,
     finalStatus: input.stateMachine.current,
     promotionDecision: input.promotionDecision,
@@ -172,8 +201,230 @@ function buildResult(input: {
     iterations: input.iterations,
     audit,
     sideEffectsCommitted: input.sideEffectsCommitted,
+    deliveryPersisted: input.deliveryPersisted,
+    deliveryStatus: input.deliveryStatus,
+    assistantMessageId: input.assistantMessageId,
+    sideEffectStatus: input.sideEffectStatus,
+    sideEffectCounts: input.sideEffectCounts,
     auditPersisted: input.auditPersisted,
   } satisfies CognitiveRunResult;
+}
+
+async function finalizeSelectedAnswer(input: {
+  request: CognitiveRequest;
+  config: CognitiveRuntimeConfig;
+  executionProfile: CognitiveRunResult["executionProfile"];
+  stateMachine: CognitiveStateMachine;
+  iterations: CognitiveIteration[];
+  answer: string;
+  promoted: boolean;
+  rejectedCandidateTexts: string[];
+  promptHashes: Record<string, string>;
+  createdAt: Date;
+  promotionDecision: RedactedCognitiveAudit["promotionDecision"];
+  auditEvents: CognitiveAuditEvent[];
+  auditRequired: boolean;
+  storeAudit: (audit: RedactedCognitiveAudit) => Promise<void>;
+  persistAssistantMessage: (delivery: PersistDeliveredAssistantMessageInput) => Promise<PersistDeliveredAssistantMessageResult>;
+  commitOptionalEffects: (effects: CommitOptionalEffectsInput) => Promise<CommitOptionalEffectsResult>;
+  sideEffects?: CommitOptionalEffectsInput["sideEffects"];
+  failureReason?: string;
+}): Promise<CognitiveRunResult> {
+  input.stateMachine.transition("FINAL_ANSWER_SELECTED", input.failureReason || input.promotionDecision);
+
+  let auditPersisted = false;
+  let deliveryStatus: DeliveryStatus = input.request.runtimeMode === "shadow" ? "shadow_external" : "not_attempted";
+  let deliveryPersisted = false;
+  let assistantMessageId: string | undefined;
+  let sideEffectStatus: SideEffectStatus = "none";
+  let sideEffectCounts: SideEffectCounts = { ...zeroSideEffectCounts };
+  let sideEffectsCommitted = false;
+  let failureReason = input.failureReason;
+
+  if (input.auditRequired) {
+    const preEffectAudit = buildResult({
+      request: input.request,
+      config: input.config,
+      executionProfile: input.executionProfile,
+      stateMachine: input.stateMachine,
+      iterations: input.iterations,
+      answer: input.answer,
+      promoted: input.promoted,
+      rejectedCandidateTexts: input.rejectedCandidateTexts,
+      sideEffectsCommitted: false,
+      deliveryStatus,
+      deliveryPersisted,
+      sideEffectStatus,
+      sideEffectCounts,
+      auditPersisted: false,
+      auditEvents: input.auditEvents,
+      promptHashes: input.promptHashes,
+      createdAt: input.createdAt,
+      promotionDecision: input.promotionDecision,
+      failureReason,
+    });
+    auditPersisted = await persistAuditWithPolicy({
+      audit: preEffectAudit.audit,
+      storeAudit: input.storeAudit,
+      auditEvents: input.auditEvents,
+    });
+  }
+
+  if (input.request.runtimeMode === "shadow") {
+    sideEffectStatus = "skipped";
+    input.auditEvents.push(auditEvent("SIDE_EFFECTS_SKIPPED", { reason: "shadow_external_delivery" }));
+    input.stateMachine.transition("SIDE_EFFECTS_SKIPPED", "shadow external delivery; runtime side effects skipped");
+  } else {
+    try {
+      const delivery = await input.persistAssistantMessage({
+        request: input.request,
+        answer: input.answer,
+      });
+      if (!delivery.persisted) {
+        throw new CognitiveRuntimeError(
+          "DELIVERY_PERSISTENCE_FAILURE",
+          "Assistant message persistence did not confirm delivery.",
+          { safeMessage: SAFE_FAILURE },
+        );
+      }
+      deliveryPersisted = delivery.persisted;
+      assistantMessageId = delivery.messageId;
+      deliveryStatus = "persisted";
+      input.auditEvents.push(auditEvent("DELIVERY_PERSISTED", {
+        assistantMessagePersisted: true,
+      }));
+      input.stateMachine.transition("DELIVERY_PERSISTED", "assistant message persisted by cognitive run id");
+    } catch {
+      deliveryStatus = "failed";
+      deliveryPersisted = false;
+      failureReason = "delivery_persistence_failure";
+      input.auditEvents.push(auditEvent("DELIVERY_PERSISTENCE_FAILED", {
+        rawContentStored: false,
+      }));
+      input.stateMachine.transition("FAILED_SAFE", "DELIVERY_PERSISTENCE_FAILURE");
+      const failedResult = buildResult({
+        request: input.request,
+        config: input.config,
+        executionProfile: input.executionProfile,
+        stateMachine: input.stateMachine,
+        iterations: input.iterations,
+        answer: input.answer,
+        promoted: false,
+        rejectedCandidateTexts: input.rejectedCandidateTexts,
+        sideEffectsCommitted: false,
+        deliveryStatus,
+        deliveryPersisted,
+        sideEffectStatus,
+        sideEffectCounts,
+        auditPersisted: input.auditRequired,
+        auditEvents: input.auditEvents,
+        promptHashes: input.promptHashes,
+        createdAt: input.createdAt,
+        promotionDecision: "failed_safe",
+        failureReason,
+      });
+      if (input.auditRequired) {
+        const persisted = await persistAuditWithPolicy({
+          audit: failedResult.audit,
+          storeAudit: input.storeAudit,
+          auditEvents: input.auditEvents,
+        });
+        failedResult.auditPersisted = persisted;
+        failedResult.audit.auditPersisted = persisted;
+      }
+      return failedResult;
+    }
+
+    if (!auditPersisted && input.auditRequired) {
+      sideEffectStatus = "blocked";
+      input.auditEvents.push(auditEvent("SIDE_EFFECTS_BLOCKED", {
+        reason: "audit_persistence_failure",
+      }));
+      input.stateMachine.transition("SIDE_EFFECTS_BLOCKED", "blocked by audit persistence policy");
+      failureReason = failureReason || "audit_persistence_failure_side_effects_blocked";
+    } else if (!input.sideEffects) {
+      sideEffectStatus = "skipped";
+      input.auditEvents.push(auditEvent("SIDE_EFFECTS_SKIPPED", { reason: "no_promotion_side_effects" }));
+      input.stateMachine.transition("SIDE_EFFECTS_SKIPPED", "no optional side effects for final answer");
+    } else {
+      let optionalResult: CommitOptionalEffectsResult;
+      try {
+        optionalResult = await input.commitOptionalEffects({
+          request: input.request,
+          sideEffects: input.sideEffects,
+        });
+      } catch {
+        optionalResult = {
+          status: "failed_rolled_back",
+          committed: false,
+          counts: { ...zeroSideEffectCounts },
+          errorCode: "OPTIONAL_EFFECT_TRANSACTION_ROLLED_BACK",
+        };
+      }
+      sideEffectStatus = optionalResult.status;
+      sideEffectCounts = optionalResult.counts;
+      sideEffectsCommitted = optionalResult.status === "committed";
+
+      if (optionalResult.status === "committed") {
+        input.auditEvents.push(auditEvent("SIDE_EFFECTS_COMMITTED", {
+          memoryEffectCount: sideEffectCounts.memory,
+          registryEffectCount: sideEffectCounts.registry,
+          destinyEffectCount: sideEffectCounts.destiny,
+        }));
+        input.stateMachine.transition("SIDE_EFFECTS_COMMITTED", "optional effects committed transactionally");
+      } else if (optionalResult.status === "skipped") {
+        input.auditEvents.push(auditEvent("SIDE_EFFECTS_SKIPPED", { reason: "no_authorized_optional_effects" }));
+        input.stateMachine.transition("SIDE_EFFECTS_SKIPPED", "no authorized optional side effects");
+      } else if (optionalResult.status === "failed_rolled_back") {
+        input.auditEvents.push(auditEvent("SIDE_EFFECTS_ROLLED_BACK", {
+          reason: optionalResult.errorCode || "optional_effect_failure",
+        }));
+        input.stateMachine.transition("SIDE_EFFECTS_FAILED", "optional effects failed and rolled back");
+        failureReason = failureReason || "optional_effects_failed_rolled_back";
+      } else {
+        sideEffectStatus = "blocked";
+        input.auditEvents.push(auditEvent("SIDE_EFFECTS_BLOCKED", { reason: "optional_effects_blocked" }));
+        input.stateMachine.transition("SIDE_EFFECTS_BLOCKED", "optional effects blocked");
+      }
+    }
+  }
+
+  input.stateMachine.transition("DELIVERED", deliveryStatus === "shadow_external" ? "shadow result observed" : "persisted answer ready for stream");
+
+  const finalResult = buildResult({
+    request: input.request,
+    config: input.config,
+    executionProfile: input.executionProfile,
+    stateMachine: input.stateMachine,
+    iterations: input.iterations,
+    answer: input.answer,
+    promoted: input.promoted,
+    rejectedCandidateTexts: input.rejectedCandidateTexts,
+    sideEffectsCommitted,
+    deliveryStatus,
+    deliveryPersisted,
+    assistantMessageId,
+    sideEffectStatus,
+    sideEffectCounts,
+    auditPersisted: input.auditRequired,
+    auditEvents: input.auditEvents,
+    promptHashes: input.promptHashes,
+    createdAt: input.createdAt,
+    promotionDecision: input.promotionDecision,
+    failureReason,
+  });
+
+  if (input.auditRequired) {
+    const persisted = await persistAuditWithPolicy({
+      audit: finalResult.audit,
+      storeAudit: input.storeAudit,
+      auditEvents: input.auditEvents,
+    });
+    finalResult.auditPersisted = persisted;
+    finalResult.audit.auditPersisted = persisted;
+  }
+
+  return finalResult;
 }
 
 export async function runCognitiveRuntime(
@@ -184,7 +435,8 @@ export async function runCognitiveRuntime(
   const createdAt = new Date();
   const stateMachine = new CognitiveStateMachine();
   const provider = dependencies.modelProvider || createAiSdkCognitiveModelProvider();
-  const commitSideEffects = dependencies.commitSideEffects || commitApprovedSideEffects;
+  const persistAssistantMessage = dependencies.persistAssistantMessage || persistDeliveredAssistantMessage;
+  const commitOptionalEffects = dependencies.commitOptionalEffects || commitAuthorizedOptionalEffects;
   const storeAudit = dependencies.storeAudit || storeCognitiveAudit;
   const iterations: CognitiveIteration[] = [];
   const rejectedCandidateTexts: string[] = [];
@@ -306,8 +558,7 @@ export async function runCognitiveRuntime(
         }
 
         stateMachine.transition("REJECTED", "coherence exhausted");
-        stateMachine.transition("DELIVERED", "safe rejection delivered");
-        const result = buildResult({
+        return finalizeSelectedAnswer({
           request,
           config,
           executionProfile,
@@ -316,18 +567,16 @@ export async function runCognitiveRuntime(
           answer: SAFE_REJECTION,
           promoted: false,
           rejectedCandidateTexts,
-          sideEffectsCommitted: false,
-          auditPersisted: false,
           auditEvents,
+          auditRequired,
+          storeAudit,
+          persistAssistantMessage,
+          commitOptionalEffects,
           promptHashes,
           createdAt,
           promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "rejected",
           failureReason: "coherence_exhaustion",
         });
-        if (auditRequired) {
-          result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
-        }
-        return result;
       }
 
       stateMachine.transition("OCV_CONVERGED", `iteration:${index}`);
@@ -387,8 +636,7 @@ export async function runCognitiveRuntime(
         }
 
         stateMachine.transition("REJECTED", "promotion rejected");
-        stateMachine.transition("DELIVERED", "safe rejection delivered");
-        const result = buildResult({
+        return finalizeSelectedAnswer({
           request,
           config,
           executionProfile,
@@ -397,94 +645,23 @@ export async function runCognitiveRuntime(
           answer: SAFE_REJECTION,
           promoted: false,
           rejectedCandidateTexts,
-          sideEffectsCommitted: false,
-          auditPersisted: false,
           auditEvents,
+          auditRequired,
+          storeAudit,
+          persistAssistantMessage,
+          commitOptionalEffects,
           promptHashes,
           createdAt,
           promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "rejected",
           failureReason: promotion.reasons.join(",") || "promotion_rejected",
         });
-        if (auditRequired) {
-          result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
-        }
-        return result;
       }
 
       stateMachine.transition("PROMOTED", `iteration:${index}`);
       iteration.completedAt = new Date().toISOString();
       iterations.push(iteration);
 
-      let sideEffectsCommitted = false;
-      let auditPersisted = false;
-
-      if (request.runtimeMode === "enforce" && auditRequired) {
-        const preCommitAuditResult = buildResult({
-          request,
-          config,
-          executionProfile,
-          stateMachine,
-          iterations,
-          answer: candidate.visibleText,
-          promoted: true,
-          rejectedCandidateTexts,
-          sideEffectsCommitted: false,
-          auditPersisted: false,
-          auditEvents,
-          promptHashes,
-          createdAt,
-          promotionDecision: "promoted",
-        });
-        auditPersisted = await persistAuditWithPolicy({
-          audit: preCommitAuditResult.audit,
-          storeAudit,
-          auditEvents,
-        });
-
-        if (!auditPersisted) {
-          stateMachine.transition("SIDE_EFFECTS_COMMITTED", "blocked-audit-persistence-failure");
-          stateMachine.transition("DELIVERED", "promoted answer delivered; side effects blocked");
-          return buildResult({
-            request,
-            config,
-            executionProfile,
-            stateMachine,
-            iterations,
-            answer: candidate.visibleText,
-            promoted: true,
-            rejectedCandidateTexts,
-            sideEffectsCommitted: false,
-            auditPersisted: false,
-            auditEvents,
-            promptHashes,
-            createdAt,
-            promotionDecision: "promoted",
-            failureReason: "audit_persistence_failure_side_effects_blocked",
-          });
-        }
-      }
-
-      if (request.runtimeMode === "enforce") {
-        try {
-          await commitSideEffects({
-            request,
-            answer: candidate.visibleText,
-            sideEffects: sideEffectAuthorization,
-          });
-          sideEffectsCommitted = true;
-        } catch (error) {
-          throw new CognitiveRuntimeError(
-            "SIDE_EFFECT_FAILURE",
-            `Failed to commit promoted side effects: ${error instanceof Error ? error.message : String(error)}`,
-            { safeMessage: "A resposta foi promovida, mas os efeitos persistentes falharam." },
-          );
-        }
-      }
-
-      stateMachine.transition("SIDE_EFFECTS_COMMITTED", request.runtimeMode === "enforce" ? "committed" : "shadow-no-commit");
-      stateMachine.transition("DELIVERED", "promoted answer delivered");
-
-      const result = buildResult({
+      return finalizeSelectedAnswer({
         request,
         config,
         executionProfile,
@@ -493,17 +670,16 @@ export async function runCognitiveRuntime(
         answer: candidate.visibleText,
         promoted: true,
         rejectedCandidateTexts,
-        sideEffectsCommitted,
-        auditPersisted,
         auditEvents,
+        auditRequired,
+        storeAudit,
+        persistAssistantMessage,
+        commitOptionalEffects,
+        sideEffects: sideEffectAuthorization,
         promptHashes,
         createdAt,
         promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "promoted",
       });
-      if (auditRequired) {
-        result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
-      }
-      return result;
     }
 
     throw new CognitiveRuntimeError(
@@ -525,9 +701,6 @@ export async function runCognitiveRuntime(
       } catch {
         // Keep the original transition trace if the failure itself came from an illegal edge.
       }
-      if (stateMachine.current === "FAILED_SAFE") {
-        stateMachine.transition("DELIVERED", "failed-safe answer delivered");
-      }
     }
 
     const failureReason = error instanceof CognitiveRuntimeError
@@ -535,7 +708,32 @@ export async function runCognitiveRuntime(
       : error instanceof Error
         ? request.privateRun ? "runtime_failure" : error.message
         : request.privateRun ? "runtime_failure" : String(error);
-    const result = buildResult({
+
+    if (stateMachine.current !== "FAILED_SAFE") {
+      return buildResult({
+        request,
+        config,
+        executionProfile,
+        stateMachine,
+        iterations,
+        answer: error instanceof CognitiveRuntimeError ? error.safeMessage : SAFE_FAILURE,
+        promoted: false,
+        rejectedCandidateTexts,
+        sideEffectsCommitted: false,
+        deliveryStatus: "failed",
+        deliveryPersisted: false,
+        sideEffectStatus: "none",
+        sideEffectCounts: { ...zeroSideEffectCounts },
+        auditPersisted: false,
+        auditEvents,
+        promptHashes,
+        createdAt,
+        promotionDecision: "failed_safe",
+        failureReason,
+      });
+    }
+
+    return finalizeSelectedAnswer({
       request,
       config,
       executionProfile,
@@ -544,17 +742,15 @@ export async function runCognitiveRuntime(
       answer: error instanceof CognitiveRuntimeError ? error.safeMessage : SAFE_FAILURE,
       promoted: false,
       rejectedCandidateTexts,
-      sideEffectsCommitted: false,
-      auditPersisted: false,
       auditEvents,
+      auditRequired,
+      storeAudit,
+      persistAssistantMessage,
+      commitOptionalEffects,
       promptHashes,
       createdAt,
       promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "failed_safe",
       failureReason,
     });
-    if (auditRequired && failureReason !== "AUDIT_PERSISTENCE_FAILURE") {
-      result.auditPersisted = await persistAuditWithPolicy({ audit: result.audit, storeAudit, auditEvents });
-    }
-    return result;
   }
 }

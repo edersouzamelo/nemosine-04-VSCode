@@ -139,29 +139,90 @@ function config(overrides = {}) {
   };
 }
 
+function persistenceHarness(options = {}) {
+  const persistedByRun = new Map();
+  const deliveryCalls = [];
+
+  return {
+    deliveryCalls,
+    persistedByRun,
+    threadReload(runId) {
+      return persistedByRun.get(runId);
+    },
+    async persistAssistantMessage({ request: req, answer }) {
+      deliveryCalls.push({ runId: req.runId, answer });
+      if (options.failDelivery) {
+        throw new Error("message db down");
+      }
+      if (!persistedByRun.has(req.runId)) {
+        persistedByRun.set(req.runId, {
+          id: `message-${req.runId}`,
+          threadId: req.threadId,
+          role: "assistant",
+          content: answer,
+        });
+      }
+      return { persisted: true, messageId: persistedByRun.get(req.runId).id };
+    },
+  };
+}
+
+function skippedOptionalEffects(calls = []) {
+  return async (input) => {
+    calls.push(input);
+    return {
+      status: "skipped",
+      committed: false,
+      counts: { memory: 0, registry: 0, destiny: 0 },
+    };
+  };
+}
+
+function committedOptionalEffects(calls = []) {
+  return async (input) => {
+    calls.push(input);
+    return {
+      status: "committed",
+      committed: true,
+      counts: {
+        memory: input.sideEffects.approvedMemoryActions.length,
+        registry: input.sideEffects.approvedRegistryActions.length,
+        destiny: input.sideEffects.approvedDestinyActions.length,
+      },
+    };
+  };
+}
+
 test("candidate passes first iteration and commits promoted assistant answer once", async () => {
-  const req = request();
-  const commits = [];
+  const req = request({
+    userText: "Guarde na memoria: o build precisa de Prisma generate.",
+    displayUserText: "Guarde na memoria: o build precisa de Prisma generate.",
+  });
+  const delivery = persistenceHarness();
+  const optionalCalls = [];
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
     contextEnvelope: context(req),
-    modelProvider: provider({ candidates: ["Resposta tecnica promovida."] }),
-    commitSideEffects: async (input) => {
-      commits.push(input.answer);
-      return { committed: true, memoryCount: 0, registryCount: 0, destinyCount: 0 };
-    },
+    modelProvider: provider({ candidates: ["Resposta tecnica promovida. [MEMORY: fato: build usa Prisma generate]"] }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: committedOptionalEffects(optionalCalls),
     storeAudit: async () => {},
   });
 
   assert.equal(result.promoted, true);
+  assert.equal(result.deliveryPersisted, true);
+  assert.equal(result.deliveryStatus, "persisted");
+  assert.equal(result.sideEffectStatus, "committed");
   assert.equal(result.sideEffectsCommitted, true);
-  assert.deepEqual(commits, ["Resposta tecnica promovida."]);
+  assert.deepEqual(delivery.deliveryCalls.map((call) => call.answer), ["Resposta tecnica promovida."]);
+  assert.equal(delivery.threadReload(req.runId).content, "Resposta tecnica promovida.");
+  assert.equal(optionalCalls.length, 1);
   assert.equal(result.finalStatus, "DELIVERED");
 });
 
 test("candidate fails Scientist gate and succeeds after revision without persisting rejected answer", async () => {
   const req = request();
-  const commits = [];
+  const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
     config: config(),
     contextEnvelope: context(req),
@@ -172,10 +233,8 @@ test("candidate fails Scientist gate and succeeds after revision without persist
         scientist(),
       ],
     }),
-    commitSideEffects: async (input) => {
-      commits.push(input.answer);
-      return { committed: true, memoryCount: 0, registryCount: 0, destinyCount: 0 };
-    },
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
     storeAudit: async () => {},
   });
 
@@ -183,12 +242,14 @@ test("candidate fails Scientist gate and succeeds after revision without persist
   assert.equal(result.iterations.length, 2);
   assert.equal(result.answer, "Resposta revisada e coerente.");
   assert.deepEqual(result.rejectedCandidateTexts, ["Resposta ruim."]);
-  assert.deepEqual(commits, ["Resposta revisada e coerente."]);
+  assert.deepEqual(delivery.deliveryCalls.map((call) => call.answer), ["Resposta revisada e coerente."]);
+  assert.equal(JSON.stringify([...delivery.persistedByRun.values()]).includes("Resposta ruim."), false);
 });
 
 test("candidate never reaches threshold and no side effects are committed", async () => {
   const req = request();
-  let commitCount = 0;
+  const delivery = persistenceHarness();
+  let optionalCommitCount = 0;
   const result = await runCognitiveRuntime(req, {
     config: config(),
     contextEnvelope: context(req),
@@ -199,21 +260,25 @@ test("candidate never reaches threshold and no side effects are committed", asyn
         scientist({ factualSupport: 0.1, logicalConsistency: 0.2, responseRelevance: 0.2 }),
       ],
     }),
-    commitSideEffects: async () => {
-      commitCount += 1;
-      return { committed: true, memoryCount: 0, registryCount: 0, destinyCount: 0 };
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => {
+      optionalCommitCount += 1;
+      return { status: "committed", committed: true, counts: { memory: 0, registry: 0, destiny: 0 } };
     },
     storeAudit: async () => {},
   });
 
   assert.equal(result.promoted, false);
-  assert.equal(commitCount, 0);
+  assert.equal(optionalCommitCount, 0);
+  assert.equal(delivery.deliveryCalls.length, 1);
+  assert.equal(delivery.threadReload(req.runId).content, result.answer);
   assert.equal(result.answer.includes("BAD CANDIDATE"), false);
   assert.equal(result.rejectedCandidateTexts.length, 2);
 });
 
 test("permissive LLM Scientist cannot erase deterministic simulated-access failure", async () => {
   const req = request();
+  const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
     contextEnvelope: context(req),
@@ -221,7 +286,8 @@ test("permissive LLM Scientist cannot erase deterministic simulated-access failu
       candidates: ["Verifiquei o banco de dados e confirmei o log."],
       scientists: [scientist()],
     }),
-    commitSideEffects: async () => { throw new Error("should not commit"); },
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => { throw new Error("should not commit"); },
     storeAudit: async () => {},
   });
 
@@ -232,6 +298,7 @@ test("permissive LLM Scientist cannot erase deterministic simulated-access failu
 
 test("permissive LLM Philosopher cannot erase deterministic dependency failure", async () => {
   const req = request();
+  const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
     contextEnvelope: context(req),
@@ -240,7 +307,8 @@ test("permissive LLM Philosopher cannot erase deterministic dependency failure",
       scientists: [scientist()],
       philosophers: [philosopher()],
     }),
-    commitSideEffects: async () => { throw new Error("should not commit"); },
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => { throw new Error("should not commit"); },
     storeAudit: async () => {},
   });
 
@@ -251,6 +319,7 @@ test("permissive LLM Philosopher cannot erase deterministic dependency failure",
 
 test("malformed structured Scientist output fails safe", async () => {
   const req = request();
+  const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
     contextEnvelope: context(req),
@@ -258,18 +327,22 @@ test("malformed structured Scientist output fails safe", async () => {
       candidates: ["Resposta que dependeria de validacao malformada."],
       scientists: [{ logicalConsistency: 2 }],
     }),
-    commitSideEffects: async () => { throw new Error("should not commit"); },
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => { throw new Error("should not commit"); },
     storeAudit: async () => {},
   });
 
   assert.equal(result.promoted, false);
   assert.equal(result.finalStatus, "DELIVERED");
+  assert.equal(result.deliveryPersisted, true);
+  assert.equal(delivery.threadReload(req.runId).content, result.answer);
   assert.equal(result.audit.failureReason, "MALFORMED_STRUCTURED_OUTPUT");
 });
 
 test("extractor and Scientist receive actual user and authorized context evidence", async () => {
   const req = request({ userText: "Use o contexto autorizado sobre build." });
   const captured = {};
+  const delivery = persistenceHarness();
   const ctx = context(req, {
     authorizedContext: [{
       id: "ctx-build",
@@ -294,7 +367,8 @@ test("extractor and Scientist receive actual user and authorized context evidenc
         scientist: (input) => { captured.scientist = input; },
       },
     }),
-    commitSideEffects: async () => ({ committed: true, memoryCount: 0, registryCount: 0, destinyCount: 0 }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
     storeAudit: async () => {},
   });
 
@@ -308,11 +382,13 @@ test("extractor and Scientist receive actual user and authorized context evidenc
 test("high-stakes requested light profile is rebalanced to full and audited", async () => {
   const req = request({ userText: "Preciso de diagnostico medico agora.", requestedProfile: "light" });
   const storedAudits = [];
+  const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
     contextEnvelope: context(req),
     modelProvider: provider({ candidates: ["Nao posso diagnosticar; procure atendimento adequado."] }),
-    commitSideEffects: async () => ({ committed: true, memoryCount: 0, registryCount: 0, destinyCount: 0 }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
     storeAudit: async (audit) => { storedAudits.push(audit); },
   });
 
@@ -330,19 +406,24 @@ test("private run discards registry and Destiny actions, but allows exact-scope 
     displayUserText: "Lembre disso no Confessor, mas nao exporte.",
   });
   const commits = [];
+  const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
     contextEnvelope: context(req),
     modelProvider: provider({
       candidates: ["Resposta privada. [MEMORY: tema privado] [REGISTRY: tarefa global] [DESTINY: Marco | sem data | marco | descricao]"],
     }),
-    commitSideEffects: async (input) => {
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async (input) => {
       commits.push(input.sideEffects);
       return {
+        status: "committed",
         committed: true,
-        memoryCount: input.sideEffects.approvedMemoryActions.length,
-        registryCount: input.sideEffects.approvedRegistryActions.length,
-        destinyCount: input.sideEffects.approvedDestinyActions.length,
+        counts: {
+          memory: input.sideEffects.approvedMemoryActions.length,
+          registry: input.sideEffects.approvedRegistryActions.length,
+          destiny: input.sideEffects.approvedDestinyActions.length,
+        },
       };
     },
     storeAudit: async () => {},
@@ -361,6 +442,7 @@ test("private run discards registry and Destiny actions, but allows exact-scope 
 
 test("audit persistence failure delivers promoted text but blocks side effects", async () => {
   const req = request({ userText: "Corrija este bug e crie um registro da tarefa." });
+  const delivery = persistenceHarness();
   let commitCount = 0;
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1, auditEnabled: true }),
@@ -368,19 +450,167 @@ test("audit persistence failure delivers promoted text but blocks side effects",
     modelProvider: provider({
       candidates: ["Resposta promovida. [REGISTRY: Corrigir build]"],
     }),
-    commitSideEffects: async () => {
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => {
       commitCount += 1;
-      return { committed: true, memoryCount: 0, registryCount: 1, destinyCount: 0 };
+      return { status: "committed", committed: true, counts: { memory: 0, registry: 1, destiny: 0 } };
     },
     storeAudit: async () => { throw new Error("audit db down"); },
   });
 
   assert.equal(result.promoted, true);
   assert.equal(result.answer, "Resposta promovida.");
+  assert.equal(result.deliveryPersisted, true);
+  assert.equal(result.sideEffectStatus, "blocked");
   assert.equal(result.sideEffectsCommitted, false);
   assert.equal(result.auditPersisted, false);
   assert.equal(commitCount, 0);
   assert.ok(result.audit.auditEvents.some((event) => event.code === "AUDIT_PERSISTENCE_FAILURE"));
+});
+
+test("persistence retry with the same run id returns one assistant message", async () => {
+  const req = request({ runId: "run-idempotent-delivery" });
+  const delivery = persistenceHarness();
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const result = await runCognitiveRuntime(req, {
+      config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+      contextEnvelope: context(req),
+      modelProvider: provider({ candidates: ["Resposta idempotente."] }),
+      persistAssistantMessage: delivery.persistAssistantMessage,
+      commitOptionalEffects: skippedOptionalEffects(),
+      storeAudit: async () => {},
+    });
+    assert.equal(result.deliveryPersisted, true);
+    assert.equal(result.assistantMessageId, "message-run-idempotent-delivery");
+  }
+
+  assert.equal(delivery.deliveryCalls.length, 2);
+  assert.equal(delivery.persistedByRun.size, 1);
+  assert.equal(delivery.threadReload(req.runId).content, "Resposta idempotente.");
+});
+
+test("assistant persistence failure prevents delivery state and optional effects", async () => {
+  const req = request({
+    userText: "Guarde na memoria e crie um registro desta tarefa.",
+    displayUserText: "Guarde na memoria e crie um registro desta tarefa.",
+  });
+  const delivery = persistenceHarness({ failDelivery: true });
+  let optionalCallCount = 0;
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({
+      candidates: ["Resposta que nao pode ser entregue. [MEMORY: fato temporario] [REGISTRY: tarefa]"],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => {
+      optionalCallCount += 1;
+      return { status: "committed", committed: true, counts: { memory: 1, registry: 1, destiny: 0 } };
+    },
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.finalStatus, "FAILED_SAFE");
+  assert.equal(result.deliveryPersisted, false);
+  assert.equal(result.deliveryStatus, "failed");
+  assert.equal(result.sideEffectStatus, "none");
+  assert.equal(optionalCallCount, 0);
+  assert.equal(delivery.persistedByRun.size, 0);
+  assert.ok(result.audit.auditEvents.some((event) => event.code === "DELIVERY_PERSISTENCE_FAILED"));
+});
+
+test("optional-effect rollback preserves promoted answer and reports failed side effects", async () => {
+  const req = request({
+    userText: [
+      "Guarde na memoria.",
+      "Crie um registro da tarefa.",
+      "Registre na linha do destino este marco.",
+    ].join(" "),
+    displayUserText: [
+      "Guarde na memoria.",
+      "Crie um registro da tarefa.",
+      "Registre na linha do destino este marco.",
+    ].join(" "),
+  });
+  const delivery = persistenceHarness();
+  const optionalCalls = [];
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({
+      candidates: [
+        "Resposta promovida apesar da falha opcional. [MEMORY: fato relevante] [REGISTRY: Registrar build] [DESTINY: Marco | sem data | marco | descricao]",
+      ],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async (input) => {
+      optionalCalls.push(input);
+      return {
+        status: "failed_rolled_back",
+        committed: false,
+        counts: { memory: 0, registry: 0, destiny: 0 },
+        errorCode: "OPTIONAL_EFFECT_TRANSACTION_ROLLED_BACK",
+      };
+    },
+    storeAudit: async () => {},
+  });
+
+  assert.equal(optionalCalls.length, 1);
+  assert.equal(optionalCalls[0].sideEffects.approvedMemoryActions.length, 1);
+  assert.equal(optionalCalls[0].sideEffects.approvedRegistryActions.length, 1);
+  assert.equal(optionalCalls[0].sideEffects.approvedDestinyActions.length, 1);
+  assert.equal(result.answer, "Resposta promovida apesar da falha opcional.");
+  assert.equal(delivery.threadReload(req.runId).content, "Resposta promovida apesar da falha opcional.");
+  assert.equal(result.deliveryPersisted, true);
+  assert.equal(result.sideEffectsCommitted, false);
+  assert.equal(result.sideEffectStatus, "failed_rolled_back");
+  assert.deepEqual(result.sideEffectCounts, { memory: 0, registry: 0, destiny: 0 });
+  assert.ok(result.audit.stateTransitions.some((transition) => transition.to === "SIDE_EFFECTS_FAILED"));
+  assert.equal(result.answer.includes("Nao posso concluir"), false);
+});
+
+test("no authorized optional effects use skipped state rather than committed", async () => {
+  const req = request();
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({ candidates: ["Resposta sem efeitos opcionais."] }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.promoted, true);
+  assert.equal(result.sideEffectsCommitted, false);
+  assert.equal(result.sideEffectStatus, "skipped");
+  assert.ok(result.audit.stateTransitions.some((transition) => transition.to === "SIDE_EFFECTS_SKIPPED"));
+  assert.equal(result.audit.stateTransitions.some((transition) => transition.to === "SIDE_EFFECTS_COMMITTED"), false);
+});
+
+test("shadow mode audits observed answer without duplicating assistant history", async () => {
+  const req = request({ runtimeMode: "shadow" });
+  const delivery = persistenceHarness();
+  let optionalCallCount = 0;
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({ candidates: ["Resposta legada observada."] }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => {
+      optionalCallCount += 1;
+      return { status: "committed", committed: true, counts: { memory: 1, registry: 0, destiny: 0 } };
+    },
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.finalStatus, "DELIVERED");
+  assert.equal(result.deliveryPersisted, false);
+  assert.equal(result.deliveryStatus, "shadow_external");
+  assert.equal(result.sideEffectStatus, "skipped");
+  assert.equal(delivery.deliveryCalls.length, 0);
+  assert.equal(optionalCallCount, 0);
 });
 
 test("runtime off remains legacy-disabled at configuration boundary", () => {

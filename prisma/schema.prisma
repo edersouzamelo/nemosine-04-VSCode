@@ -114,13 +114,14 @@ model Thread {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  threadId  String
-  role      String   // 'user' | 'assistant' | 'system'
-  content   String
-  timestamp DateTime @default(now())
+  id             String   @id @default(cuid())
+  threadId       String
+  role           String   // 'user' | 'assistant' | 'system'
+  content        String
+  cognitiveRunId String?  @unique
+  timestamp      DateTime @default(now())
 
-  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread         Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
 }
 
 model UserMemory {
@@ -143,6 +144,13 @@ model CognitiveRunAudit {
   executionProfile   String   @map("execution_profile")
   stateTransitions   Json     @map("state_transitions")
   auditEvents        Json     @map("audit_events")
+  deliveryStatus     String   @default("not_attempted") @map("delivery_status")
+  sideEffectStatus   String   @default("none") @map("side_effect_status")
+  memoryEffectCount  Int      @default(0) @map("memory_effect_count")
+  registryEffectCount Int     @default(0) @map("registry_effect_count")
+  destinyEffectCount Int      @default(0) @map("destiny_effect_count")
+  assistantMessagePersisted Boolean @default(false) @map("assistant_message_persisted")
+  auditPersisted     Boolean  @default(false) @map("audit_persisted")
   iterationCount     Int      @map("iteration_count")
   coherence          Float?
   dimensionScores    Json     @map("dimension_scores")

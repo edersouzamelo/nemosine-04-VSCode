@@ -118,6 +118,74 @@ export const addMessageToThread = async (userId: string, threadId: string, role:
     });
 };
 
+export type PersistedAssistantMessage = {
+    id: string;
+    threadId: string;
+    cognitiveRunId: string;
+};
+
+export const persistAssistantMessageForCognitiveRun = async (
+    userId: string,
+    threadId: string,
+    cognitiveRunId: string,
+    content: string,
+): Promise<PersistedAssistantMessage> => {
+    const existing = await prisma.message.findUnique({
+        where: { cognitiveRunId },
+        include: { thread: true },
+    });
+
+    if (existing) {
+        if (existing.thread.userId !== userId || existing.threadId !== threadId || existing.role !== 'assistant') {
+            throw new Error("Cognitive run message idempotency conflict");
+        }
+        return {
+            id: existing.id,
+            threadId: existing.threadId,
+            cognitiveRunId,
+        };
+    }
+
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    if (!thread) throw new Error("Thread not found or unauthorized");
+
+    try {
+        const message = await prisma.message.create({
+            data: {
+                threadId,
+                role: 'assistant',
+                content,
+                cognitiveRunId,
+            },
+        });
+
+        await prisma.thread.update({
+            where: { id: threadId },
+            data: { updatedAt: new Date() },
+        });
+
+        return {
+            id: message.id,
+            threadId,
+            cognitiveRunId,
+        };
+    } catch (error: any) {
+        if (error?.code !== "P2002") throw error;
+        const racedExisting = await prisma.message.findUnique({
+            where: { cognitiveRunId },
+            include: { thread: true },
+        });
+        if (!racedExisting || racedExisting.thread.userId !== userId || racedExisting.threadId !== threadId || racedExisting.role !== 'assistant') {
+            throw error;
+        }
+        return {
+            id: racedExisting.id,
+            threadId: racedExisting.threadId,
+            cognitiveRunId,
+        };
+    }
+};
+
 export const updateThreadTitle = async (userId: string, threadId: string, title: string): Promise<void> => {
     // Verify ownership
     const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });

@@ -132,6 +132,37 @@ test("state machine accepts legal transitions and records illegal ones", () => {
   assert.equal(machine.transitions.at(-1).allowed, false);
 });
 
+test("state machine separates delivery persistence from optional side-effect outcomes", () => {
+  const committed = new CognitiveStateMachine("PROMOTED");
+  committed.transition("FINAL_ANSWER_SELECTED");
+  committed.transition("DELIVERY_PERSISTED");
+  committed.transition("SIDE_EFFECTS_COMMITTED");
+  committed.transition("DELIVERED");
+  assert.equal(committed.current, "DELIVERED");
+
+  const skipped = new CognitiveStateMachine("DELIVERY_PERSISTED");
+  skipped.transition("SIDE_EFFECTS_SKIPPED");
+  skipped.transition("DELIVERED");
+  assert.equal(skipped.current, "DELIVERED");
+
+  const failed = new CognitiveStateMachine("DELIVERY_PERSISTED");
+  failed.transition("SIDE_EFFECTS_FAILED");
+  failed.transition("DELIVERED");
+  assert.equal(failed.current, "DELIVERED");
+
+  const blocked = new CognitiveStateMachine("DELIVERY_PERSISTED");
+  blocked.transition("SIDE_EFFECTS_BLOCKED");
+  blocked.transition("DELIVERED");
+  assert.equal(blocked.current, "DELIVERED");
+
+  const safe = new CognitiveStateMachine("FAILED_SAFE");
+  safe.transition("FINAL_ANSWER_SELECTED");
+  safe.transition("DELIVERY_PERSISTED");
+  safe.transition("SIDE_EFFECTS_SKIPPED");
+  safe.transition("DELIVERED");
+  assert.equal(safe.current, "DELIVERED");
+});
+
 test("config parses threshold, retries, audit and default off mode", () => {
   assert.equal(readCognitiveRuntimeConfig({}).mode, "off");
   assert.equal(shouldUseCognitiveRuntime(readCognitiveRuntimeConfig({})), false);
@@ -312,6 +343,11 @@ test("redacted audit stores hashes, lengths, audit events and no raw content", (
     transitions: [{ from: "RECEIVED", to: "AUTHORIZED", at: "now", allowed: true }],
     iterations: [],
     auditEvents: [{ code: "PROFILE_SELECTED", at: "now", detail: { selectedProfile: "standard" } }],
+    deliveryStatus: "persisted",
+    sideEffectStatus: "skipped",
+    sideEffectCounts: { memory: 0, registry: 0, destiny: 0 },
+    assistantMessagePersisted: true,
+    auditPersisted: true,
     promptHashes: { prompt: "abc" },
     finalStatus: "DELIVERED",
     promotionDecision: "failed_safe",

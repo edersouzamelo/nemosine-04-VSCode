@@ -217,12 +217,34 @@ export async function POST(req: NextRequest) {
             });
             const cognitiveResult = await executeCognitiveRuntime(cognitiveRequest);
 
+            if (!cognitiveResult.deliveryPersisted || cognitiveResult.deliveryStatus === 'failed') {
+                return NextResponse.json(
+                    {
+                        error: 'Cognitive runtime delivery persistence failed',
+                        runId: cognitiveResult.runId,
+                        deliveryStatus: cognitiveResult.deliveryStatus
+                    },
+                    {
+                        status: 500,
+                        headers: {
+                            'x-thread-id': activeThreadId,
+                            'x-cognitive-run-id': cognitiveResult.runId,
+                            'x-cognitive-runtime-status': cognitiveResult.finalStatus,
+                            'x-cognitive-delivery-status': cognitiveResult.deliveryStatus,
+                            'x-cognitive-side-effect-status': cognitiveResult.sideEffectStatus,
+                        }
+                    }
+                );
+            }
+
             return createPromotedUIMessageStreamResponse({
                 text: cognitiveResult.answer,
                 headers: {
                     'x-thread-id': activeThreadId,
                     'x-cognitive-run-id': cognitiveResult.runId,
                     'x-cognitive-runtime-status': cognitiveResult.finalStatus,
+                    'x-cognitive-delivery-status': cognitiveResult.deliveryStatus,
+                    'x-cognitive-side-effect-status': cognitiveResult.sideEffectStatus,
                 },
             });
         }
