@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:cognitive-runtime": "node --test tests/cognitive-runtime/*.test.js",
+    "test:persona-identity": "node --test tests/persona-identity/*.test.js",
+    "eval:personas": "node scripts/eval-personas.js",
+    "audit:cognitive-runtime": "node scripts/audit-cognitive-runtime.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.36",
@@ -33,7 +37,8 @@
     "remark-gfm": "^4.0.1",
     "resend": "^6.9.2",
     "three": "^0.184.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -12653,10 +12653,12 @@ const getSlug = (name: string) => name.toLowerCase().replace(/\s+/g, '-');
 const normalizePersonaKey = (name: string) => name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\uFE00-\uFE0F]/g, "")
     .replace(/[^\p{L}\p{N}\s-]/gu, " ")
     .toLowerCase()
-    .replace(/^(o|a)\s+/, "")
     .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(o|a)\s+/, "")
     .trim();
 
 const resolvePersonaPrompt = (name: string) => {

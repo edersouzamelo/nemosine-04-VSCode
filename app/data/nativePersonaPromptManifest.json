@@ -1,0 +1,232 @@
+{
+  "generatedAt": "2026-06-22T02:49:27.262Z",
+  "algorithm": "sha256",
+  "source": "prompts.json",
+  "promptCount": 56,
+  "entries": {
+    "️ O Advogado": {
+      "sha256": "9529bda90b2ab8a37152edad4271b5c01240891d0b8e7fcffb15c5b036a86b29",
+      "length": 6999
+    },
+    "️ O Arauto": {
+      "sha256": "7699f616449b99b4919016fb75b5cd18f6b8c434a62a9d15da87f312c80553bd",
+      "length": 7099
+    },
+    "️ O Autor": {
+      "sha256": "0aff78f1cab4e6b52e8b2f676bd2598792512b541fcf4150622dc5b96052e629",
+      "length": 5877
+    },
+    "️ O Confessor": {
+      "sha256": "cdd21c4cbdb1ccbb7b923183c5dd6e2d1d001072ef0a879ac1cda4fd471202b7",
+      "length": 10582
+    },
+    "️ O Coveiro": {
+      "sha256": "442f628aa6f19166a460a656c3d1bc97742cd3348573a627bf6727a55c934f1b",
+      "length": 5172
+    },
+    "️ O Custódio": {
+      "sha256": "5c02a5e664ae781b3e0e095fae90fff62d61b6e9fa89d7e668be5c3133198d57",
+      "length": 4625
+    },
+    "️ O Estrategista": {
+      "sha256": "222b907a8861dd8a9d5b4a93674e0d153e3e5e1fa8a10f33cc2dd15defa59001",
+      "length": 5623
+    },
+    "‍️ O Guru": {
+      "sha256": "904b423ea7eb9249e7a7fa418b50b53d1d1592d67a8f7e18d9650f9ba9ae9893",
+      "length": 5827
+    },
+    "️ O Instrutor": {
+      "sha256": "d7499a585a741ba3df257952d67e8fecc184cb6b2c0e53cde5fbefbf4932dcd0",
+      "length": 6979
+    },
+    "‍️ O Juiz": {
+      "sha256": "e8c7834a80800c5df298e68bf8fc3036ed824d653fa25087ff2e1854d923aaf6",
+      "length": 4590
+    },
+    "️ O Narrador": {
+      "sha256": "1980e7bf60806c3ebe7ea1fbed3634b8fb20c1888649cd077a98c362a1329a6b",
+      "length": 6672
+    },
+    "️ O Terapeuta": {
+      "sha256": "008fa6e729c982695800a37b633da06724d2946f813ad47a5b14dae6401a01e4",
+      "length": 5988
+    },
+    "️ O Treinador": {
+      "sha256": "946bf9e51d3749c81503fe76505b95163db50484f2fb4cb86f25608a56a01483",
+      "length": 9134
+    },
+    "️ O Vazio": {
+      "sha256": "6992196ef44556168621d2205eca52b1e4d72e280576f9bc318145b90310e738",
+      "length": 5065
+    },
+    "️ O Vingador": {
+      "sha256": "d1d24be87934d0627cbeef78429f930b1a185318dd0be5ca79b81756d75f21b5",
+      "length": 6216
+    },
+    "🩸 O Exorcista": {
+      "sha256": "35e9fa6b0159cafdc3fb6be5ec250408710dd78fe0f6a2f5375b7b65422412bf",
+      "length": 3755
+    },
+    "🩺 O Médico": {
+      "sha256": "f495bb9fd18953d12d972aacc8bc2486430bb9227fa77bab01be92e5f5ede315",
+      "length": 6889
+    },
+    "🪖 O Comandante": {
+      "sha256": "46b1acf11b13fb6b9245946f1590c2f477fe8e69ef6c34e4d587e4deaf653364",
+      "length": 10419
+    },
+    "🪙 O Sócio": {
+      "sha256": "3b2d0d9128cbcd49cceaed18755dcac34d41caafe1bf056e157f4756d11bef2d",
+      "length": 7466
+    },
+    "🫣 O Espião": {
+      "sha256": "e72d348a501a8e0d1fc814e40113cc10db81887d1acf54523fa5112bec2aee13",
+      "length": 11351
+    },
+    "🫵 O Promotor": {
+      "sha256": "35181910849d24bb7cf6b75697b382c29f0bed47ed99465074c7c57f66482502",
+      "length": 4638
+    },
+    "A Cigana": {
+      "sha256": "cf8765fceef249ce11fc6fd5fbbf077ee16552b41d0681c1ea65cc2bad18aed9",
+      "length": 6260
+    },
+    "A Dor": {
+      "sha256": "2728b55461b37fbfaafacb763d52746e5584832f3c97ce985e752b9fd1ac6dee",
+      "length": 4797
+    },
+    "A Fúria": {
+      "sha256": "8fd42a7a8b5877560bd856aa13a44574f7a7c417e663e62a0ad32d01f78f5038",
+      "length": 5373
+    },
+    "A Luz": {
+      "sha256": "695b7a67824ae83c72d19b57612326e86ea7c39ef1ff56bc52de994b63dc1704",
+      "length": 5006
+    },
+    "A Princesa": {
+      "sha256": "6726db7248ef26670eb0d587f37a39e9aced572b6a7a5bfdeca2e1efe6105eda",
+      "length": 5386
+    },
+    "A Sombra": {
+      "sha256": "1b34f6bdb9db01bd37d58ea9181a4697ae6dd95efdb38ce09c0b0ca0fd6f0b87",
+      "length": 5188
+    },
+    "O Adjunto": {
+      "sha256": "f33f4e5d728ab2c71224c6a265fb0f892e0d07977b9fab85a391570f2c4a045c",
+      "length": 10623
+    },
+    "O Aprovisionador": {
+      "sha256": "2774ae57014d7f6ac55126b3d4830f4d027cdedbc8cf2596571c728342c77e52",
+      "length": 5989
+    },
+    "O Arqueólogo": {
+      "sha256": "48685145f3e85fe0ad6dbe6bfba5418c2c1714ada11a9236142b13b22ec4ac90",
+      "length": 6476
+    },
+    "O Artista": {
+      "sha256": "b5ee7129f44d102f292a6c0ae0f115e8066a15f8c863398eabf70203666e630f",
+      "length": 5955
+    },
+    "O Astrônomo": {
+      "sha256": "af3ee84c730495ee7a72dfe66c66a71fb71b3c6fecb14aadfea4f025317f56a4",
+      "length": 4819
+    },
+    "O Bobo": {
+      "sha256": "4d16f604d1c59f44b17052fd8ffc6eaa3c7315ba7bbd343cb7b1d735eb2d34a6",
+      "length": 5440
+    },
+    "O Bruto": {
+      "sha256": "fbb0d46b1f6a13d458e509e589294cec248c8f3bfd892e97d2b9003c68efd527",
+      "length": 4651
+    },
+    "O Bruxo": {
+      "sha256": "c772168502620fe107e7c901b060ec53ebbad47ba8f3672fbc8eda51b8ddf035",
+      "length": 5392
+    },
+    "O Burguês": {
+      "sha256": "b7922e8f0fff0d745e0100b0ab540b511e22d5bfb113ac3ef1d29bf67e09413b",
+      "length": 5470
+    },
+    "O Cientista": {
+      "sha256": "bc4773c498f1d2ce286c6ec23a7fa23a5fc015d6ab31325467ef1df1a6d45b2d",
+      "length": 6078
+    },
+    "O Curador": {
+      "sha256": "ba3b5fdf8ee4884cf428c86bee3234f0ace7c5843401a356bb17c9b362f31be4",
+      "length": 5423
+    },
+    "O Desejo": {
+      "sha256": "0fe58369d7370e8ffc71b5ed69c461035da018770b6110435841ad70ef41d2cf",
+      "length": 4798
+    },
+    "O Engenheiro": {
+      "sha256": "4989f377d2d95616738637a38f233e6a3495c6e60132d4ee12364eb6e6c9fe05",
+      "length": 5968
+    },
+    "O Espelho": {
+      "sha256": "1924874dbc2eea1f03660fab855c6ad6d052c80b69e74301eb4ae6aac42ccdf1",
+      "length": 6200
+    },
+    "O Executor": {
+      "sha256": "56b89efc67ba704d320d0e6de31f8bf870822a9f9aa1c746fc8e8cb51b94695c",
+      "length": 5517
+    },
+    "O Fantasma": {
+      "sha256": "aa03001b6ccf0c12b5956ff447021ea94f1ebeae5f7637bddebf66b12995b977",
+      "length": 5005
+    },
+    "O Filósofo": {
+      "sha256": "c4c15ea585c1f232c3d13fbac30e7ec2ff34c94b61cb761ee9581f7ac597857a",
+      "length": 5213
+    },
+    "O Guardião": {
+      "sha256": "58b62ff392ddf214b91dd561b01fc0b690df7d761426a2524426350a4dfb8a66",
+      "length": 7482
+    },
+    "O Herdeiro": {
+      "sha256": "b9fcd4bfcd3c60f20960f6108bfb7a0952becad46230d78c3c7e6c5e15105c36",
+      "length": 6517
+    },
+    "O Inimigo": {
+      "sha256": "c51fc9e14e26dc89a88aa48b97cd8a155260db7a2c6901af3a901f055d2d7aeb",
+      "length": 6502
+    },
+    "O Louco": {
+      "sha256": "fe081ac85c915115aaa862baaec9d3dc88f000550129da2a92ef5d69ba5fcd74",
+      "length": 5584
+    },
+    "O Mentor": {
+      "sha256": "8af51d3e3912ade4f915963b14927c341ff489235f6de1174e9c7f47b300e23c",
+      "length": 7592
+    },
+    "O Mentorzinho": {
+      "sha256": "568e3238f6724692d3f68ded808893c94f89189a0922fd9fb153c4381b024cf2",
+      "length": 9765
+    },
+    "O Mestre": {
+      "sha256": "4c87a885626952868133b7999ec3ddb018074b8d6b69de02158d4939ce303b6e",
+      "length": 5378
+    },
+    "O Mordomo": {
+      "sha256": "5eee25af4bb2ab2205647c1637a74548ffd91251d12a5d92c26fb05ee641c705",
+      "length": 5559
+    },
+    "O Orquestrador": {
+      "sha256": "010fc7781e5a80977a20b2bda731272cde4742d083d8f2ab093becb8eaa4861e",
+      "length": 5106
+    },
+    "O Psicólogo": {
+      "sha256": "5649566a835383fd616f97da8cf61b5a544fbd0108096d7a2d81ca3ae90e6d2b",
+      "length": 5905
+    },
+    "O Vidente": {
+      "sha256": "a2f85c3ba224155c0e4125881392c8c767d229241e066eaf3d11d14fb9d9afaf",
+      "length": 5203
+    },
+    "O Vigia": {
+      "sha256": "7a800639cf368429b95f90a92bda38c37669692d81e9ee409544a0b7ffe78d51",
+      "length": 4409
+    }
+  }
+}

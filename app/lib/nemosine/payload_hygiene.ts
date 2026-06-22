@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import crypto from "crypto";
 import os from "os";
 import path from "path";
 
@@ -97,6 +98,18 @@ export function detectSuspiciousPayloadPhrases(text: string) {
   );
 }
 
+function hashAuditText(text: string) {
+  return crypto.createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+function redactPreviewList(items: string[]) {
+  return items.map((item) => ({
+    sha256: hashAuditText(item),
+    length: item.length,
+    suspiciousPhrases: detectSuspiciousPayloadPhrases(item),
+  }));
+}
+
 export function isContaminatedAssistantMessage(content: string) {
   const normalized = normalizePayloadText(content);
   if (normalized.length < 24) return false;
@@ -174,26 +187,33 @@ export async function writePromptDebugAudit(input: PayloadAuditInput) {
     historyMessagesSent: input.messages.filter((message) => message.role !== "system").length,
     totalMessagesSent: input.messages.length,
     filteredHistoryCount: input.filteredHistory.length,
-    filteredHistory: input.filteredHistory,
+    filteredHistory: input.filteredHistory.map((entry) => ({
+      id: entry.id,
+      index: entry.index,
+      role: entry.role,
+      matched: entry.matched,
+      previewHash: hashAuditText(entry.preview),
+      previewLength: entry.preview.length,
+    })),
     memoriesInjected: input.debug.memoriesInjected,
     episodesInjected: input.debug.episodesInjected,
     sourcesInjected: input.debug.sourcesInjected || 0,
-    memoryPreview: input.debug.memoryPreview,
-    episodePreview: input.debug.episodePreview,
-    sourcePreview: input.debug.sourcePreview || [],
+    memoryPreview: redactPreviewList(input.debug.memoryPreview),
+    episodePreview: redactPreviewList(input.debug.episodePreview),
+    sourcePreview: redactPreviewList(input.debug.sourcePreview || []),
     contractApplied: input.debug.contractApplied,
     nativePromptResolved: input.debug.nativePromptResolved,
     nativePromptKey: input.debug.nativePromptKey || null,
     nativePromptSource: input.debug.nativePromptSource || null,
     suspiciousPayloadPhrases,
     systemPromptLength: input.systemPrompt.length,
-    systemPromptPreview: input.systemPrompt.slice(0, 30000),
+    systemPromptHash: hashAuditText(input.systemPrompt),
     messages: input.messages.map((message, index) => ({
       index,
       role: message.role,
       contentLength: message.content.length,
+      contentHash: hashAuditText(message.content),
       suspiciousPhrases: detectSuspiciousPayloadPhrases(message.content),
-      contentPreview: message.content.slice(0, 5000),
     })),
   };
 

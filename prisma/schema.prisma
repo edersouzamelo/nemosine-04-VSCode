@@ -132,3 +132,33 @@ model UserMemory {
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model CognitiveRunAudit {
+  id                 String   @id
+  userIdHash         String   @map("user_id_hash")
+  threadIdHash       String   @map("thread_id_hash")
+  personaId          String   @map("persona_id")
+  placeId            String?  @map("place_id")
+  runtimeMode        String   @map("runtime_mode")
+  executionProfile   String   @map("execution_profile")
+  stateTransitions   Json     @map("state_transitions")
+  iterationCount     Int      @map("iteration_count")
+  coherence          Float?
+  dimensionScores    Json     @map("dimension_scores")
+  findingCodes       Json     @map("finding_codes")
+  promotionDecision  String   @map("promotion_decision")
+  failureReason      String?  @map("failure_reason")
+  latencyPerStageMs  Json     @map("latency_per_stage_ms")
+  modelIdentifiers   Json     @map("model_identifiers")
+  promptHashes       Json     @map("prompt_hashes")
+  contentHashes      Json     @map("content_hashes")
+  privateRun         Boolean  @default(false) @map("private_run")
+  metadataOnly       Boolean  @default(true) @map("metadata_only")
+  createdAt          DateTime @default(now()) @map("created_at")
+  completedAt        DateTime @map("completed_at")
+
+  @@index([personaId])
+  @@index([runtimeMode])
+  @@index([createdAt])
+  @@map("cognitive_run_audits")
+}

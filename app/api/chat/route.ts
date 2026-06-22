@@ -23,6 +23,13 @@ import {
     sanitizeConversationHistory,
     writePromptDebugAudit,
 } from '@/app/lib/nemosine/payload_hygiene';
+import {
+    createCognitiveRequest,
+    createPromotedUIMessageStreamResponse,
+    executeCognitiveRuntime,
+    readCognitiveRuntimeConfig,
+    runCognitiveRuntime,
+} from '@/app/lib/nemosine/cognitive-runtime';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -192,13 +199,40 @@ export async function POST(req: NextRequest) {
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
+        const runtimeConfig = readCognitiveRuntimeConfig();
+        const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(priorHistory);
+
+        if (runtimeConfig.mode === 'enforce') {
+            await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
+            const cognitiveRequest = createCognitiveRequest({
+                userId,
+                threadId: activeThreadId,
+                personaId,
+                placeId: normalizedPlaceId,
+                language: selectedLanguage,
+                userText,
+                displayUserText,
+                memoryScope,
+                priorHistory: sanitizedHistory,
+            });
+            const cognitiveResult = await executeCognitiveRuntime(cognitiveRequest);
+
+            return createPromotedUIMessageStreamResponse({
+                text: cognitiveResult.answer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-cognitive-run-id': cognitiveResult.runId,
+                    'x-cognitive-runtime-status': cognitiveResult.finalStatus,
+                },
+            });
+        }
+
         const [, , promptAssembly] = await Promise.all([
             addMessageToThread(userId, activeThreadId, 'user', displayUserText),
             retainConversationEpisode(userId, memoryScope, userText),
             buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, userText)
         ]);
         const systemPrompt = promptAssembly.systemPrompt;
-        const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(priorHistory);
         const history = [
             ...sanitizedHistory,
             {
@@ -323,6 +357,32 @@ export async function POST(req: NextRequest) {
                 }
 
                 await addMessageToThread(userId, activeThreadId, 'assistant', finalResponse);
+
+                if (runtimeConfig.mode === 'shadow') {
+                    try {
+                        const shadowRequest = createCognitiveRequest({
+                            userId,
+                            threadId: activeThreadId,
+                            personaId,
+                            placeId: normalizedPlaceId,
+                            language: selectedLanguage,
+                            userText,
+                            displayUserText,
+                            memoryScope,
+                            priorHistory: sanitizedHistory,
+                        });
+                        await runCognitiveRuntime(shadowRequest, {
+                            candidateOverride: finalResponse,
+                            config: {
+                                ...runtimeConfig,
+                                maxRetries: 0,
+                                maxTotalCandidates: 1,
+                            },
+                        });
+                    } catch (shadowError) {
+                        console.error('[API/Chat Shadow Runtime] Error:', shadowError);
+                    }
+                }
             }
         });
 
