@@ -207,24 +207,27 @@ export default function AccessPage() {
       )}
 
       {showGrimoire && (
-        <div className="login-screen absolute inset-0 z-40 flex items-center justify-center overflow-y-auto bg-background-light p-4 font-serif text-stone-800 transition-colors duration-500 dark:bg-background-dark dark:text-stone-200">
-          <div className="fixed inset-0 pointer-events-none opacity-20 dark:opacity-40">
-            <img
-              alt="Paisagem do castelo mental"
-              className="h-full w-full object-cover mix-blend-overlay"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuAf4KTqlc_zrjm3r5WSX6BLbpWo7nCC8Mb6B2-6czh6WCjOMAgK6wmjnbJRJJk3n4P_jkvym2qFJNbq-6np4-GFZ8UahS9tt4eSCYG-icUeZF9nEXFGaWXtTviDaATpaBg3MlKOg3gKbsxlMo4dqr_uYaOeAaSh2eAz6g9Vmu_czi1yNPOl8oWghUNmore69ir2POv86ulmjwkdtctqXm1pNp72YBikSg8hKT3i8uPVJpPNwAoWOb0DkG0s9J-pY0HSH0YdUpMJ91Tp"
-            />
+        <div className="login-screen login-castle-gate absolute inset-0 z-40 flex items-center justify-center overflow-y-auto p-4 font-serif text-stone-800 transition-colors duration-500 dark:text-stone-200 md:justify-start md:px-[clamp(2rem,6vw,6.5rem)] md:py-8">
+          <div className="login-castle-stage" aria-hidden="true">
+            <div className="login-castle-portal">
+              <div className="login-castle-view" />
+              <div className="login-castle-door login-castle-door-left" />
+              <div className="login-castle-door login-castle-door-right" />
+            </div>
+            <div className="login-castle-light" />
+            <div className="login-castle-floor" />
+            <div className="login-castle-vignette" />
           </div>
 
-          <div className="relative z-10 w-full max-w-md animate-fade-in py-4">
-            <div className="grimoire-border overflow-hidden rounded-lg bg-[#c5a059]/20 p-1">
-              <div className="relative flex min-h-[500px] flex-col justify-between px-7 py-9 sm:px-8 sm:py-11 bg-[#fdfbf7] dark:bg-[#0c0d12] rounded-lg">
+          <div className="login-form-shell relative z-10 w-full max-w-[22rem] animate-fade-in py-5 sm:max-w-[23rem] md:max-w-[21.5rem] lg:max-w-[22.5rem]">
+            <div className="grimoire-border access-grimoire-frame overflow-hidden rounded-md bg-[#c5a059]/20 p-1">
+              <div className="access-grimoire-card relative flex flex-col justify-between rounded-md bg-[#fbf7ee]/95 px-5 py-6 shadow-2xl backdrop-blur-sm dark:bg-[#08090d]/92 sm:px-6 sm:py-7">
                 <span className="material-icons absolute left-2 top-2 text-3xl text-primary opacity-60">auto_awesome</span>
                 <span className="material-icons absolute right-2 top-2 scale-x-[-1] text-3xl text-primary opacity-60">auto_awesome</span>
 
-                <div className="space-y-5 text-center">
+                <div className="space-y-4 text-center">
                   <header>
-                    <h1 className="gold-glow font-display mb-2 text-2xl uppercase tracking-widest text-primary md:text-3xl">
+                    <h1 className="gold-glow font-display mb-2 text-xl uppercase tracking-widest text-primary md:text-2xl">
                       Nemosine Nous
                     </h1>
                     <div className="mx-auto h-px w-24 bg-primary opacity-40" />
@@ -233,15 +236,15 @@ export default function AccessPage() {
                     <LanguageSelector dark={theme === "dark"} />
                   </div>
                   <div className="space-y-2">
-                    <h2 className="font-display text-xl font-bold uppercase tracking-widest text-[#72552c] dark:text-[#fde68a] md:text-2xl">
+                    <h2 className="font-display text-lg font-bold uppercase tracking-widest text-[#72552c] dark:text-[#fde68a] md:text-xl">
                       {isRegistering ? t("registerTitle") : t("loginTitle")}
                     </h2>
-                    <p className="text-sm italic text-stone-700 dark:text-[#eee8dc]/80">
+                    <p className="text-[13px] italic text-stone-700 dark:text-[#eee8dc]/80">
                       {isRegistering ? t("registerPrompt") : t("loginPrompt")}
                     </p>
                   </div>
 
-                  <form onSubmit={handleAuth} className="space-y-5 pt-3">
+                  <form onSubmit={handleAuth} className="space-y-4 pt-2">
                     {error && (
                       <div className="border border-red-500/50 bg-red-900/30 p-3 text-sm text-red-200">
                         {error}
@@ -254,7 +257,7 @@ export default function AccessPage() {
                           type="button"
                           onClick={handleGoogleAuth}
                           disabled={isLoading}
-                          className="font-display flex w-full cursor-pointer items-center justify-center gap-3 border border-primary/40 bg-white/50 px-6 py-3 text-sm tracking-widest text-stone-900 shadow-sm transition-all duration-300 hover:border-primary hover:bg-white/80 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950/40 dark:text-stone-100 dark:hover:bg-stone-950/70"
+                          className="font-display flex w-full cursor-pointer items-center justify-center gap-3 border border-primary/40 bg-white/50 px-4 py-2.5 text-[11px] tracking-widest text-stone-900 shadow-sm transition-all duration-300 hover:border-primary hover:bg-white/80 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950/40 dark:text-stone-100 dark:hover:bg-stone-950/70 sm:text-xs"
                         >
                           <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 18 18">
                             <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.23-.16-1.8H9v3.4h4.84a4.14 4.14 0 0 1-1.8 2.72v2.25h2.92c1.7-1.57 2.68-3.88 2.68-6.57Z" />
@@ -297,7 +300,7 @@ export default function AccessPage() {
                       <button
                         type="submit"
                         disabled={isLoading}
-                        className="font-display group/btn relative w-full cursor-pointer overflow-hidden border border-primary/50 bg-stone-900 px-6 py-4 tracking-widest text-primary shadow-lg transition-all duration-500 hover:bg-primary hover:text-stone-900 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950"
+                        className="font-display group/btn relative w-full cursor-pointer overflow-hidden border border-primary/50 bg-stone-900 px-5 py-3 text-xs tracking-widest text-primary shadow-lg transition-all duration-500 hover:bg-primary hover:text-stone-900 disabled:cursor-wait disabled:opacity-50 dark:bg-stone-950"
                       >
                         <span className="relative z-10">{isLoading ? t("processing") : t("continue")}</span>
                       </button>
@@ -313,7 +316,7 @@ export default function AccessPage() {
                           });
                           setError("");
                         }}
-                        className="font-display w-full cursor-pointer overflow-hidden border border-[#c5a059]/40 bg-transparent px-6 py-3.5 tracking-widest text-[#72552c] dark:text-[#c5a059] hover:bg-[#c5a059]/10 transition-all duration-300 disabled:cursor-wait disabled:opacity-50 text-xs uppercase font-bold"
+                        className="font-display w-full cursor-pointer overflow-hidden border border-[#c5a059]/40 bg-transparent px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-[#72552c] transition-all duration-300 hover:bg-[#c5a059]/10 disabled:cursor-wait disabled:opacity-50 dark:text-[#c5a059]"
                       >
                         {isRegistering ? t("haveAccess") : t("register")}
                       </button>
@@ -321,8 +324,8 @@ export default function AccessPage() {
                   </form>
                 </div>
 
-                <footer className="relative z-10 mt-auto pt-7 text-center">
-                  <p className="text-xs leading-5 tracking-wider text-stone-600 dark:text-[#eee8dc]/60">
+                <footer className="relative z-10 mt-auto pt-5 text-center">
+                  <p className="text-[11px] leading-5 tracking-wider text-stone-600 dark:text-[#eee8dc]/60">
                     Ao continuar, você declara que leu e concorda com os{" "}
                     <Link href="/legal/termos-de-uso" className="underline transition-colors hover:text-[#c5a059]">
                       Termos de Uso
@@ -342,7 +345,7 @@ export default function AccessPage() {
             </div>
           </div>
 
-          <div className="fixed right-6 top-6 z-20">
+          <div className="fixed right-4 top-4 z-20 sm:right-6 sm:top-6">
             <button
               className="cursor-pointer p-2 text-primary/60 transition-colors hover:text-primary"
               onClick={() => {
@@ -377,7 +380,7 @@ function LoginInput({
   return (
     <div className="relative">
       <input
-        className="peer w-full border-x-0 border-b-2 border-t-0 border-primary/30 bg-transparent py-3 text-lg text-stone-900 transition-all duration-300 placeholder:italic placeholder:text-stone-500/50 dark:placeholder:text-[#eee8dc]/40 focus:border-primary focus:ring-0 dark:text-white"
+        className="peer w-full border-x-0 border-b-2 border-t-0 border-primary/30 bg-transparent py-2.5 text-base text-stone-900 transition-all duration-300 placeholder:italic placeholder:text-stone-500/50 dark:placeholder:text-[#eee8dc]/40 focus:border-primary focus:ring-0 dark:text-white"
         placeholder={placeholder}
         type={type}
         value={value}
