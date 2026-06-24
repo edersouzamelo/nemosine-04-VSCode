@@ -1356,6 +1356,18 @@ export default function RegistrosPage() {
     return true;
   });
 
+  const hasActiveRegistryFilters =
+    searchQuery.trim().length > 0 ||
+    filterDeadline !== "all" ||
+    selectedStatuses.length !== availableStatuses.length ||
+    availableStatuses.some((status) => !selectedStatuses.includes(status));
+
+  const resetRegistryFilters = () => {
+    setSearchQuery("");
+    setFilterDeadline("all");
+    setSelectedStatuses(availableStatuses);
+  };
+
   // Calculate Metrics for Dashboard
   const totalItems = rows.length;
   const completedItems = rows.filter(r => r.status === "Concluído").length;
@@ -1989,6 +2001,21 @@ export default function RegistrosPage() {
                 Fechar
               </button>
             </div>
+          </div>
+        )}
+
+        {rows.length > 0 && filteredRows.length === 0 && hasActiveRegistryFilters && (
+          <div className="mb-4 rounded-xl border border-[#c5a059]/35 bg-black/65 p-4 text-center shadow-[0_0_22px_rgba(0,0,0,0.22)]">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#fde68a]">
+              Seus {rows.length} registros continuam salvos, mas os filtros atuais esconderam todos eles.
+            </p>
+            <button
+              type="button"
+              onClick={resetRegistryFilters}
+              className="mt-3 rounded border border-[#c5a059]/45 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-[#c5a059] transition-colors hover:bg-[#c5a059]/10"
+            >
+              Limpar filtros
+            </button>
           </div>
         )}
 

@@ -40,6 +40,10 @@ interface MultiScopedMetrics {
   globalMetrics: AdminMetrics;
   organicMetrics: AdminMetrics;
   creatorMetrics: AdminMetrics;
+  machineRoom?: {
+    registryTotal: number;
+    creatorRegistryTotal: number;
+  };
   termsAcceptances: Array<{
     id: string;
     termsVersion: string;
@@ -121,6 +125,14 @@ export default function AdminPage() {
     (a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime()
   );
   const maxActivityCount = Math.max(...activityEntries.map(([, count]) => count), 1);
+  const totalTermsAcceptances = data.termsAcceptances.length;
+  const activePersonas = metrics.personaUsage.length;
+  const totalUserMemories = metrics.users.reduce((total, user) => total + user._count.memories, 0);
+  const registryTotal = data.machineRoom?.registryTotal ?? 0;
+  const creatorRegistryTotal = data.machineRoom?.creatorRegistryTotal ?? 0;
+  const latestActivity = metrics.recentActivity[0]?.updatedAt
+    ? new Date(metrics.recentActivity[0].updatedAt).toLocaleString("pt-BR")
+    : "Sem atividade recente";
 
   return (
     <main className="nemosine-main-container relative min-h-screen">
@@ -135,10 +147,10 @@ export default function AdminPage() {
       <section className="relative z-10 p-4 md:p-8 lg:p-12 max-w-[1400px] mx-auto">
         <header className="mb-10 text-center relative flex flex-col items-center justify-center">
           <h1 className="font-display text-4xl uppercase tracking-widest text-[#c5a059] mb-2 drop-shadow-[0_2px_10px_rgba(197,160,89,0.2)]">
-            Painel do Criador
+            Casa de Maquinas
           </h1>
           <p className="text-[10px] uppercase tracking-[0.3em] text-[#c5a059]/40 mb-6 font-bold">
-            Monitoramento do Sistema Nemosine Nous
+            Visualizacao operacional do Sistema Nemosine Nous
           </p>
 
           <button
@@ -149,6 +161,45 @@ export default function AdminPage() {
             Mensagens ao Desenvolvedor
           </button>
         </header>
+
+        <div className="mb-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <MachineRoomCard
+            label="Estado da producao"
+            value="Online"
+            detail="Deploy ativo no dominio principal"
+            tone="emerald"
+          />
+          <MachineRoomCard
+            label="Motor de memoria"
+            value={registryTotal}
+            detail={`Registros operacionais salvos; ${creatorRegistryTotal} na conta do criador`}
+            tone="gold"
+          />
+          <MachineRoomCard
+            label="Ultima atividade"
+            value={latestActivity}
+            detail="Registro mais recente de conversa"
+            tone="blue"
+          />
+          <MachineRoomCard
+            label="Consentimentos"
+            value={totalTermsAcceptances}
+            detail="Aceites de termos armazenados"
+            tone="gold"
+          />
+          <MachineRoomCard
+            label="Personas acionadas"
+            value={activePersonas}
+            detail="Personas com uso registrado neste escopo"
+            tone="blue"
+          />
+          <MachineRoomCard
+            label="Memoria vetorial"
+            value={totalUserMemories}
+            detail="Memorias persistentes extraidas das conversas"
+            tone="emerald"
+          />
+        </div>
 
         {/* Tab Controls for Scoped Analytics */}
         <div className="flex border-b border-[#c5a059]/20 mb-10 max-w-3xl mx-auto justify-center gap-2 sm:gap-6 flex-wrap">
@@ -469,6 +520,35 @@ interface StatCardProps {
   value: string | number;
   icon: string;
   subtitle?: string;
+}
+
+interface MachineRoomCardProps {
+  label: string;
+  value: string | number;
+  detail: string;
+  tone: "gold" | "emerald" | "blue";
+}
+
+function MachineRoomCard({ label, value, detail, tone }: MachineRoomCardProps) {
+  const toneClasses = {
+    gold: "border-[#c5a059]/30 text-[#fde68a] bg-[#c5a059]/10",
+    emerald: "border-emerald-400/25 text-emerald-200 bg-emerald-500/10",
+    blue: "border-[#4169e1]/30 text-blue-200 bg-[#4169e1]/10",
+  }[tone];
+
+  return (
+    <div className={`rounded-lg border p-5 backdrop-blur-md shadow-lg ${toneClasses}`}>
+      <p className="text-[9px] font-bold uppercase tracking-[0.28em] opacity-70">
+        {label}
+      </p>
+      <p className="mt-3 font-display text-2xl font-bold tracking-wider text-white">
+        {value}
+      </p>
+      <p className="mt-2 text-[10px] uppercase tracking-widest text-white/45">
+        {detail}
+      </p>
+    </div>
+  );
 }
 
 function StatCard({ label, value, icon, subtitle }: StatCardProps) {
