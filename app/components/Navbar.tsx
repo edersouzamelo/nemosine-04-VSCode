@@ -116,6 +116,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         { name: t("registros"), href: "/space/registros", tour: "memorias" },
         { name: t("travessia"), href: "/space/travessia/devonly", tour: "travessia", developerOnly: true },
         { name: "Castelo", href: "/castelo", tour: "castelo", developerOnly: true },
+        { name: "Casa de Maquinas", href: "/admin", tour: "admin", developerOnly: true },
         { name: "Manifesto", href: "/manifesto", tour: "manifesto" },
     ].filter((item) => !("developerOnly" in item) || !item.developerOnly || isAdmin);
 
