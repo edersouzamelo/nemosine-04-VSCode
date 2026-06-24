@@ -210,7 +210,6 @@ export default function AccessPage() {
         <div className="login-screen login-castle-gate absolute inset-0 z-40 flex items-center justify-center overflow-y-auto p-4 font-serif text-stone-800 transition-colors duration-500 dark:text-stone-200 md:justify-start md:px-[clamp(2rem,6vw,6.5rem)] md:py-8">
           <div className="login-castle-stage" aria-hidden="true">
             <div className="login-castle-art" />
-            <div className="login-castle-distant-view" />
             <div className="login-castle-reveal login-castle-reveal-left" />
             <div className="login-castle-reveal login-castle-reveal-right" />
             <div className="login-castle-light" />
