@@ -486,140 +486,95 @@ body {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 72% 48%, rgba(229, 170, 79, 0.18), transparent 28%),
-    linear-gradient(90deg, #020202 0%, #020202 34%, rgba(7, 5, 4, 0.97) 45%, rgba(16, 10, 8, 0.86) 64%, #030303 100%);
+  background: #020202;
 }
 
 .login-castle-stage::before {
   content: "";
   position: absolute;
-  inset: -6%;
+  inset: 0;
+  z-index: 7;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0, rgba(255, 255, 255, 0.04) 1px, transparent 1px, transparent 9vw),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0, rgba(255, 255, 255, 0.025) 1px, transparent 1px, transparent 58px),
-    radial-gradient(ellipse at 76% 16%, rgba(232, 198, 129, 0.12), transparent 25%),
-    linear-gradient(180deg, #111010 0%, #050505 100%);
-  opacity: 0.82;
-}
-
-.login-castle-portal {
-  position: absolute;
-  top: clamp(1.5rem, 5vh, 3rem);
-  right: clamp(2rem, 9vw, 10rem);
-  bottom: clamp(1.5rem, 5vh, 3rem);
-  width: min(46vw, 650px);
-  min-width: 390px;
-  overflow: hidden;
-  border: 1px solid rgba(224, 188, 114, 0.24);
-  border-radius: 46% 46% 3px 3px / 22% 22% 3px 3px;
-  background: #040302;
-  box-shadow:
-    0 0 0 1px rgba(255, 217, 143, 0.07) inset,
-    0 28px 90px rgba(0, 0, 0, 0.82);
-  filter: drop-shadow(0 0 30px rgba(234, 168, 68, 0.16));
-  perspective: 1200px;
-  -webkit-mask-image: radial-gradient(116% 58% at 50% 5%, #000 58%, transparent 59%), linear-gradient(#000, #000);
-  -webkit-mask-position: top, bottom;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 43%, 100% 76%;
-  mask-image: radial-gradient(116% 58% at 50% 5%, #000 58%, transparent 59%), linear-gradient(#000, #000);
-  mask-position: top, bottom;
-  mask-repeat: no-repeat;
-  mask-size: 100% 43%, 100% 76%;
-}
-
-.login-castle-portal::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  box-shadow:
-    0 0 0 18px rgba(2, 2, 2, 0.6) inset,
-    0 0 60px rgba(0, 0, 0, 0.55) inset;
+    linear-gradient(90deg, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.58) 30%, transparent 47%, transparent 56%, rgba(0, 0, 0, 0.72) 100%),
+    radial-gradient(ellipse at 50% 55%, transparent 0%, transparent 32%, rgba(0, 0, 0, 0.52) 72%, rgba(0, 0, 0, 0.88) 100%);
+  opacity: 1;
   pointer-events: none;
 }
 
-.login-castle-portal::after {
-  content: "";
+.login-castle-art {
   position: absolute;
-  inset: 5% 3% 0;
-  z-index: 6;
-  border: 1px solid rgba(232, 196, 118, 0.16);
-  border-radius: 46% 46% 0 0 / 24% 24% 0 0;
-  box-shadow: 0 -28px 48px rgba(0, 0, 0, 0.54) inset;
-  pointer-events: none;
-}
-
-.login-castle-view {
-  position: absolute;
-  inset: 0;
+  inset: -3%;
+  z-index: 1;
   background-image:
-    linear-gradient(180deg, rgba(255, 230, 169, 0.16), rgba(37, 16, 11, 0.22) 52%, rgba(1, 1, 1, 0.44)),
-    url("/assets/twilight_sunset.png");
+    linear-gradient(180deg, rgba(5, 4, 3, 0.1), rgba(5, 4, 3, 0.18)),
+    url("/assets/castle-gate-entrance.png");
   background-position: center;
   background-size: cover;
   opacity: 0;
-  transform: scale(1.07);
-  filter: brightness(0.22) saturate(0.7) blur(5px);
-  animation: login-view-unveil 2s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards;
+  transform: scale(1.035);
+  filter: brightness(0.2) saturate(0.82) contrast(1.04);
+  will-change: opacity, transform, filter;
+  animation: login-gate-image-reveal 2.2s cubic-bezier(0.22, 1, 0.36, 1) 0.12s forwards;
 }
 
-.login-castle-door {
+.login-castle-distant-view {
+  position: absolute;
+  top: 7.5%;
+  bottom: 17%;
+  left: 45.8%;
+  z-index: 2;
+  width: 8.8%;
+  background-image:
+    linear-gradient(180deg, rgba(255, 238, 196, 0.34), rgba(26, 13, 7, 0.16) 54%, rgba(0, 0, 0, 0.24)),
+    url("/assets/twilight_sunset.png");
+  background-position: 64% center;
+  background-size: cover;
+  clip-path: polygon(16% 0%, 90% 0%, 100% 100%, 0% 100%);
+  filter: brightness(1.18) saturate(1.03) blur(0.2px);
+  opacity: 0;
+  mix-blend-mode: soft-light;
+  transform: scaleY(0.92);
+  animation: login-distant-view-reveal 2.1s cubic-bezier(0.22, 1, 0.36, 1) 0.32s forwards;
+}
+
+.login-castle-reveal {
   position: absolute;
   top: 0;
   bottom: 0;
-  z-index: 3;
-  width: 50.4%;
+  z-index: 5;
+  width: 51%;
   background:
-    linear-gradient(90deg, rgba(255, 216, 122, 0.16), transparent 13%, rgba(0, 0, 0, 0.38) 52%, rgba(255, 216, 122, 0.1) 100%),
-    repeating-linear-gradient(90deg, rgba(255, 230, 160, 0.08) 0, rgba(255, 230, 160, 0.08) 1px, transparent 1px, transparent 36px),
-    linear-gradient(180deg, #241109 0%, #090504 54%, #1b0d07 100%);
-  box-shadow:
-    0 0 30px rgba(0, 0, 0, 0.74) inset,
-    0 0 0 1px rgba(255, 218, 140, 0.18) inset;
-  filter: brightness(0.68);
-  will-change: transform, filter;
+    linear-gradient(180deg, rgba(11, 7, 4, 0.98), rgba(2, 2, 2, 0.98)),
+    radial-gradient(ellipse at 100% 50%, rgba(196, 124, 43, 0.18), transparent 38%);
+  opacity: 0.98;
+  will-change: opacity, transform;
 }
 
-.login-castle-door::before {
-  content: "";
-  position: absolute;
-  inset: 8% 9%;
-  border: 1px solid rgba(226, 180, 91, 0.2);
-  background:
-    radial-gradient(circle at 50% 34%, rgba(226, 180, 91, 0.22), transparent 6%),
-    linear-gradient(180deg, transparent 0 42%, rgba(226, 180, 91, 0.12) 43% 44%, transparent 45%),
-    linear-gradient(90deg, transparent 0 48%, rgba(226, 180, 91, 0.12) 49% 51%, transparent 52%);
-  box-shadow: 0 0 18px rgba(0, 0, 0, 0.38) inset;
-}
-
-.login-castle-door-left {
+.login-castle-reveal-left {
   left: 0;
-  border-right: 1px solid rgba(245, 201, 116, 0.32);
-  transform-origin: left center;
-  animation: login-door-open-left 2.4s cubic-bezier(0.18, 0.76, 0.2, 1) 0.12s forwards;
+  transform-origin: right center;
+  animation: login-reveal-left 2.15s cubic-bezier(0.18, 0.76, 0.2, 1) 0.1s forwards;
 }
 
-.login-castle-door-right {
+.login-castle-reveal-right {
   right: 0;
-  border-left: 1px solid rgba(245, 201, 116, 0.32);
-  transform-origin: right center;
-  animation: login-door-open-right 2.4s cubic-bezier(0.18, 0.76, 0.2, 1) 0.12s forwards;
+  transform-origin: left center;
+  animation: login-reveal-right 2.15s cubic-bezier(0.18, 0.76, 0.2, 1) 0.1s forwards;
 }
 
 .login-castle-light {
   position: absolute;
-  inset: -8% -4% -4% 16%;
-  z-index: 2;
+  inset: -4%;
+  z-index: 3;
   background:
-    radial-gradient(ellipse at 70% 52%, rgba(255, 238, 187, 0.52), transparent 18%),
-    conic-gradient(from 244deg at 67% 52%, transparent 0deg, rgba(255, 221, 142, 0.04) 7deg, rgba(255, 224, 149, 0.3) 19deg, rgba(255, 203, 100, 0.12) 36deg, transparent 58deg),
-    linear-gradient(100deg, transparent 0%, transparent 30%, rgba(255, 215, 126, 0.11) 49%, rgba(255, 230, 170, 0.28) 62%, transparent 80%);
+    radial-gradient(ellipse at 50% 50%, rgba(255, 232, 173, 0.38), rgba(255, 213, 121, 0.12) 9%, transparent 22%),
+    linear-gradient(90deg, transparent 40%, rgba(255, 215, 128, 0.04) 45%, rgba(255, 236, 180, 0.2) 49%, rgba(255, 236, 180, 0.2) 51%, rgba(255, 215, 128, 0.06) 56%, transparent 64%),
+    conic-gradient(from 170deg at 50% 58%, transparent 0deg, rgba(255, 220, 135, 0.08) 7deg, rgba(255, 232, 172, 0.2) 14deg, rgba(255, 204, 103, 0.08) 24deg, transparent 38deg);
   opacity: 0;
   mix-blend-mode: screen;
-  filter: blur(2px);
-  animation: login-light-enter 2.25s cubic-bezier(0.22, 1, 0.36, 1) 0.24s forwards;
+  filter: blur(0.5px);
+  transform: scaleX(0.75);
+  animation: login-light-enter 2.45s cubic-bezier(0.22, 1, 0.36, 1) 0.28s forwards;
 }
 
 .login-castle-floor {
@@ -627,14 +582,16 @@ body {
   left: 0;
   right: 0;
   bottom: -1px;
-  z-index: 1;
+  z-index: 4;
   height: 34vh;
   background:
-    radial-gradient(ellipse at 68% -8%, rgba(242, 180, 76, 0.28), transparent 38%),
-    linear-gradient(108deg, transparent 0%, transparent 38%, rgba(255, 223, 142, 0.17) 55%, transparent 76%),
-    repeating-radial-gradient(ellipse at 68% -18%, rgba(255, 255, 255, 0.08) 0, rgba(255, 255, 255, 0.08) 1px, transparent 1px, transparent 44px),
-    linear-gradient(180deg, transparent, #060505 64%);
-  opacity: 0.78;
+    radial-gradient(ellipse at 50% 6%, rgba(255, 214, 127, 0.28), rgba(255, 199, 89, 0.12) 18%, transparent 42%),
+    linear-gradient(90deg, transparent 38%, rgba(255, 224, 157, 0.05) 48%, rgba(255, 224, 157, 0.12) 50%, rgba(255, 224, 157, 0.05) 52%, transparent 64%);
+  opacity: 0;
+  mix-blend-mode: screen;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.35) 24%, #000 58%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.35) 24%, #000 58%, #000 100%);
+  animation: login-floor-glow-enter 2.3s cubic-bezier(0.22, 1, 0.36, 1) 0.38s forwards;
 }
 
 .login-castle-vignette {
@@ -642,8 +599,8 @@ body {
   inset: 0;
   z-index: 8;
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.9) 33%, rgba(0, 0, 0, 0.36) 59%, rgba(0, 0, 0, 0.72) 100%),
-    radial-gradient(ellipse at 70% 50%, transparent 0%, transparent 32%, rgba(0, 0, 0, 0.68) 100%);
+    linear-gradient(90deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.74) 29%, rgba(0, 0, 0, 0.18) 48%, rgba(0, 0, 0, 0.3) 60%, rgba(0, 0, 0, 0.9) 100%),
+    radial-gradient(ellipse at 50% 58%, transparent 0%, transparent 34%, rgba(0, 0, 0, 0.58) 74%, rgba(0, 0, 0, 0.92) 100%);
 }
 
 .login-castle-vignette::before {
@@ -681,53 +638,77 @@ body {
   background: rgba(197, 160, 89, 0.45);
 }
 
-@keyframes login-view-unveil {
+@keyframes login-gate-image-reveal {
   from {
     opacity: 0;
-    transform: scale(1.1);
-    filter: brightness(0.16) saturate(0.65) blur(6px);
+    transform: scale(1.05);
+    filter: brightness(0.16) saturate(0.78) contrast(1.04) blur(5px);
   }
 
   to {
-    opacity: 0.82;
-    transform: scale(1.03);
-    filter: brightness(0.72) saturate(0.92) blur(0);
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(0.72) saturate(0.94) contrast(1.06) blur(0);
   }
 }
 
-@keyframes login-door-open-left {
+@keyframes login-distant-view-reveal {
   from {
-    transform: perspective(900px) rotateY(0deg);
-    filter: brightness(0.46);
+    opacity: 0;
+    transform: scaleY(0.9);
   }
 
   to {
-    transform: perspective(900px) rotateY(-58deg) translateX(-2%);
-    filter: brightness(0.7);
+    opacity: 0.24;
+    transform: scaleY(1);
   }
 }
 
-@keyframes login-door-open-right {
+@keyframes login-reveal-left {
   from {
-    transform: perspective(900px) rotateY(0deg);
-    filter: brightness(0.46);
+    opacity: 0.98;
+    transform: translateX(0);
   }
 
   to {
-    transform: perspective(900px) rotateY(58deg) translateX(2%);
-    filter: brightness(0.7);
+    opacity: 0;
+    transform: translateX(-18%);
+  }
+}
+
+@keyframes login-reveal-right {
+  from {
+    opacity: 0.98;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(18%);
   }
 }
 
 @keyframes login-light-enter {
   from {
     opacity: 0;
-    transform: translateX(5%) scaleX(0.82);
+    transform: scaleX(0.72) translateY(2%);
   }
 
   to {
-    opacity: 0.9;
-    transform: translateX(0) scaleX(1);
+    opacity: 0.56;
+    transform: scaleX(1) translateY(0);
+  }
+}
+
+@keyframes login-floor-glow-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8%);
+  }
+
+  to {
+    opacity: 0.58;
+    transform: translateY(0);
   }
 }
 
@@ -742,73 +723,77 @@ body {
 }
 
 @media (min-width: 768px) and (max-width: 1060px) {
-  .login-castle-portal {
-    right: clamp(1rem, 5vw, 4rem);
-    width: min(52vw, 540px);
-    min-width: 360px;
+  .login-castle-art {
+    background-position: 54% center;
+  }
+
+  .login-castle-distant-view {
+    left: 46.2%;
+    width: 9%;
   }
 }
 
 @media (max-width: 767px) {
-  .login-castle-stage {
-    background:
-      radial-gradient(circle at 50% 42%, rgba(229, 170, 79, 0.16), transparent 36%),
-      linear-gradient(180deg, #020202 0%, rgba(8, 5, 4, 0.94) 48%, #020202 100%);
+  .login-castle-art {
+    inset: -2% -96%;
+    background-position: center;
+    filter: brightness(0.52) saturate(0.9) contrast(1.04);
   }
 
-  .login-castle-stage::before {
-    opacity: 0.66;
-  }
-
-  .login-castle-portal {
-    top: 5dvh;
-    right: auto;
-    bottom: 8dvh;
-    left: 50%;
-    width: min(84vw, 27rem);
-    min-width: 0;
-    opacity: 0.48;
-    transform: translateX(-50%);
-  }
-
-  .login-castle-light {
-    inset: -10%;
+  .login-castle-distant-view {
+    display: none;
   }
 
   .login-castle-vignette {
     background:
-      linear-gradient(180deg, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.46) 42%, rgba(0, 0, 0, 0.84) 100%),
-      radial-gradient(ellipse at 50% 48%, transparent 0%, transparent 26%, rgba(0, 0, 0, 0.7) 100%);
+      linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.48) 40%, rgba(0, 0, 0, 0.86) 100%),
+      radial-gradient(ellipse at 50% 50%, transparent 0%, transparent 24%, rgba(0, 0, 0, 0.7) 100%);
+  }
+
+  .login-castle-light {
+    opacity: 0.36;
+  }
+
+  .login-castle-reveal {
+    width: 54%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-castle-view,
-  .login-castle-door-left,
-  .login-castle-door-right,
+  .login-castle-art,
+  .login-castle-distant-view,
+  .login-castle-reveal-left,
+  .login-castle-reveal-right,
   .login-castle-light,
+  .login-castle-floor,
   .login-castle-vignette::before {
     animation: none;
   }
 
-  .login-castle-view {
-    opacity: 0.82;
-    transform: scale(1.03);
-    filter: brightness(0.72) saturate(0.92) blur(0);
+  .login-castle-art {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(0.72) saturate(0.94) contrast(1.06) blur(0);
   }
 
-  .login-castle-door-left {
-    transform: perspective(900px) rotateY(-58deg) translateX(-2%);
-    filter: brightness(0.7);
+  .login-castle-distant-view {
+    opacity: 0.24;
+    transform: scaleY(1);
   }
 
-  .login-castle-door-right {
-    transform: perspective(900px) rotateY(58deg) translateX(2%);
-    filter: brightness(0.7);
+  .login-castle-reveal-left,
+  .login-castle-reveal-right {
+    opacity: 0;
   }
 
   .login-castle-light {
-    opacity: 0.9;
+    opacity: 0.56;
+    transform: scaleX(1) translateY(0);
+  }
+
+  .login-castle-floor {
+    opacity: 0.58;
+    transform: translateY(0);
   }
 
   .login-castle-vignette::before {
