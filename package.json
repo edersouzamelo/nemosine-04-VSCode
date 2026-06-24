@@ -9,6 +9,7 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "test:cognitive-runtime": "node --test tests/cognitive-runtime/*.test.js",
+    "test:sala-de-maquinas": "node --test tests/admin-engine-room/*.test.js",
     "test:persona-identity": "node --test tests/persona-identity/*.test.js",
     "eval:personas": "node scripts/eval-personas.js",
     "audit:cognitive-runtime": "node scripts/audit-cognitive-runtime.js"

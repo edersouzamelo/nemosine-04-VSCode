@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
 import { isAdminEmail } from "../lib/accessControl";
+import { getAdminDashboardCards } from "../lib/admin/navigation";
 
 interface AdminMetrics {
   totalUsers: number;
@@ -112,6 +113,7 @@ export default function AdminPage() {
     creator: "creatorMetrics",
   };
   const metrics = data[metricKeys[activeScope]];
+  const adminDashboardCards = getAdminDashboardCards(isAdminEmail(session?.user?.email));
 
   const maxPersonaCount = Math.max(
     ...metrics.personaUsage.map((p) => p._count.id),
@@ -148,6 +150,35 @@ export default function AdminPage() {
             <span className="text-sm group-hover:scale-120 transition-transform duration-300">📬</span>
             Mensagens ao Desenvolvedor
           </button>
+          {adminDashboardCards.length > 0 && (
+            <div className="mt-5 grid w-full max-w-xl grid-cols-1 gap-3">
+              {adminDashboardCards.map((card) => (
+                <button
+                  key={card.href}
+                  type="button"
+                  onClick={() => router.push(card.href)}
+                  className="group inline-flex items-center justify-between gap-4 rounded-lg border border-[#c5a059]/30 bg-black/45 px-5 py-4 text-left shadow-[0_4px_20px_rgba(0,0,0,0.35)] backdrop-blur-md transition-all duration-300 hover:border-[#c5a059]/70 hover:bg-[#c5a059]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="material-icons text-2xl text-[#c5a059]" aria-hidden="true">
+                      {card.icon}
+                    </span>
+                    <span className="flex flex-col">
+                      <span className="text-xs font-bold uppercase tracking-[0.24em] text-[#fde68a]">
+                        {card.label}
+                      </span>
+                      <span className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/45">
+                        {card.subtitle}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="material-icons text-lg text-[#c5a059]/60 transition-transform group-hover:translate-x-1" aria-hidden="true">
+                    arrow_forward
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </header>
 
         {/* Tab Controls for Scoped Analytics */}

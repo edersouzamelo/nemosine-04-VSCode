@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
 import type { AppLanguage, AppTheme, CardOrderMode, NemosineLevel, AppFontSize } from "./LanguageProvider";
 import { isAdminEmail } from "../lib/accessControl";
+import { getAdminDropdownLinks } from "../lib/admin/navigation";
 import RelicPhrase from "./RelicPhrase";
 
 interface NavbarProps {
@@ -173,6 +174,8 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         : language.startsWith("pt") ? "Ampliar programa" : "Expand program";
 
     const isAuthenticated = status === "authenticated" && Boolean(session?.user);
+    const adminDropdownLinks = getAdminDropdownLinks(isAdmin);
+    const engineRoomLink = adminDropdownLinks.find((item) => item.href === "/admin/sala-de-maquinas");
     return (
         <>
             <div
@@ -415,6 +418,19 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                             {isAdmin && (
                                                 <Link href="/admin" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                     👑 {t("adminPanel")}
+                                                </Link>
+                                            )}
+                                            {isAdmin && engineRoomLink && (
+                                                <Link href={engineRoomLink.href} className="flex w-full items-start gap-2 px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
+                                                    <span className="material-icons text-sm text-[#c5a059]/70" aria-hidden="true">
+                                                        {engineRoomLink.icon}
+                                                    </span>
+                                                    <span className="flex flex-col gap-0.5">
+                                                        <span>{engineRoomLink.label}</span>
+                                                        <span className="text-[7px] normal-case tracking-[0.14em] text-white/35">
+                                                            {engineRoomLink.subtitle}
+                                                        </span>
+                                                    </span>
                                                 </Link>
                                             )}
                                             {isAdmin && (
