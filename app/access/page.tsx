@@ -7,11 +7,24 @@ import { useRouter } from "next/navigation";
 import { LanguageSelector, useLanguage, AppTheme } from "../components/LanguageProvider";
 import { NEMOSINE_LEGAL_CHECKBOX_LABEL } from "../lib/legalConsent";
 
+const LOGIN_BACKGROUNDS = [
+  "/assets/login-castle-door.png",
+  "/assets/login-castle-sunrise.png",
+  "/assets/login-castle-starry.png",
+  "/assets/login-castle-eclipse.png",
+  "/assets/login-castle-crimson.png"
+];
+
+function pickLoginBackground() {
+  return LOGIN_BACKGROUNDS[Math.floor(Math.random() * LOGIN_BACKGROUNDS.length)];
+}
+
 export default function AccessPage() {
   const router = useRouter();
   const { t, theme, setTheme } = useLanguage();
   const [callbackUrl, setCallbackUrl] = useState("/inicio");
   const [showGrimoire, setShowGrimoire] = useState(false);
+  const [loginBackground, setLoginBackground] = useState(() => pickLoginBackground());
   const [isRegistering, setIsRegistering] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -189,7 +202,10 @@ export default function AccessPage() {
             </div>
             <button
               type="button"
-              onClick={() => setShowGrimoire(true)}
+              onClick={() => {
+                setLoginBackground(pickLoginBackground());
+                setShowGrimoire(true);
+              }}
               className="access-entry-button group"
             >
               <span className="access-entry-corner access-entry-corner-tl" />
@@ -209,15 +225,13 @@ export default function AccessPage() {
       {showGrimoire && (
         <div className="login-screen login-castle-gate absolute inset-0 z-40 flex items-center justify-center overflow-y-auto p-4 font-serif text-stone-800 transition-colors duration-500 dark:text-stone-200 md:justify-start md:px-[clamp(2rem,6vw,6.5rem)] md:py-8">
           <div className="login-castle-stage" aria-hidden="true">
-            <div className="login-castle-art" />
-            <div className="login-castle-reveal login-castle-reveal-left" />
-            <div className="login-castle-reveal login-castle-reveal-right" />
-            <div className="login-castle-light" />
-            <div className="login-castle-floor" />
-            <div className="login-castle-vignette" />
+            <div
+              className="login-castle-art"
+              style={{ backgroundImage: `url("${loginBackground}")` }}
+            />
           </div>
 
-          <div className="login-form-shell relative z-10 w-full max-w-[22rem] animate-fade-in py-5 sm:max-w-[23rem] md:max-w-[21.5rem] lg:max-w-[22.5rem]">
+          <div className="login-form-shell relative z-10 w-full max-w-[22rem] py-5 sm:max-w-[23rem] md:max-w-[21.5rem] lg:max-w-[22.5rem]">
             <div className="grimoire-border access-grimoire-frame overflow-hidden rounded-md bg-[#c5a059]/20 p-1">
               <div className="access-grimoire-card relative flex flex-col justify-between rounded-md bg-[#fbf7ee]/95 px-5 py-6 shadow-2xl backdrop-blur-sm dark:bg-[#08090d]/92 sm:px-6 sm:py-7">
                 <span className="material-icons absolute left-2 top-2 text-3xl text-primary opacity-60">auto_awesome</span>
