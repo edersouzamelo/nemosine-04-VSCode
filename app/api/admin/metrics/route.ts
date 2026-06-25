@@ -63,32 +63,6 @@ export async function GET() {
       orderBy: { updatedAt: "desc" },
     });
 
-    let registryTotal = 0;
-    let creatorRegistryTotal = 0;
-    try {
-      const registryCountRows = await prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT COUNT(*)::bigint AS count
-        FROM user_registros
-      `;
-      registryTotal = Number(registryCountRows[0]?.count ?? 0);
-
-      const creatorUserIds = users
-        .filter((u) => u.email === "edersouzamelo@gmail.com")
-        .map((u) => u.id);
-      if (creatorUserIds.length > 0) {
-        const creatorUserId = creatorUserIds[0];
-        const creatorRegistryCountRows = await prisma.$queryRaw<Array<{ count: bigint }>>`
-          SELECT COUNT(*)::bigint AS count
-          FROM user_registros
-          WHERE user_id = ${creatorUserId}
-        `;
-        creatorRegistryTotal = Number(creatorRegistryCountRows[0]?.count ?? 0);
-      }
-    } catch {
-      registryTotal = 0;
-      creatorRegistryTotal = 0;
-    }
-
     // Função utilitária para compilar métricas avançadas baseadas em um subconjunto de dados
     const compileMetrics = (subsetUsers: typeof users, subsetThreads: typeof allThreads) => {
       const totalUsers = subsetUsers.length;
@@ -226,10 +200,6 @@ export async function GET() {
       globalMetrics,
       organicMetrics,
       creatorMetrics,
-      machineRoom: {
-        registryTotal,
-        creatorRegistryTotal,
-      },
       termsAcceptances: termsAcceptances.map((acceptance) => ({
         id: acceptance.id,
         termsVersion: acceptance.termsVersion,

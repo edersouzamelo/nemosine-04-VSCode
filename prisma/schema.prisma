@@ -114,13 +114,14 @@ model Thread {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  threadId  String
-  role      String   // 'user' | 'assistant' | 'system'
-  content   String
-  timestamp DateTime @default(now())
+  id             String   @id @default(cuid())
+  threadId       String
+  role           String   // 'user' | 'assistant' | 'system'
+  content        String
+  cognitiveRunId String?  @unique
+  timestamp      DateTime @default(now())
 
-  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread         Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
 }
 
 model UserMemory {
@@ -131,4 +132,43 @@ model UserMemory {
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CognitiveRunAudit {
+  id                 String   @id
+  userIdHash         String   @map("user_id_hash")
+  threadIdHash       String   @map("thread_id_hash")
+  personaId          String   @map("persona_id")
+  placeId            String?  @map("place_id")
+  runtimeMode        String   @map("runtime_mode")
+  executionProfile   String   @map("execution_profile")
+  stateTransitions   Json     @map("state_transitions")
+  auditEvents        Json     @map("audit_events")
+  deliveryStatus     String   @default("not_attempted") @map("delivery_status")
+  sideEffectStatus   String   @default("none") @map("side_effect_status")
+  memoryEffectCount  Int      @default(0) @map("memory_effect_count")
+  registryEffectCount Int     @default(0) @map("registry_effect_count")
+  destinyEffectCount Int      @default(0) @map("destiny_effect_count")
+  assistantMessagePersisted Boolean @default(false) @map("assistant_message_persisted")
+  auditPersisted     Boolean  @default(false) @map("audit_persisted")
+  iterationCount     Int      @map("iteration_count")
+  coherence          Float?
+  dimensionScores    Json     @map("dimension_scores")
+  findingCodes       Json     @map("finding_codes")
+  promotionDecision  String   @map("promotion_decision")
+  failureReason      String?  @map("failure_reason")
+  latencyPerStageMs  Json     @map("latency_per_stage_ms")
+  modelIdentifiers   Json     @map("model_identifiers")
+  promptHashes       Json     @map("prompt_hashes")
+  contentHashes      Json     @map("content_hashes")
+  contentLengths     Json     @map("content_lengths")
+  privateRun         Boolean  @default(false) @map("private_run")
+  metadataOnly       Boolean  @default(true) @map("metadata_only")
+  createdAt          DateTime @default(now()) @map("created_at")
+  completedAt        DateTime @map("completed_at")
+
+  @@index([personaId])
+  @@index([runtimeMode])
+  @@index([createdAt])
+  @@map("cognitive_run_audits")
 }

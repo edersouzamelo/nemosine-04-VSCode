@@ -116,7 +116,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         { name: t("registros"), href: "/space/registros", tour: "memorias" },
         { name: t("travessia"), href: "/space/travessia/devonly", tour: "travessia", developerOnly: true },
         { name: "Castelo", href: "/castelo", tour: "castelo", developerOnly: true },
-        { name: "Casa de Maquinas", href: "/admin", tour: "admin", developerOnly: true },
         { name: "Manifesto", href: "/manifesto", tour: "manifesto" },
     ].filter((item) => !("developerOnly" in item) || !item.developerOnly || isAdmin);
 
@@ -416,6 +415,11 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                             {isAdmin && (
                                                 <Link href="/admin" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                     👑 {t("adminPanel")}
+                                                </Link>
+                                            )}
+                                            {isAdmin && (
+                                                <Link href="/admin/sala-de-maquinas" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#4169e1] hover:bg-[#4169e1]/5 transition-colors">
+                                                    Sala de Máquinas
                                                 </Link>
                                             )}
                                             {isAdmin && (
