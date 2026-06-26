@@ -277,9 +277,19 @@ export default function SalaDeMaquinasClient() {
                 Sala de Máquinas
               </h1>
             </div>
-            <p className="max-w-xl rounded-lg border border-[#c5a059]/20 bg-black/45 p-4 text-xs leading-relaxed text-white/60">
-              C(m) is an operational promotion-coherence index, not a measurement of consciousness, intelligence or truth probability.
-            </p>
+            <div className="flex max-w-xl flex-col gap-3">
+              <p className="rounded-lg border border-[#c5a059]/20 bg-black/45 p-4 text-xs leading-relaxed text-white/60">
+                C(m) is an operational promotion-coherence index, not a measurement of consciousness, intelligence or truth probability.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/admin/observatorio-do-criador")}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-emerald-100 hover:bg-emerald-500/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+              >
+                <span className="material-icons text-sm" aria-hidden="true">health_and_safety</span>
+                Observatório do Criador
+              </button>
+            </div>
           </div>
         </header>
 

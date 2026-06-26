@@ -5,6 +5,14 @@ import { getPersonaLexicalHints } from './persona_behavior_contracts';
 
 export const prisma = new PrismaClient();
 
+const chatMessageSelect = {
+    id: true,
+    threadId: true,
+    role: true,
+    content: true,
+    timestamp: true
+} as const;
+
 // Use a global variable to persist state across hot reloads in development
 const globalForNemosine = globalThis as unknown as { nemosineSession: SessionState };
 
@@ -34,7 +42,7 @@ export const createThread = async (userId: string, personaId: string, title?: st
             personaId,
             title: title || `Conversa com ${personaId}`,
         },
-        include: { messages: true }
+        include: { messages: { select: chatMessageSelect } }
     });
 
     // Convert to ChatThread format
@@ -56,7 +64,7 @@ export const createThread = async (userId: string, personaId: string, title?: st
 export const getThread = async (userId: string, threadId: string): Promise<ChatThread | null> => {
     const thread = await prisma.thread.findFirst({
         where: { id: threadId, userId },
-        include: { messages: { orderBy: { timestamp: 'asc' } } }
+        include: { messages: { orderBy: { timestamp: 'asc' }, select: chatMessageSelect } }
     });
 
     if (!thread) return null;
@@ -80,7 +88,7 @@ export const getThreadsForPersona = async (userId: string, personaId: string): P
     const threads = await prisma.thread.findMany({
         where: { userId, personaId },
         orderBy: { updatedAt: 'desc' },
-        include: { messages: true }
+        include: { messages: { select: chatMessageSelect } }
     });
 
     return threads.map(thread => ({
@@ -108,7 +116,8 @@ export const addMessageToThread = async (userId: string, threadId: string, role:
             threadId,
             role,
             content
-        }
+        },
+        select: chatMessageSelect
     });
 
     // Update thread updatedAt
@@ -303,7 +312,8 @@ const getVisibleConversationEpisodeCandidates = async (userId: string, targetPer
         include: {
             messages: {
                 orderBy: { timestamp: 'desc' },
-                take: 4
+                take: 4,
+                select: chatMessageSelect
             }
         }
     });

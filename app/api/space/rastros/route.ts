@@ -79,6 +79,12 @@ export async function GET() {
           messages: {
             orderBy: { timestamp: "desc" },
             take: 5,
+            select: {
+              id: true,
+              role: true,
+              content: true,
+              timestamp: true,
+            },
           },
         },
       }),

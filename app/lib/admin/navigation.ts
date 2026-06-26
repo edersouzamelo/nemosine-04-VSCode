@@ -20,6 +20,12 @@ export function getAdminDropdownLinks(isAdmin: boolean): AdminNavigationItem[] {
       icon: "precision_manufacturing",
     },
     {
+      href: "/admin/observatorio-do-criador",
+      label: "Observatório do Criador",
+      subtitle: "Diagnóstico sanitário do sistema",
+      icon: "health_and_safety",
+    },
+    {
       href: "/developer/messages",
       label: "Mensagens ao desenvolvedor",
       icon: "mark_email_unread",
@@ -35,6 +41,12 @@ export function getAdminDashboardCards(isAdmin: boolean): AdminNavigationItem[] 
       label: "Sala de Máquinas",
       subtitle: "Observabilidade do Runtime Cognitivo",
       icon: "precision_manufacturing",
+    },
+    {
+      href: "/admin/observatorio-do-criador",
+      label: "Observatório do Criador",
+      subtitle: "Diagnóstico sanitário do sistema",
+      icon: "health_and_safety",
     },
   ];
 }

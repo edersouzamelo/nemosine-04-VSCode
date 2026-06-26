@@ -1,15 +1,17 @@
 import OpenAI from 'openai';
 import { assemblePersonaContext, PersonaContextDebugInfo } from './persona_context_assembler';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
-
 type ResponseLanguage = "pt-BR" | "es" | "en";
 
 export const DEFAULT_CHAT_MODEL = "gpt-4o";
 export const DEFAULT_CHAT_TEMPERATURE = 0.45;
 export const DEFAULT_CHAT_MAX_OUTPUT_TOKENS = 2200;
+
+function getOpenAIClient() {
+    return new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+    });
+}
 
 function logPromptDebug(debug: PersonaContextDebugInfo, model: string, temperature: number) {
     if (process.env.PROMPT_DEBUG !== "true") return;
@@ -92,7 +94,7 @@ export async function generatePersonaResponse(
 
     try {
         console.log(`[LLM] Calling OpenAI for ${personaId}...`);
-        const completion = await openai.chat.completions.create({
+        const completion = await getOpenAIClient().chat.completions.create({
             model: DEFAULT_CHAT_MODEL,
             messages: messages,
             temperature: DEFAULT_CHAT_TEMPERATURE,

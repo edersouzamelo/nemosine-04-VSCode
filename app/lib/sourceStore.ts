@@ -24,15 +24,23 @@ async function ensureSourceTable() {
     )
   `;
 
-  await prisma.$executeRaw`
-    CREATE INDEX IF NOT EXISTS user_sources_user_created_idx
-    ON user_sources (user_id, created_at DESC)
-  `;
+  try {
+    await prisma.$executeRaw`
+      CREATE INDEX IF NOT EXISTS user_sources_user_created_idx
+      ON user_sources (user_id, created_at DESC)
+    `;
+  } catch (error) {
+    console.warn("[sourceStore] Could not ensure user_sources_user_created_idx:", error);
+  }
 
-  await prisma.$executeRaw`
-    CREATE INDEX IF NOT EXISTS user_sources_user_persona_created_idx
-    ON user_sources (user_id, persona_id, created_at DESC)
-  `;
+  try {
+    await prisma.$executeRaw`
+      CREATE INDEX IF NOT EXISTS user_sources_user_persona_created_idx
+      ON user_sources (user_id, persona_id, created_at DESC)
+    `;
+  } catch (error) {
+    console.warn("[sourceStore] Could not ensure user_sources_user_persona_created_idx:", error);
+  }
 }
 
 export async function createUserSource({
@@ -105,7 +113,13 @@ export async function deleteUserSource(userId: string, sourceId: string) {
 }
 
 export async function getVisibleUserSources(userId: string, targetPersonaId: string): Promise<string[]> {
-  await ensureSourceTable();
+  try {
+    await ensureSourceTable();
+  } catch (error) {
+    console.warn("[sourceStore] Could not ensure user_sources table:", error);
+    return [];
+  }
+
   const rows = await prisma.$queryRaw<Array<{
     filename: string;
     persona_id: string | null;

@@ -150,18 +150,39 @@ export default function AdminPage() {
           </button>
         </header>
 
-        <button
-          type="button"
-          onClick={() => router.push("/admin/sala-de-maquinas")}
-          className="mb-10 w-full rounded-xl border border-[#4169e1]/35 bg-[#4169e1]/10 p-5 text-left shadow-lg transition-all hover:border-[#4169e1]/70 hover:bg-[#4169e1]/15 md:max-w-xl"
-        >
-          <span className="block font-display text-xl uppercase tracking-widest text-blue-200">
-            Sala de Máquinas
-          </span>
-          <span className="mt-2 block text-[10px] font-bold uppercase tracking-[0.24em] text-white/45">
-            Observabilidade do Runtime Cognitivo
-          </span>
-        </button>
+        <div className="mb-10 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => router.push("/admin/sala-de-maquinas")}
+            className="w-full rounded-lg border border-[#4169e1]/35 bg-[#4169e1]/10 p-5 text-left shadow-lg transition-all hover:border-[#4169e1]/70 hover:bg-[#4169e1]/15"
+          >
+            <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#4169e1]/25 bg-black/25 text-blue-200">
+              <span className="material-icons text-xl" aria-hidden="true">precision_manufacturing</span>
+            </span>
+            <span className="block font-display text-xl uppercase tracking-widest text-blue-200">
+              Sala de Máquinas
+            </span>
+            <span className="mt-2 block text-[10px] font-bold uppercase tracking-[0.24em] text-white/45">
+              Observabilidade do Runtime Cognitivo
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push("/admin/observatorio-do-criador")}
+            className="w-full rounded-lg border border-emerald-400/35 bg-emerald-500/10 p-5 text-left shadow-lg transition-all hover:border-emerald-300/70 hover:bg-emerald-500/15"
+          >
+            <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-400/25 bg-black/25 text-emerald-100">
+              <span className="material-icons text-xl" aria-hidden="true">health_and_safety</span>
+            </span>
+            <span className="block font-display text-xl uppercase tracking-widest text-emerald-100">
+              Observatório do Criador
+            </span>
+            <span className="mt-2 block text-[10px] font-bold uppercase tracking-[0.24em] text-white/45">
+              Diagnóstico sanitário do sistema
+            </span>
+          </button>
+        </div>
 
         {/* Tab Controls for Scoped Analytics */}
         <div className="flex border-b border-[#c5a059]/20 mb-10 max-w-3xl mx-auto justify-center gap-2 sm:gap-6 flex-wrap">

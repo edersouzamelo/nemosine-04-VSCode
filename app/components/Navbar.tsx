@@ -423,6 +423,11 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                                 </Link>
                                             )}
                                             {isAdmin && (
+                                                <Link href="/admin/observatorio-do-criador" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-emerald-300 hover:bg-emerald-500/5 transition-colors">
+                                                    Observatório do Criador
+                                                </Link>
+                                            )}
+                                            {isAdmin && (
                                                 <Link href="/developer/messages" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
                                                     👑 Mensagens ao desenvolvedor
                                                 </Link>
