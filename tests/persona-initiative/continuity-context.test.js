@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   buildConversationContextPacket,
+  contextPacketToActiveFrontSources,
   classifyInvocationMode,
   extractActiveTopicCandidates,
 } = require("../../app/lib/nemosine/conversation_continuity.ts");
@@ -182,6 +183,84 @@ test("Astronomo quality gate rejects false context denial and accepts longitudin
   assert.equal(accepted.elicitationMode, "RESONANT");
   assert.ok(accepted.resonantInferenceCount > 0);
   assert.ok(accepted.contextualConnectionsCount > 0);
+});
+
+test("quality gate rejects Destiny Line denial and pedantic data elicitation", () => {
+  const contract = getPersonaBehaviorContract("Orquestrador-Arquiteto");
+  const richness = classifyConversationInputRichness("O que tem na minha Linha do Destino?");
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Orquestrador-Arquiteto",
+    userText: "O que tem na minha Linha do Destino?",
+    richness,
+    contract,
+    sources: [{
+      id: "destiny:travessia",
+      type: "destiny",
+      text: "[FOUNDATIONAL] 2021: Travessia familiar (Familia) - mudanca estrutural que reorganizou casa, vinculos e prioridade.",
+      provenance: "DESTINY_CONTEXT",
+      visibility: "internal",
+      scope: "destiny-line",
+      recency: 0.8,
+    }],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Orquestrador-Arquiteto",
+    userText: "O que tem na minha Linha do Destino?",
+    richness,
+    snapshot,
+    contract,
+  });
+
+  const denial = evaluatePersonaInitiativeQuality({
+    responseText: "Nao tenho acesso a sua Linha do Destino nesta conversa. Se vc puder compartilhar detalhes, posso montar uma analise.",
+    personaId: "Orquestrador-Arquiteto",
+    userText: "O que tem na minha Linha do Destino?",
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+  assert.equal(denial.finalPass, false);
+  assert.equal(denial.explicitDetailRequest, true);
+  assert.ok(denial.findings.some((finding) => finding.code === "FALSE_CONTEXT_DENIAL"));
+  assert.ok(denial.findings.some((finding) => finding.code === "INTERROGATIVE_ELICITATION"));
+  assert.ok(denial.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE"));
+
+  const genericClosing = evaluatePersonaInitiativeQuality({
+    responseText: "A Linha do Destino indica uma travessia familiar que precisa ser coordenada como modulo biografico central. Se precisar de uma analise mais detalhada, estou a disposicao.",
+    personaId: "Orquestrador-Arquiteto",
+    userText: "O que tem na minha Linha do Destino?",
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+  assert.equal(genericClosing.finalPass, false);
+  assert.ok(genericClosing.findings.some((finding) => finding.code === "GENERIC_CLOSING"));
+});
+
+test("Destiny context remains an active-front source even when not in the global top slice", () => {
+  const contract = getPersonaBehaviorContract("Orquestrador-Arquiteto");
+  const packet = buildConversationContextPacket({
+    userText: "O que tem na minha Linha do Destino?",
+    personaId: "Orquestrador-Arquiteto",
+    memoryScope: "Orquestrador-Arquiteto",
+    contract,
+    memories: Array.from({ length: 12 }, (_, index) => memory(
+      `m-${index}`,
+      `Memoria operacional ${index}: tarefa recente com urgencia, dependencia e decisao pendente.`,
+      `2026-06-${String(25 - Math.min(index, 20)).padStart(2, "0")}T10:00:00.000Z`,
+    )),
+    destiny: [
+      "[FOUNDATIONAL] 2021: Travessia familiar (Familia) - mudanca estrutural que reorganizou casa, vinculos e prioridade.",
+    ],
+    now,
+  });
+  const frontSources = contextPacketToActiveFrontSources(packet);
+  assert.equal(packet.destinyContext.length, 1);
+  assert.ok(frontSources.some((source) => source.type === "destiny" && /Travessia familiar/i.test(source.text)));
 });
 
 test("classifies short greetings as continuity-bearing invocation", () => {

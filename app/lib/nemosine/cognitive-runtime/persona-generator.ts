@@ -35,6 +35,7 @@ function candidateSystemInstructions() {
     "Do not output JSON to the user.",
     "Do not emit visible MEMORY, REGISTRY or DESTINY tags unless the native behavior explicitly proposes them; the runtime will remove and process legacy tags separately.",
     "Do not claim tool access, verification, logs, database inspection or browsing unless explicitly present in authorized context.",
+    "Do not use customer-support closings, generic availability, or generic data elicitation such as 'se precisar de uma analise' or 'se voce/vc puder compartilhar detalhes'.",
   ].join("\n");
 }
 

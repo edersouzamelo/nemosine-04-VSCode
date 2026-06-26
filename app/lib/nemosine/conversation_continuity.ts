@@ -881,9 +881,26 @@ export function renderConversationContextPacket(packet: ConversationContextPacke
 }
 
 export function contextPacketToActiveFrontSources(packet: ConversationContextPacket): ActiveFrontSource[] {
-  return packet.selectedItems.map((item) => ({
+  const items = [
+    ...packet.selectedItems,
+    ...packet.destinyContext.filter((destinyItem) =>
+      !packet.selectedItems.some((selectedItem) => selectedItem.id === destinyItem.id)
+    ),
+  ];
+
+  return items.map((item) => ({
     id: item.id,
-    type: item.type === "ACTIVE_TOPICS" ? "active_topic" : item.type === "RECENT_PUBLIC_EPISODES" ? "episode" : item.type === "RELEVANT_DURABLE_MEMORIES" ? "memory" : "source",
+    type: item.type === "ACTIVE_TOPICS"
+      ? "active_topic"
+      : item.type === "RECENT_PUBLIC_EPISODES"
+        ? "episode"
+        : item.type === "RELEVANT_DURABLE_MEMORIES"
+          ? "memory"
+          : item.type === "DESTINY_CONTEXT"
+            ? "destiny"
+            : item.type === "AGENDA_AND_REGISTRY_CONTEXT"
+              ? "registry"
+              : "source",
     text: item.text,
     provenance: item.type,
     visibility: item.privacyScope === "PRIVATE" ? "private" : "internal",

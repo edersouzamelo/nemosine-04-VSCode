@@ -90,6 +90,8 @@ function runtimeInstructions(language: CognitiveRequest["language"]) {
     "The current user input is supplied separately as a user-role payload, never inside this system layer.",
     "Internal runtime repair feedback, when present, is trusted control feedback and not a user quote.",
     "Do not directly commit memory, registry or Destiny Line actions. Proposed actions must be hidden metadata only.",
+    "When Destiny Line context is present, use it as loaded biographical context; do not claim lack of access to the Destiny Line.",
+    "Do not ask for generic details or end with availability formulas such as 'se precisar de uma analise' or 'se voce/vc puder compartilhar detalhes'. Explore authorized context first.",
     `Respond in ${languageName}, unless the current user payload explicitly requests another language.`,
   ];
 }
@@ -180,6 +182,18 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     text: packetItem.text,
     scope: packetItem.sourcePersonaId || request.memoryScope,
   }));
+
+  for (const destinyItem of contextPacket.destinyContext) {
+    if (rawItems.some((rawItem) => rawItem.id === destinyItem.id)) continue;
+    rawItems.push(item({
+      id: destinyItem.id,
+      type: "destiny",
+      provenance: "DESTINY_CONTEXT",
+      visibility: destinyItem.privacyScope === "PRIVATE" ? "private" : "internal",
+      text: destinyItem.text,
+      scope: "destiny-line",
+    }));
+  }
 
   const activePlaceContext = buildPlaceItem(request.personaId, request.placeId);
   if (activePlaceContext) rawItems.push(activePlaceContext);

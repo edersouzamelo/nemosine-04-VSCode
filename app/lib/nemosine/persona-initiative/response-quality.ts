@@ -15,8 +15,10 @@ const genericAssistantPatterns = [
   /\bo que posso fazer por voce\b/,
   /\bestou a disposicao\b/,
   /\bcaso precise\b/,
-  /\bse precisar de algo\b/,
+  /\bse precisar\b/,
   /\batender melhor suas expectativas\b/,
+  /\bse precisar de uma analise\b/,
+  /\bposso (fazer|oferecer|elaborar|montar) uma analise\b/,
 ];
 
 const falseContextDenialPatterns = [
@@ -24,6 +26,10 @@ const falseContextDenialPatterns = [
   /\bnao possuo (informacoes|dados|contexto) (especificas|suficientes)?\s*(sobre|a respeito de)?\s*(voce|sua historia|o usuario)\b/,
   /\bsem informacoes especificas sobre voce\b/,
   /\bsem contexto sobre voce\b/,
+  /\bnao tenho acesso (a|ao|aos|as)?\s*(sua )?linha do destino\b/,
+  /\bnao (consigo|posso) (acessar|consultar|ver|visualizar) (a|os|as)?\s*(sua )?linha do destino\b/,
+  /\bnao (vejo|sei) (o que )?(ha|tem|consta) (na|em sua|dentro da) linha do destino\b/,
+  /\bsem acesso (a|ao conteudo da)?\s*(sua )?linha do destino\b/,
 ];
 
 const genericInterviewPatterns = [
@@ -34,9 +40,11 @@ const genericInterviewPatterns = [
 ];
 
 const explicitDetailRequestPatterns = [
-  /\bse (voce )?(puder|quiser) (fornecer|dar|trazer|compartilhar) (mais )?(detalhes|informacoes|contexto)\b/,
+  /\bse ((voce|vc) )?(puder|quiser) (fornecer|dar|trazer|compartilhar) (mais )?(detalhes|informacoes|contexto)\b/,
   /\bse der mais detalhes\b/,
   /\bconte mais\b/,
+  /\bcompartilhe (mais )?(detalhes|informacoes|contexto)\b/,
+  /\bforneca (mais )?(detalhes|informacoes|contexto)\b/,
   /\bpode contextualizar\b/,
   /\bo que exatamente aconteceu\b/,
   /\bha algum ponto especifico\b/,
@@ -82,6 +90,8 @@ const genericClosingPatterns = [
   /\b(e importante refletir|busque equilibrio|mantenha foco|planejamento cuidadoso|continue ajustando|podemos explorar depois)\.?$/,
   /\bse precisar\b.*$/,
   /\bestou a disposicao\b.*$/,
+  /\bse precisar de uma analise\b.*$/,
+  /\bse (voce|vc)?\s*puder compartilhar detalhes\b.*$/,
 ];
 
 const unsupportedBioPatterns = [
@@ -307,15 +317,15 @@ export function evaluatePersonaInitiativeQuality(input: {
   if (matchesAny(normalized, genericClosingPatterns)) {
     findings.push(finding(
       "GENERIC_CLOSING",
-      "warning",
+      "error",
       "O encerramento usa conselho ou disponibilidade abstrata.",
-      "Encerrar com consequencia concreta da leitura vocacional.",
+      "Encerrar com consequencia concreta da leitura vocacional. Nunca termine estimulando fornecimento generico de dados.",
     ));
   }
 
   const genericAssistantPenalty = findings.some((item) => item.code === "GENERIC_ASSISTANT_MODE") ? 0.4 : 0;
   const genericQuestionPenalty = findings.some((item) =>
-    item.code === "GENERIC_INTERVIEW_MODE" || item.code === "EMPTY_FINAL_QUESTION"
+    item.code === "GENERIC_INTERVIEW_MODE" || item.code === "EMPTY_FINAL_QUESTION" || item.code === "INTERROGATIVE_ELICITATION"
   ) ? 0.35 : 0;
   const unsupportedInferencePenalty = findings.some((item) => item.code === "UNSUPPORTED_BIOGRAPHICAL_ASSERTION") ? 0.45 : 0;
   const privacyScore = findings.some((item) => item.code === "PRIVATE_CONTEXT_LEAK") ? 0 : 1;
