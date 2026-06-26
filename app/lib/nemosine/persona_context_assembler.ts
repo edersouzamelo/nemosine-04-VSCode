@@ -6,6 +6,8 @@ import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
   getRelevantConversationEpisodes,
   getRelevantUserMemories,
+  getUserMemories,
+  getVisibleConversationEpisodes,
 } from "./session_store";
 import { isPrivateMemorySpace } from "./privacy";
 import {
@@ -13,6 +15,16 @@ import {
   getPersonaBehaviorContract,
   PersonaBehaviorContract,
 } from "./persona_behavior_contracts";
+import {
+  ActiveFrontSnapshot,
+  ActiveFrontSource,
+  buildActiveFrontSnapshot,
+  buildPersonaInitiativeBrief,
+  classifyConversationInputRichness,
+  ConversationInputRichness,
+  PersonaInitiativeBrief,
+  renderPersonaInitiativeControl,
+} from "./persona-initiative";
 
 type ResponseLanguage = "pt-BR" | "es" | "en";
 
@@ -36,11 +48,22 @@ export type PersonaContextDebugInfo = {
   presencePenalty: number | null;
   frequencyPenalty: number | null;
   genericHelpInstructionsFound: string[];
+  inputRichness: string;
+  inputOpeningType: string;
+  activeFrontCandidates: number;
+  selectedActiveFronts: number;
+  initiativeHasSubstantiveContext: boolean;
 };
 
 export type PersonaContextAssembly = {
   systemPrompt: string;
   debug: PersonaContextDebugInfo;
+  initiative: {
+    richness: ConversationInputRichness;
+    snapshot: ActiveFrontSnapshot;
+    brief: PersonaInitiativeBrief;
+    contract: PersonaBehaviorContract;
+  };
 };
 
 type AssemblePersonaContextInput = {
@@ -460,14 +483,22 @@ export async function assemblePersonaContext({
   const primaryPersonaPrompt = nativePromptRecord?.prompt || personaData.prompt || `Voce e ${personaId}.`;
   const contractText = formatPersonaBehaviorContract(contract);
   const genericHelpInstructionsFound = detectGenericHelpInstructions(primaryPersonaPrompt, contractText);
+  const inputRichness = classifyConversationInputRichness(userText);
   const memoryScope = isPrivateMemorySpace(personaId)
     ? personaId
     : placeId && isPrivateMemorySpace(placeId) ? placeId : personaId;
 
+  const memoryPromise = inputRichness.requiresContextExpansion
+    ? getUserMemories(userId, memoryScope).then((items) => items.slice(-14))
+    : getRelevantUserMemories(userId, memoryScope, userText, 10);
+  const episodePromise = inputRichness.requiresContextExpansion
+    ? getVisibleConversationEpisodes(userId, memoryScope).then((items) => items.slice(0, 10))
+    : getRelevantConversationEpisodes(userId, memoryScope, userText, 6);
+
   const [memories, episodes, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
-    getRelevantUserMemories(userId, memoryScope, userText, 10),
-    getRelevantConversationEpisodes(userId, memoryScope, userText, 6),
-    getVisibleUserSources(userId, personaId),
+    memoryPromise,
+    episodePromise,
+    getVisibleUserSources(userId, personaId).catch(() => []),
     getAgendaEvents(userId).catch(() => []),
     getUserRegistros(userId).catch(() => []),
     getDestinyEvents(userId).catch(() => []),
@@ -489,13 +520,95 @@ export async function assemblePersonaContext({
   );
   const relevantSources = rankContextItems(userSources, (source) => source, userText, contract, 5);
   const destinyContext = destinyEvents.slice(-30);
-
-  const hasSubstantiveContext = memories.length > 0
-    || episodes.length > 0
-    || relevantSources.length > 0
-    || relevantAgenda.length > 0
-    || relevantRegistries.length > 0
-    || destinyContext.length > 0;
+  const placeContext = buildPlaceContext(personaId, placeId);
+  const memoryVisibility: ActiveFrontSource["visibility"] = isPrivateMemorySpace(memoryScope) ? "private" : "internal";
+  const activeFrontSources: ActiveFrontSource[] = [
+    ...memories.map((memory, index) => ({
+      id: `memory:${index}`,
+      type: "memory" as const,
+      text: memory,
+      provenance: "UserMemory",
+      visibility: memoryVisibility,
+      scope: memoryScope,
+      recency: memories.length <= 1 ? 1 : index / (memories.length - 1),
+    })),
+    ...episodes.map((episode, index) => ({
+      id: `episode:${index}`,
+      type: "episode" as const,
+      text: episode,
+      provenance: "Thread.messages",
+      visibility: memoryVisibility,
+      scope: memoryScope,
+      recency: 1 - index / Math.max(episodes.length, 1),
+    })),
+    ...relevantSources.map((source, index) => ({
+      id: `source:${index}`,
+      type: "source" as const,
+      text: source,
+      provenance: "PersistentSource",
+      visibility: "internal" as const,
+      scope: personaId,
+      recency: 0.72 - index * 0.05,
+    })),
+    ...relevantAgenda.map((event, index) => ({
+      id: `agenda:${index}`,
+      type: "agenda" as const,
+      text: summarizeAgenda([event])[0],
+      provenance: "sovereign_agenda",
+      visibility: "internal" as const,
+      scope: "agenda",
+      recency: 0.86 - index * 0.04,
+    })),
+    ...relevantRegistries.map((registry, index) => ({
+      id: `registry:${index}`,
+      type: "registry" as const,
+      text: summarizeRegistries([registry])[0],
+      provenance: "user_registros",
+      visibility: "internal" as const,
+      scope: "registry",
+      recency: 0.82 - index * 0.04,
+    })),
+    ...destinyContext.slice(-10).map((event, index, list) => ({
+      id: `destiny:${index}`,
+      type: "destiny" as const,
+      text: summarizeDestinyEvents([event])[0],
+      provenance: "destiny_line",
+      visibility: "internal" as const,
+      scope: "destiny-line",
+      recency: list.length <= 1 ? 0.7 : 0.4 + index / (list.length - 1) * 0.3,
+    })),
+    ...(placeContext ? [{
+      id: "place:active",
+      type: "place" as const,
+      text: placeContext,
+      provenance: "entities.place",
+      visibility: isPrivateMemorySpace(placeId || "") ? "private" as const : "internal" as const,
+      scope: placeId || null,
+      recency: 0.55,
+    }] : []),
+  ];
+  const activeFrontSnapshot = buildActiveFrontSnapshot({
+    personaId,
+    userText,
+    richness: inputRichness,
+    contract,
+    sources: activeFrontSources,
+    allowPrivateContext: isPrivateMemorySpace(memoryScope),
+  });
+  const initiativeBrief = buildPersonaInitiativeBrief({
+    personaId,
+    userText,
+    richness: inputRichness,
+    snapshot: activeFrontSnapshot,
+    contract,
+  });
+  const initiativeControl = renderPersonaInitiativeControl({
+    personaId,
+    richness: inputRichness,
+    snapshot: activeFrontSnapshot,
+    brief: initiativeBrief,
+    contract,
+  });
 
   const now = new Date();
   const timeContext = `Hoje e ${now.toLocaleDateString("pt-BR", {
@@ -517,14 +630,15 @@ export async function assemblePersonaContext({
     section("CONTEXTO TEMPORAL", timeContext),
     section("IDIOMA DA INTERACAO", `Responda em ${languageName[language]}, salvo se o usuario pedir expressamente outro idioma nesta mensagem.`),
     section("PEDIDO ATUAL DO USUARIO", userText || "(pedido atual nao informado ao assembler)"),
+    section("INICIATIVA CONTEXTUAL GLOBAL", initiativeControl),
     listSection("MEMORIAS RELEVANTES", memories),
     listSection("EPISODIOS RECENTES RELEVANTES", episodes),
     listSection("FONTES PERSISTENTES AUTORIZADAS", relevantSources),
     listSection("MARCOS DA LINHA DO DESTINO", summarizeDestinyEvents(destinyContext)),
     listSection("AGENDA RELEVANTE", summarizeAgenda(relevantAgenda)),
     listSection("REGISTROS RELEVANTES", summarizeRegistries(relevantRegistries)),
-    section("LUGAR DA MENTE ATIVO", buildPlaceContext(personaId, placeId)),
-    section("AVISO DE LACUNA CONTEXTUAL", hasSubstantiveContext ? "" : contract.honestFailureMode),
+    section("LUGAR DA MENTE ATIVO", placeContext),
+    section("AVISO DE LACUNA CONTEXTUAL", activeFrontSnapshot.hasSubstantiveContext ? "" : contract.honestFailureMode),
     section("CONSTITUICAO E DOUTRINA GLOBAL RESUMIDAS", buildDoctrinalSummary()),
     section("SEGURANCA, PRIVACIDADE E VERACIDADE", buildSafetyPrivacyVeracity(memoryScope, contract)),
     section("EXTRACAO DE MEMORIA", buildMemoryExtractionInstruction(memoryScope)),
@@ -538,6 +652,12 @@ export async function assemblePersonaContext({
 
   return {
     systemPrompt,
+    initiative: {
+      richness: inputRichness,
+      snapshot: activeFrontSnapshot,
+      brief: initiativeBrief,
+      contract,
+    },
     debug: {
       personaId,
       placeId,
@@ -553,11 +673,16 @@ export async function assemblePersonaContext({
       memoryPreview: safePreview(memories),
       episodePreview: safePreview(episodes),
       sourcePreview: safePreview(relevantSources),
-      apiWrapper: "AI SDK streamText via @ai-sdk/openai",
+      apiWrapper: "AI SDK generateText buffered via configured chat gateway",
       maxOutputTokens: null,
       presencePenalty: null,
       frequencyPenalty: null,
       genericHelpInstructionsFound,
+      inputRichness: inputRichness.richness,
+      inputOpeningType: inputRichness.openingType,
+      activeFrontCandidates: activeFrontSnapshot.fronts.length,
+      selectedActiveFronts: activeFrontSnapshot.selectedFronts.length,
+      initiativeHasSubstantiveContext: activeFrontSnapshot.hasSubstantiveContext,
     },
   };
 }

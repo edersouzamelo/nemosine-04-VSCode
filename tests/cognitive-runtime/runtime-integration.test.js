@@ -246,6 +246,52 @@ test("candidate fails Scientist gate and succeeds after revision without persist
   assert.equal(JSON.stringify([...delivery.persistedByRun.values()]).includes("Resposta ruim."), false);
 });
 
+test("persona initiative gate rejects generic interview candidate before promotion", async () => {
+  const req = request({
+    personaId: "Engenheiro",
+    userText: "bom dia",
+    displayUserText: "bom dia",
+  });
+  const delivery = persistenceHarness();
+  const ctx = context(req, {
+    functionalContract: {
+      id: "engenheiro",
+      label: "Contrato especifico: Engenheiro",
+      family: "operational",
+      text: "Contrato funcional do Engenheiro.",
+    },
+    promptHashes: { Engenheiro: "prompt-hash", personaInitiative: "initiative-hash" },
+    authorizedContext: [{
+      id: "ctx-runtime-gate",
+      type: "episode",
+      provenance: "synthetic_fixture",
+      visibility: "internal",
+      scope: "Engenheiro",
+      text: "Frente tecnica ativa: o runtime cognitivo perde iniciativa nas personas e precisa de quality gate antes da entrega.",
+    }],
+  });
+  const result = await runCognitiveRuntime(req, {
+    config: config(),
+    contextEnvelope: ctx,
+    modelProvider: provider({
+      candidates: [
+        "Bom dia. Qual e o problema tecnico que voce quer diagnosticar?",
+        "Bom dia. O gargalo tecnico mais provavel esta no runtime cognitivo: as personas perdem iniciativa antes do quality gate. O reparo inicial e validar antes da entrega e testar esse fluxo como dependencia central.",
+      ],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.promoted, true);
+  assert.equal(result.iterations.length, 2);
+  assert.ok(result.iterations[0].vocation.findings.some((finding) => finding.code === "GENERIC_INTERVIEW_MODE"));
+  assert.equal(delivery.deliveryCalls.length, 1);
+  assert.match(delivery.deliveryCalls[0].answer, /quality gate/i);
+  assert.equal(JSON.stringify([...delivery.persistedByRun.values()]).includes("Qual e o problema tecnico"), false);
+});
+
 test("candidate never reaches threshold and no side effects are committed", async () => {
   const req = request();
   const delivery = persistenceHarness();

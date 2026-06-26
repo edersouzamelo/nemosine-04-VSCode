@@ -316,7 +316,9 @@ export type CognitiveAuditEvent = {
     | "SIDE_EFFECTS_COMMITTED"
     | "SIDE_EFFECTS_SKIPPED"
     | "SIDE_EFFECTS_BLOCKED"
-    | "SIDE_EFFECTS_ROLLED_BACK";
+    | "SIDE_EFFECTS_ROLLED_BACK"
+    | "PERSONA_INITIATIVE_EVALUATED"
+    | "PERSONA_INITIATIVE_REPAIR_REQUESTED";
   at: string;
   detail: Record<string, string | number | boolean | null>;
 };

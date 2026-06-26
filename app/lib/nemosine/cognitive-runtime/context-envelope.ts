@@ -6,11 +6,20 @@ import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
   getRelevantConversationEpisodes,
   getRelevantUserMemories,
+  getUserMemories,
+  getVisibleConversationEpisodes,
 } from "@/app/lib/nemosine/session_store";
 import {
   formatPersonaBehaviorContract,
   getPersonaBehaviorContract,
 } from "@/app/lib/nemosine/persona_behavior_contracts";
+import {
+  ActiveFrontSource,
+  buildActiveFrontSnapshot,
+  buildPersonaInitiativeBrief,
+  classifyConversationInputRichness,
+  renderPersonaInitiativeControl,
+} from "@/app/lib/nemosine/persona-initiative";
 import { isPrivateMemorySpace } from "@/app/lib/nemosine/privacy";
 import { hashText } from "./audit-redaction";
 import { authorizeContextItems } from "./privacy-policy";
@@ -115,10 +124,17 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
   const promptKey = nativePromptRecord?.promptKey || request.personaId;
   const contract = getPersonaBehaviorContract(request.personaId);
   const contractText = formatPersonaBehaviorContract(contract);
+  const inputRichness = classifyConversationInputRichness(request.userText);
+  const memoryPromise = inputRichness.requiresContextExpansion
+    ? getUserMemories(request.userId, request.memoryScope).then((items) => items.slice(-14))
+    : getRelevantUserMemories(request.userId, request.memoryScope, request.userText, 10).catch(() => []);
+  const episodePromise = inputRichness.requiresContextExpansion
+    ? getVisibleConversationEpisodes(request.userId, request.memoryScope).then((items) => items.slice(0, 10))
+    : getRelevantConversationEpisodes(request.userId, request.memoryScope, request.userText, 6).catch(() => []);
 
   const [memories, episodes, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
-    getRelevantUserMemories(request.userId, request.memoryScope, request.userText, 10).catch(() => []),
-    getRelevantConversationEpisodes(request.userId, request.memoryScope, request.userText, 6).catch(() => []),
+    memoryPromise.catch(() => []),
+    episodePromise.catch(() => []),
     getVisibleUserSources(request.userId, request.personaId).catch(() => []),
     getAgendaEvents(request.userId).catch(() => []),
     getUserRegistros(request.userId).catch(() => []),
@@ -181,6 +197,45 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
   if (activePlaceContext) rawItems.push(activePlaceContext);
 
   const { authorized, blocked } = authorizeContextItems(request, rawItems);
+  const activeFrontSources: ActiveFrontSource[] = authorized.map((authorizedItem, index) => ({
+    id: authorizedItem.id,
+    type: authorizedItem.type,
+    text: authorizedItem.text,
+    provenance: authorizedItem.provenance,
+    visibility: authorizedItem.visibility,
+    scope: authorizedItem.scope,
+    recency: 1 - index / Math.max(authorized.length, 1),
+  }));
+  const activeFrontSnapshot = buildActiveFrontSnapshot({
+    personaId: request.personaId,
+    userText: request.userText,
+    richness: inputRichness,
+    contract,
+    sources: activeFrontSources,
+    allowPrivateContext: request.privateRun,
+  });
+  const initiativeBrief = buildPersonaInitiativeBrief({
+    personaId: request.personaId,
+    userText: request.userText,
+    richness: inputRichness,
+    snapshot: activeFrontSnapshot,
+    contract,
+  });
+  const initiativeControl = renderPersonaInitiativeControl({
+    personaId: request.personaId,
+    richness: inputRichness,
+    snapshot: activeFrontSnapshot,
+    brief: initiativeBrief,
+    contract,
+  });
+  const initiativeContextItem = item({
+    id: "system:persona-initiative",
+    type: "system",
+    provenance: "persona_initiative_runtime",
+    visibility: request.privateRun ? "private" : "internal",
+    text: initiativeControl,
+    scope: request.personaId,
+  });
 
   const envelope: CognitiveContextEnvelope = {
     runId: request.runId,
@@ -201,12 +256,13 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
       text: contractText,
     },
     runtimeInstructions: runtimeInstructions(request.language),
-    authorizedContext: authorized,
+    authorizedContext: [...authorized, initiativeContextItem],
     activePlaceContext,
     privateRun: request.privateRun,
     promptHashes: {
       [promptKey]: hashText(prompt),
       functionalContract: hashText(contractText),
+      personaInitiative: hashText(initiativeControl),
     },
   };
 

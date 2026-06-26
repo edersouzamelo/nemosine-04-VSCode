@@ -1,5 +1,13 @@
 import { CognitiveRuntimeConfig, readCognitiveRuntimeConfig } from "./config";
 import { assembleCognitiveContextEnvelope } from "./context-envelope";
+import { getPersonaBehaviorContract } from "@/app/lib/nemosine/persona_behavior_contracts";
+import {
+  ActiveFrontSource,
+  buildActiveFrontSnapshot,
+  buildPersonaInitiativeBrief,
+  classifyConversationInputRichness,
+  evaluatePersonaInitiativeQuality,
+} from "@/app/lib/nemosine/persona-initiative";
 import { buildRedactedAudit } from "./audit-redaction";
 import { storeCognitiveAudit } from "./audit-store";
 import { extractClaimsAndActions } from "./claim-extractor";
@@ -118,6 +126,94 @@ function auditEvent(
     code,
     at: new Date().toISOString(),
     detail,
+  };
+}
+
+function evaluateRuntimePersonaInitiative(input: {
+  request: CognitiveRequest;
+  context: CognitiveContextEnvelope;
+  candidate: CandidateResponse;
+}) {
+  const contract = getPersonaBehaviorContract(input.request.personaId);
+  const richness = classifyConversationInputRichness(input.request.userText);
+  const initiativeEnabled = Boolean(input.context.promptHashes.personaInitiative)
+    || input.context.authorizedContext.some((contextItem) => contextItem.id === "system:persona-initiative");
+
+  if (!initiativeEnabled) {
+    return {
+      richness,
+      snapshot: {
+        fronts: [],
+        selectedFronts: [],
+        hasSubstantiveContext: false,
+        selectionReason: ["persona-initiative-control-not-present"],
+      },
+      evaluation: {
+        initiativeScore: 1,
+        contextualGroundingScore: 1,
+        vocationalFitScore: 1,
+        specificityScore: 1,
+        privacyScore: 1,
+        unsupportedInferencePenalty: 0,
+        genericQuestionPenalty: 0,
+        genericAssistantPenalty: 0,
+        findings: [],
+        finalPass: true,
+      },
+      findings: [],
+    };
+  }
+
+  const sources: ActiveFrontSource[] = input.context.authorizedContext
+    .filter((contextItem) => contextItem.id !== "system:persona-initiative")
+    .map((contextItem, index) => ({
+      id: contextItem.id,
+      type: contextItem.type,
+      text: contextItem.text,
+      provenance: contextItem.provenance,
+      visibility: contextItem.visibility,
+      scope: contextItem.scope,
+      recency: 1 - index / Math.max(input.context.authorizedContext.length, 1),
+    }));
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: input.request.personaId,
+    userText: input.request.userText,
+    richness,
+    contract,
+    sources,
+    allowPrivateContext: input.request.privateRun,
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: input.request.personaId,
+    userText: input.request.userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const evaluation = evaluatePersonaInitiativeQuality({
+    responseText: input.candidate.visibleText,
+    personaId: input.request.personaId,
+    userText: input.request.userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: input.request.privateRun,
+  });
+
+  const findings: CognitiveFinding[] = evaluation.findings.map((finding) => ({
+    code: finding.code,
+    severity: finding.severity,
+    category: "persona-initiative",
+    explanation: finding.explanation,
+    repairInstruction: finding.repairInstruction,
+  }));
+
+  return {
+    richness,
+    snapshot,
+    evaluation,
+    findings,
   };
 }
 
@@ -533,7 +629,34 @@ export async function runCognitiveRuntime(
       iteration.privacy = privacy;
 
       const vocation = evaluateVocationalPolicy({ request, extraction });
+      const initiative = evaluateRuntimePersonaInitiative({
+        request,
+        context: contextResult.envelope,
+        candidate,
+      });
+      if (initiative.findings.length > 0) {
+        vocation.findings.push(...initiative.findings);
+      }
+      if (!initiative.evaluation.finalPass) {
+        vocation.hardPass = false;
+        vocation.decision = vocation.decision === "refusal_required" ? vocation.decision : "warning";
+      }
       iteration.vocation = vocation;
+      auditEvents.push(auditEvent("PERSONA_INITIATIVE_EVALUATED", {
+        inputRichness: initiative.richness.richness,
+        activeFrontCandidates: initiative.snapshot.fronts.length,
+        selectedActiveFronts: initiative.snapshot.selectedFronts.length,
+        vocationalFamily: contextResult.envelope.functionalContract.family,
+        contractId: contextResult.envelope.functionalContract.id,
+        initiativeScore: Number(initiative.evaluation.initiativeScore.toFixed(3)),
+        contextualGroundingScore: Number(initiative.evaluation.contextualGroundingScore.toFixed(3)),
+        vocationalFitScore: Number(initiative.evaluation.vocationalFitScore.toFixed(3)),
+        specificityScore: Number(initiative.evaluation.specificityScore.toFixed(3)),
+        privacyScore: Number(initiative.evaluation.privacyScore.toFixed(3)),
+        findingCount: initiative.findings.length,
+        findingCodes: initiative.findings.map((finding) => finding.code).join(","),
+        finalPass: initiative.evaluation.finalPass,
+      }));
 
       const vigia = calculateVigiaCoherence({
         scientist,
@@ -553,6 +676,14 @@ export async function runCognitiveRuntime(
 
         if (retriesRemainingAfterVigia > 0) {
           repairFindings = collectRepairFindings(iteration);
+          const initiativeRepairCount = repairFindings.filter((finding) => finding.category === "persona-initiative").length;
+          if (initiativeRepairCount > 0) {
+            auditEvents.push(auditEvent("PERSONA_INITIATIVE_REPAIR_REQUESTED", {
+              iteration: index,
+              findingCount: initiativeRepairCount,
+              regenerated: true,
+            }));
+          }
           stateMachine.transition("OCV_RETRY_REQUESTED", `iteration:${index}`);
           continue;
         }
@@ -631,6 +762,14 @@ export async function runCognitiveRuntime(
 
         if (promotion.retriable) {
           repairFindings = collectRepairFindings(iteration);
+          const initiativeRepairCount = repairFindings.filter((finding) => finding.category === "persona-initiative").length;
+          if (initiativeRepairCount > 0) {
+            auditEvents.push(auditEvent("PERSONA_INITIATIVE_REPAIR_REQUESTED", {
+              iteration: index,
+              findingCount: initiativeRepairCount,
+              regenerated: true,
+            }));
+          }
           stateMachine.transition("OCV_RETRY_REQUESTED", `iteration:${index}`);
           continue;
         }
