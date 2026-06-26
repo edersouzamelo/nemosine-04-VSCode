@@ -147,10 +147,58 @@ async function ensureDestinyLineTable() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await prisma.$executeRaw`ALTER TABLE sovereign_destiny_events ADD COLUMN IF NOT EXISTS external_visibility TEXT NOT NULL DEFAULT 'private'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_destiny_events ADD COLUMN IF NOT EXISTS cognitive_visibility TEXT NOT NULL DEFAULT 'all-public-personas'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_destiny_events ADD COLUMN IF NOT EXISTS cognitive_personas TEXT NOT NULL DEFAULT '[]'`;
+  await prisma.$executeRaw`
+    UPDATE sovereign_destiny_events
+    SET external_visibility = 'legacy'
+    WHERE visibility = 'legacy'
+      AND external_visibility = 'private'
+  `;
+  await prisma.$executeRaw`
+    UPDATE sovereign_destiny_events
+    SET cognitive_visibility = 'excluded-from-personas'
+    WHERE visibility = 'sensitive'
+      AND cognitive_visibility = 'all-public-personas'
+  `;
+  await prisma.$executeRaw`
+    UPDATE sovereign_destiny_events
+    SET external_visibility = CASE
+        WHEN visibility = 'legacy' THEN 'legacy'
+        ELSE 'private'
+      END,
+      cognitive_visibility = CASE
+        WHEN visibility = 'sensitive' THEN 'excluded-from-personas'
+        ELSE cognitive_visibility
+      END
+    WHERE external_visibility IS NULL
+       OR external_visibility = ''
+       OR cognitive_visibility IS NULL
+       OR cognitive_visibility = ''
+  `;
   await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_user_id_idx ON sovereign_destiny_events(user_id)`;
   await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_event_date_idx ON sovereign_destiny_events(event_date)`;
   await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_category_idx ON sovereign_destiny_events(category)`;
   await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_visibility_idx ON sovereign_destiny_events(visibility)`;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_cognitive_visibility_idx ON sovereign_destiny_events(cognitive_visibility)`;
+  await ensureDestinyContextIndexTable();
+}
+
+async function ensureDestinyContextIndexTable() {
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_destiny_context_index (
+      destiny_event_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      searchable_text TEXT NOT NULL,
+      categories TEXT NOT NULL DEFAULT '[]',
+      persona_affinities TEXT NOT NULL DEFAULT '[]',
+      temporal_importance DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+      biographical_importance DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_context_index_user_id_idx ON sovereign_destiny_context_index(user_id)`;
 }
 
 async function ensurePushSubscriptionsTable() {
@@ -173,6 +221,12 @@ async function ensurePushSubscriptionsTable() {
 // ==========================================
 
 export type DestinyVisibility = "private" | "sensitive" | "legacy";
+export type DestinyExternalVisibility = "private" | "shareable" | "legacy";
+export type DestinyCognitiveVisibility =
+  | "all-public-personas"
+  | "selected-personas"
+  | "source-persona-only"
+  | "excluded-from-personas";
 
 export interface DestinyEvent {
   id: string;
@@ -188,6 +242,9 @@ export interface DestinyEvent {
   associatedPlace?: string | null;
   lifePhase?: string | null;
   visibility: DestinyVisibility;
+  externalVisibility: DestinyExternalVisibility;
+  cognitiveVisibility: DestinyCognitiveVisibility;
+  cognitivePersonas: string[];
   source?: string | null;
   tags: string[];
   imageUrl?: string | null;
@@ -210,6 +267,21 @@ function parseTags(value: unknown): string[] {
   return [];
 }
 
+function parseStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean).slice(0, 24);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parseStringList(parsed);
+    } catch {
+      return value.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 24);
+    }
+  }
+  return [];
+}
+
 function normalizeDate(value: unknown): string | null {
   if (!value) return null;
   const raw = String(value).trim();
@@ -223,6 +295,14 @@ function normalizeDestinyPayload(payload: any, existingId?: string): DestinyEven
   const category = String(payload?.category ?? "").trim();
   const shortDescription = String(payload?.shortDescription ?? "").trim();
   const visibility = String(payload?.visibility ?? "private").trim() as DestinyVisibility;
+  const externalVisibility = String(
+    payload?.externalVisibility
+      ?? (visibility === "legacy" ? "legacy" : "private")
+  ).trim() as DestinyExternalVisibility;
+  const cognitiveVisibility = String(
+    payload?.cognitiveVisibility
+      ?? (visibility === "sensitive" ? "excluded-from-personas" : "all-public-personas")
+  ).trim() as DestinyCognitiveVisibility;
   const intensityRaw = payload?.symbolicIntensity;
   const symbolicIntensity = intensityRaw === null || intensityRaw === undefined || intensityRaw === ""
     ? null
@@ -233,6 +313,12 @@ function normalizeDestinyPayload(payload: any, existingId?: string): DestinyEven
   if (!shortDescription) throw new Error("A descricao curta e obrigatoria.");
   if (!["private", "sensitive", "legacy"].includes(visibility)) {
     throw new Error("Visibilidade invalida.");
+  }
+  if (!["private", "shareable", "legacy"].includes(externalVisibility)) {
+    throw new Error("Visibilidade externa invalida.");
+  }
+  if (!["all-public-personas", "selected-personas", "source-persona-only", "excluded-from-personas"].includes(cognitiveVisibility)) {
+    throw new Error("Visibilidade cognitiva invalida.");
   }
   if (symbolicIntensity !== null && (!Number.isInteger(symbolicIntensity) || symbolicIntensity < 1 || symbolicIntensity > 5)) {
     throw new Error("A intensidade simbolica deve ser um inteiro entre 1 e 5.");
@@ -252,6 +338,9 @@ function normalizeDestinyPayload(payload: any, existingId?: string): DestinyEven
     associatedPlace: payload?.associatedPlace ? String(payload.associatedPlace).trim() : null,
     lifePhase: payload?.lifePhase ? String(payload.lifePhase).trim() : null,
     visibility,
+    externalVisibility,
+    cognitiveVisibility,
+    cognitivePersonas: parseStringList(payload?.cognitivePersonas),
     source: payload?.source ? String(payload.source).trim() : null,
     tags: parseTags(payload?.tags),
     imageUrl: payload?.imageUrl ? String(payload.imageUrl).trim() : null,
@@ -273,12 +362,92 @@ function mapDestinyRow(row: any): DestinyEvent {
     associatedPlace: row.associated_place,
     lifePhase: row.life_phase,
     visibility: row.visibility,
+    externalVisibility: row.external_visibility || (row.visibility === "legacy" ? "legacy" : "private"),
+    cognitiveVisibility: row.cognitive_visibility || (row.visibility === "sensitive" ? "excluded-from-personas" : "all-public-personas"),
+    cognitivePersonas: parseStringList(row.cognitive_personas),
     source: row.source,
     tags: parseTags(row.tags),
     imageUrl: row.image_url,
     createdAt: row.created_at?.toISOString?.() || String(row.created_at),
     updatedAt: row.updated_at?.toISOString?.() || String(row.updated_at),
   };
+}
+
+function destinySearchableText(event: DestinyEvent) {
+  return [
+    event.title,
+    event.category,
+    event.shortDescription,
+    event.longDescription,
+    event.dominantEmotion,
+    event.associatedPersona,
+    event.associatedPlace,
+    event.lifePhase,
+    event.tags.join(", "),
+  ].filter(Boolean).join(" | ");
+}
+
+function destinyPersonaAffinities(event: DestinyEvent) {
+  return Array.from(new Set([
+    event.associatedPersona,
+    ...event.cognitivePersonas,
+    event.category === "Familia" || event.category === "Relacoes" ? "Psicologo" : null,
+    event.category === "Carreira" || event.category === "Obra" || event.category === "Criacao" ? "Estrategista" : null,
+    event.category === "Saude" || event.category === "Corpo" ? "Medico" : null,
+    event.category === "Virada" || event.category === "Travessia" ? "Astronomo" : null,
+    event.category === "Reconhecimento" || event.category === "Formacao" ? "Mentor" : null,
+  ].filter((item): item is string => Boolean(item))));
+}
+
+function destinyBiographicalImportance(event: DestinyEvent) {
+  const foundationalCategories = new Set(["Familia", "Saude", "Carreira", "Obra", "Criacao", "Perda", "Virada", "Travessia", "Relacoes"]);
+  const categoryBoost = foundationalCategories.has(event.category) ? 0.25 : 0;
+  const intensityBoost = event.symbolicIntensity ? event.symbolicIntensity / 20 : 0.1;
+  const descriptionBoost = event.longDescription && event.longDescription.length > 80 ? 0.1 : 0;
+  return Math.max(0.2, Math.min(1, 0.35 + categoryBoost + intensityBoost + descriptionBoost));
+}
+
+function destinyTemporalImportance(event: DestinyEvent) {
+  const dated = event.eventDate || event.eventDateLabel ? 0.2 : 0;
+  const phase = event.lifePhase ? 0.15 : 0;
+  const intensity = event.symbolicIntensity ? event.symbolicIntensity / 25 : 0.08;
+  return Math.max(0.2, Math.min(1, 0.35 + dated + phase + intensity));
+}
+
+export async function syncDestinyContextIndex(userId: string, event: DestinyEvent): Promise<void> {
+  await ensureDestinyContextIndexTable();
+  await prisma.$executeRaw`
+    INSERT INTO sovereign_destiny_context_index (
+      destiny_event_id, user_id, searchable_text, categories, persona_affinities,
+      temporal_importance, biographical_importance, updated_at
+    )
+    VALUES (
+      ${event.id},
+      ${userId},
+      ${destinySearchableText(event)},
+      ${JSON.stringify([event.category, event.lifePhase].filter(Boolean))},
+      ${JSON.stringify(destinyPersonaAffinities(event))},
+      ${destinyTemporalImportance(event)},
+      ${destinyBiographicalImportance(event)},
+      NOW()
+    )
+    ON CONFLICT (destiny_event_id) DO UPDATE SET
+      user_id = EXCLUDED.user_id,
+      searchable_text = EXCLUDED.searchable_text,
+      categories = EXCLUDED.categories,
+      persona_affinities = EXCLUDED.persona_affinities,
+      temporal_importance = EXCLUDED.temporal_importance,
+      biographical_importance = EXCLUDED.biographical_importance,
+      updated_at = NOW()
+  `;
+}
+
+export async function removeDestinyContextIndex(eventId: string): Promise<void> {
+  await ensureDestinyContextIndexTable();
+  await prisma.$executeRaw`
+    DELETE FROM sovereign_destiny_context_index
+    WHERE destiny_event_id = ${eventId}
+  `;
 }
 
 export async function getDestinyEvents(userId: string): Promise<DestinyEvent[]> {
@@ -310,17 +479,19 @@ export async function createDestinyEvent(userId: string, payload: any): Promise<
     INSERT INTO sovereign_destiny_events (
       id, user_id, title, event_date, event_date_label, category, short_description, long_description,
       dominant_emotion, symbolic_intensity, associated_persona, associated_place, life_phase,
-      visibility, source, tags, image_url, updated_at
+      visibility, external_visibility, cognitive_visibility, cognitive_personas, source, tags, image_url, updated_at
     )
     VALUES (
       ${event.id}, ${userId}, ${event.title}, ${event.eventDate}::date, ${event.eventDateLabel}, ${event.category},
       ${event.shortDescription}, ${event.longDescription}, ${event.dominantEmotion}, ${event.symbolicIntensity},
       ${event.associatedPersona}, ${event.associatedPlace}, ${event.lifePhase}, ${event.visibility},
+      ${event.externalVisibility}, ${event.cognitiveVisibility}, ${JSON.stringify(event.cognitivePersonas)},
       ${event.source}, ${JSON.stringify(event.tags)}, ${event.imageUrl}, NOW()
     )
   `;
   const saved = await getDestinyEventById(userId, event.id);
   if (!saved) throw new Error("Nao foi possivel recuperar o marco criado.");
+  await syncDestinyContextIndex(userId, saved);
   return saved;
 }
 
@@ -343,6 +514,9 @@ export async function updateDestinyEvent(userId: string, eventId: string, payloa
         associated_place = ${event.associatedPlace},
         life_phase = ${event.lifePhase},
         visibility = ${event.visibility},
+        external_visibility = ${event.externalVisibility},
+        cognitive_visibility = ${event.cognitiveVisibility},
+        cognitive_personas = ${JSON.stringify(event.cognitivePersonas)},
         source = ${event.source},
         tags = ${JSON.stringify(event.tags)},
         image_url = ${event.imageUrl},
@@ -351,11 +525,13 @@ export async function updateDestinyEvent(userId: string, eventId: string, payloa
   `;
   const saved = await getDestinyEventById(userId, eventId);
   if (!saved) throw new Error("Nao foi possivel recuperar o marco atualizado.");
+  await syncDestinyContextIndex(userId, saved);
   return saved;
 }
 
 export async function deleteDestinyEvent(userId: string, eventId: string): Promise<void> {
   await ensureDestinyLineTable();
+  await removeDestinyContextIndex(eventId);
   await prisma.$executeRaw`
     DELETE FROM sovereign_destiny_events
     WHERE id = ${eventId} AND user_id = ${userId}

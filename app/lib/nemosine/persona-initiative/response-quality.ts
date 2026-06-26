@@ -33,6 +33,44 @@ const genericInterviewPatterns = [
   /\bpor onde (quer|gostaria de) comecar\b.*\?/,
 ];
 
+const explicitDetailRequestPatterns = [
+  /\bse (voce )?(puder|quiser) (fornecer|dar|trazer|compartilhar) (mais )?(detalhes|informacoes|contexto)\b/,
+  /\bse der mais detalhes\b/,
+  /\bconte mais\b/,
+  /\bpode contextualizar\b/,
+  /\bo que exatamente aconteceu\b/,
+  /\bha algum ponto especifico\b/,
+  /\bse houver algo especifico\b/,
+  /\bpara que eu possa compreender melhor\b/,
+  /\bprecisaria de mais (dados|detalhes|informacoes)\b/,
+  /\bse quiser posso aprofundar\b/,
+];
+
+const resonantInferencePatterns = [
+  /\bminha leitura (provisoria|e)\b/,
+  /\bminha inferencia\b/,
+  /\bparece que\b/,
+  /\btalvez\b/,
+  /\bo custo\b/,
+  /\bha uma diferenca\b/,
+  /\bha uma tensao\b/,
+  /\bo padrao\b/,
+  /\bo ponto\b/,
+  /\bo sinal\b/,
+];
+
+const contextualConnectionPatterns = [
+  /\bentre\b.*\be\b/,
+  /\bdeixou de ser\b.*\bpassou a\b/,
+  /\bantes\b.*\bagora\b/,
+  /\bfase\b.*\b(fase|atual|anterior)\b/,
+  /\bconecta\b/,
+  /\brelacao entre\b/,
+  /\bcomparacao\b/,
+  /\brecorrencia\b/,
+  /\btrajetoria\b/,
+];
+
 const selfDescriptionPatterns = [
   /\bminha funcao e\b/,
   /\beu sou (o|a)?\b/,
@@ -87,6 +125,10 @@ function matchesAny(text: string, patterns: RegExp[]) {
 
 function countQuestions(text: string) {
   return (text.match(/\?/g) || []).length;
+}
+
+function countMatches(text: string, patterns: RegExp[]) {
+  return patterns.filter((pattern) => pattern.test(text)).length;
 }
 
 function firstQuestionIndex(text: string) {
@@ -154,6 +196,16 @@ export function evaluatePersonaInitiativeQuality(input: {
   const grounding = contextGroundingScore(text, input.snapshot);
   const vocation = vocationalFitScore(text, input.contract, input.brief);
   const specificity = specificityScore(text);
+  const explicitDetailRequest = matchesAny(normalized, explicitDetailRequestPatterns);
+  const genericQuestionCount = genericInterviewPatterns.filter((pattern) => pattern.test(normalized)).length
+    + (text.endsWith("?") ? 1 : 0);
+  const resonantInferenceCount = countMatches(normalized, resonantInferencePatterns);
+  const contextualConnectionsCount = countMatches(normalized, contextualConnectionPatterns);
+  const elicitationMode = explicitDetailRequest || (genericQuestionCount > 0 && resonantInferenceCount === 0)
+    ? "INTERROGATIVE"
+    : resonantInferenceCount > 0 || contextualConnectionsCount > 0
+      ? "RESONANT"
+      : "NONE";
 
   if (matchesAny(normalized, genericAssistantPatterns)) {
     findings.push(finding(
@@ -182,6 +234,19 @@ export function evaluatePersonaInitiativeQuality(input: {
       "error",
       "A persona devolveu ao usuario o trabalho cognitivo antes de apresentar leitura.",
       "Selecione uma frente, apresente uma hipotese ou direcao vocacional, e so pergunte se houver lacuna decisiva.",
+    ));
+  }
+
+  if (
+    input.snapshot.hasSubstantiveContext
+    && (explicitDetailRequest || elicitationMode === "INTERROGATIVE")
+    && resonantInferenceCount === 0
+  ) {
+    findings.push(finding(
+      "INTERROGATIVE_ELICITATION",
+      "error",
+      "A resposta tentou aprofundar por pedido generico de detalhes em vez de produzir leitura ressonante sobre contexto ja disponivel.",
+      "Nao entreviste. Produza uma leitura especifica, corrigivel e vocacional que faca o aprofundamento surgir por ressonancia.",
     ));
   }
 
@@ -273,6 +338,11 @@ export function evaluatePersonaInitiativeQuality(input: {
     vocationalFitScore: vocation,
     specificityScore: specificity,
     privacyScore,
+    explicitDetailRequest,
+    genericQuestionCount,
+    resonantInferenceCount,
+    contextualConnectionsCount,
+    elicitationMode,
     unsupportedInferencePenalty,
     genericQuestionPenalty,
     genericAssistantPenalty,

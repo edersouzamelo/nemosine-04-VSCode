@@ -49,6 +49,11 @@ export type PayloadAuditInput = {
     topContextTypes?: string[];
     topContextScores?: number[];
     sourcePersonas?: string[];
+    destinySourceStatus?: string;
+    destinyEventsFound?: number;
+    destinyEventsSelected?: number;
+    destinyErrorCode?: string | null;
+    destinyUserIdMatched?: boolean;
   };
 };
 
@@ -209,6 +214,11 @@ export async function writePromptDebugAudit(input: PayloadAuditInput) {
     topContextTypes: input.debug.topContextTypes || [],
     topContextScores: input.debug.topContextScores || [],
     sourcePersonas: input.debug.sourcePersonas || [],
+    destinySourceStatus: input.debug.destinySourceStatus || null,
+    destinyEventsFound: input.debug.destinyEventsFound || 0,
+    destinyEventsSelected: input.debug.destinyEventsSelected || 0,
+    destinyErrorCode: input.debug.destinyErrorCode || null,
+    destinyUserIdMatched: input.debug.destinyUserIdMatched ?? null,
     suspiciousPayloadPhrases,
     systemPromptLength: input.systemPrompt.length,
     systemPromptPreview: privateDebug ? "[prompt privado redigido pelo PROMPT_DEBUG]" : input.systemPrompt.slice(0, 30000),
@@ -241,6 +251,10 @@ export async function writePromptDebugAudit(input: PayloadAuditInput) {
     topContextScores: audit.topContextScores,
     crossPersonaContinuityUsed: audit.crossPersonaContinuityUsed,
     privateItemsExcluded: audit.privateItemsExcluded,
+    destinySourceStatus: audit.destinySourceStatus,
+    destinyEventsFound: audit.destinyEventsFound,
+    destinyEventsSelected: audit.destinyEventsSelected,
+    destinyErrorCode: audit.destinyErrorCode,
     systemPromptLength: audit.systemPromptLength,
   });
 

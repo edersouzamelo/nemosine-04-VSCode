@@ -1,7 +1,7 @@
 import { ENTITIES } from "@/app/data/entities";
 import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
 import { getVisibleUserSources } from "@/app/lib/sourceStore";
-import { getAgendaEvents, getDestinyEvents } from "@/app/lib/sovereignStore";
+import { getAgendaEvents } from "@/app/lib/sovereignStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
   getUserMemoryRecords,
@@ -30,6 +30,7 @@ import {
   redactedContextPreview,
   renderConversationContextPacket,
 } from "./conversation_continuity";
+import { loadDestinyContextSource } from "./destiny_context";
 
 type ResponseLanguage = "pt-BR" | "es" | "en";
 
@@ -66,6 +67,11 @@ export type PersonaContextDebugInfo = {
   topContextTypes: string[];
   topContextScores: number[];
   sourcePersonas: string[];
+  destinySourceStatus: string;
+  destinyEventsFound: number;
+  destinyEventsSelected: number;
+  destinyErrorCode: string | null;
+  destinyUserIdMatched: boolean;
   activeFrontCandidates: number;
   selectedActiveFronts: number;
   initiativeHasSubstantiveContext: boolean;
@@ -209,18 +215,6 @@ const summarizeRegistries = (registries: Awaited<ReturnType<typeof getUserRegist
   const persona = registry.persona ? ` | persona: ${registry.persona}` : "";
   const deadline = registry.next_deadline ? ` | prazo: ${registry.next_deadline}` : "";
   return `${registry.idea}${persona}${deadline} | status: ${registry.status}`;
-});
-
-const summarizeDestinyEvents = (events: Awaited<ReturnType<typeof getDestinyEvents>>) => events.map((event) => {
-  const date = event.eventDate || event.eventDateLabel || "data simbolica nao definida";
-  const intensity = event.symbolicIntensity ? ` | intensidade: ${event.symbolicIntensity}/5` : "";
-  const emotion = event.dominantEmotion ? ` | emocao: ${event.dominantEmotion}` : "";
-  const persona = event.associatedPersona ? ` | persona associada: ${event.associatedPersona}` : "";
-  const place = event.associatedPlace ? ` | lugar associado: ${event.associatedPlace}` : "";
-  const phase = event.lifePhase ? ` | fase: ${event.lifePhase}` : "";
-  const details = event.longDescription ? ` | detalhes: ${event.longDescription}` : "";
-  const tags = event.tags.length > 0 ? ` | tags: ${event.tags.join(", ")}` : "";
-  return `${date}: ${event.title} (${event.category}) - ${event.shortDescription}${details}${intensity}${emotion}${persona}${place}${phase}${tags}`;
 });
 
 function buildPlaceContext(personaId: string, placeId?: string) {
@@ -514,15 +508,22 @@ export async function assemblePersonaContext({
     ? getVisibleConversationEpisodes(userId, memoryScope).then((items) => items.slice(0, 10))
     : getVisibleConversationEpisodes(userId, memoryScope).then((items) => items.slice(0, 8));
 
-  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
+  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
     memoryPromise,
     episodePromise,
     getVisibleActiveTopics(userId, memoryScope, 10),
     getVisibleUserSources(userId, personaId).catch(() => []),
     getAgendaEvents(userId).catch(() => []),
     getUserRegistros(userId).catch(() => []),
-    getDestinyEvents(userId).catch(() => []),
   ]);
+  const destinyContext = await loadDestinyContextSource({
+    userId,
+    personaId,
+    userText,
+    contract,
+    activeTopics,
+    limit: 8,
+  });
 
   const relevantAgenda = rankContextItems(
     agendaEvents,
@@ -539,7 +540,6 @@ export async function assemblePersonaContext({
     8,
   );
   const relevantSources = rankContextItems(userSources, (source) => source, userText, contract, 5);
-  const destinyContext = destinyEvents.slice(-30);
   const placeContext = buildPlaceContext(personaId, placeId);
   const contextPacket = buildConversationContextPacket({
     userText,
@@ -553,7 +553,7 @@ export async function assemblePersonaContext({
     sources: relevantSources,
     agenda: summarizeAgenda(relevantAgenda),
     registries: summarizeRegistries(relevantRegistries),
-    destiny: summarizeDestinyEvents(destinyContext),
+    destiny: destinyContext.selected.map((item) => item.text),
   });
   const selectedMemories = contextPacket.relevantDurableMemories.map((item) => item.text);
   const selectedEpisodes = contextPacket.recentPublicEpisodes.map((item) => item.text);
@@ -615,6 +615,16 @@ export async function assemblePersonaContext({
     section("CONTEXTO TEMPORAL", timeContext),
     section("IDIOMA DA INTERACAO", `Responda em ${languageName[language]}, salvo se o usuario pedir expressamente outro idioma nesta mensagem.`),
     section("PEDIDO ATUAL DO USUARIO", userText || "(pedido atual nao informado ao assembler)"),
+    section("STATUS DA LINHA DO DESTINO", [
+      `destinySourceStatus=${destinyContext.status.destinySourceStatus}`,
+      `destinyEventsFound=${destinyContext.status.destinyEventsFound}`,
+      `destinyEventsSelected=${destinyContext.status.destinyEventsSelected}`,
+      `errorCode=${destinyContext.status.errorCode || "null"}`,
+      `userIdMatched=${destinyContext.status.userIdMatched ? "true" : "false"}`,
+      destinyContext.status.destinySourceStatus === "ERROR"
+        ? "A consulta da Linha do Destino falhou tecnicamente. Nao conclua que nao existe biografia; apenas nao use marcos nao carregados."
+        : "",
+    ].filter(Boolean).join("\n")),
     section("CONTEXT PACKET PRIORIZADO", renderConversationContextPacket(contextPacket)),
     section("INICIATIVA CONTEXTUAL GLOBAL", initiativeControl),
     listSection("MEMORIAS RELEVANTES", selectedMemories),
@@ -670,12 +680,17 @@ export async function assemblePersonaContext({
       activeTopicsInjected: contextPacket.metrics.activeTopicsCount,
       contextPacketSelectedItems: contextPacket.metrics.selectedContextCount,
       contextPacketPreview: redactedContextPreview(contextPacket.selectedItems, isPrivateMemorySpace(memoryScope)),
-      retrievalExplanation: contextPacket.retrievalExplanation,
+      retrievalExplanation: [...contextPacket.retrievalExplanation, ...destinyContext.retrievalExplanation],
       privateItemsExcluded: contextPacket.metrics.privateItemsExcluded,
       crossPersonaContinuityUsed: contextPacket.metrics.crossPersonaContinuityUsed,
       topContextTypes: contextPacket.metrics.topContextTypes,
       topContextScores: contextPacket.metrics.topScores,
       sourcePersonas: contextPacket.metrics.sourcePersonas,
+      destinySourceStatus: destinyContext.status.destinySourceStatus,
+      destinyEventsFound: destinyContext.status.destinyEventsFound,
+      destinyEventsSelected: destinyContext.status.destinyEventsSelected,
+      destinyErrorCode: destinyContext.status.errorCode,
+      destinyUserIdMatched: destinyContext.status.userIdMatched,
       activeFrontCandidates: activeFrontSnapshot.fronts.length,
       selectedActiveFronts: activeFrontSnapshot.selectedFronts.length,
       initiativeHasSubstantiveContext: activeFrontSnapshot.hasSubstantiveContext,

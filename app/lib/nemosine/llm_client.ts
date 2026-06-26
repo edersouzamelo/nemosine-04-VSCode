@@ -45,6 +45,11 @@ function logPromptDebug(debug: PersonaContextDebugInfo, model: string, temperatu
         topContextTypes: debug.topContextTypes,
         topContextScores: debug.topContextScores,
         sourcePersonas: debug.sourcePersonas,
+        destinySourceStatus: debug.destinySourceStatus,
+        destinyEventsFound: debug.destinyEventsFound,
+        destinyEventsSelected: debug.destinyEventsSelected,
+        destinyErrorCode: debug.destinyErrorCode,
+        destinyUserIdMatched: debug.destinyUserIdMatched,
         model,
         temperature,
     });

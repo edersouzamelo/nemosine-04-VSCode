@@ -132,6 +132,13 @@ export type CognitiveContextEnvelope = {
   activePlaceContext?: CognitiveContextItem;
   privateRun: boolean;
   promptHashes: Record<string, string>;
+  diagnostics?: {
+    destinySourceStatus?: "OK" | "EMPTY" | "ERROR";
+    destinyEventsFound?: number;
+    destinyEventsSelected?: number;
+    destinyErrorCode?: string | null;
+    destinyUserIdMatched?: boolean;
+  };
 };
 
 export type SelectedModule = {

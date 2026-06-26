@@ -68,6 +68,7 @@ export type PersonaInitiativeQualityFindingCode =
   | "GENERIC_ASSISTANT_MODE"
   | "FALSE_CONTEXT_DENIAL"
   | "GENERIC_INTERVIEW_MODE"
+  | "INTERROGATIVE_ELICITATION"
   | "NO_CONTEXT_USE_WHEN_AVAILABLE"
   | "VOCATIONAL_INERTIA"
   | "SELF_DESCRIPTION_INSTEAD_OF_ACTION"
@@ -89,6 +90,11 @@ export type PersonaInitiativeQualityEvaluation = {
   vocationalFitScore: number;
   specificityScore: number;
   privacyScore: number;
+  explicitDetailRequest: boolean;
+  genericQuestionCount: number;
+  resonantInferenceCount: number;
+  contextualConnectionsCount: number;
+  elicitationMode: "RESONANT" | "INTERROGATIVE" | "NONE";
   unsupportedInferencePenalty: number;
   genericQuestionPenalty: number;
   genericAssistantPenalty: number;

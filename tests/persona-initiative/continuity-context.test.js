@@ -148,6 +148,21 @@ test("Astronomo quality gate rejects false context denial and accepts longitudin
   assert.equal(rejected.finalPass, false);
   assert.ok(rejected.findings.some((finding) => finding.code === "FALSE_CONTEXT_DENIAL"));
 
+  const interrogatory = evaluatePersonaInitiativeQuality({
+    responseText: "Bom dia. Se puder fornecer mais detalhes sobre essa mudanca importante de vida, posso compreender melhor antes de seguir.",
+    personaId: "Astronomo",
+    userText: "Bom dia, Astronomo.",
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+  assert.equal(interrogatory.finalPass, false);
+  assert.equal(interrogatory.explicitDetailRequest, true);
+  assert.equal(interrogatory.elicitationMode, "INTERROGATIVE");
+  assert.ok(interrogatory.findings.some((finding) => finding.code === "INTERROGATIVE_ELICITATION"));
+
   const accepted = evaluatePersonaInitiativeQuality({
     responseText: [
       "Bom dia. A frente recente parece ser uma mudanca importante de vida que ja nao aparece como impulso isolado, mas como ciclo em observacao.",
@@ -164,6 +179,9 @@ test("Astronomo quality gate rejects false context denial and accepts longitudin
     privateRun: false,
   });
   assert.equal(accepted.finalPass, true);
+  assert.equal(accepted.elicitationMode, "RESONANT");
+  assert.ok(accepted.resonantInferenceCount > 0);
+  assert.ok(accepted.contextualConnectionsCount > 0);
 });
 
 test("classifies short greetings as continuity-bearing invocation", () => {

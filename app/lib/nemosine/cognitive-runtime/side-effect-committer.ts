@@ -192,6 +192,40 @@ function runtimeEffectId(runId: string, actionId: string) {
   return `cognitive-runtime:${runId}:${actionId}`.slice(0, 240);
 }
 
+function destinyActionSearchableText(action: ProposedDestinyAction, input: CognitiveRequest) {
+  return [
+    action.title,
+    action.category,
+    action.shortDescription,
+    action.dominantEmotion,
+    input.personaId,
+    input.placeId,
+  ].filter(Boolean).join(" | ");
+}
+
+function destinyActionPersonaAffinities(action: ProposedDestinyAction, personaId: string) {
+  return Array.from(new Set([
+    personaId,
+    action.category === "Familia" || action.category === "Relacoes" ? "Psicologo" : null,
+    action.category === "Carreira" || action.category === "Obra" || action.category === "Criacao" ? "Estrategista" : null,
+    action.category === "Saude" || action.category === "Corpo" ? "Medico" : null,
+    action.category === "Virada" || action.category === "Travessia" ? "Astronomo" : null,
+  ].filter((item): item is string => Boolean(item))));
+}
+
+function destinyActionBiographicalImportance(action: ProposedDestinyAction) {
+  const foundationalCategories = new Set(["Familia", "Saude", "Carreira", "Obra", "Criacao", "Perda", "Virada", "Travessia", "Relacoes"]);
+  const categoryBoost = foundationalCategories.has(action.category) ? 0.25 : 0;
+  const intensityBoost = action.symbolicIntensity ? action.symbolicIntensity / 20 : 0.1;
+  return Math.max(0.2, Math.min(1, 0.35 + categoryBoost + intensityBoost));
+}
+
+function destinyActionTemporalImportance(action: ProposedDestinyAction) {
+  const dated = action.eventDate || action.eventDateLabel ? 0.2 : 0;
+  const intensity = action.symbolicIntensity ? action.symbolicIntensity / 25 : 0.08;
+  return Math.max(0.2, Math.min(1, 0.35 + dated + intensity));
+}
+
 async function ensureRuntimeOptionalEffectTables() {
   await prisma.$executeRaw`
     CREATE TABLE IF NOT EXISTS user_registros (
@@ -232,6 +266,36 @@ async function ensureRuntimeOptionalEffectTables() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await prisma.$executeRaw`ALTER TABLE sovereign_destiny_events ADD COLUMN IF NOT EXISTS external_visibility TEXT NOT NULL DEFAULT 'private'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_destiny_events ADD COLUMN IF NOT EXISTS cognitive_visibility TEXT NOT NULL DEFAULT 'all-public-personas'`;
+  await prisma.$executeRaw`ALTER TABLE sovereign_destiny_events ADD COLUMN IF NOT EXISTS cognitive_personas TEXT NOT NULL DEFAULT '[]'`;
+  await prisma.$executeRaw`
+    UPDATE sovereign_destiny_events
+    SET external_visibility = 'legacy'
+    WHERE visibility = 'legacy'
+      AND external_visibility = 'private'
+  `;
+  await prisma.$executeRaw`
+    UPDATE sovereign_destiny_events
+    SET cognitive_visibility = 'excluded-from-personas'
+    WHERE visibility = 'sensitive'
+      AND cognitive_visibility = 'all-public-personas'
+  `;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_user_id_idx ON sovereign_destiny_events(user_id)`;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_events_cognitive_visibility_idx ON sovereign_destiny_events(cognitive_visibility)`;
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS sovereign_destiny_context_index (
+      destiny_event_id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      searchable_text TEXT NOT NULL,
+      categories TEXT NOT NULL DEFAULT '[]',
+      persona_affinities TEXT NOT NULL DEFAULT '[]',
+      temporal_importance DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+      biographical_importance DOUBLE PRECISION NOT NULL DEFAULT 0.5,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS sovereign_destiny_context_index_user_id_idx ON sovereign_destiny_context_index(user_id)`;
 }
 
 async function addUserMemoryInTransaction(tx: any, input: {
@@ -333,7 +397,7 @@ export async function commitAuthorizedOptionalEffects(
           INSERT INTO sovereign_destiny_events (
             id, user_id, title, event_date, event_date_label, category, short_description, long_description,
             dominant_emotion, symbolic_intensity, associated_persona, associated_place, life_phase,
-            visibility, source, tags, image_url, updated_at
+            visibility, external_visibility, cognitive_visibility, cognitive_personas, source, tags, image_url, updated_at
           )
           VALUES (
             ${id},
@@ -350,6 +414,9 @@ export async function commitAuthorizedOptionalEffects(
             ${input.request.placeId || null},
             ${null},
             ${"private"},
+            ${"private"},
+            ${"all-public-personas"},
+            ${JSON.stringify([])},
             ${`persona:${input.request.personaId};thread:${input.request.threadId};runtime:${input.request.runId}`},
             ${JSON.stringify(["sugerido-por-persona", input.request.personaId, "cognitive-runtime-v1"])},
             ${null},
@@ -357,7 +424,33 @@ export async function commitAuthorizedOptionalEffects(
           )
           ON CONFLICT (id) DO NOTHING
         `;
-        if (inserted > 0) transactionCounts.destiny += 1;
+        if (inserted > 0) {
+          await tx.$executeRaw`
+            INSERT INTO sovereign_destiny_context_index (
+              destiny_event_id, user_id, searchable_text, categories, persona_affinities,
+              temporal_importance, biographical_importance, updated_at
+            )
+            VALUES (
+              ${id},
+              ${input.request.userId},
+              ${destinyActionSearchableText(action, input.request)},
+              ${JSON.stringify([action.category].filter(Boolean))},
+              ${JSON.stringify(destinyActionPersonaAffinities(action, input.request.personaId))},
+              ${destinyActionTemporalImportance(action)},
+              ${destinyActionBiographicalImportance(action)},
+              NOW()
+            )
+            ON CONFLICT (destiny_event_id) DO UPDATE SET
+              user_id = EXCLUDED.user_id,
+              searchable_text = EXCLUDED.searchable_text,
+              categories = EXCLUDED.categories,
+              persona_affinities = EXCLUDED.persona_affinities,
+              temporal_importance = EXCLUDED.temporal_importance,
+              biographical_importance = EXCLUDED.biographical_importance,
+              updated_at = NOW()
+          `;
+          transactionCounts.destiny += 1;
+        }
       }
 
       return transactionCounts;

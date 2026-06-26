@@ -1,6 +1,6 @@
 import { ENTITIES } from "@/app/data/entities";
 import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
-import { getAgendaEvents, getDestinyEvents } from "@/app/lib/sovereignStore";
+import { getAgendaEvents } from "@/app/lib/sovereignStore";
 import { getVisibleUserSources } from "@/app/lib/sourceStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
@@ -24,6 +24,7 @@ import {
   getVisibleActiveTopics,
   renderConversationContextPacket,
 } from "@/app/lib/nemosine/conversation_continuity";
+import { loadDestinyContextSource } from "@/app/lib/nemosine/destiny_context";
 import { isPrivateMemorySpace } from "@/app/lib/nemosine/privacy";
 import { hashText } from "./audit-redaction";
 import { authorizeContextItems } from "./privacy-policy";
@@ -47,13 +48,6 @@ function summarizeRegistry(registry: any) {
   const persona = registry.persona ? ` | persona: ${registry.persona}` : "";
   const deadline = registry.next_deadline ? ` | prazo: ${registry.next_deadline}` : "";
   return `${registry.idea}${persona}${deadline} | status: ${registry.status}`;
-}
-
-function summarizeDestiny(event: any) {
-  const date = event.eventDate || event.eventDateLabel || "data simbolica nao definida";
-  const intensity = event.symbolicIntensity ? ` | intensidade: ${event.symbolicIntensity}/5` : "";
-  const emotion = event.dominantEmotion ? ` | emocao: ${event.dominantEmotion}` : "";
-  return `${date}: ${event.title} (${event.category}) - ${event.shortDescription}${intensity}${emotion}`;
 }
 
 function buildPlaceItem(personaId: string, placeId?: string | null): CognitiveContextItem | undefined {
@@ -144,18 +138,25 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     ? getVisibleConversationEpisodes(request.userId, request.memoryScope).then((items) => items.slice(0, 10))
     : getVisibleConversationEpisodes(request.userId, request.memoryScope).then((items) => items.slice(0, 8));
 
-  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
+  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
     memoryPromise.catch(() => []),
     episodePromise.catch(() => []),
     getVisibleActiveTopics(request.userId, request.memoryScope, 10).catch(() => []),
     getVisibleUserSources(request.userId, request.personaId).catch(() => []),
     getAgendaEvents(request.userId).catch(() => []),
     getUserRegistros(request.userId).catch(() => []),
-    getDestinyEvents(request.userId).catch(() => []),
   ]);
   const agendaSummaries = agendaEvents.slice(0, 8).map(summarizeAgenda);
   const registrySummaries = registries.slice(0, 8).map(summarizeRegistry);
-  const destinySummaries = destinyEvents.slice(-30).map(summarizeDestiny);
+  const destinyContext = await loadDestinyContextSource({
+    userId: request.userId,
+    personaId: request.personaId,
+    userText: request.userText,
+    contract,
+    activeTopics,
+    limit: 8,
+  });
+  const destinySummaries = destinyContext.selected.map((item) => item.text);
   const contextPacket = buildConversationContextPacket({
     userText: request.userText,
     personaId: request.personaId,
@@ -189,6 +190,20 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     visibility: request.privateRun ? "private" : "internal",
     text: renderConversationContextPacket(contextPacket),
     scope: request.memoryScope,
+  }));
+  rawItems.push(item({
+    id: "system:destiny-source-status",
+    type: "system",
+    provenance: "destiny_line_status",
+    visibility: "metadata-only",
+    text: [
+      `destinySourceStatus=${destinyContext.status.destinySourceStatus}`,
+      `destinyEventsFound=${destinyContext.status.destinyEventsFound}`,
+      `destinyEventsSelected=${destinyContext.status.destinyEventsSelected}`,
+      `errorCode=${destinyContext.status.errorCode || "null"}`,
+      `userIdMatched=${destinyContext.status.userIdMatched ? "true" : "false"}`,
+    ].join("\n"),
+    scope: "destiny-line",
   }));
 
   const { authorized, blocked } = authorizeContextItems(request, rawItems);
@@ -251,6 +266,13 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
       functionalContract: hashText(contractText),
       personaInitiative: hashText(initiativeControl),
       continuityContextPacket: hashText(renderConversationContextPacket(contextPacket)),
+    },
+    diagnostics: {
+      destinySourceStatus: destinyContext.status.destinySourceStatus,
+      destinyEventsFound: destinyContext.status.destinyEventsFound,
+      destinyEventsSelected: destinyContext.status.destinyEventsSelected,
+      destinyErrorCode: destinyContext.status.errorCode,
+      destinyUserIdMatched: destinyContext.status.userIdMatched,
     },
   };
 

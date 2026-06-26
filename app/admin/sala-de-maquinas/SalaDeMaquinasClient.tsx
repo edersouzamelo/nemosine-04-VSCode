@@ -501,6 +501,12 @@ function MetricCard({ label, value, icon }: { label: string; value: string | num
 }
 
 function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loading: boolean; error: string; onClose: () => void }) {
+  const auditEvents = detail?.auditEvents || [];
+  const continuityEvent = auditEvents.find((event: any) => event.code === "CONTINUITY_CONTEXT_ASSEMBLED");
+  const initiativeEvent = auditEvents.filter((event: any) => event.code === "PERSONA_INITIATIVE_EVALUATED").slice(-1)[0];
+  const continuity = continuityEvent?.detail || {};
+  const initiative = initiativeEvent?.detail || {};
+
   return (
     <aside className="fixed inset-y-0 right-0 z-[200] flex w-full max-w-3xl flex-col border-l border-[#c5a059]/25 bg-[#060608]/98 shadow-2xl backdrop-blur-xl" role="dialog" aria-modal="true" aria-label="Detalhe da execução cognitiva">
       <div className="flex items-center justify-between border-b border-[#c5a059]/15 p-4">
@@ -534,6 +540,21 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
                 <KeyValue label="Perfil" value={detail.identity.executionProfile} />
                 <KeyValue label="Modelos" value={(detail.identity.modelIdentifiers || []).join(", ") || "nao registrado"} />
                 <KeyValue label="Privada" value={detail.identity.privateRun ? "sim" : "nao"} />
+              </dl>
+            </DetailSection>
+
+            <DetailSection title="Continuidade e destino">
+              <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                <KeyValue label="Status Destiny" value={String(continuity.destinySourceStatus || "nao registrado")} />
+                <KeyValue label="Eventos encontrados" value={String(continuity.destinyEventsFound ?? "nao registrado")} />
+                <KeyValue label="Eventos selecionados" value={String(continuity.destinyEventsSelected ?? "nao registrado")} />
+                <KeyValue label="Erro Destiny" value={String(continuity.destinyErrorCode || "nenhum")} />
+                <KeyValue label="User ID confere" value={continuity.destinyUserIdMatched === undefined ? "nao registrado" : continuity.destinyUserIdMatched ? "sim" : "nao"} />
+                <KeyValue label="Modo de elicitacao" value={String(initiative.elicitationMode || "nao registrado")} />
+                <KeyValue label="Pedido generico de detalhes" value={initiative.explicitDetailRequest === undefined ? "nao registrado" : initiative.explicitDetailRequest ? "sim" : "nao"} />
+                <KeyValue label="Perguntas genericas" value={String(initiative.genericQuestionCount ?? "nao registrado")} />
+                <KeyValue label="Inferencias ressonantes" value={String(initiative.resonantInferenceCount ?? "nao registrado")} />
+                <KeyValue label="Conexoes contextuais" value={String(initiative.contextualConnectionsCount ?? "nao registrado")} />
               </dl>
             </DetailSection>
 

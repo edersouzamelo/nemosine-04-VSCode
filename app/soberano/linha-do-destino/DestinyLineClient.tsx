@@ -7,6 +7,12 @@ import InstitutionalFooter from "@/app/components/InstitutionalFooter";
 import { PERSONAS, PLACES } from "@/app/data/entities";
 
 type DestinyVisibility = "private" | "sensitive" | "legacy";
+type DestinyExternalVisibility = "private" | "shareable" | "legacy";
+type DestinyCognitiveVisibility =
+    | "all-public-personas"
+    | "selected-personas"
+    | "source-persona-only"
+    | "excluded-from-personas";
 type ViewMode = "line" | "list" | "phases";
 type SortMode = "oldest" | "newest" | "intensity" | "category";
 
@@ -24,6 +30,9 @@ interface DestinyEvent {
     associatedPlace?: string | null;
     lifePhase?: string | null;
     visibility: DestinyVisibility;
+    externalVisibility: DestinyExternalVisibility;
+    cognitiveVisibility: DestinyCognitiveVisibility;
+    cognitivePersonas: string[];
     source?: string | null;
     tags: string[];
     imageUrl?: string | null;
@@ -31,9 +40,10 @@ interface DestinyEvent {
     updatedAt?: string;
 }
 
-type DestinyForm = Omit<DestinyEvent, "id" | "createdAt" | "updatedAt" | "tags"> & {
+type DestinyForm = Omit<DestinyEvent, "id" | "createdAt" | "updatedAt" | "tags" | "cognitivePersonas"> & {
     id?: string;
     tags: string;
+    cognitivePersonas: string;
 };
 
 const CATEGORIES = [
@@ -55,6 +65,19 @@ const VISIBILITY_LABELS: Record<DestinyVisibility, string> = {
     private: "Privado",
     sensitive: "Marco sensivel",
     legacy: "Marco de legado",
+};
+
+const EXTERNAL_VISIBILITY_LABELS: Record<DestinyExternalVisibility, string> = {
+    private: "Externo privado",
+    shareable: "Externo compartilhavel",
+    legacy: "Externo legado",
+};
+
+const COGNITIVE_VISIBILITY_LABELS: Record<DestinyCognitiveVisibility, string> = {
+    "all-public-personas": "Todas as personas publicas",
+    "selected-personas": "Personas selecionadas",
+    "source-persona-only": "Somente persona de origem",
+    "excluded-from-personas": "Fora das personas",
 };
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -86,6 +109,9 @@ const emptyForm: DestinyForm = {
     associatedPlace: "",
     lifePhase: "",
     visibility: "private",
+    externalVisibility: "private",
+    cognitiveVisibility: "all-public-personas",
+    cognitivePersonas: "",
     source: "",
     tags: "",
     imageUrl: "",
@@ -123,7 +149,20 @@ function normalizeForm(event: DestinyEvent): DestinyForm {
     return {
         ...event,
         tags: event.tags?.join(", ") || "",
+        externalVisibility: event.externalVisibility || (event.visibility === "legacy" ? "legacy" : "private"),
+        cognitiveVisibility: event.cognitiveVisibility || (event.visibility === "sensitive" ? "excluded-from-personas" : "all-public-personas"),
+        cognitivePersonas: event.cognitivePersonas?.join(", ") || "",
         symbolicIntensity: event.symbolicIntensity ?? 3,
+    };
+}
+
+function normalizeEvent(event: DestinyEvent): DestinyEvent {
+    return {
+        ...event,
+        externalVisibility: event.externalVisibility || (event.visibility === "legacy" ? "legacy" : "private"),
+        cognitiveVisibility: event.cognitiveVisibility || (event.visibility === "sensitive" ? "excluded-from-personas" : "all-public-personas"),
+        cognitivePersonas: event.cognitivePersonas || [],
+        tags: event.tags || [],
     };
 }
 
@@ -147,6 +186,7 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
         intensity: "",
         year: "",
         visibility: "",
+        cognitiveVisibility: "",
         tag: "",
     });
 
@@ -157,7 +197,7 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
             const response = await apiAction("get_destiny_events");
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || "Nao foi possivel carregar a Linha do Destino.");
-            setEvents(data.events || []);
+            setEvents((data.events || []).map(normalizeEvent));
         } catch (err) {
             setError(err instanceof Error ? err.message : "Erro ao carregar marcos.");
         } finally {
@@ -192,6 +232,7 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
             if (filters.intensity && String(event.symbolicIntensity || "") !== filters.intensity) return false;
             if (filters.year && getEventYear(event) !== filters.year) return false;
             if (filters.visibility && event.visibility !== filters.visibility) return false;
+            if (filters.cognitiveVisibility && event.cognitiveVisibility !== filters.cognitiveVisibility) return false;
             if (filters.tag && !event.tags?.includes(filters.tag)) return false;
             return true;
         });
@@ -218,6 +259,7 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
     }, [events]);
 
     const legacyCount = events.filter((event) => event.visibility === "legacy").length;
+    const cognitivelyVisibleCount = events.filter((event) => event.cognitiveVisibility !== "excluded-from-personas").length;
 
     const openCreate = () => {
         setEditingEventId(null);
@@ -245,12 +287,20 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
             }
         }
 
+        const selectedCognitivePersonas = form.cognitivePersonas.split(",").map((persona) => persona.trim()).filter(Boolean);
+        if (form.cognitiveVisibility === "selected-personas" && selectedCognitivePersonas.length === 0) {
+            setError("Informe pelo menos uma persona para visibilidade cognitiva seletiva.");
+            setSaving(false);
+            return;
+        }
+
         const payload = {
             ...form,
             eventDate: form.eventDate || null,
             eventDateLabel: form.eventDateLabel || null,
             symbolicIntensity: form.symbolicIntensity ? Number(form.symbolicIntensity) : null,
             tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+            cognitivePersonas: selectedCognitivePersonas,
         };
 
         try {
@@ -261,8 +311,9 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || "Nao foi possivel salvar o marco.");
             setEvents((current) => {
-                if (editingEventId) return current.map((event) => event.id === editingEventId ? data.event : event);
-                return [...current, data.event];
+                const savedEvent = normalizeEvent(data.event);
+                if (editingEventId) return current.map((event) => event.id === editingEventId ? savedEvent : event);
+                return [...current, savedEvent];
             });
             setFormOpen(false);
             setEditingEventId(null);
@@ -315,6 +366,12 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
                             {VISIBILITY_LABELS[event.visibility]}
                         </span>
                     )}
+                    <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] text-cyan-100/75">
+                        {EXTERNAL_VISIBILITY_LABELS[event.externalVisibility]}
+                    </span>
+                    <span className="rounded-full border border-violet-300/25 bg-violet-300/10 px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] text-violet-100/75">
+                        {COGNITIVE_VISIBILITY_LABELS[event.cognitiveVisibility]}
+                    </span>
                 </div>
                 <h3 className="mt-4 font-display text-xl uppercase tracking-[0.12em] text-[#d9b865]">
                     {event.title}
@@ -392,7 +449,11 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
                         <p className="text-[9px] uppercase tracking-[0.2em] text-white/35">Legado</p>
                         <p className="mt-2 font-display text-3xl text-[#d9b865]">{legacyCount}</p>
                     </div>
-                    <div className="rounded-lg border border-[#c5a059]/18 bg-black/45 p-4 md:col-span-2">
+                    <div className="rounded-lg border border-[#c5a059]/18 bg-black/45 p-4">
+                        <p className="text-[9px] uppercase tracking-[0.2em] text-white/35">Cognitivos</p>
+                        <p className="mt-2 font-display text-3xl text-[#d9b865]">{cognitivelyVisibleCount}</p>
+                    </div>
+                    <div className="rounded-lg border border-[#c5a059]/18 bg-black/45 p-4">
                         <p className="text-[9px] uppercase tracking-[0.2em] text-white/35">Ultimo marco registrado</p>
                         <p className="mt-2 truncate text-sm font-semibold text-[#eee8dc]">{lastEvent?.title || "Nenhum marco registrado ainda"}</p>
                     </div>
@@ -429,6 +490,10 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
                             <option value="private">Privado</option>
                             <option value="sensitive">Sensivel</option>
                             <option value="legacy">Legado</option>
+                        </select>
+                        <select value={filters.cognitiveVisibility} onChange={(event) => updateFilter("cognitiveVisibility", event.target.value)} className="rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-xs text-white/75">
+                            <option value="">Toda visibilidade cognitiva</option>
+                            {Object.entries(COGNITIVE_VISIBILITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                         </select>
                         <select value={filters.tag} onChange={(event) => updateFilter("tag", event.target.value)} className="rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-xs text-white/75">
                             <option value="">Todas as tags</option>
@@ -567,12 +632,27 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
                                 <input list="life-phases" value={form.lifePhase || ""} onChange={(event) => setForm({ ...form, lifePhase: event.target.value })} className="mt-2 w-full rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-sm normal-case tracking-normal text-white" />
                                 <datalist id="life-phases">{LIFE_PHASES.map((item) => <option key={item} value={item} />)}</datalist>
                             </label>
-                            <label className="text-xs uppercase tracking-[0.16em] text-white/45">Visibilidade
+                            <label className="text-xs uppercase tracking-[0.16em] text-white/45">Classificacao historica
                                 <select value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value as DestinyVisibility })} className="mt-2 w-full rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-sm normal-case tracking-normal text-white">
                                     <option value="private">Privado</option>
                                     <option value="sensitive">Sensivel</option>
                                     <option value="legacy">Legado</option>
                                 </select>
+                            </label>
+                            <label className="text-xs uppercase tracking-[0.16em] text-white/45">Visibilidade externa
+                                <select value={form.externalVisibility} onChange={(event) => setForm({ ...form, externalVisibility: event.target.value as DestinyExternalVisibility })} className="mt-2 w-full rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-sm normal-case tracking-normal text-white">
+                                    <option value="private">Privado fora do sistema</option>
+                                    <option value="shareable">Compartilhavel externamente</option>
+                                    <option value="legacy">Legado publico/biografico</option>
+                                </select>
+                            </label>
+                            <label className="text-xs uppercase tracking-[0.16em] text-white/45">Visibilidade cognitiva
+                                <select value={form.cognitiveVisibility} onChange={(event) => setForm({ ...form, cognitiveVisibility: event.target.value as DestinyCognitiveVisibility })} className="mt-2 w-full rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-sm normal-case tracking-normal text-white">
+                                    {Object.entries(COGNITIVE_VISIBILITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                </select>
+                            </label>
+                            <label className="text-xs uppercase tracking-[0.16em] text-white/45">Personas cognitivas
+                                <input value={form.cognitivePersonas} placeholder="Somente se seletivo; separe por virgula" onChange={(event) => setForm({ ...form, cognitivePersonas: event.target.value })} className="mt-2 w-full rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-sm normal-case tracking-normal text-white placeholder:text-white/25" />
                             </label>
                             <label className="text-xs uppercase tracking-[0.16em] text-white/45">Fonte do registro
                                 <input value={form.source || ""} placeholder="memoria pessoal, documento, foto..." onChange={(event) => setForm({ ...form, source: event.target.value })} className="mt-2 w-full rounded border border-[#c5a059]/25 bg-black px-3 py-2 text-sm normal-case tracking-normal text-white placeholder:text-white/25" />
@@ -619,7 +699,10 @@ export default function DestinyLineClient({ embed = false }: { embed?: boolean }
                                 ["Persona associada", detailsEvent.associatedPersona || "-"],
                                 ["Lugar associado", detailsEvent.associatedPlace || "-"],
                                 ["Fase da vida", detailsEvent.lifePhase || "-"],
-                                ["Visibilidade", VISIBILITY_LABELS[detailsEvent.visibility]],
+                                ["Classificacao historica", VISIBILITY_LABELS[detailsEvent.visibility]],
+                                ["Visibilidade externa", EXTERNAL_VISIBILITY_LABELS[detailsEvent.externalVisibility]],
+                                ["Visibilidade cognitiva", COGNITIVE_VISIBILITY_LABELS[detailsEvent.cognitiveVisibility]],
+                                ["Personas cognitivas", detailsEvent.cognitivePersonas.join(", ") || "-"],
                                 ["Fonte", detailsEvent.source || "-"],
                                 ["Tags", detailsEvent.tags.join(", ") || "-"],
                                 ["Criado em", detailsEvent.createdAt ? new Date(detailsEvent.createdAt).toLocaleString("pt-BR") : "-"],
