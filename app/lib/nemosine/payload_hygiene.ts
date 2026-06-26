@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
+import { isPrivateMemorySpace } from "./privacy";
 
 export type ChatPayloadMessage = {
   id?: string;
@@ -37,6 +38,17 @@ export type PayloadAuditInput = {
     nativePromptResolved: boolean;
     nativePromptKey?: string;
     nativePromptSource?: string;
+    invocationMode?: string;
+    memoryScope?: string;
+    activeTopicsInjected?: number;
+    contextPacketSelectedItems?: number;
+    contextPacketPreview?: Array<Record<string, unknown>>;
+    retrievalExplanation?: string[];
+    privateItemsExcluded?: number;
+    crossPersonaContinuityUsed?: boolean;
+    topContextTypes?: string[];
+    topContextScores?: number[];
+    sourcePersonas?: string[];
   };
 };
 
@@ -164,6 +176,7 @@ export async function writePromptDebugAudit(input: PayloadAuditInput) {
     ...input.messages.map((message) => `${message.role}: ${message.content}`),
   ].join("\n\n");
   const suspiciousPayloadPhrases = detectSuspiciousPayloadPhrases(combinedPayload);
+  const privateDebug = isPrivateMemorySpace(input.debug.memoryScope || input.personaId);
   const audit = {
     createdAt: new Date().toISOString(),
     personaId: input.personaId,
@@ -185,15 +198,26 @@ export async function writePromptDebugAudit(input: PayloadAuditInput) {
     nativePromptResolved: input.debug.nativePromptResolved,
     nativePromptKey: input.debug.nativePromptKey || null,
     nativePromptSource: input.debug.nativePromptSource || null,
+    invocationMode: input.debug.invocationMode || null,
+    memoryScope: input.debug.memoryScope || input.personaId,
+    activeTopicsInjected: input.debug.activeTopicsInjected || 0,
+    contextPacketSelectedItems: input.debug.contextPacketSelectedItems || 0,
+    contextPacketPreview: input.debug.contextPacketPreview || [],
+    retrievalExplanation: input.debug.retrievalExplanation || [],
+    privateItemsExcluded: input.debug.privateItemsExcluded || 0,
+    crossPersonaContinuityUsed: Boolean(input.debug.crossPersonaContinuityUsed),
+    topContextTypes: input.debug.topContextTypes || [],
+    topContextScores: input.debug.topContextScores || [],
+    sourcePersonas: input.debug.sourcePersonas || [],
     suspiciousPayloadPhrases,
     systemPromptLength: input.systemPrompt.length,
-    systemPromptPreview: input.systemPrompt.slice(0, 30000),
+    systemPromptPreview: privateDebug ? "[prompt privado redigido pelo PROMPT_DEBUG]" : input.systemPrompt.slice(0, 30000),
     messages: input.messages.map((message, index) => ({
       index,
       role: message.role,
       contentLength: message.content.length,
       suspiciousPhrases: detectSuspiciousPayloadPhrases(message.content),
-      contentPreview: message.content.slice(0, 5000),
+      contentPreview: privateDebug ? "[mensagem privada redigida pelo PROMPT_DEBUG]" : message.content.slice(0, 5000),
     })),
   };
 
@@ -210,6 +234,13 @@ export async function writePromptDebugAudit(input: PayloadAuditInput) {
     contractApplied: audit.contractApplied,
     nativePromptResolved: audit.nativePromptResolved,
     nativePromptKey: audit.nativePromptKey,
+    invocationMode: audit.invocationMode,
+    activeTopicsInjected: audit.activeTopicsInjected,
+    contextPacketSelectedItems: audit.contextPacketSelectedItems,
+    topContextTypes: audit.topContextTypes,
+    topContextScores: audit.topContextScores,
+    crossPersonaContinuityUsed: audit.crossPersonaContinuityUsed,
+    privateItemsExcluded: audit.privateItemsExcluded,
     systemPromptLength: audit.systemPromptLength,
   });
 

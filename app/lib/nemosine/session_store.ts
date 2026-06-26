@@ -2,6 +2,7 @@ import { SessionState, ChatThread } from './types';
 import { PrismaClient } from '@prisma/client';
 import { isPrivateMemorySpace, PRIVATE_MEMORY_SPACES } from './privacy';
 import { getPersonaLexicalHints } from './persona_behavior_contracts';
+import { classifyConversationInputRichness } from './persona-initiative';
 
 export const prisma = new PrismaClient();
 
@@ -218,7 +219,18 @@ export const deleteThread = async (userId: string, threadId: string): Promise<vo
 
 // Memory Management (Cross-Session)
 // Memories created inside private spaces may return only to their originating space.
-export const getUserMemories = async (userId: string, targetPersonaId: string): Promise<string[]> => {
+export type UserMemoryRecord = {
+    id: string;
+    content: string;
+    personaId: string | null;
+    createdAt: Date;
+};
+
+export const getUserMemoryRecords = async (
+    userId: string,
+    targetPersonaId: string,
+    take = 60,
+): Promise<UserMemoryRecord[]> => {
     const visibleSources = isPrivateMemorySpace(targetPersonaId)
         ? [
             { personaId: null },
@@ -236,10 +248,15 @@ export const getUserMemories = async (userId: string, targetPersonaId: string): 
             OR: visibleSources
         },
         orderBy: { createdAt: 'desc' },
-        take: 60,
-        select: { content: true }
+        take,
+        select: { id: true, content: true, personaId: true, createdAt: true }
     });
-    return memories.reverse().map(m => m.content);
+    return memories;
+};
+
+export const getUserMemories = async (userId: string, targetPersonaId: string): Promise<string[]> => {
+    const memories = await getUserMemoryRecords(userId, targetPersonaId);
+    return memories.map(m => m.content);
 };
 
 const normalizeForScoring = (text: string) => text
@@ -266,29 +283,52 @@ const buildScoringTerms = (personaId: string, userText: string) => {
     return Array.from(new Set([...normalizedTextTerms, ...contractTerms]));
 };
 
+type SnippetRecord = {
+    content: string;
+    createdAt?: Date | string | number | null;
+};
+
+const snippetTime = (value?: Date | string | number | null) => {
+    if (!value) return null;
+    const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
+    return Number.isFinite(time) ? time : null;
+};
+
 const rankRelevantSnippets = (
-    snippets: string[],
+    snippets: SnippetRecord[],
     personaId: string,
     userText: string,
     limit: number,
 ) => {
     const terms = buildScoringTerms(personaId, userText);
+    const richness = classifyConversationInputRichness(userText);
+    const continuityMode = richness.requiresContextExpansion && richness.richness === "low";
+    const denominator = Math.max(snippets.length - 1, 1);
 
     return snippets
         .map((content, index) => {
-            const normalizedContent = normalizeForScoring(content);
-            const score = terms.reduce((total, term) => {
+            const normalizedContent = normalizeForScoring(content.content);
+            const lexicalScore = terms.reduce((total, term) => {
                 if (!normalizedContent.includes(term)) return total;
                 const occurrences = normalizedContent.split(term).length - 1;
                 return total + 1 + Math.min(occurrences, 3);
             }, 0);
+            const recencyScore = 1 - index / denominator;
+            const score = continuityMode
+                ? recencyScore * 3 + lexicalScore * 0.15
+                : lexicalScore * 2 + recencyScore * 0.35;
 
-            return { content, score, index };
+            return { content: content.content, createdAt: content.createdAt, score, lexicalScore, index };
         })
-        .filter((item) => item.score > 0 || item.index < 4)
-        .sort((a, b) => b.score - a.score || b.index - a.index)
+        .filter((item) => item.lexicalScore > 0 || (continuityMode && item.index < Math.max(limit * 2, 4)) || item.index < 4)
+        .sort((a, b) => b.score - a.score || a.index - b.index)
         .slice(0, limit)
-        .sort((a, b) => a.index - b.index)
+        .sort((a, b) => {
+            const aTime = snippetTime(a.createdAt);
+            const bTime = snippetTime(b.createdAt);
+            if (aTime !== null && bTime !== null) return aTime - bTime;
+            return b.index - a.index;
+        })
         .map((item) => item.content);
 };
 
@@ -298,7 +338,7 @@ export const getRelevantUserMemories = async (
     userText: string,
     limit = 10,
 ): Promise<string[]> => {
-    const memories = await getUserMemories(userId, targetPersonaId);
+    const memories = await getUserMemoryRecords(userId, targetPersonaId);
     return rankRelevantSnippets(memories, targetPersonaId, userText, limit);
 };
 
@@ -352,7 +392,12 @@ export const getRelevantConversationEpisodes = async (
     limit = 6,
 ): Promise<string[]> => {
     const candidates = await getVisibleConversationEpisodeCandidates(userId, targetPersonaId);
-    return rankRelevantSnippets(candidates, targetPersonaId, userText, limit);
+    return rankRelevantSnippets(
+        candidates.map((content) => ({ content })),
+        targetPersonaId,
+        userText,
+        limit,
+    );
 };
 
 export const addUserMemory = async (userId: string, content: string, personaId?: string): Promise<void> => {

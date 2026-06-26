@@ -4,9 +4,7 @@ import { getAgendaEvents, getDestinyEvents } from "@/app/lib/sovereignStore";
 import { getVisibleUserSources } from "@/app/lib/sourceStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
-  getRelevantConversationEpisodes,
-  getRelevantUserMemories,
-  getUserMemories,
+  getUserMemoryRecords,
   getVisibleConversationEpisodes,
 } from "@/app/lib/nemosine/session_store";
 import {
@@ -20,6 +18,12 @@ import {
   classifyConversationInputRichness,
   renderPersonaInitiativeControl,
 } from "@/app/lib/nemosine/persona-initiative";
+import {
+  buildConversationContextPacket,
+  contextPacketToActiveFrontSources,
+  getVisibleActiveTopics,
+  renderConversationContextPacket,
+} from "@/app/lib/nemosine/conversation_continuity";
 import { isPrivateMemorySpace } from "@/app/lib/nemosine/privacy";
 import { hashText } from "./audit-redaction";
 import { authorizeContextItems } from "./privacy-policy";
@@ -71,6 +75,16 @@ function buildPlaceItem(personaId: string, placeId?: string | null): CognitiveCo
     text,
     scope: place.name,
   });
+}
+
+function packetTypeToContextType(type: string): CognitiveContextItem["type"] {
+  if (type === "ACTIVE_TOPICS") return "active_topic";
+  if (type === "RECENT_PUBLIC_EPISODES") return "episode";
+  if (type === "RELEVANT_DURABLE_MEMORIES") return "memory";
+  if (type === "DESTINY_CONTEXT") return "destiny";
+  if (type === "AGENDA_AND_REGISTRY_CONTEXT") return "registry";
+  if (type === "CURRENT_THREAD_CONTEXT") return "system";
+  return "source";
 }
 
 function runtimeInstructions(language: CognitiveRequest["language"]) {
@@ -125,87 +139,60 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
   const contract = getPersonaBehaviorContract(request.personaId);
   const contractText = formatPersonaBehaviorContract(contract);
   const inputRichness = classifyConversationInputRichness(request.userText);
-  const memoryPromise = inputRichness.requiresContextExpansion
-    ? getUserMemories(request.userId, request.memoryScope).then((items) => items.slice(-14))
-    : getRelevantUserMemories(request.userId, request.memoryScope, request.userText, 10).catch(() => []);
+  const memoryPromise = getUserMemoryRecords(request.userId, request.memoryScope, inputRichness.requiresContextExpansion ? 60 : 40);
   const episodePromise = inputRichness.requiresContextExpansion
     ? getVisibleConversationEpisodes(request.userId, request.memoryScope).then((items) => items.slice(0, 10))
-    : getRelevantConversationEpisodes(request.userId, request.memoryScope, request.userText, 6).catch(() => []);
+    : getVisibleConversationEpisodes(request.userId, request.memoryScope).then((items) => items.slice(0, 8));
 
-  const [memories, episodes, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
+  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
     memoryPromise.catch(() => []),
     episodePromise.catch(() => []),
+    getVisibleActiveTopics(request.userId, request.memoryScope, 10).catch(() => []),
     getVisibleUserSources(request.userId, request.personaId).catch(() => []),
     getAgendaEvents(request.userId).catch(() => []),
     getUserRegistros(request.userId).catch(() => []),
     getDestinyEvents(request.userId).catch(() => []),
   ]);
+  const agendaSummaries = agendaEvents.slice(0, 8).map(summarizeAgenda);
+  const registrySummaries = registries.slice(0, 8).map(summarizeRegistry);
+  const destinySummaries = destinyEvents.slice(-30).map(summarizeDestiny);
+  const contextPacket = buildConversationContextPacket({
+    userText: request.userText,
+    personaId: request.personaId,
+    memoryScope: request.memoryScope,
+    contract,
+    inputRichness,
+    activeTopics,
+    memories: memoryRecords,
+    episodes,
+    sources: userSources.slice(0, 5),
+    agenda: agendaSummaries,
+    registries: registrySummaries,
+    destiny: destinySummaries,
+  });
 
-  const memoryVisibility = isPrivateMemorySpace(request.memoryScope) ? "private" : "internal";
-  const rawItems: CognitiveContextItem[] = [
-    ...memories.map((memory, index) => item({
-      id: `memory:${index}`,
-      type: "memory",
-      provenance: "UserMemory",
-      visibility: memoryVisibility,
-      text: memory,
-      scope: request.memoryScope,
-    })),
-    ...episodes.map((episode, index) => item({
-      id: `episode:${index}`,
-      type: "episode",
-      provenance: "Thread.messages",
-      visibility: memoryVisibility,
-      text: episode,
-      scope: request.memoryScope,
-    })),
-    ...userSources.slice(0, 5).map((source, index) => item({
-      id: `source:${index}`,
-      type: "source",
-      provenance: "PersistentSource",
-      visibility: "internal",
-      text: source,
-      scope: request.personaId,
-    })),
-    ...agendaEvents.slice(0, 8).map((event, index) => item({
-      id: `agenda:${index}`,
-      type: "agenda",
-      provenance: "sovereign_agenda",
-      visibility: "internal",
-      text: summarizeAgenda(event),
-      scope: "agenda",
-    })),
-    ...registries.slice(0, 8).map((registry, index) => item({
-      id: `registry:${index}`,
-      type: "registry",
-      provenance: "user_registros",
-      visibility: "internal",
-      text: summarizeRegistry(registry),
-      scope: "registry",
-    })),
-    ...destinyEvents.slice(-30).map((event, index) => item({
-      id: `destiny:${index}`,
-      type: "destiny",
-      provenance: "destiny_line",
-      visibility: "internal",
-      text: summarizeDestiny(event),
-      scope: "destiny-line",
-    })),
-  ];
+  const rawItems: CognitiveContextItem[] = contextPacket.selectedItems.map((packetItem, index) => item({
+    id: packetItem.id || `context-packet:${index}`,
+    type: packetTypeToContextType(packetItem.type),
+    provenance: packetItem.type,
+    visibility: packetItem.privacyScope === "PRIVATE" ? "private" : "internal",
+    text: packetItem.text,
+    scope: packetItem.sourcePersonaId || request.memoryScope,
+  }));
 
   const activePlaceContext = buildPlaceItem(request.personaId, request.placeId);
   if (activePlaceContext) rawItems.push(activePlaceContext);
+  rawItems.push(item({
+    id: "system:continuity-context-packet",
+    type: "system",
+    provenance: "conversation_continuity",
+    visibility: request.privateRun ? "private" : "internal",
+    text: renderConversationContextPacket(contextPacket),
+    scope: request.memoryScope,
+  }));
 
   const { authorized, blocked } = authorizeContextItems(request, rawItems);
-  const activeFrontSources: ActiveFrontSource[] = authorized.map((authorizedItem, index) => ({
-    id: authorizedItem.id,
-    type: authorizedItem.type,
-    text: authorizedItem.text,
-    provenance: authorizedItem.provenance,
-    visibility: authorizedItem.visibility,
-    scope: authorizedItem.scope,
-    recency: 1 - index / Math.max(authorized.length, 1),
-  }));
+  const activeFrontSources: ActiveFrontSource[] = contextPacketToActiveFrontSources(contextPacket);
   const activeFrontSnapshot = buildActiveFrontSnapshot({
     personaId: request.personaId,
     userText: request.userText,
@@ -263,6 +250,7 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
       [promptKey]: hashText(prompt),
       functionalContract: hashText(contractText),
       personaInitiative: hashText(initiativeControl),
+      continuityContextPacket: hashText(renderConversationContextPacket(contextPacket)),
     },
   };
 

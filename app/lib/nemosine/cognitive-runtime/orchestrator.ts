@@ -165,7 +165,7 @@ function evaluateRuntimePersonaInitiative(input: {
   }
 
   const sources: ActiveFrontSource[] = input.context.authorizedContext
-    .filter((contextItem) => contextItem.id !== "system:persona-initiative")
+    .filter((contextItem) => !contextItem.id.startsWith("system:"))
     .map((contextItem, index) => ({
       id: contextItem.id,
       type: contextItem.type,
@@ -550,6 +550,24 @@ export async function runCognitiveRuntime(
 
     promptHashes = contextResult.envelope.promptHashes;
     stateMachine.transition("CONTEXT_ASSEMBLED");
+    const authorizedContextItems = contextResult.envelope.authorizedContext
+      .filter((contextItem) => !contextItem.id.startsWith("system:"));
+    const sourcePersonas = Array.from(new Set(
+      authorizedContextItems
+        .map((contextItem) => contextItem.scope)
+        .filter((scope): scope is string => Boolean(scope)),
+    ));
+    auditEvents.push(auditEvent("CONTINUITY_CONTEXT_ASSEMBLED", {
+      activeTopicsCount: authorizedContextItems.filter((item) => item.type === "active_topic").length,
+      recentEpisodesCount: authorizedContextItems.filter((item) => item.type === "episode").length,
+      memoriesCount: authorizedContextItems.filter((item) => item.type === "memory").length,
+      selectedContextCount: authorizedContextItems.length,
+      topContextTypes: authorizedContextItems.slice(0, 6).map((item) => item.type).join(","),
+      sourcePersonas: sourcePersonas.slice(0, 6).join(","),
+      crossPersonaContinuityUsed: sourcePersonas.some((scope) => scope !== request.personaId && scope !== request.memoryScope),
+      privateItemsExcluded: contextResult.blockedContextIds.length,
+      runtimeMode: request.runtimeMode,
+    }));
 
     const requestRisk = classifyRequestRisk(request.userText);
     executionProfile = selectExecutionProfile(request, config.defaultProfile);
@@ -644,6 +662,7 @@ export async function runCognitiveRuntime(
       iteration.vocation = vocation;
       auditEvents.push(auditEvent("PERSONA_INITIATIVE_EVALUATED", {
         inputRichness: initiative.richness.richness,
+        inputOpeningType: initiative.richness.openingType,
         activeFrontCandidates: initiative.snapshot.fronts.length,
         selectedActiveFronts: initiative.snapshot.selectedFronts.length,
         vocationalFamily: contextResult.envelope.functionalContract.family,
@@ -655,6 +674,8 @@ export async function runCognitiveRuntime(
         privacyScore: Number(initiative.evaluation.privacyScore.toFixed(3)),
         findingCount: initiative.findings.length,
         findingCodes: initiative.findings.map((finding) => finding.code).join(","),
+        falseContextDenialDetected: initiative.findings.some((finding) => finding.code === "FALSE_CONTEXT_DENIAL"),
+        genericAssistantLeakDetected: initiative.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE" || finding.code === "GENERIC_INTERVIEW_MODE"),
         finalPass: initiative.evaluation.finalPass,
       }));
 

@@ -96,3 +96,10 @@ Deve formular psicologicamente em prosa viva, sem lista de padroes por padrao.
 ### Mentor
 
 Deve nomear conflito e orientar com forca, sem cordialidade, pergunta final ou resumo generico.
+## 2026-06-26 - Astronomo e Execucao Vocacional com Continuidade
+
+O Astronomo foi retirado da familia simbolica generica e recebeu contrato especifico estrategico-longitudinal. Sua missao operacional agora e mapear padroes internos e externos ao longo do tempo, comparar fases, detectar recorrencias, mudancas de trajetoria, distancias entre intencao e realidade e sinais de transicao.
+
+Critica corrigida: em uma convocacao como "Bom dia, Astronomo", a resposta nao deve virar autoapresentacao nem pedido de pauta se o `Context Packet` contiver tema publico recente. A intervencao inicial esperada e escolher a frente saliente, situa-la no tempo, separar fato de inferencia e produzir leitura de ciclo, recorrencia, continuidade ou ruptura.
+
+Testes adicionados em `tests/persona-initiative/continuity-context.test.js` cobrem contrato do Astronomo, recencia D/C em saudacao curta, continuidade publica entre personas, isolamento de tema privado, extracao deterministica de tema ativo e rejeicao de falsa lacuna contextual.

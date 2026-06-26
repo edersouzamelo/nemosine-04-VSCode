@@ -95,3 +95,12 @@ Quando `PROMPT_DEBUG=true`, o servidor registra:
 ## Testes manuais pendentes
 
 Os testes manuais de resposta final com Bobo da Corte, Mentor, Inimigo, Cientista e Engenheiro dependem de uma sessao real com dados do usuario e chamada ao modelo. A infraestrutura de prompt e contratos foi validada estaticamente; a avaliacao qualitativa das respostas fica pendente para execucao em chat autenticado com contexto real.
+## 2026-06-26 - Continuidade Cognitiva Transversal V2
+
+Diagnostico confirmado: o sistema ja tinha prompts, contratos, memorias e `persona-initiative`, mas a continuidade em saudacoes curtas dependia de material recuperado fragilmente. O ponto mais visivel era `getUserMemories`: a consulta trazia `createdAt desc` e depois aplicava `reverse()`, transformando o fallback de mensagem curta em favorecimento de material antigo. Alem disso, nao havia estado persistente de tema ativo; `[MEMORY: TEMA ATIVO]` era apenas uma tag opcional gerada pelo modelo.
+
+Arquitetura nova: `app/lib/nemosine/conversation_continuity.ts` cria `ActiveTopic` deterministico, classifica `InvocationMode`, calcula `Context Packet` com `ACTIVE_TOPICS`, episodios, memorias duraveis, fontes, Linha do Destino, agenda/registros e explicacao de retrieval. Em saudacoes e continuacoes, o score prioriza recencia, saliencia e afinidade vocacional antes da lexicalidade do texto curto. Em pedidos substantivos, lexicalidade volta a pesar mais.
+
+Privacidade: temas publicos atravessam personas do mesmo usuario. Temas privados sao gravados com `privacyScope=PRIVATE` e `metadata.scope`, e so retornam ao mesmo espaco privado autorizado. O pacote de debug redige previews privados e nao deve expor conteudo bruto de Confessor 2.0 ou Porao.
+
+Astronomo: agora possui contrato especifico estrategico-longitudinal, voltado a ciclos, recorrencias, trajetoria, comparacao de fases e transicoes. Ele nao deve pedir pauta quando existe tema publico recente.

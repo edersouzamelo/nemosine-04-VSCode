@@ -35,6 +35,7 @@ import {
     sanitizeConversationHistory,
     writePromptDebugAudit,
 } from '@/app/lib/nemosine/payload_hygiene';
+import { retainActiveTopicsFromUserMessage } from '@/app/lib/nemosine/conversation_continuity';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -316,6 +317,13 @@ export async function POST(req: NextRequest) {
         await Promise.all([
             addMessageToThread(userId, activeThreadId, 'user', displayUserText),
             retainConversationEpisode(userId, memoryScope, userText),
+            retainActiveTopicsFromUserMessage({
+                userId,
+                threadId: activeThreadId,
+                personaId,
+                memoryScope,
+                userText,
+            }),
         ]);
 
         const cognitiveRequest = createCognitiveRequest({

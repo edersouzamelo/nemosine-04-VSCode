@@ -41,7 +41,7 @@ export type ActiveFrontSnapshot = {
 
 export type ActiveFrontSource = {
   id: string;
-  type: "memory" | "episode" | "source" | "agenda" | "registry" | "destiny" | "place" | "thread" | "system";
+  type: "active_topic" | "memory" | "episode" | "source" | "agenda" | "registry" | "destiny" | "place" | "thread" | "system";
   text: string;
   provenance: string;
   visibility?: "internal" | "private" | "public" | "confessor" | "metadata-only";
@@ -66,6 +66,7 @@ export type PersonaInitiativeBrief = {
 
 export type PersonaInitiativeQualityFindingCode =
   | "GENERIC_ASSISTANT_MODE"
+  | "FALSE_CONTEXT_DENIAL"
   | "GENERIC_INTERVIEW_MODE"
   | "NO_CONTEXT_USE_WHEN_AVAILABLE"
   | "VOCATIONAL_INERTIA"

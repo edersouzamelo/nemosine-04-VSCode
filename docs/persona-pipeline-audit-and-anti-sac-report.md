@@ -149,3 +149,12 @@ O debug nao e exposto ao usuario final.
 ## Testes qualitativos pendentes
 
 As entradas obrigatorias de Mentor, Cientista, Bobo da Corte, Inimigo e Engenheiro ainda precisam ser testadas em chat real/autenticado para avaliar a resposta do modelo. A infraestrutura, regras e contratos foram validados estaticamente e por build.
+## 2026-06-26 - Auditoria do Pipeline de Continuidade
+
+Fluxo anterior: `app/api/chat/route.ts` persistia mensagem e episodio, depois o assembler buscava memorias/episodios. Para entradas curtas, a recuperacao ainda dependia de fallback lexical/posicional, sem estado persistente de tema ativo e com inversao de recencia em `getUserMemories`.
+
+Fluxo novo: depois da mensagem do usuario, `retainActiveTopicsFromUserMessage` extrai temas substantivos deterministamente e faz upsert em `ActiveTopic`. O assembler legado e o cognitive runtime usam `buildConversationContextPacket` antes da geracao. O pacote informa `invocationMode`, contagens, scores, motivos de selecao, tipos de contexto e se houve continuidade entre personas.
+
+Gate anti-SAC: `evaluatePersonaInitiativeQuality` agora rejeita `FALSE_CONTEXT_DENIAL` quando ha contexto substantivo e a resposta declara ausencia de informacoes sobre o usuario. O gate continua rejeitando entrevista generica, oferta de ajuda, autoapresentacao funcional, pergunta final vazia, vazamento privado e afirmacao biografica sem suporte.
+
+Observabilidade: `PROMPT_DEBUG` registra metricas e previews redigidos; o cognitive runtime emite `CONTINUITY_CONTEXT_ASSEMBLED` e amplia `PERSONA_INITIATIVE_EVALUATED` com `falseContextDenialDetected`, `genericAssistantLeakDetected`, contagens e tipos de contexto. Conteudo bruto privado permanece fora dos logs redigidos.

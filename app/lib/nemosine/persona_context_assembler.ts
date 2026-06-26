@@ -4,9 +4,7 @@ import { getVisibleUserSources } from "@/app/lib/sourceStore";
 import { getAgendaEvents, getDestinyEvents } from "@/app/lib/sovereignStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
-  getRelevantConversationEpisodes,
-  getRelevantUserMemories,
-  getUserMemories,
+  getUserMemoryRecords,
   getVisibleConversationEpisodes,
 } from "./session_store";
 import { isPrivateMemorySpace } from "./privacy";
@@ -25,6 +23,13 @@ import {
   PersonaInitiativeBrief,
   renderPersonaInitiativeControl,
 } from "./persona-initiative";
+import {
+  buildConversationContextPacket,
+  contextPacketToActiveFrontSources,
+  getVisibleActiveTopics,
+  redactedContextPreview,
+  renderConversationContextPacket,
+} from "./conversation_continuity";
 
 type ResponseLanguage = "pt-BR" | "es" | "en";
 
@@ -50,6 +55,17 @@ export type PersonaContextDebugInfo = {
   genericHelpInstructionsFound: string[];
   inputRichness: string;
   inputOpeningType: string;
+  invocationMode: string;
+  memoryScope: string;
+  activeTopicsInjected: number;
+  contextPacketSelectedItems: number;
+  contextPacketPreview: Array<Record<string, unknown>>;
+  retrievalExplanation: string[];
+  privateItemsExcluded: number;
+  crossPersonaContinuityUsed: boolean;
+  topContextTypes: string[];
+  topContextScores: number[];
+  sourcePersonas: string[];
   activeFrontCandidates: number;
   selectedActiveFronts: number;
   initiativeHasSubstantiveContext: boolean;
@@ -176,6 +192,10 @@ const listSection = (title: string, items: string[]) => {
 
 const safePreview = (items: string[]) => items.map((item) =>
   item.replace(/\s+/g, " ").slice(0, 180)
+);
+
+const scopedPreview = (items: string[], redact: boolean) => items.map((item) =>
+  redact ? "[conteudo privado redigido]" : item.replace(/\s+/g, " ").slice(0, 180)
 );
 
 const summarizeAgenda = (events: Awaited<ReturnType<typeof getAgendaEvents>>) => events.map((event) => {
@@ -462,6 +482,7 @@ function buildCommunicationRules() {
     "Nao transforme 'bom dia', 'boa tarde' ou 'boa noite' em frase de recepcionista.",
     "Nao use moldes fixos de resposta por padrao; se o prompt nativo trouxer uma estrutura, trate-a como raciocinio interno, salvo pedido explicito.",
     "A resposta deve nascer da voz, funcao e temperamento da persona, usando contexto real quando disponivel.",
+    "Quando houver temas publicos recentes, nao peca pauta. Escolha o tema mais saliente compativel com sua vocacao, apresente-o como leitura ou inferencia e avance o dialogo.",
     "Em pedidos comuns, prefira paragrafos vivos a listas, relatorios ou seções nomeadas.",
   ].join("\n");
 }
@@ -488,16 +509,15 @@ export async function assemblePersonaContext({
     ? personaId
     : placeId && isPrivateMemorySpace(placeId) ? placeId : personaId;
 
-  const memoryPromise = inputRichness.requiresContextExpansion
-    ? getUserMemories(userId, memoryScope).then((items) => items.slice(-14))
-    : getRelevantUserMemories(userId, memoryScope, userText, 10);
+  const memoryPromise = getUserMemoryRecords(userId, memoryScope, inputRichness.requiresContextExpansion ? 60 : 40);
   const episodePromise = inputRichness.requiresContextExpansion
     ? getVisibleConversationEpisodes(userId, memoryScope).then((items) => items.slice(0, 10))
-    : getRelevantConversationEpisodes(userId, memoryScope, userText, 6);
+    : getVisibleConversationEpisodes(userId, memoryScope).then((items) => items.slice(0, 8));
 
-  const [memories, episodes, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
+  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries, destinyEvents] = await Promise.all([
     memoryPromise,
     episodePromise,
+    getVisibleActiveTopics(userId, memoryScope, 10),
     getVisibleUserSources(userId, personaId).catch(() => []),
     getAgendaEvents(userId).catch(() => []),
     getUserRegistros(userId).catch(() => []),
@@ -521,62 +541,27 @@ export async function assemblePersonaContext({
   const relevantSources = rankContextItems(userSources, (source) => source, userText, contract, 5);
   const destinyContext = destinyEvents.slice(-30);
   const placeContext = buildPlaceContext(personaId, placeId);
-  const memoryVisibility: ActiveFrontSource["visibility"] = isPrivateMemorySpace(memoryScope) ? "private" : "internal";
+  const contextPacket = buildConversationContextPacket({
+    userText,
+    personaId,
+    memoryScope,
+    contract,
+    inputRichness,
+    activeTopics,
+    memories: memoryRecords,
+    episodes,
+    sources: relevantSources,
+    agenda: summarizeAgenda(relevantAgenda),
+    registries: summarizeRegistries(relevantRegistries),
+    destiny: summarizeDestinyEvents(destinyContext),
+  });
+  const selectedMemories = contextPacket.relevantDurableMemories.map((item) => item.text);
+  const selectedEpisodes = contextPacket.recentPublicEpisodes.map((item) => item.text);
+  const selectedSources = contextPacket.personaAffinityContext.map((item) => item.text);
+  const selectedDestiny = contextPacket.destinyContext.map((item) => item.text);
+  const selectedAgendaRegistry = contextPacket.agendaAndRegistryContext.map((item) => item.text);
   const activeFrontSources: ActiveFrontSource[] = [
-    ...memories.map((memory, index) => ({
-      id: `memory:${index}`,
-      type: "memory" as const,
-      text: memory,
-      provenance: "UserMemory",
-      visibility: memoryVisibility,
-      scope: memoryScope,
-      recency: memories.length <= 1 ? 1 : index / (memories.length - 1),
-    })),
-    ...episodes.map((episode, index) => ({
-      id: `episode:${index}`,
-      type: "episode" as const,
-      text: episode,
-      provenance: "Thread.messages",
-      visibility: memoryVisibility,
-      scope: memoryScope,
-      recency: 1 - index / Math.max(episodes.length, 1),
-    })),
-    ...relevantSources.map((source, index) => ({
-      id: `source:${index}`,
-      type: "source" as const,
-      text: source,
-      provenance: "PersistentSource",
-      visibility: "internal" as const,
-      scope: personaId,
-      recency: 0.72 - index * 0.05,
-    })),
-    ...relevantAgenda.map((event, index) => ({
-      id: `agenda:${index}`,
-      type: "agenda" as const,
-      text: summarizeAgenda([event])[0],
-      provenance: "sovereign_agenda",
-      visibility: "internal" as const,
-      scope: "agenda",
-      recency: 0.86 - index * 0.04,
-    })),
-    ...relevantRegistries.map((registry, index) => ({
-      id: `registry:${index}`,
-      type: "registry" as const,
-      text: summarizeRegistries([registry])[0],
-      provenance: "user_registros",
-      visibility: "internal" as const,
-      scope: "registry",
-      recency: 0.82 - index * 0.04,
-    })),
-    ...destinyContext.slice(-10).map((event, index, list) => ({
-      id: `destiny:${index}`,
-      type: "destiny" as const,
-      text: summarizeDestinyEvents([event])[0],
-      provenance: "destiny_line",
-      visibility: "internal" as const,
-      scope: "destiny-line",
-      recency: list.length <= 1 ? 0.7 : 0.4 + index / (list.length - 1) * 0.3,
-    })),
+    ...contextPacketToActiveFrontSources(contextPacket),
     ...(placeContext ? [{
       id: "place:active",
       type: "place" as const,
@@ -630,13 +615,13 @@ export async function assemblePersonaContext({
     section("CONTEXTO TEMPORAL", timeContext),
     section("IDIOMA DA INTERACAO", `Responda em ${languageName[language]}, salvo se o usuario pedir expressamente outro idioma nesta mensagem.`),
     section("PEDIDO ATUAL DO USUARIO", userText || "(pedido atual nao informado ao assembler)"),
+    section("CONTEXT PACKET PRIORIZADO", renderConversationContextPacket(contextPacket)),
     section("INICIATIVA CONTEXTUAL GLOBAL", initiativeControl),
-    listSection("MEMORIAS RELEVANTES", memories),
-    listSection("EPISODIOS RECENTES RELEVANTES", episodes),
-    listSection("FONTES PERSISTENTES AUTORIZADAS", relevantSources),
-    listSection("MARCOS DA LINHA DO DESTINO", summarizeDestinyEvents(destinyContext)),
-    listSection("AGENDA RELEVANTE", summarizeAgenda(relevantAgenda)),
-    listSection("REGISTROS RELEVANTES", summarizeRegistries(relevantRegistries)),
+    listSection("MEMORIAS RELEVANTES", selectedMemories),
+    listSection("EPISODIOS RECENTES RELEVANTES", selectedEpisodes),
+    listSection("FONTES PERSISTENTES AUTORIZADAS", selectedSources),
+    listSection("MARCOS DA LINHA DO DESTINO", selectedDestiny),
+    listSection("AGENDA E REGISTROS RELEVANTES", selectedAgendaRegistry),
     section("LUGAR DA MENTE ATIVO", placeContext),
     section("AVISO DE LACUNA CONTEXTUAL", activeFrontSnapshot.hasSubstantiveContext ? "" : contract.honestFailureMode),
     section("CONSTITUICAO E DOUTRINA GLOBAL RESUMIDAS", buildDoctrinalSummary()),
@@ -667,12 +652,12 @@ export async function assemblePersonaContext({
       contractApplied: contract.label,
       personaPromptLength: primaryPersonaPrompt.length,
       systemPromptLength: systemPrompt.length,
-      memoriesInjected: memories.length,
-      episodesInjected: episodes.length,
-      sourcesInjected: relevantSources.length,
-      memoryPreview: safePreview(memories),
-      episodePreview: safePreview(episodes),
-      sourcePreview: safePreview(relevantSources),
+      memoriesInjected: selectedMemories.length,
+      episodesInjected: selectedEpisodes.length,
+      sourcesInjected: selectedSources.length,
+      memoryPreview: scopedPreview(selectedMemories, isPrivateMemorySpace(memoryScope)),
+      episodePreview: scopedPreview(selectedEpisodes, isPrivateMemorySpace(memoryScope)),
+      sourcePreview: safePreview(selectedSources),
       apiWrapper: "AI SDK generateText buffered via configured chat gateway",
       maxOutputTokens: null,
       presencePenalty: null,
@@ -680,6 +665,17 @@ export async function assemblePersonaContext({
       genericHelpInstructionsFound,
       inputRichness: inputRichness.richness,
       inputOpeningType: inputRichness.openingType,
+      invocationMode: contextPacket.invocationMode,
+      memoryScope,
+      activeTopicsInjected: contextPacket.metrics.activeTopicsCount,
+      contextPacketSelectedItems: contextPacket.metrics.selectedContextCount,
+      contextPacketPreview: redactedContextPreview(contextPacket.selectedItems, isPrivateMemorySpace(memoryScope)),
+      retrievalExplanation: contextPacket.retrievalExplanation,
+      privateItemsExcluded: contextPacket.metrics.privateItemsExcluded,
+      crossPersonaContinuityUsed: contextPacket.metrics.crossPersonaContinuityUsed,
+      topContextTypes: contextPacket.metrics.topContextTypes,
+      topContextScores: contextPacket.metrics.topScores,
+      sourcePersonas: contextPacket.metrics.sourcePersonas,
       activeFrontCandidates: activeFrontSnapshot.fronts.length,
       selectedActiveFronts: activeFrontSnapshot.selectedFronts.length,
       initiativeHasSubstantiveContext: activeFrontSnapshot.hasSubstantiveContext,

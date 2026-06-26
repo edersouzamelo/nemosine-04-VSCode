@@ -19,6 +19,13 @@ const genericAssistantPatterns = [
   /\batender melhor suas expectativas\b/,
 ];
 
+const falseContextDenialPatterns = [
+  /\bnao tenho (informacoes|dados|contexto) (especificas|suficientes)?\s*(sobre|a respeito de)?\s*(voce|sua historia|o usuario)\b/,
+  /\bnao possuo (informacoes|dados|contexto) (especificas|suficientes)?\s*(sobre|a respeito de)?\s*(voce|sua historia|o usuario)\b/,
+  /\bsem informacoes especificas sobre voce\b/,
+  /\bsem contexto sobre voce\b/,
+];
+
 const genericInterviewPatterns = [
   /\bqual (e )?(a )?(missao|prioridade|tarefa|demanda|questao|assunto|desafio)\b.*\?/,
   /\bsobre o que (voce )?(quer|gostaria de) (falar|tratar|explorar)\b.*\?/,
@@ -154,6 +161,15 @@ export function evaluatePersonaInitiativeQuality(input: {
       "error",
       "A resposta usa formula de atendente ou disponibilidade generica.",
       "Remova disponibilidade generica; abra com leitura aplicada, direcao, reparo, imagem ou intervencao da persona.",
+    ));
+  }
+
+  if (input.snapshot.hasSubstantiveContext && matchesAny(normalized, falseContextDenialPatterns)) {
+    findings.push(finding(
+      "FALSE_CONTEXT_DENIAL",
+      "error",
+      "Havia contexto autorizado substantivo, mas a resposta declarou ausencia de informacoes sobre o usuario.",
+      "Remova a falsa lacuna; selecione a frente contextual disponivel, marque inferencias e opere pela vocacao da persona.",
     ));
   }
 

@@ -101,7 +101,7 @@ export type ContextVisibility = "public" | "internal" | "private" | "confessor" 
 
 export type CognitiveContextItem = {
   id: string;
-  type: "memory" | "episode" | "source" | "agenda" | "registry" | "destiny" | "place" | "system";
+  type: "active_topic" | "memory" | "episode" | "source" | "agenda" | "registry" | "destiny" | "place" | "system";
   provenance: string;
   visibility: ContextVisibility;
   text: string;
@@ -309,6 +309,7 @@ export type SideEffectAuthorization = {
 export type CognitiveAuditEvent = {
   code:
     | "REBALANCING_APPLIED"
+    | "CONTINUITY_CONTEXT_ASSEMBLED"
     | "AUDIT_PERSISTENCE_FAILURE"
     | "PROFILE_SELECTED"
     | "DELIVERY_PERSISTED"

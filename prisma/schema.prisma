@@ -19,6 +19,7 @@ model User {
   sessions      Session[]
   threads       Thread[]        // Added for chat isolation
   memories      UserMemory[]    // Added for persistent AI learning
+  activeTopics  ActiveTopic[]
   termsAcceptances TermsAcceptance[]
 
   // Optional for WebAuthn support
@@ -132,6 +133,29 @@ model UserMemory {
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActiveTopic {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String
+  summary         String
+  keywords        Json?
+  salience        Float     @default(0.5)
+  status          String    @default("ACTIVE")
+  privacyScope    String    @default("PUBLIC")
+  sourceThreadId  String?
+  sourcePersonaId String?
+  firstObservedAt DateTime  @default(now())
+  lastObservedAt  DateTime  @updatedAt
+  resolvedAt      DateTime?
+  evidenceCount   Int       @default(1)
+  metadata        Json?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, lastObservedAt])
+  @@index([userId, privacyScope, lastObservedAt])
 }
 
 model CognitiveRunAudit {
