@@ -1,6 +1,10 @@
 import { PersonaBehaviorContract } from "@/app/lib/nemosine/persona_behavior_contracts";
 import { getVocationalLens } from "./active-fronts";
-import { normalizeInitiativeText } from "./input-richness";
+import {
+  isPersonaMetaCritique,
+  isPersonaRoleQuestion,
+  normalizeInitiativeText,
+} from "./input-richness";
 import {
   ActiveFrontSnapshot,
   ConversationInputRichness,
@@ -72,6 +76,30 @@ function isOpinionPrompt(userText: string, openingType: ConversationInputRichnes
   const normalized = normalizeInitiativeText(userText);
   return openingType === "open_question"
     || /\b(o que (voce|vc) pensa|o que acha|qual sua leitura|sua leitura|sobre isso)\b/.test(normalized);
+}
+
+function roleQuestionFallback(input: {
+  personaId: string;
+  contract: PersonaBehaviorContract;
+}) {
+  return [
+    `Eu sou ${input.personaId}, e meu papel no Nemosine nao e repetir a ultima frente ativa de outra persona.`,
+    `Minha funcao aqui e esta: ${input.contract.operationalMission}`,
+    `Na pratica, eu entro para dar forma propria a uma decisao, leitura ou travessia pela minha vocacao, preservando minha mascara e meus limites.`,
+    `Se eu apenas reciclo o assunto do Guru, falhei: continuidade serve ao usuario, nao apaga a diferenca entre as vozes.`,
+  ].join(" ");
+}
+
+function metaCritiqueFallback(input: {
+  personaId: string;
+  contract: PersonaBehaviorContract;
+}) {
+  return [
+    `Voce tem razao em apontar a falha.`,
+    `A resposta anterior deixou a continuidade engolir a identidade da persona: ${input.personaId} respondeu com uma frente que nao deveria comandar essa pergunta.`,
+    `Correcao: antes de puxar memoria ou tema ativo, eu devo sustentar a funcao da persona ativa: ${input.contract.operationalMission}`,
+    `A proxima resposta precisa nascer da mascara certa, sem repetir o eco mais recente.`,
+  ].join(" ");
 }
 
 export function buildPersonaInitiativeBrief(input: {
@@ -181,6 +209,20 @@ export function buildDeterministicInitiativeFallback(input: {
   const primary = input.snapshot.selectedFronts[0];
   const greeting = greetingForUserText(input.userText || "", input.richness.openingType);
   const lens = getVocationalLens(input.contract.family);
+
+  if (isPersonaRoleQuestion(input.userText || "")) {
+    return roleQuestionFallback({
+      personaId: input.personaId,
+      contract: input.contract,
+    });
+  }
+
+  if (isPersonaMetaCritique(input.userText || "")) {
+    return metaCritiqueFallback({
+      personaId: input.personaId,
+      contract: input.contract,
+    });
+  }
 
   if (primary) {
     if (isLoopCritique(input.userText || "")) {

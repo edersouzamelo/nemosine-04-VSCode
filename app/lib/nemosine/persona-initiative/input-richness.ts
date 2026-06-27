@@ -63,6 +63,24 @@ const substantivePatterns = [
   /\bpreciso\b.+\b(revisar|corrigir|decidir|resolver|implementar|publicar|entregar|organizar|conversar|falar)\b/,
 ];
 
+const personaRoleQuestionPatterns = [
+  /\bqual (e )?(teu|seu|tua|sua) papel\b/,
+  /\bqual (e )?(teu|seu|tua|sua) funcao\b/,
+  /\bo que (voce|vc) faz\b/,
+  /\bquem (e )?(voce|vc)\b/,
+  /\bpara que (voce|vc) serve\b/,
+  /\bnesse sistema\b.*\b(papel|funcao|serve|faz)\b/,
+  /\b(papel|funcao) (no|nesse|dentro do) sistema\b/,
+];
+
+const personaMetaCritiquePatterns = [
+  /\b(respondendo|respondeu|falando|falou)\b.*\b(mesma coisa|igual|identico|idêntico)\b/,
+  /\b(mesma coisa|igual|identico|idêntico)\b.*\b(guru|mentor|persona|resposta)\b/,
+  /\b(loop|looping|repetindo|repeticao|repetição|repetiu|eco mecanico|eco mecânico)\b/,
+  /\b(travou|travou as mensagens|mensagens travaram|nao foi possivel obter resposta|não foi possível obter resposta)\b/,
+  /\b(que bosta|merda|pessimo|péssimo|horrivel|horrível)\b/,
+];
+
 export function normalizeInitiativeText(text: string) {
   return text
     .normalize("NFD")
@@ -84,6 +102,16 @@ function matchesAny(patterns: RegExp[], normalized: string) {
   return patterns.some((pattern) => pattern.test(normalized));
 }
 
+export function isPersonaRoleQuestion(text: string) {
+  const normalized = normalizeInitiativeText(text || "");
+  return matchesAny(personaRoleQuestionPatterns, normalized);
+}
+
+export function isPersonaMetaCritique(text: string) {
+  const normalized = normalizeInitiativeText(text || "");
+  return matchesAny(personaMetaCritiquePatterns, normalized);
+}
+
 export function classifyConversationInputRichness(text: string): ConversationInputRichness {
   const normalized = normalizeInitiativeText(text || "");
   const terms = contentTerms(normalized);
@@ -96,6 +124,28 @@ export function classifyConversationInputRichness(text: string): ConversationInp
       requiresContextExpansion: true,
       questionBudget: 0,
       signals: ["empty-input"],
+    };
+  }
+
+  if (isPersonaRoleQuestion(normalized)) {
+    signals.push("persona-role-question");
+    return {
+      richness: "high",
+      openingType: "substantive_request",
+      requiresContextExpansion: false,
+      questionBudget: 0,
+      signals,
+    };
+  }
+
+  if (isPersonaMetaCritique(normalized)) {
+    signals.push("persona-meta-critique");
+    return {
+      richness: "high",
+      openingType: "substantive_request",
+      requiresContextExpansion: false,
+      questionBudget: 0,
+      signals,
     };
   }
 

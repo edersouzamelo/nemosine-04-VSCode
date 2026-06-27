@@ -16,6 +16,8 @@ import {
   buildActiveFrontSnapshot,
   buildPersonaInitiativeBrief,
   classifyConversationInputRichness,
+  isPersonaMetaCritique,
+  isPersonaRoleQuestion,
   renderPersonaInitiativeControl,
 } from "@/app/lib/nemosine/persona-initiative";
 import {
@@ -150,6 +152,8 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     getAgendaEvents(request.userId).catch(() => []),
     getUserRegistros(request.userId).catch(() => []),
   ]);
+  const suppressContinuityContext = isPersonaRoleQuestion(request.userText) || isPersonaMetaCritique(request.userText);
+  const activeTopicsForContext = suppressContinuityContext ? [] : activeTopics;
   const agendaSummaries = agendaEvents.slice(0, 8).map(summarizeAgenda);
   const registrySummaries = registries.slice(0, 8).map(summarizeRegistry);
   const destinyContext = await loadDestinyContextSource({
@@ -157,7 +161,7 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     personaId: request.personaId,
     userText: request.userText,
     contract,
-    activeTopics,
+    activeTopics: activeTopicsForContext,
     limit: 8,
   });
   const destinySummaries = destinyContext.selected.map((item) => item.text);
@@ -167,7 +171,7 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     memoryScope: request.memoryScope,
     contract,
     inputRichness,
-    activeTopics,
+    activeTopics: activeTopicsForContext,
     memories: memoryRecords,
     episodes,
     sources: userSources.slice(0, 5),

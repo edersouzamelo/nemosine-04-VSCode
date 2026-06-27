@@ -188,6 +188,122 @@ test("quality gate rejects near-duplicate persona responses as looping", () => {
   assert.ok(evaluation.findings.some((finding) => finding.code === "REPETITIVE_LOOP"));
 });
 
+test("persona role question suppresses cross-persona continuity hijack", () => {
+  const contract = getPersonaBehaviorContract("Mentor");
+  const userText = "e ai mentor, qual teu papel nesse sistema?";
+  const richness = classifyConversationInputRichness(userText);
+  const packet = buildConversationContextPacket({
+    userText,
+    personaId: "Mentor",
+    memoryScope: "Mentor",
+    contract,
+    activeTopics: [{
+      id: "topic-guru-age-origins",
+      userId: "user-1",
+      title: "Criar age of origins em travessia",
+      summary: "Voce esta trabalhando no app Nemosine com o Guru sobre criar Age of Origins em travessia.",
+      keywords: ["age", "origins", "travessia", "guru"],
+      salience: 0.98,
+      status: "ACTIVE",
+      privacyScope: "PUBLIC",
+      sourceThreadId: "thread-guru",
+      sourcePersonaId: "Guru",
+      firstObservedAt: new Date("2026-06-27T12:00:00.000Z"),
+      lastObservedAt: new Date("2026-06-27T12:00:00.000Z"),
+      resolvedAt: null,
+      evidenceCount: 3,
+      metadata: { scope: "Guru" },
+    }],
+    now,
+  });
+
+  assert.equal(richness.signals.includes("persona-role-question"), true);
+  assert.equal(packet.invocationMode, "DIRECT_REQUEST");
+  assert.equal(packet.activeTopics.length, 0);
+  assert.equal(packet.selectedItems.length, 0);
+  assert.equal(packet.hasSubstantiveContext, false);
+  assert.equal(packet.metrics.crossPersonaContinuityUsed, false);
+  assert.ok(packet.retrievalExplanation.some((line) => /suppressed/i.test(line)));
+});
+
+test("Mentor fallback for role question states role instead of Guru topic", () => {
+  const contract = getPersonaBehaviorContract("Mentor");
+  const userText = "e ai mentor, qual teu papel nesse sistema?";
+  const richness = classifyConversationInputRichness(userText);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Mentor",
+    userText,
+    richness,
+    contract,
+    sources: [{
+      id: "active-topic:guru-age-origins",
+      type: "active_topic",
+      text: "Criar age of origins em travessia no app Nemosine com o Guru.",
+      provenance: "ACTIVE_TOPICS",
+      visibility: "internal",
+      scope: "Guru",
+      recency: 0.99,
+    }],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Mentor",
+    userText,
+    richness,
+    snapshot: { ...snapshot, selectedFronts: [], hasSubstantiveContext: false },
+    contract,
+  });
+  const fallback = buildDeterministicInitiativeFallback({
+    personaId: "Mentor",
+    userText,
+    richness,
+    snapshot: { ...snapshot, selectedFronts: [], hasSubstantiveContext: false },
+    brief,
+    contract,
+  });
+
+  assert.match(fallback, /Eu sou Mentor/i);
+  assert.match(fallback, /meu papel no Nemosine/i);
+  assert.doesNotMatch(fallback, /Age of Origins|age of origins/i);
+  assert.doesNotMatch(fallback, /frente mais viva/i);
+});
+
+test("quality gate allows self-description when user asks persona role", () => {
+  const contract = getPersonaBehaviorContract("Mentor");
+  const userText = "qual tua funcao nesse sistema?";
+  const richness = classifyConversationInputRichness(userText);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Mentor",
+    userText,
+    richness,
+    contract,
+    sources: [],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Mentor",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const evaluation = evaluatePersonaInitiativeQuality({
+    responseText: [
+      "Eu sou o Mentor no Sistema Nemosine.",
+      "Minha funcao e produzir direcao, sintese existencial e coerencia narrativa para o usuario, sem virar motivacao generica.",
+      "Quando entro bem, eu ajudo a ligar uma decisao atual ao arco maior da vida e encerro com orientacao substantiva.",
+    ].join(" "),
+    personaId: "Mentor",
+    userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+
+  assert.equal(evaluation.finalPass, true);
+  assert.equal(evaluation.findings.some((finding) => finding.code === "SELF_DESCRIPTION_INSTEAD_OF_ACTION"), false);
+});
+
 test("active topic extraction ignores greetings and extracts substantive public topics", () => {
   assert.deepEqual(extractActiveTopicCandidates({ userText: "Bom dia.", memoryScope: "Astronomo" }), []);
   const topics = extractActiveTopicCandidates({

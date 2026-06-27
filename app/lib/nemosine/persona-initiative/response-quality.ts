@@ -1,5 +1,8 @@
 import { PersonaBehaviorContract } from "@/app/lib/nemosine/persona_behavior_contracts";
-import { normalizeInitiativeText } from "./input-richness";
+import {
+  isPersonaRoleQuestion,
+  normalizeInitiativeText,
+} from "./input-richness";
 import {
   ActiveFrontSnapshot,
   ConversationInputRichness,
@@ -331,7 +334,7 @@ export function evaluatePersonaInitiativeQuality(input: {
     ));
   }
 
-  if (matchesAny(normalized, selfDescriptionPatterns) && specificity < 0.6) {
+  if (!isPersonaRoleQuestion(input.userText) && matchesAny(normalized, selfDescriptionPatterns) && specificity < 0.6) {
     findings.push(finding(
       "SELF_DESCRIPTION_INSTEAD_OF_ACTION",
       "error",

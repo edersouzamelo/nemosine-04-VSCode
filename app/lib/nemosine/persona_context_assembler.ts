@@ -20,6 +20,8 @@ import {
   buildPersonaInitiativeBrief,
   classifyConversationInputRichness,
   ConversationInputRichness,
+  isPersonaMetaCritique,
+  isPersonaRoleQuestion,
   PersonaInitiativeBrief,
   renderPersonaInitiativeControl,
 } from "./persona-initiative";
@@ -523,12 +525,14 @@ export async function assemblePersonaContext({
     getAgendaEvents(userId).catch(() => []),
     getUserRegistros(userId).catch(() => []),
   ]);
+  const suppressContinuityContext = isPersonaRoleQuestion(userText) || isPersonaMetaCritique(userText);
+  const activeTopicsForContext = suppressContinuityContext ? [] : activeTopics;
   const destinyContext = await loadDestinyContextSource({
     userId,
     personaId,
     userText,
     contract,
-    activeTopics,
+    activeTopics: activeTopicsForContext,
     limit: 8,
   });
 
@@ -554,7 +558,7 @@ export async function assemblePersonaContext({
     memoryScope,
     contract,
     inputRichness,
-    activeTopics,
+    activeTopics: activeTopicsForContext,
     memories: memoryRecords,
     episodes,
     sources: relevantSources,

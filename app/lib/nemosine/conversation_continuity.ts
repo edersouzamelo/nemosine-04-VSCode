@@ -8,6 +8,8 @@ import {
   ActiveFrontSource,
   classifyConversationInputRichness,
   ConversationInputRichness,
+  isPersonaMetaCritique,
+  isPersonaRoleQuestion,
   normalizeInitiativeText,
 } from "./persona-initiative";
 
@@ -281,6 +283,8 @@ export function classifyInvocationMode(userText: string): InvocationMode {
   const greetingWithOptionalPersona = /^(bom dia|boa tarde|boa noite|oi|ola|hello|hi|salve|fala)\b/.test(normalized)
     && uniqueTerms(userText).length <= 3;
 
+  if (isPersonaMetaCritique(userText)) return "META_CRITIQUE";
+  if (isPersonaRoleQuestion(userText)) return "DIRECT_REQUEST";
   if (/\b(prompt|resposta|persona|chatbot|raso|generico|profundidade|falha)\b/.test(normalized)) {
     return "META_CRITIQUE";
   }
@@ -666,6 +670,7 @@ export function buildConversationContextPacket(input: {
 }): ConversationContextPacket {
   const richness = input.inputRichness || classifyConversationInputRichness(input.userText);
   const invocationMode = classifyInvocationMode(input.userText);
+  const suppressContinuityContext = isPersonaRoleQuestion(input.userText) || isPersonaMetaCritique(input.userText);
   const activeTopics = (input.activeTopics || []).map((topic) => makePacketItem({
     source: {
       id: `active-topic:${topic.id}`,
@@ -795,13 +800,13 @@ export function buildConversationContextPacket(input: {
     now: input.now,
   }));
 
-  const durableMemorySelection = selectTop(memories, richness.requiresContextExpansion ? 2 : 6);
-  const episodeSelection = selectTop(episodes, richness.requiresContextExpansion ? 8 : 5);
-  const activeTopicSelection = selectTop(activeTopics, 5);
-  const sourceSelection = selectTop(sources, 4);
-  const destinySelection = selectTop(destiny, 8);
-  const agendaRegistrySelection = selectTop(agendaAndRegistry, 6);
-  const currentThreadSelection = selectTop(currentThread, 4);
+  const durableMemorySelection = suppressContinuityContext ? [] : selectTop(memories, richness.requiresContextExpansion ? 2 : 6);
+  const episodeSelection = suppressContinuityContext ? [] : selectTop(episodes, richness.requiresContextExpansion ? 8 : 5);
+  const activeTopicSelection = suppressContinuityContext ? [] : selectTop(activeTopics, 5);
+  const sourceSelection = suppressContinuityContext ? [] : selectTop(sources, 4);
+  const destinySelection = suppressContinuityContext ? [] : selectTop(destiny, 8);
+  const agendaRegistrySelection = suppressContinuityContext ? [] : selectTop(agendaAndRegistry, 6);
+  const currentThreadSelection = suppressContinuityContext ? [] : selectTop(currentThread, 4);
   const selectedItems = selectTop([
     ...activeTopicSelection,
     ...episodeSelection,
@@ -843,8 +848,11 @@ export function buildConversationContextPacket(input: {
       invocationMode === "GREETING" || invocationMode === "FOLLOW_UP" || invocationMode === "CONTINUITY_TRIGGER"
         ? "short/open invocation weighted by recency, salience and persona affinity before lexical relevance"
         : "substantive request weighted by lexical relevance, recency, salience and persona affinity",
+      suppressContinuityContext
+        ? "continuity context suppressed for persona role question or meta-critique"
+        : "",
       ...selectedItems.slice(0, 6).map((item) => `${item.id}: ${renderScore(item)} reason=${item.reason}`),
-    ],
+    ].filter(Boolean),
     metrics: {
       activeTopicsCount: activeTopicSelection.length,
       recentEpisodesCount: episodeSelection.length,
