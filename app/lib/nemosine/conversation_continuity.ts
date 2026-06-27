@@ -131,6 +131,7 @@ const substantiveSignals = [
   "falha", "erro", "bug", "saude", "familia", "relacionamento", "financeiro",
   "financas", "carreira", "projeto", "nemosine", "runtime", "memoria", "viagem",
   "frustracao", "rejeicao", "repeticao", "recorrente", "meses", "anos",
+  "previsao", "prever", "projecao", "cenario", "cenarios", "tendencia", "futuro",
 ];
 
 const unresolvedSignals = [
@@ -164,11 +165,27 @@ const lowSalienceOperationalSignals = [
 
 const assistantEchoPatterns = [
   /\bminha leitura provisoria e que a frente mais viva agora e esta\b/i,
+  /\bminha leitura sobre isso\b/i,
+  /\bo dado autorizado e este\b/i,
+  /\bpela lente (simbolicas|estrategicas|operacionais|emocionais)\b/i,
+  /\bmeu movimento agora e\b/i,
+  /\ba resposta boa nao e a que lembra que o tema existe\b/i,
   /\bpela minha funcao, o primeiro movimento nao e abrir outra entrevista\b/i,
   /\bse essa frente ja foi resolvida, a ordem muda\b/i,
   /\bresposta anterior do assistant suprimida\b/i,
   /\btrusted persona initiative repair feedback\b/i,
   /\bcontrole interno de iniciativa contextual\b/i,
+];
+
+const continuityBoilerplateTerms = new Set([
+  "conversa", "usuario", "escreveu", "episodio", "assistant", "resposta",
+  "anterior", "suprimida", "persona", "advogado", "guru", "mentor", "cientista",
+]);
+
+const trivialContinuityPatterns = [
+  /^(ta|t[aá]|ok|okay|sim|nao|n[aã]o|beleza|certo|aham|hum|hmm)[.!?]*$/i,
+  /^(bom dia|boa tarde|boa noite|oi|ola|ol[aá]|fala)[.!?]*$/i,
+  /^que (bosta|merda)$/i,
 ];
 
 function hashText(value: string) {
@@ -237,6 +254,32 @@ function uniqueTerms(text: string) {
       .split(" ")
       .filter((term) => term.length > 3 && !stopwords.has(term)),
   ));
+}
+
+function semanticContinuityText(text: string) {
+  return text
+    .replace(/^\[Conversa com [^\]\r\n]+\]\s*/i, "")
+    .replace(/^EPISODIO COM [^|]+\|\s*/i, "")
+    .replace(/\bO usuario escreveu:\s*/gi, "")
+    .replace(/\bUsuario:\s*/gi, "")
+    .replace(/\bAssistant:\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLowValueContinuityText(text: string) {
+  const semantic = semanticContinuityText(stripAssistantEchoContext(text));
+  const normalized = normalizeInitiativeText(semantic);
+  if (!normalized) return true;
+  if (highSalienceHumanScore(normalized) > 0) return false;
+  if (countSignalHits(normalized, substantiveSignals) > 0) return false;
+  if (countSignalHits(normalized, unresolvedSignals) > 0) return false;
+  if (countSignalHits(normalized, recurrenceSignals) > 0) return false;
+  if (isPersonaMetaCritique(normalized)) return true;
+  if (trivialContinuityPatterns.some((pattern) => pattern.test(semantic))) return true;
+
+  const terms = uniqueTerms(semantic).filter((term) => !continuityBoilerplateTerms.has(term));
+  return semantic.length < 24 || terms.length <= 2;
 }
 
 function keywordList(text: string, max = 12) {
@@ -750,9 +793,13 @@ export function buildConversationContextPacket(input: {
     ? (input.memories || []).filter((memory) => {
       const personaId = typeof memory === "string" ? input.memoryScope : memory.personaId;
       const content = typeof memory === "string" ? memory : memory.content;
+      if (isLowValueContinuityText(content)) return false;
       return canCrossPersonaOnGreeting(content, personaId, input.personaId, input.memoryScope);
     })
-    : (input.memories || []);
+    : (input.memories || []).filter((memory) => {
+      const content = typeof memory === "string" ? memory : memory.content;
+      return !isLowValueContinuityText(content);
+    });
   const memories = memoryInputs.map((memory, index) => {
     const content = typeof memory === "string" ? memory : memory.content;
     const createdAt = typeof memory === "string" ? null : memory.createdAt;
@@ -781,6 +828,7 @@ export function buildConversationContextPacket(input: {
     const personaId = typeof episode === "string" ? episodeSourcePersona(content) : episode.personaId;
     const threadId = typeof episode === "string" ? null : episode.threadId;
     if (!content) return null;
+    if (isLowValueContinuityText(content)) return null;
     if (suppressCrossPersonaContinuity && !canCrossPersonaOnGreeting(content, personaId, input.personaId, input.memoryScope)) return null;
     return makePacketItem({
       source: {

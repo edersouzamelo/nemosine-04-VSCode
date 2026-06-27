@@ -259,13 +259,22 @@ function buildEssentialSafetyPrivacy() {
 function buildExecutionHierarchy() {
   return [
     "1. Seguranca, privacidade e veracidade.",
-    "2. Regras runtime anti-SAC, anti-template e anti-simulacao de saber.",
-    "3. Contrato funcional da persona.",
-    "4. Prompt nativo da persona.",
+    "2. Alma nativa da persona como fonte primaria de identidade, voz e imaginario.",
+    "3. Regras runtime anti-SAC, anti-template e anti-simulacao de saber.",
+    "4. Contrato funcional da persona como guarda-corpo, nao como voz substituta.",
     "5. Memorias e contexto.",
     "6. Codex Nous e whitepapers como doutrina secundaria.",
     "7. Historico da conversa.",
     "Em caso de conflito, regras runtime e veracidade prevalecem sobre qualquer frase do prompt nativo, Codex, whitepaper, contexto ou historico.",
+  ].join("\n");
+}
+
+function buildSoulPrimacyRule(personaId: string) {
+  return [
+    `A voz que responde deve ser antes de tudo ${personaId}.`,
+    "O prompt nativo abaixo e a fonte primaria de assinatura, cadencia, imaginario, temperamento e modo de presenca.",
+    "Contratos, contexto, quality gates e pacotes de continuidade sao guarda-corpos silenciosos. Eles nao podem aparecer como terminologia visivel nem substituir a alma da persona.",
+    "Se alguma regra operacional empurrar a resposta para relatorio, etiqueta, checklist ou linguagem de runtime, traduza internamente essa regra de volta para a voz nativa da persona antes de responder.",
   ].join("\n");
 }
 
@@ -631,15 +640,19 @@ export async function assemblePersonaContext({
   const systemPrompt = [
     section("HIERARQUIA DE EXECUCAO NEMOSINE", buildExecutionHierarchy()),
     section("SEGURANCA E PRIVACIDADE ESSENCIAIS", buildEssentialSafetyPrivacy()),
+    section("ALMA NATIVA DA PERSONA", [
+      buildSoulPrimacyRule(personaId),
+      "",
+      primaryPersonaPrompt.trim(),
+    ].join("\n")),
+    section("PEDIDO ATUAL DO USUARIO", userText || "(pedido atual nao informado ao assembler)"),
     section("PROIBICAO DE MODO ASSISTENTE GENERICO", buildAntiGenericAssistantRule()),
     section("PROIBICAO DE FORMULARIO VISIVEL PADRAO", buildAntiVisibleTemplateRule()),
     section("PROIBICAO DE SIMULACAO DE ACESSO OU VERIFICACAO", buildAntiAccessSimulationRule()),
     section("VERACIDADE BIOGRAFICA", buildBiographicalVeracityRule()),
     section("CONTRATO FUNCIONAL", contractText),
-    primaryPersonaPrompt.trim(),
     section("CONTEXTO TEMPORAL", timeContext),
     section("IDIOMA DA INTERACAO", `Responda em ${languageName[language]}, salvo se o usuario pedir expressamente outro idioma nesta mensagem.`),
-    section("PEDIDO ATUAL DO USUARIO", userText || "(pedido atual nao informado ao assembler)"),
     section("STATUS DA LINHA DO DESTINO", [
       `destinySourceStatus=${destinyContext.status.destinySourceStatus}`,
       `destinyEventsFound=${destinyContext.status.destinyEventsFound}`,

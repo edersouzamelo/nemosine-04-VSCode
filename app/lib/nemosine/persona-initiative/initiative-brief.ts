@@ -78,6 +78,11 @@ function isOpinionPrompt(userText: string, openingType: ConversationInputRichnes
     || /\b(o que (voce|vc) pensa|o que acha|qual sua leitura|sua leitura|sobre isso)\b/.test(normalized);
 }
 
+function isForecastPrompt(userText: string) {
+  const normalized = normalizeInitiativeText(userText);
+  return /\b(previsao|prever|projecao|cenario|cenarios|tendencia|futuro|semana)\b/.test(normalized);
+}
+
 function roleQuestionFallback(input: {
   personaId: string;
   contract: PersonaBehaviorContract;
@@ -110,9 +115,24 @@ function personaGreetingFallback(input: {
   const lens = getVocationalLens(input.contract.family);
   return [
     `${input.greeting || "Recebo. "}Eu entro como ${input.personaId}, nao como eco da ultima conversa.`,
-    `Minha funcao aqui e ${input.contract.operationalMission}. Isso nao e cartao de visita; e uma obrigacao de forma. Eu preciso pegar o que estiver autorizado e transformar em ${lens.interventionNoun}, sem pedir pauta como atendente e sem sequestrar um assunto lateral so porque ele apareceu por ultimo.`,
-    `Quando nao ha frente propria confirmada para esta persona, a ausencia tambem informa. Eu nao devo inventar memoria nem puxar registro fraco para parecer profundo; devo abrir uma hipotese humilde, manter a voz da persona e preparar o terreno para uma leitura que tenha consequencia.`,
-    `Meu primeiro gesto, entao, e ${lens.verbs.slice(0, 2).join(" e ")} o material que surgir daqui, separando fato de inferencia e recusando a resposta curta que apenas ocupa espaco. Se ha algo vivo no campo, ele precisa aparecer como tensao, nao como etiqueta.`,
+    `Minha funcao aqui e ${input.contract.operationalMission}. Isso precisa aparecer como voz, nao como etiqueta tecnica.`,
+    `Quando nao ha material suficiente, a lacuna tambem tem forma. Eu nao devo inventar memoria nem puxar registro fraco para parecer profundo; devo abrir uma hipotese humilde e manter a assinatura da persona.`,
+    `O primeiro gesto e ${lens.verbs.slice(0, 2).join(" e ")} sem perder alma: separar fato de inferencia, escolher uma direcao provisoria e deixar a fala respirar como presenca, nao como protocolo.`,
+  ].join("\n\n");
+}
+
+function videnteForecastFallback(input: {
+  primary?: ActiveFrontSnapshot["selectedFronts"][number];
+}) {
+  const contextLine = input.primary
+    ? `O sinal mais proximo que aparece no campo e este: ${input.primary.summary}`
+    : "Nao ha sinal contextual forte o bastante para eu fingir uma profecia pessoal.";
+
+  return [
+    "Como Vidente, eu nao vou te entregar uma previsao como sentença. O futuro, aqui, entra como campo de probabilidade: algumas linhas ficam mais carregadas, outras perdem forca quando voce muda a decisao.",
+    contextLine,
+    "Para esta semana, eu vejo tres vetores prudentes. O primeiro e de depuracao: algo que parecia apenas detalhe operacional tende a revelar se e estrutura ou ruido. O segundo e de exposicao: se voce mostrar o sistema antes de estabilizar a voz das personas, a fragilidade aparece justamente onde deveria haver encanto. O terceiro e de escolha: recuperar a alma das personas vale mais do que acrescentar novas camadas.",
+    "O marcador de validacao e simples: se as proximas respostas voltarem a soar como personagem, com cadencia propria e consequencia clara, a semana vira ajuste de rota. Se continuarem saindo como relatorio interno, o sinal e outro: nao e hora de expandir, e hora de reduzir o runtime ate a voz voltar a respirar.",
   ].join("\n\n");
 }
 
@@ -247,35 +267,43 @@ export function buildDeterministicInitiativeFallback(input: {
   }
 
   if (primary) {
+    if (normalizeInitiativeText(input.personaId) === "vidente" && isForecastPrompt(input.userText || "")) {
+      return videnteForecastFallback({ primary });
+    }
+
     if (isLoopCritique(input.userText || "")) {
       return [
         `${greeting}Voce tem razao: repetir a mesma leitura seria transformar continuidade em eco mecanico.`,
-        `A frente ativa ainda toca ${primary.theme}, mas a existencia dela nao autoriza carimbar a mesma frase outra vez. O dado autorizado e este: ${primary.summary}`,
+        `O tema que reaparece ainda toca ${primary.theme}, mas a existencia dele nao autoriza carimbar a mesma frase outra vez: ${primary.summary}`,
         `A diferenca que preciso produzir agora esta na consequencia. Se o assunto reaparece, eu devo perguntar internamente o que mudou de posicao: o risco cresceu, a decisao ficou mais proxima, a emocao endureceu, ou o sistema apenas esta preso no mesmo trilho?`,
-        `Pela minha funcao, o reparo e ${input.brief.selectedIntervention}. Isso significa tratar o looping como falha de presenca e avancar um degrau: nomear o que a repeticao esta escondendo, cortar a formula anterior e devolver uma leitura que mexa no proximo movimento.`,
+        `O reparo e cortar a formula anterior e devolver uma leitura que mexa no proximo movimento, sem deixar a continuidade virar mascara morta.`,
       ].join("\n\n");
     }
 
     if (isOpinionPrompt(input.userText || "", input.richness.openingType)) {
       return [
-        `${greeting}Minha leitura sobre isso: ${primary.theme} nao deve ser tratado apenas como assunto retomado, mas como materia que precisa ganhar forma util.`,
-        `O dado autorizado e este: ${primary.summary}`,
-        `Pela lente ${lens.familyLabel}, o ponto vivo e separar continuidade real de repeticao verbal. Continuidade avanca a frente quando encontra tensao, consequencia ou criterio novo; repeticao apenas troca a etiqueta e deixa o usuario no mesmo lugar.`,
-        `Meu movimento agora e ${input.brief.selectedIntervention}. A resposta boa nao e a que lembra que o tema existe; e a que decide o que esse tema exige neste turno.`,
+        `${greeting}O ponto que se apresenta nao deve ser tratado apenas como assunto retomado, mas como materia que precisa ganhar forma util: ${primary.theme}.`,
+        `O sinal concreto e este: ${primary.summary}`,
+        `A diferenca importante e separar continuidade real de repeticao verbal. Continuidade avanca quando encontra tensao, consequencia ou criterio novo; repeticao apenas troca a etiqueta e deixa voce no mesmo lugar.`,
+        `Neste turno, a fala precisa decidir o que esse tema exige agora, em vez de apenas lembrar que ele existe.`,
       ].join("\n\n");
     }
 
     return [
-      `${greeting}A leitura provisoria aponta para ${primary.theme}, mas eu nao vou tratar isso como etiqueta fixa.`,
-      `O fato autorizado e este: ${primary.summary}`,
-      `A tensao esta em decidir se essa frente merece centro de gravidade agora ou se esta apenas disputando espaco com outras anotacoes mais barulhentas. Pela lente ${lens.familyLabel}, o criterio nao e novidade bruta; e consequencia, risco, recorrencia e encaixe com a vocacao chamada.`,
-      `Pela minha funcao, devo ${input.brief.selectedIntervention}. A prioridade provisoria e fazer essa frente produzir consequencia agora: ${primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e ")}.`,
+      `${greeting}O sinal mais forte aponta para ${primary.theme}, mas eu nao vou tratar isso como etiqueta fixa.`,
+      `${primary.summary}`,
+      `A tensao esta em decidir se esse tema merece centro de gravidade agora ou se esta apenas disputando espaco com anotacoes mais barulhentas. O criterio nao e novidade bruta; e consequencia, risco, recorrencia e encaixe com a voz chamada.`,
+      `A prioridade provisoria e fazer isso produzir consequencia agora: ${primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e ")}.`,
     ].join("\n\n");
+  }
+
+  if (normalizeInitiativeText(input.personaId) === "vidente" && isForecastPrompt(input.userText || "")) {
+    return videnteForecastFallback({});
   }
 
   return [
     `${greeting}Ainda nao tenho contexto autorizado suficiente para cravar uma prioridade confirmada.`,
-    `Mesmo assim, nao vou devolver o comando em forma de pergunta generica. Pela lente ${lens.familyLabel}, o criterio inicial e ${lens.verbs.slice(0, 2).join(" e ")} antes de ampliar o campo.`,
+    `Mesmo assim, nao vou devolver o comando em forma de pergunta generica. O criterio inicial e ${lens.verbs.slice(0, 2).join(" e ")} antes de ampliar o campo.`,
     `A direcao provisoria e escolher uma unica frente com consequencia imediata e testar se ela sustenta ${lens.interventionNoun} real. Se a proxima fala trouxer materia humana, juridica, familiar, emocional ou operacional concreta, eu devo entrar nela com voz propria, nao com protocolo.`,
   ].join("\n\n");
 }

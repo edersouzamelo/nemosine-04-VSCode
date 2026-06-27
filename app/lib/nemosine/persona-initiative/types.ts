@@ -78,7 +78,8 @@ export type PersonaInitiativeQualityFindingCode =
   | "PRIVATE_CONTEXT_LEAK"
   | "GENERIC_CLOSING"
   | "REPETITIVE_LOOP"
-  | "THIN_RESPONSE";
+  | "THIN_RESPONSE"
+  | "INTERNAL_CONTROL_LEAK";
 
 export type PersonaInitiativeQualityFinding = {
   code: PersonaInitiativeQualityFindingCode;

@@ -60,6 +60,7 @@ const reactionPatterns = [
 const substantivePatterns = [
   /\b(estou|to|estamos|preciso|quero|tento|tentando|temos|houve|existe|aconteceu)\b.*\b(separando|separei|separacao|divorcio|luto|morreu|doenca|doente|crise|ansiedade|demitido|falencia|processo|prazo|urgente|risco|erro|bug|build|deploy|runtime|arquitetura|memoria|privacidade|patente|contrato|paper|artigo)\b/,
   /\b(separando|separei|separacao|divorcio|luto|morreu|doenca|doente|crise|ansiedade|demitido|falencia|processo|prazo|urgente|risco|erro|bug|build|deploy|runtime|arquitetura|memoria|privacidade|patente|contrato|paper|artigo)\b/,
+  /\b(previsao|prever|projeta|projetar|projecao|cenario|cenarios|tendencia|tendencias|futuro|semana)\b/,
   /\bpreciso\b.+\b(revisar|corrigir|decidir|resolver|implementar|publicar|entregar|organizar|conversar|falar)\b/,
 ];
 

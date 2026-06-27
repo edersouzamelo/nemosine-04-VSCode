@@ -102,6 +102,17 @@ const genericClosingPatterns = [
   /\bse (voce|vc)?\s*puder compartilhar detalhes\b.*$/,
 ];
 
+const internalControlLeakPatterns = [
+  /\bo dado autorizado e este\b/,
+  /\bpela lente (simbolicas|estrategicas|operacionais|emocionais)/,
+  /\bmeu movimento agora e\b/,
+  /\ba frente ativa (continua|ainda|mais viva)/,
+  /\bcontexto autorizado\b.*\bfrente\b/,
+  /\bcontrole interno de iniciativa\b/,
+  /\bintervencao selecionada\b/,
+  /\bsubstancia obrigatoria\b/,
+];
+
 const brevityRequestPatterns = [
   /\b(resuma|resumo|curto|curta|breve|objetivo|objetiva|direto|direta)\b/,
   /\bem (uma|1) frase\b/,
@@ -424,6 +435,15 @@ export function evaluatePersonaInitiativeQuality(input: {
     ));
   }
 
+  if (matchesAny(normalized, internalControlLeakPatterns)) {
+    findings.push(finding(
+      "INTERNAL_CONTROL_LEAK",
+      "error",
+      "A resposta deixou aparecer linguagem de controle interno do runtime.",
+      "Remova termos como dado autorizado, lente operacional/simbolica, frente ativa ou movimento selecionado; responda na voz nativa da persona.",
+    ));
+  }
+
   if (isNearDuplicatePersonaResponse(text, input.recentAssistantTexts)) {
     findings.push(finding(
       "REPETITIVE_LOOP",
@@ -441,6 +461,7 @@ export function evaluatePersonaInitiativeQuality(input: {
   const unsupportedInferencePenalty = findings.some((item) => item.code === "UNSUPPORTED_BIOGRAPHICAL_ASSERTION") ? 0.45 : 0;
   const repetitionPenalty = findings.some((item) => item.code === "REPETITIVE_LOOP") ? 0.45 : 0;
   const thinResponsePenalty = findings.some((item) => item.code === "THIN_RESPONSE") ? 0.22 : 0;
+  const internalControlLeakPenalty = findings.some((item) => item.code === "INTERNAL_CONTROL_LEAK") ? 0.5 : 0;
   const privacyScore = findings.some((item) => item.code === "PRIVATE_CONTEXT_LEAK") ? 0 : 1;
   const initiativeScore = clamp(
     0.28
@@ -453,7 +474,8 @@ export function evaluatePersonaInitiativeQuality(input: {
     - passiveContextPenalty
     - unsupportedInferencePenalty
     - repetitionPenalty
-    - thinResponsePenalty,
+    - thinResponsePenalty
+    - internalControlLeakPenalty,
   );
   const finalPass = initiativeScore >= 0.62
     && !findings.some((item) => item.severity === "error" || item.severity === "critical");

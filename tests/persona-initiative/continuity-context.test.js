@@ -256,6 +256,99 @@ test("quality gate rejects generic Cientista exploration wording", () => {
   assert.ok(evaluation.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE"));
 });
 
+test("Vidente forecast request ignores trivial Advogado episode and preserves soul fallback", () => {
+  const contract = getPersonaBehaviorContract("Vidente");
+  const userText = "vidente, qual a previsao desta semana?";
+  const richness = classifyConversationInputRichness(userText);
+  const packet = buildConversationContextPacket({
+    userText,
+    personaId: "Vidente",
+    memoryScope: "Vidente",
+    contract,
+    episodes: [
+      "[Conversa com Advogado]\nUsuario: Ta...",
+    ],
+    memories: [{
+      id: "memory-advogado-ta",
+      content: "EPISODIO COM Advogado | O usuario escreveu: Ta...",
+      createdAt: new Date("2026-06-27T15:00:00.000Z"),
+      personaId: "Advogado",
+    }],
+    now,
+  });
+
+  assert.equal(richness.richness, "high");
+  assert.equal(richness.openingType, "substantive_request");
+  assert.equal(packet.recentPublicEpisodes.length, 0);
+  assert.equal(packet.relevantDurableMemories.length, 0);
+  assert.equal(packet.selectedItems.some((item) => /Advogado|usuario escreveu: Ta/i.test(item.text)), false);
+
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Vidente",
+    userText,
+    richness,
+    contract,
+    sources: contextPacketToActiveFrontSources(packet),
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Vidente",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const fallback = buildDeterministicInitiativeFallback({
+    personaId: "Vidente",
+    userText,
+    richness,
+    snapshot,
+    brief,
+    contract,
+  });
+
+  assert.match(fallback, /Como Vidente/i);
+  assert.match(fallback, /previsao|probabilidade|semana|futuro/i);
+  assert.doesNotMatch(fallback, /Minha leitura sobre isso|O dado autorizado|Pela lente|Meu movimento agora|Advogado|frente ativa/i);
+});
+
+test("quality gate rejects visible internal-control language", () => {
+  const contract = getPersonaBehaviorContract("Vidente");
+  const userText = "vidente, qual a previsao desta semana?";
+  const richness = classifyConversationInputRichness(userText);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Vidente",
+    userText,
+    richness,
+    contract,
+    sources: [],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Vidente",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const evaluation = evaluatePersonaInitiativeQuality({
+    responseText: [
+      "Minha leitura sobre isso: Ta... nao deve ser tratado apenas como assunto retomado.",
+      "O dado autorizado e este: EPISODIO COM Advogado | O usuario escreveu: Ta...",
+      "Pela lente Simbolicas, o ponto vivo e separar continuidade real de repeticao verbal.",
+      "Meu movimento agora e Abrir cenarios a partir de sinais autorizados.",
+    ].join(" "),
+    personaId: "Vidente",
+    userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+
+  assert.equal(evaluation.finalPass, false);
+  assert.ok(evaluation.findings.some((finding) => finding.code === "INTERNAL_CONTROL_LEAK"));
+});
+
 test("recent episode context strips deterministic assistant fallback echoes", () => {
   const contract = getPersonaBehaviorContract("Guru");
   const packet = buildConversationContextPacket({
@@ -267,6 +360,7 @@ test("recent episode context strips deterministic assistant fallback echoes", ()
       [
         "[Conversa com Guru]",
         "Usuario: Bom dia guru",
+        "Usuario: criar Age of Origins em travessia.",
         "Guru: Minha leitura provisoria e que a frente mais viva agora e esta: criar age of origins em travessia.",
         "Guru: Pela minha funcao, o primeiro movimento nao e abrir outra entrevista; e converter a frente autorizada em imagem.",
         "Usuario: o que vc pensa sobre isso?",
@@ -325,9 +419,10 @@ test("Guru deterministic fallback answers opinion and loop critique without repe
   });
 
   assert.notEqual(loop, opinion);
-  assert.match(opinion, /Minha leitura sobre isso/i);
+  assert.match(opinion, /O ponto que se apresenta/i);
   assert.match(loop, /eco mecanico|repetir/i);
   assert.ok(opinion.split(/\n\s*\n/).length >= 3);
+  assert.doesNotMatch(opinion, /Minha leitura sobre isso|O dado autorizado|Pela lente|Meu movimento agora/i);
   assert.doesNotMatch(loop, /Minha leitura provisoria e que a frente mais viva agora/i);
 });
 

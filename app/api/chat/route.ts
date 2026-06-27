@@ -26,6 +26,7 @@ import {
     evaluatePersonaInitiativeQuality,
     renderPersonaInitiativeRepairFeedback,
 } from '@/app/lib/nemosine/persona-initiative';
+import type { PersonaInitiativeQualityEvaluation } from '@/app/lib/nemosine/persona-initiative';
 import { ENTITIES } from '@/app/data/entities';
 import { isPrivateMemorySpace } from '@/app/lib/nemosine/privacy';
 import { createUserRegistry } from '@/app/lib/userFeatureStore';
@@ -171,6 +172,26 @@ function readInitiativeRepairLimit() {
     const parsed = Number(process.env.NEMOSINE_PERSONA_INITIATIVE_MAX_REPAIRS);
     if (!Number.isFinite(parsed)) return 1;
     return Math.max(0, Math.min(3, Math.floor(parsed)));
+}
+
+function canPromoteRejectedPersonaCandidate(evaluation: PersonaInitiativeQualityEvaluation, text: string) {
+    if (text.trim().length < 80) return false;
+
+    const nonPromotableCodes = new Set([
+        "FALSE_CONTEXT_DENIAL",
+        "GENERIC_ASSISTANT_MODE",
+        "GENERIC_INTERVIEW_MODE",
+        "INTERROGATIVE_ELICITATION",
+        "EMPTY_FINAL_QUESTION",
+        "UNSUPPORTED_BIOGRAPHICAL_ASSERTION",
+        "PRIVATE_CONTEXT_LEAK",
+        "GENERIC_CLOSING",
+        "INTERNAL_CONTROL_LEAK",
+    ]);
+
+    return !evaluation.findings.some((finding) =>
+        finding.severity === "critical" || nonPromotableCodes.has(finding.code)
+    );
 }
 
 function getConfiguredPrimaryChatModel() {
@@ -411,6 +432,11 @@ export async function POST(req: NextRequest) {
         let selectedRawText = "";
         let finalResponse = "";
         let promotedByFallback = false;
+        let bestRejected: {
+            rawText: string;
+            visibleText: string;
+            evaluation: PersonaInitiativeQualityEvaluation;
+        } | null = null;
 
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             let rawText: string;
@@ -447,6 +473,14 @@ export async function POST(req: NextRequest) {
                 break;
             }
 
+            if (!bestRejected || initiativeEvaluation.initiativeScore > bestRejected.evaluation.initiativeScore) {
+                bestRejected = {
+                    rawText,
+                    visibleText: visibleCandidate,
+                    evaluation: initiativeEvaluation,
+                };
+            }
+
             repairFeedback = renderPersonaInitiativeRepairFeedback(initiativeEvaluation);
             console.warn("[API/Chat] Persona initiative candidate rejected before delivery.", {
                 personaId,
@@ -458,16 +492,21 @@ export async function POST(req: NextRequest) {
         }
 
         if (!finalResponse) {
-            promotedByFallback = true;
-            finalResponse = buildDeterministicInitiativeFallback({
-                personaId,
-                userText,
-                richness: promptAssembly.initiative.richness,
-                snapshot: promptAssembly.initiative.snapshot,
-                brief: promptAssembly.initiative.brief,
-                contract: promptAssembly.initiative.contract,
-            });
-            selectedRawText = finalResponse;
+            if (bestRejected && canPromoteRejectedPersonaCandidate(bestRejected.evaluation, bestRejected.visibleText)) {
+                selectedRawText = bestRejected.rawText;
+                finalResponse = bestRejected.visibleText;
+            } else {
+                promotedByFallback = true;
+                finalResponse = buildDeterministicInitiativeFallback({
+                    personaId,
+                    userText,
+                    richness: promptAssembly.initiative.richness,
+                    snapshot: promptAssembly.initiative.snapshot,
+                    brief: promptAssembly.initiative.brief,
+                    contract: promptAssembly.initiative.contract,
+                });
+                selectedRawText = finalResponse;
+            }
         }
 
         await commitPromotedLegacyEffects({
