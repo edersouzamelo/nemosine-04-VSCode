@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS cognitive_run_audits (
   private_run BOOLEAN NOT NULL DEFAULT FALSE,
   metadata_only BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at TIMESTAMPTZ NOT NULL
+  completed_at TIMESTAMPTZ NOT NULL,
+  final_status TEXT NOT NULL DEFAULT 'UNKNOWN'
 );
 
 CREATE INDEX IF NOT EXISTS cognitive_run_audits_persona_id_idx
@@ -48,3 +49,4 @@ ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS registry_effect_count 
 ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS destiny_effect_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS assistant_message_persisted BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS audit_persisted BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS final_status TEXT NOT NULL DEFAULT 'UNKNOWN';

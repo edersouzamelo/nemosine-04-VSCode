@@ -189,6 +189,7 @@ model CognitiveRunAudit {
   metadataOnly       Boolean  @default(true) @map("metadata_only")
   createdAt          DateTime @default(now()) @map("created_at")
   completedAt        DateTime @map("completed_at")
+  finalStatus        String   @default("UNKNOWN") @map("final_status")
 
   @@index([personaId])
   @@index([runtimeMode])

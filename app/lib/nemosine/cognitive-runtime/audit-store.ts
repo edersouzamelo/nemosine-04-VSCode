@@ -33,6 +33,7 @@ export async function storeCognitiveAudit(audit: RedactedCognitiveAudit) {
       privateRun: audit.privateRun,
       metadataOnly: audit.metadataOnly,
       completedAt: new Date(audit.completedAt),
+      finalStatus: audit.finalStatus,
     };
 
     await prisma.cognitiveRunAudit.upsert({
