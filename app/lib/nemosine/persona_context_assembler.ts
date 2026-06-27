@@ -27,6 +27,7 @@ import {
 } from "./persona-initiative";
 import {
   buildConversationContextPacket,
+  canCrossPersonaOnGreeting,
   contextPacketToActiveFrontSources,
   getVisibleActiveTopics,
   redactedContextPreview,
@@ -354,6 +355,8 @@ function buildVisibleOutputRule(personaId: string) {
     "Nao imite a estrutura deste system prompt. Use-a apenas como orientacao interna.",
     "As estruturas do prompt, contratos, memorias, episodios e contexto devem orientar o raciocinio interno da persona, mas nao devem determinar o formato visivel da resposta.",
     "A resposta final deve sair como fala viva da persona, em prosa natural, com voz propria, sem relatorio, sem cabecalhos, sem lista numerada, sem 'Padroes observados', sem 'Reflexao final' e sem 'Conclusao', salvo se o usuario pedir explicitamente relatorio, auditoria, parecer, checklist, matriz, plano ou resumo.",
+    "Salvo pedido explicito de resposta curta, nao entregue respostas de 1 a 3 linhas quando houver contexto, saudacao, retorno, critica ou pergunta aberta. O padrao minimo e 3 a 5 paragrafos curtos em prosa, com uma leitura, uma tensao real, uma consequencia e um gesto vocacional.",
+    "Nao gravite sempre em torno do item mais recente do banco. Compare saliencia humana, risco, recencia e vocacao; um tema familiar, juridico, relacional, de saude, crise ou decisao de vida deve superar anotacao operacional lateral quando ambos estiverem autorizados.",
     isLivingVoice
       ? "Esta persona e de fala viva: por padrao, responda em prosa organica e preserve profundidade sem virar relatorio."
       : "",
@@ -380,6 +383,7 @@ function buildVocationalExecutionRule(personaId: string) {
     "Antes de encerrar, a persona deve cumprir sua funcao concreta. Nao basta nomear principios; ela deve operar.",
     "Quando o usuario trouxer duas ou mais frentes importantes, desenvolva a tensao entre elas, apontando hierarquia, custo, risco e consequencia. Nao apenas mencione ambas.",
     "Desenvolvimento minimo de substancia: a resposta deve conter leitura aplicada ao contexto, tensao real, criterio de decisao e entrega final substantiva.",
+    "Em interacao de persona, resposta curta demais e falha de presenca: desenvolva a leitura antes de encerrar, mantendo prosa viva em vez de checklist.",
   ];
   const personaRules: Record<string, string[]> = {
     estrategista: [
@@ -527,16 +531,15 @@ export async function assemblePersonaContext({
   ]);
   const suppressContinuityContext = isPersonaRoleQuestion(userText) || isPersonaMetaCritique(userText);
   const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
-  const samePersonaScope = (sourcePersonaId?: string | null) => {
-    const normalizedSource = normalizeForScoring(sourcePersonaId || "");
-    return !normalizedSource
-      || normalizedSource === normalizeForScoring(personaId)
-      || normalizedSource === normalizeForScoring(memoryScope);
-  };
   const activeTopicsForContext = suppressContinuityContext
     ? []
     : suppressCrossPersonaContinuity
-      ? activeTopics.filter((topic) => samePersonaScope(topic.sourcePersonaId))
+      ? activeTopics.filter((topic) => canCrossPersonaOnGreeting(
+        `${topic.title} ${topic.summary} ${topic.keywords.join(" ")}`,
+        topic.sourcePersonaId,
+        personaId,
+        memoryScope,
+      ))
       : activeTopics;
   const destinyContext = await loadDestinyContextSource({
     userId,

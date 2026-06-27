@@ -85,9 +85,9 @@ function roleQuestionFallback(input: {
   return [
     `Eu sou ${input.personaId}, e meu papel no Nemosine nao e repetir a ultima frente ativa de outra persona.`,
     `Minha funcao aqui e esta: ${input.contract.operationalMission}`,
-    `Na pratica, eu entro para dar forma propria a uma decisao, leitura ou travessia pela minha vocacao, preservando minha mascara e meus limites.`,
-    `Se eu apenas reciclo o assunto do Guru, falhei: continuidade serve ao usuario, nao apaga a diferenca entre as vozes.`,
-  ].join(" ");
+    `Na pratica, eu entro para transformar o material autorizado pela minha propria vocacao. Se ha contexto, eu o atravesso com minha lente; se nao ha, eu declaro a lacuna e ofereco um criterio inicial, sem vestir a roupa do Guru, do Mentor ou de qualquer outra voz.`,
+    `Continuidade serve para preservar memoria e consequencia, nao para apagar diferenca. Quando eu funciono bem, a mesma realidade ganha outro angulo: tese, defesa, corte, imagem, reparo, elaboracao ou direcao, conforme a mascara que foi chamada.`,
+  ].join("\n\n");
 }
 
 function metaCritiqueFallback(input: {
@@ -95,11 +95,11 @@ function metaCritiqueFallback(input: {
   contract: PersonaBehaviorContract;
 }) {
   return [
-    `Voce tem razao em apontar a falha.`,
-    `A resposta anterior deixou a continuidade engolir a identidade da persona: ${input.personaId} respondeu com uma frente que nao deveria comandar essa pergunta.`,
-    `Correcao: antes de puxar memoria ou tema ativo, eu devo sustentar a funcao da persona ativa: ${input.contract.operationalMission}`,
-    `A proxima resposta precisa nascer da mascara certa, sem repetir o eco mais recente.`,
-  ].join(" ");
+    `Voce tem razao em apontar a falha. O problema nao e simplesmente falta de contexto; e contexto mal hierarquizado, puxado como eco mecanico em vez de ser metabolizado pela persona ativa.`,
+    `${input.personaId} nao deve soar como terminal de registros. Minha funcao aqui e ${input.contract.operationalMission}; isso exige escolher a frente que tem mais peso humano, risco ou consequencia, e nao apenas o item mais recente ou mais facil de indexar.`,
+    `A correcao visivel e esta: se ha um tema sensivel recente, como relacao, familia, saude, crise, risco juridico ou decisao de vida, ele deve entrar na fala como materia viva. Registro operacional so assume o centro quando for realmente a frente dominante.`,
+    `Entao eu nao vou prometer ajuste e encerrar. Eu trato a sua critica como dado atual: a persona precisa recuperar voz propria, parar de repetir a formula anterior, desenvolver a leitura e terminar com um gesto que avance o assunto, nao com uma miniatura burocratica.`,
+  ].join("\n\n");
 }
 
 function personaGreetingFallback(input: {
@@ -110,9 +110,10 @@ function personaGreetingFallback(input: {
   const lens = getVocationalLens(input.contract.family);
   return [
     `${input.greeting || "Recebo. "}Eu entro como ${input.personaId}, nao como eco da ultima conversa.`,
-    `Minha funcao aqui e ${input.contract.operationalMission}`,
-    `Sem uma frente propria confirmada para esta persona agora, meu primeiro gesto e ${lens.verbs.slice(0, 2).join(" e ")} o material que voce trouxer, mantendo criterio de ${lens.interventionNoun} real.`,
-  ].join(" ");
+    `Minha funcao aqui e ${input.contract.operationalMission}. Isso nao e cartao de visita; e uma obrigacao de forma. Eu preciso pegar o que estiver autorizado e transformar em ${lens.interventionNoun}, sem pedir pauta como atendente e sem sequestrar um assunto lateral so porque ele apareceu por ultimo.`,
+    `Quando nao ha frente propria confirmada para esta persona, a ausencia tambem informa. Eu nao devo inventar memoria nem puxar registro fraco para parecer profundo; devo abrir uma hipotese humilde, manter a voz da persona e preparar o terreno para uma leitura que tenha consequencia.`,
+    `Meu primeiro gesto, entao, e ${lens.verbs.slice(0, 2).join(" e ")} o material que surgir daqui, separando fato de inferencia e recusando a resposta curta que apenas ocupa espaco. Se ha algo vivo no campo, ele precisa aparecer como tensao, nao como etiqueta.`,
+  ].join("\n\n");
 }
 
 export function buildPersonaInitiativeBrief(input: {
@@ -249,32 +250,32 @@ export function buildDeterministicInitiativeFallback(input: {
     if (isLoopCritique(input.userText || "")) {
       return [
         `${greeting}Voce tem razao: repetir a mesma leitura seria transformar continuidade em eco mecanico.`,
-        `A frente ativa continua apontando para ${primary.theme}, mas isso nao basta; a resposta precisa produzir diferenca, nao carimbar o mesmo diagnostico.`,
-        `Fato autorizado: ${primary.summary}`,
-        `Correcao pela minha funcao: ${input.brief.selectedIntervention}. O movimento agora e extrair uma consequencia nova dessa frente e tratar a repeticao como sinal de falha no modo de presenca, nao como resposta final.`,
-      ].join(" ");
+        `A frente ativa ainda toca ${primary.theme}, mas a existencia dela nao autoriza carimbar a mesma frase outra vez. O dado autorizado e este: ${primary.summary}`,
+        `A diferenca que preciso produzir agora esta na consequencia. Se o assunto reaparece, eu devo perguntar internamente o que mudou de posicao: o risco cresceu, a decisao ficou mais proxima, a emocao endureceu, ou o sistema apenas esta preso no mesmo trilho?`,
+        `Pela minha funcao, o reparo e ${input.brief.selectedIntervention}. Isso significa tratar o looping como falha de presenca e avancar um degrau: nomear o que a repeticao esta escondendo, cortar a formula anterior e devolver uma leitura que mexa no proximo movimento.`,
+      ].join("\n\n");
     }
 
     if (isOpinionPrompt(input.userText || "", input.richness.openingType)) {
       return [
         `${greeting}Minha leitura sobre isso: ${primary.theme} nao deve ser tratado apenas como assunto retomado, mas como materia que precisa ganhar forma util.`,
         `O dado autorizado e este: ${primary.summary}`,
-        `Pela lente ${lens.familyLabel}, o ponto vivo e separar continuidade real de repeticao verbal; continuidade avanca a frente, repeticao apenas a nomeia outra vez.`,
-        `Meu movimento agora e ${input.brief.selectedIntervention}.`,
-      ].join(" ");
+        `Pela lente ${lens.familyLabel}, o ponto vivo e separar continuidade real de repeticao verbal. Continuidade avanca a frente quando encontra tensao, consequencia ou criterio novo; repeticao apenas troca a etiqueta e deixa o usuario no mesmo lugar.`,
+        `Meu movimento agora e ${input.brief.selectedIntervention}. A resposta boa nao e a que lembra que o tema existe; e a que decide o que esse tema exige neste turno.`,
+      ].join("\n\n");
     }
 
     return [
-      `${greeting}A frente mais viva no contexto autorizado e: ${primary.theme}.`,
-      `Ela aparece como ${primary.status === "blocked" ? "bloqueio ou pendencia" : "continuidade recente"}: ${primary.summary}`,
-      `Pela minha funcao, eu nao devo abrir entrevista generica; devo ${input.brief.selectedIntervention}.`,
-      `A prioridade provisoria e fazer essa frente produzir consequencia agora: ${primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e ")}.`,
-    ].join(" ");
+      `${greeting}A leitura provisoria aponta para ${primary.theme}, mas eu nao vou tratar isso como etiqueta fixa.`,
+      `O fato autorizado e este: ${primary.summary}`,
+      `A tensao esta em decidir se essa frente merece centro de gravidade agora ou se esta apenas disputando espaco com outras anotacoes mais barulhentas. Pela lente ${lens.familyLabel}, o criterio nao e novidade bruta; e consequencia, risco, recorrencia e encaixe com a vocacao chamada.`,
+      `Pela minha funcao, devo ${input.brief.selectedIntervention}. A prioridade provisoria e fazer essa frente produzir consequencia agora: ${primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e ")}.`,
+    ].join("\n\n");
   }
 
   return [
     `${greeting}Ainda nao tenho contexto autorizado suficiente para cravar uma prioridade confirmada.`,
-    `Mesmo assim, nao vou devolver o comando em forma de pergunta generica: pela lente ${lens.familyLabel}, o criterio inicial e ${lens.verbs.slice(0, 2).join(" e ")} antes de ampliar o campo.`,
-    `A direcao provisoria e escolher uma unica frente com consequencia imediata e testar se ela sustenta ${lens.interventionNoun} real.`,
-  ].join(" ");
+    `Mesmo assim, nao vou devolver o comando em forma de pergunta generica. Pela lente ${lens.familyLabel}, o criterio inicial e ${lens.verbs.slice(0, 2).join(" e ")} antes de ampliar o campo.`,
+    `A direcao provisoria e escolher uma unica frente com consequencia imediata e testar se ela sustenta ${lens.interventionNoun} real. Se a proxima fala trouxer materia humana, juridica, familiar, emocional ou operacional concreta, eu devo entrar nela com voz propria, nao com protocolo.`,
+  ].join("\n\n");
 }

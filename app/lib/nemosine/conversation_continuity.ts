@@ -148,6 +148,20 @@ const recurrenceSignals = [
   "meses", "anos", "padrao", "ciclo",
 ];
 
+const highSalienceHumanSignals = [
+  "divorcio", "separacao", "separando", "casamento", "conjuge", "partilha",
+  "guarda", "pensao", "filho", "filha", "familia", "relacao", "relacionamento",
+  "advogado", "juridico", "processo", "audiencia", "medida protetiva",
+  "luto", "morte", "doenca", "saude", "crise", "ansiedade", "moradia",
+  "trabalho", "demissao", "financeiro", "divida",
+];
+
+const lowSalienceOperationalSignals = [
+  "development", "desenvolvimento", "sovereign", "modulo", "registro", "registros",
+  "nemosine", "app", "runtime", "deploy", "build", "castelo vivo", "age of origins",
+  "travessia", "banco de dados", "github", "vercel",
+];
+
 const assistantEchoPatterns = [
   /\bminha leitura provisoria e que a frente mais viva agora e esta\b/i,
   /\bpela minha funcao, o primeiro movimento nao e abrir outra entrevista\b/i,
@@ -258,6 +272,17 @@ function clamp(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
+function highSalienceHumanScore(text: string) {
+  const hits = countSignalHits(normalizeInitiativeText(text), highSalienceHumanSignals);
+  return clamp(hits * 0.16);
+}
+
+function lowSalienceOperationalScore(text: string) {
+  const normalized = normalizeInitiativeText(text);
+  if (countSignalHits(normalized, highSalienceHumanSignals) > 0) return 0;
+  return clamp(countSignalHits(normalized, lowSalienceOperationalSignals) * 0.12);
+}
+
 function normalizeScope(value?: string | null) {
   return normalizeInitiativeText(value || "");
 }
@@ -266,6 +291,11 @@ function isSamePersonaScope(sourcePersonaId: string | null | undefined, personaI
   const normalizedSource = normalizeScope(sourcePersonaId);
   if (!normalizedSource) return true;
   return normalizedSource === normalizeScope(personaId) || normalizedSource === normalizeScope(memoryScope);
+}
+
+export function canCrossPersonaOnGreeting(text: string, sourcePersonaId: string | null | undefined, personaId: string, memoryScope: string) {
+  if (isSamePersonaScope(sourcePersonaId, personaId, memoryScope)) return true;
+  return highSalienceHumanScore(text) >= 0.16;
 }
 
 function episodeSourcePersona(text: string) {
@@ -616,9 +646,12 @@ function scoreContextItem(input: {
   const continuityBoost = continuityWeighted && input.source.type === "RELEVANT_DURABLE_MEMORIES"
     ? 0
     : unresolvedBoost + recurrenceBoost;
+  const humanSalienceBoost = highSalienceHumanScore(input.source.text) * (continuityWeighted ? 0.28 : 0.18);
+  const operationalPenalty = lowSalienceOperationalScore(input.source.text) * (continuityWeighted ? 0.28 : 0.14);
+  const registryPenalty = continuityWeighted && input.source.type === "AGENDA_AND_REGISTRY_CONTEXT" ? 0.12 : 0;
   const score = continuityWeighted
-    ? lowInformationScore + continuityBoost
-    : relevance * 0.30 + recency * 0.30 + salience * 0.25 + personaAffinity * 0.15 + continuityBoost;
+    ? lowInformationScore + continuityBoost + humanSalienceBoost - operationalPenalty - registryPenalty
+    : relevance * 0.30 + recency * 0.30 + salience * 0.25 + personaAffinity * 0.15 + continuityBoost + humanSalienceBoost - operationalPenalty;
 
   return {
     score: clamp(score),
@@ -687,7 +720,12 @@ export function buildConversationContextPacket(input: {
   const suppressContinuityContext = isPersonaRoleQuestion(input.userText) || isPersonaMetaCritique(input.userText);
   const suppressCrossPersonaContinuity = invocationMode === "GREETING";
   const activeTopicInputs = suppressCrossPersonaContinuity
-    ? (input.activeTopics || []).filter((topic) => isSamePersonaScope(topic.sourcePersonaId, input.personaId, input.memoryScope))
+    ? (input.activeTopics || []).filter((topic) => canCrossPersonaOnGreeting(
+      `${topic.title} ${topic.summary} ${topic.keywords.join(" ")}`,
+      topic.sourcePersonaId,
+      input.personaId,
+      input.memoryScope,
+    ))
     : (input.activeTopics || []);
   const activeTopics = activeTopicInputs.map((topic) => makePacketItem({
     source: {
@@ -711,7 +749,8 @@ export function buildConversationContextPacket(input: {
   const memoryInputs = suppressCrossPersonaContinuity
     ? (input.memories || []).filter((memory) => {
       const personaId = typeof memory === "string" ? input.memoryScope : memory.personaId;
-      return isSamePersonaScope(personaId, input.personaId, input.memoryScope);
+      const content = typeof memory === "string" ? memory : memory.content;
+      return canCrossPersonaOnGreeting(content, personaId, input.personaId, input.memoryScope);
     })
     : (input.memories || []);
   const memories = memoryInputs.map((memory, index) => {
@@ -742,7 +781,7 @@ export function buildConversationContextPacket(input: {
     const personaId = typeof episode === "string" ? episodeSourcePersona(content) : episode.personaId;
     const threadId = typeof episode === "string" ? null : episode.threadId;
     if (!content) return null;
-    if (suppressCrossPersonaContinuity && !isSamePersonaScope(personaId, input.personaId, input.memoryScope)) return null;
+    if (suppressCrossPersonaContinuity && !canCrossPersonaOnGreeting(content, personaId, input.personaId, input.memoryScope)) return null;
     return makePacketItem({
       source: {
         id: typeof episode === "string" ? `episode:${index}` : `episode:${episode.id || index}`,

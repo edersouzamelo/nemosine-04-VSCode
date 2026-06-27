@@ -135,6 +135,56 @@ test("greeting does not let Guru active topic hijack Cientista", () => {
   assert.equal(packet.hasSubstantiveContext, false);
 });
 
+test("greeting allows high-salience divorce topic to cross personas before registry notes", () => {
+  const contract = getPersonaBehaviorContract("Advogado");
+  const packet = buildConversationContextPacket({
+    userText: "fala didi",
+    personaId: "Advogado",
+    memoryScope: "Advogado",
+    contract,
+    activeTopics: [{
+      id: "topic-divorce",
+      userId: "user-1",
+      title: "Divorcio em avaliacao",
+      summary: "Usuario discutiu com Estrategista possivel divorcio, separacao, partilha, guarda e risco familiar ainda sem direcao definitiva.",
+      keywords: ["divorcio", "separacao", "partilha", "guarda", "familia", "risco"],
+      salience: 0.96,
+      status: "PENDING",
+      privacyScope: "PUBLIC",
+      sourceThreadId: "thread-estrategista",
+      sourcePersonaId: "Estrategista",
+      firstObservedAt: new Date("2026-06-27T10:00:00.000Z"),
+      lastObservedAt: new Date("2026-06-27T10:00:00.000Z"),
+      resolvedAt: null,
+      evidenceCount: 2,
+      metadata: { scope: "Estrategista" },
+    }],
+    registries: [
+      "Development of Sovereign | prazo: 2026-05-29 | status: Pendente",
+      "Modulo de registros do app Nemosine | status: Pendente",
+    ],
+    now,
+  });
+
+  assert.equal(packet.invocationMode, "GREETING");
+  assert.equal(packet.activeTopics.length, 1);
+  assert.equal(packet.activeTopics[0].sourcePersonaId, "Estrategista");
+  assert.equal(packet.metrics.crossPersonaContinuityUsed, true);
+  assert.equal(packet.selectedItems[0].type, "ACTIVE_TOPICS");
+  assert.match(packet.selectedItems[0].text, /divorcio|separacao|guarda/i);
+  assert.doesNotMatch(packet.selectedItems[0].text, /Development of Sovereign/i);
+
+  const richness = classifyConversationInputRichness("fala didi");
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Advogado",
+    userText: "fala didi",
+    richness,
+    contract,
+    sources: contextPacketToActiveFrontSources(packet),
+  });
+  assert.match(snapshot.selectedFronts[0].summary, /divorcio|separacao|guarda/i);
+});
+
 test("Cientista greeting fallback does not recycle Guru topic", () => {
   const contract = getPersonaBehaviorContract("Cientista");
   const userText = "bom dia cientista";
@@ -165,6 +215,7 @@ test("Cientista greeting fallback does not recycle Guru topic", () => {
   assert.match(fallback, /Bom dia/i);
   assert.match(fallback, /Cientista/i);
   assert.match(fallback, /evidencia|hipotese|teste/i);
+  assert.ok(fallback.split(/\n\s*\n/).length >= 3);
   assert.doesNotMatch(fallback, /Age of Origins|age of origins|frente mais viva/i);
 });
 
@@ -276,6 +327,7 @@ test("Guru deterministic fallback answers opinion and loop critique without repe
   assert.notEqual(loop, opinion);
   assert.match(opinion, /Minha leitura sobre isso/i);
   assert.match(loop, /eco mecanico|repetir/i);
+  assert.ok(opinion.split(/\n\s*\n/).length >= 3);
   assert.doesNotMatch(loop, /Minha leitura provisoria e que a frente mais viva agora/i);
 });
 

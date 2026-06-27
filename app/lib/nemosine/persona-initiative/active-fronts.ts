@@ -52,6 +52,20 @@ const unresolvedWords = [
   "precisa", "falta", "proximo", "a fazer", "em aberto", "risco", "gargalo",
 ];
 
+const highSalienceHumanWords = [
+  "divorcio", "separacao", "casamento", "conjuge", "partilha", "guarda",
+  "pensao", "filho", "filha", "familia", "relacao", "relacionamento",
+  "juridico", "processo", "audiencia", "saude", "crise", "ansiedade",
+  "moradia", "trabalho", "demissao", "financeiro", "divida",
+];
+
+const lowSalienceOperationalWords = [
+  "development", "desenvolvimento", "sovereign", "modulo", "registro",
+  "registros", "nemosine", "app", "runtime", "deploy", "build",
+  "castelo vivo", "age of origins", "travessia", "banco de dados",
+  "github", "vercel",
+];
+
 const statusPatterns: Array<[ActiveFront["status"], RegExp]> = [
   ["blocked", /\b(bloquead|travado|impasse|falha|erro|bug|quebrad|colaps)/i],
   ["pending", /\b(pendente|prazo|falta|a fazer|precisa|aguard|proximo passo)/i],
@@ -127,6 +141,13 @@ function scoreFrontForSelection(input: {
   richness: ConversationInputRichness;
   index: number;
 }) {
+  const normalizedFront = normalizeInitiativeText(`${input.front.theme} ${input.front.summary}`);
+  const humanSignalHits = countMatches(normalizedFront, highSalienceHumanWords);
+  const operationalSignalHits = countMatches(normalizedFront, lowSalienceOperationalWords);
+  const humanSalienceBoost = clamp(humanSignalHits * 0.08);
+  const operationalDrag = humanSignalHits > 0
+    ? 0
+    : clamp(operationalSignalHits * 0.04 + (input.front.provenance.includes("AGENDA_AND_REGISTRY_CONTEXT") ? 0.08 : 0));
   const lexical = scoreByHints(
     `${input.front.theme} ${input.front.summary}`,
     normalizeInitiativeText(input.userText).split(" "),
@@ -140,6 +161,8 @@ function scoreFrontForSelection(input: {
       + input.front.unresolvedness * 0.12
       + input.front.recency * 0.08
       + input.front.confidence * 0.04
+      + humanSalienceBoost
+      - operationalDrag
     );
   }
 
@@ -151,6 +174,8 @@ function scoreFrontForSelection(input: {
     + input.front.confidence * 0.1
     + lexical * 0.02
     - input.index * 0.005
+    + humanSalienceBoost
+    - operationalDrag
   );
 }
 

@@ -22,6 +22,7 @@ import {
 } from "@/app/lib/nemosine/persona-initiative";
 import {
   buildConversationContextPacket,
+  canCrossPersonaOnGreeting,
   contextPacketToActiveFrontSources,
   getVisibleActiveTopics,
   renderConversationContextPacket,
@@ -96,6 +97,8 @@ function runtimeInstructions(language: CognitiveRequest["language"]) {
     "Do not ask for generic details or end with availability formulas such as 'se precisar de uma analise' or 'se voce/vc puder compartilhar detalhes'. Explore authorized context first.",
     "If the current input is shallow, a greeting or an open prompt and authorized context exists, treat it as an initiative trigger: surface the most salient active front and an applied reading in the first answer.",
     "Do not wait for a second user cue such as 'what did you see in the last conversations?' before using loaded conversation, memory, registry or Destiny context.",
+    "Unless the user explicitly asks for brevity, persona answers must not collapse into 1-3 terse lines when context, greeting, return, critique or open prompt is present. Use 3-5 short paragraphs of living prose with one reading, one real tension, one consequence and one vocational move.",
+    "Do not orbit the newest registry note by default. Human, family, legal, relational, health, crisis or life-decision material with authorized visibility outranks lateral operational notes when salience is comparable.",
     `Respond in ${languageName}, unless the current user payload explicitly requests another language.`,
   ];
 }
@@ -154,23 +157,15 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
   ]);
   const suppressContinuityContext = isPersonaRoleQuestion(request.userText) || isPersonaMetaCritique(request.userText);
   const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
-  const normalizeScope = (value?: string | null) => (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const samePersonaScope = (sourcePersonaId?: string | null) => {
-    const normalizedSource = normalizeScope(sourcePersonaId);
-    return !normalizedSource
-      || normalizedSource === normalizeScope(request.personaId)
-      || normalizedSource === normalizeScope(request.memoryScope);
-  };
   const activeTopicsForContext = suppressContinuityContext
     ? []
     : suppressCrossPersonaContinuity
-      ? activeTopics.filter((topic) => samePersonaScope(topic.sourcePersonaId))
+      ? activeTopics.filter((topic) => canCrossPersonaOnGreeting(
+        `${topic.title} ${topic.summary} ${topic.keywords.join(" ")}`,
+        topic.sourcePersonaId,
+        request.personaId,
+        request.memoryScope,
+      ))
       : activeTopics;
   const agendaSummaries = agendaEvents.slice(0, 8).map(summarizeAgenda);
   const registrySummaries = registries.slice(0, 8).map(summarizeRegistry);

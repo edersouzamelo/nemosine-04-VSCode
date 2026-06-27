@@ -77,7 +77,8 @@ export type PersonaInitiativeQualityFindingCode =
   | "UNSUPPORTED_BIOGRAPHICAL_ASSERTION"
   | "PRIVATE_CONTEXT_LEAK"
   | "GENERIC_CLOSING"
-  | "REPETITIVE_LOOP";
+  | "REPETITIVE_LOOP"
+  | "THIN_RESPONSE";
 
 export type PersonaInitiativeQualityFinding = {
   code: PersonaInitiativeQualityFindingCode;

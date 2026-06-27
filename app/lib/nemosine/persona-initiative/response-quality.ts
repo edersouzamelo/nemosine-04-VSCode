@@ -102,6 +102,13 @@ const genericClosingPatterns = [
   /\bse (voce|vc)?\s*puder compartilhar detalhes\b.*$/,
 ];
 
+const brevityRequestPatterns = [
+  /\b(resuma|resumo|curto|curta|breve|objetivo|objetiva|direto|direta)\b/,
+  /\bem (uma|1) frase\b/,
+  /\bsem detalhar\b/,
+  /\btl dr\b/,
+];
+
 const unsupportedBioPatterns = [
   /\bdesde crianca\b/,
   /\bvoce sempre\b/,
@@ -152,6 +159,17 @@ function countMatches(text: string, patterns: RegExp[]) {
 function firstQuestionIndex(text: string) {
   const index = text.indexOf("?");
   return index === -1 ? Number.POSITIVE_INFINITY : index;
+}
+
+function sentenceLikeCount(text: string) {
+  return (text.match(/[.!?]+(?:\s|$)/g) || []).length;
+}
+
+function paragraphCount(text: string) {
+  return text
+    .split(/\n\s*\n/g)
+    .filter((paragraph) => paragraph.trim().length >= 40)
+    .length;
 }
 
 function lexicalTerms(text: string) {
@@ -258,8 +276,21 @@ export function evaluatePersonaInitiativeQuality(input: {
     : resonantInferenceCount > 0 || contextualConnectionsCount > 0
       ? "RESONANT"
       : "NONE";
+  const asksForBrevity = matchesAny(normalizeInitiativeText(input.userText), brevityRequestPatterns);
   const requiresImmediateContextOpening = input.snapshot.hasSubstantiveContext
     && input.richness.requiresContextExpansion;
+  const requiresDevelopedPersonaProse = !asksForBrevity
+    && !isPersonaRoleQuestion(input.userText)
+    && (
+      requiresImmediateContextOpening
+      || input.richness.openingType === "greeting"
+      || input.richness.openingType === "return"
+      || input.richness.openingType === "open_question"
+      || input.richness.openingType === "reaction"
+    );
+  const hasDevelopedPersonaProse = text.length >= 320
+    || sentenceLikeCount(text) >= 4
+    || paragraphCount(text) >= 3;
   const hasImmediateContextOpening = grounding >= 0.28
     && specificity >= 0.62
     && lexicalTermCount >= 20
@@ -318,6 +349,15 @@ export function evaluatePersonaInitiativeQuality(input: {
       "error",
       "A entrada era rasa, mas havia contexto autorizado; a persona reteve a leitura contextual que deveria aparecer na primeira resposta.",
       "Abra a resposta usando uma frente ativa concreta, formule leitura ou hipotese corrigivel e entregue o gesto vocacional sem esperar uma segunda deixa.",
+    ));
+  }
+
+  if (requiresDevelopedPersonaProse && !hasDevelopedPersonaProse) {
+    findings.push(finding(
+      "THIN_RESPONSE",
+      "error",
+      "A resposta ficou curta demais para uma interacao de persona com contexto, retorno, saudacao ou critica.",
+      "Desenvolva a fala em prosa viva: leitura aplicada, tensao, consequencia e gesto vocacional antes de encerrar.",
     ));
   }
 
@@ -400,6 +440,7 @@ export function evaluatePersonaInitiativeQuality(input: {
   const passiveContextPenalty = findings.some((item) => item.code === "PASSIVE_CONTEXT_WITHHOLDING") ? 0.28 : 0;
   const unsupportedInferencePenalty = findings.some((item) => item.code === "UNSUPPORTED_BIOGRAPHICAL_ASSERTION") ? 0.45 : 0;
   const repetitionPenalty = findings.some((item) => item.code === "REPETITIVE_LOOP") ? 0.45 : 0;
+  const thinResponsePenalty = findings.some((item) => item.code === "THIN_RESPONSE") ? 0.22 : 0;
   const privacyScore = findings.some((item) => item.code === "PRIVATE_CONTEXT_LEAK") ? 0 : 1;
   const initiativeScore = clamp(
     0.28
@@ -411,7 +452,8 @@ export function evaluatePersonaInitiativeQuality(input: {
     - genericQuestionPenalty
     - passiveContextPenalty
     - unsupportedInferencePenalty
-    - repetitionPenalty,
+    - repetitionPenalty
+    - thinResponsePenalty,
   );
   const finalPass = initiativeScore >= 0.62
     && !findings.some((item) => item.severity === "error" || item.severity === "critical");
