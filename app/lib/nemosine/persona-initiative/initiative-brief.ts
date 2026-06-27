@@ -63,6 +63,17 @@ function greetingForUserText(userText: string, openingType: ConversationInputRic
   return "Recebo. ";
 }
 
+function isLoopCritique(userText: string) {
+  const normalized = normalizeInitiativeText(userText);
+  return /\b(loop|looping|repetindo|repeticao|repetiu|mesma resposta|igual de novo)\b/.test(normalized);
+}
+
+function isOpinionPrompt(userText: string, openingType: ConversationInputRichness["openingType"]) {
+  const normalized = normalizeInitiativeText(userText);
+  return openingType === "open_question"
+    || /\b(o que (voce|vc) pensa|o que acha|qual sua leitura|sua leitura|sobre isso)\b/.test(normalized);
+}
+
 export function buildPersonaInitiativeBrief(input: {
   personaId: string;
   userText: string;
@@ -172,11 +183,29 @@ export function buildDeterministicInitiativeFallback(input: {
   const lens = getVocationalLens(input.contract.family);
 
   if (primary) {
+    if (isLoopCritique(input.userText || "")) {
+      return [
+        `${greeting}Voce tem razao: repetir a mesma leitura seria transformar continuidade em eco mecanico.`,
+        `A frente ativa continua apontando para ${primary.theme}, mas isso nao basta; a resposta precisa produzir diferenca, nao carimbar o mesmo diagnostico.`,
+        `Fato autorizado: ${primary.summary}`,
+        `Correcao pela minha funcao: ${input.brief.selectedIntervention}. O movimento agora e extrair uma consequencia nova dessa frente e tratar a repeticao como sinal de falha no modo de presenca, nao como resposta final.`,
+      ].join(" ");
+    }
+
+    if (isOpinionPrompt(input.userText || "", input.richness.openingType)) {
+      return [
+        `${greeting}Minha leitura sobre isso: ${primary.theme} nao deve ser tratado apenas como assunto retomado, mas como materia que precisa ganhar forma util.`,
+        `O dado autorizado e este: ${primary.summary}`,
+        `Pela lente ${lens.familyLabel}, o ponto vivo e separar continuidade real de repeticao verbal; continuidade avanca a frente, repeticao apenas a nomeia outra vez.`,
+        `Meu movimento agora e ${input.brief.selectedIntervention}.`,
+      ].join(" ");
+    }
+
     return [
-      `${greeting}Minha leitura provisoria e que a frente mais viva agora e esta: ${primary.theme}.`,
-      `O dado autorizado aponta ${primary.status === "blocked" ? "bloqueio ou pendencia" : "continuidade recente"}: ${primary.summary}`,
-      `Pela minha funcao, o primeiro movimento nao e abrir outra entrevista; e ${input.brief.selectedIntervention}.`,
-      `Se essa frente ja foi resolvida, a ordem muda, mas ate essa correcao a prioridade operacional e tratar esse ponto como eixo da conversa.`,
+      `${greeting}A frente mais viva no contexto autorizado e: ${primary.theme}.`,
+      `Ela aparece como ${primary.status === "blocked" ? "bloqueio ou pendencia" : "continuidade recente"}: ${primary.summary}`,
+      `Pela minha funcao, eu nao devo abrir entrevista generica; devo ${input.brief.selectedIntervention}.`,
+      `A prioridade provisoria e fazer essa frente produzir consequencia agora: ${primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e ")}.`,
     ].join(" ");
   }
 

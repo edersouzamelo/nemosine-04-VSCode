@@ -334,14 +334,12 @@ const getVisibleConversationEpisodeCandidates = async (userId: string, targetPer
                 || thread.personaId.startsWith(`${targetPersonaId} @ `)
                 || thread.personaId.endsWith(` @ ${targetPersonaId}`);
         })
-        .filter(thread => thread.messages.length > 0)
+        .filter(thread => thread.messages.some((message) => message.role === 'user'))
         .map(thread => {
             const excerpt = [...thread.messages]
+                .filter((message) => message.role === 'user')
                 .reverse()
-                .map(message => {
-                    const speaker = message.role === 'user' ? 'Usuário' : thread.personaId;
-                    return `${speaker}: ${message.content.slice(0, 280)}`;
-                })
+                .map(message => `Usuario: ${message.content.slice(0, 280)}`)
                 .join('\n');
 
             return `[Conversa com ${thread.personaId}]\n${excerpt}`;

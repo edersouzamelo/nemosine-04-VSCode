@@ -146,6 +146,15 @@ const recurrenceSignals = [
   "meses", "anos", "padrao", "ciclo",
 ];
 
+const assistantEchoPatterns = [
+  /\bminha leitura provisoria e que a frente mais viva agora e esta\b/i,
+  /\bpela minha funcao, o primeiro movimento nao e abrir outra entrevista\b/i,
+  /\bse essa frente ja foi resolvida, a ordem muda\b/i,
+  /\bresposta anterior do assistant suprimida\b/i,
+  /\btrusted persona initiative repair feedback\b/i,
+  /\bcontrole interno de iniciativa contextual\b/i,
+];
+
 function hashText(value: string) {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
 }
@@ -247,6 +256,12 @@ function clamp(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
+export function stripAssistantEchoContext(text: string) {
+  const lines = text.split(/\r?\n/);
+  const kept = lines.filter((line) => !assistantEchoPatterns.some((pattern) => pattern.test(line)));
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function timestampMs(value?: Date | string | number | null) {
   if (!value) return null;
   const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
@@ -267,6 +282,9 @@ export function classifyInvocationMode(userText: string): InvocationMode {
     && uniqueTerms(userText).length <= 3;
 
   if (/\b(prompt|resposta|persona|chatbot|raso|generico|profundidade|falha)\b/.test(normalized)) {
+    return "META_CRITIQUE";
+  }
+  if (/\b(loop|looping|repetindo|repeticao|repetiu|mesma resposta|igual de novo)\b/.test(normalized)) {
     return "META_CRITIQUE";
   }
   if (greetingWithOptionalPersona) return "GREETING";
@@ -690,10 +708,11 @@ export function buildConversationContextPacket(input: {
   });
 
   const episodes = (input.episodes || []).map((episode, index) => {
-    const content = typeof episode === "string" ? episode : episode.content;
+    const content = stripAssistantEchoContext(typeof episode === "string" ? episode : episode.content);
     const timestamp = typeof episode === "string" ? null : episode.timestamp;
     const personaId = typeof episode === "string" ? null : episode.personaId;
     const threadId = typeof episode === "string" ? null : episode.threadId;
+    if (!content) return null;
     return makePacketItem({
       source: {
         id: typeof episode === "string" ? `episode:${index}` : `episode:${episode.id || index}`,
@@ -711,7 +730,7 @@ export function buildConversationContextPacket(input: {
       reason: "recent episode visible to target persona",
       now: input.now,
     });
-  });
+  }).filter((item): item is ContextPacketItem => Boolean(item));
 
   const sources = (input.sources || []).map((source, index) => makePacketItem({
     source: {

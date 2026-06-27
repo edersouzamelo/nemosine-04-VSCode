@@ -158,6 +158,34 @@ function lexicalTerms(text: string) {
   ));
 }
 
+function loopSimilarityText(text: string) {
+  return normalizeInitiativeText(text)
+    .replace(/[?!.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function isNearDuplicatePersonaResponse(response: string, recentAssistantTexts: string[] = []) {
+  const current = loopSimilarityText(response);
+  if (current.length < 80) return false;
+  const currentTerms = new Set(lexicalTerms(current));
+  if (currentTerms.size < 8) return false;
+
+  return recentAssistantTexts.slice(-4).some((previous) => {
+    const prior = loopSimilarityText(previous);
+    if (prior.length < 80) return false;
+    if (current === prior) return true;
+    if (current.slice(0, 220) === prior.slice(0, 220)) return true;
+
+    const priorTerms = new Set(lexicalTerms(prior));
+    if (priorTerms.size < 8) return false;
+    const overlap = Array.from(currentTerms).filter((term) => priorTerms.has(term)).length;
+    const overlapRatio = overlap / Math.min(currentTerms.size, priorTerms.size);
+    const lengthRatio = Math.min(current.length, prior.length) / Math.max(current.length, prior.length);
+    return overlapRatio >= 0.86 && lengthRatio >= 0.72;
+  });
+}
+
 function contextGroundingScore(response: string, snapshot: ActiveFrontSnapshot) {
   if (!snapshot.hasSubstantiveContext || snapshot.selectedFronts.length === 0) return 1;
   const responseNorm = normalizeInitiativeText(response);
@@ -201,6 +229,7 @@ export function evaluatePersonaInitiativeQuality(input: {
   contract: PersonaBehaviorContract;
   brief?: PersonaInitiativeBrief;
   privateRun?: boolean;
+  recentAssistantTexts?: string[];
 }): PersonaInitiativeQualityEvaluation {
   const text = input.responseText.trim();
   const normalized = normalizeInitiativeText(text);
@@ -347,12 +376,22 @@ export function evaluatePersonaInitiativeQuality(input: {
     ));
   }
 
+  if (isNearDuplicatePersonaResponse(text, input.recentAssistantTexts)) {
+    findings.push(finding(
+      "REPETITIVE_LOOP",
+      "error",
+      "A resposta repete uma resposta recente quase literalmente.",
+      "Nao reaproveite a mesma formula. Responda ao turno atual, produza uma distincao nova e avance a frente selecionada.",
+    ));
+  }
+
   const genericAssistantPenalty = findings.some((item) => item.code === "GENERIC_ASSISTANT_MODE") ? 0.4 : 0;
   const genericQuestionPenalty = findings.some((item) =>
     item.code === "GENERIC_INTERVIEW_MODE" || item.code === "EMPTY_FINAL_QUESTION" || item.code === "INTERROGATIVE_ELICITATION"
   ) ? 0.35 : 0;
   const passiveContextPenalty = findings.some((item) => item.code === "PASSIVE_CONTEXT_WITHHOLDING") ? 0.28 : 0;
   const unsupportedInferencePenalty = findings.some((item) => item.code === "UNSUPPORTED_BIOGRAPHICAL_ASSERTION") ? 0.45 : 0;
+  const repetitionPenalty = findings.some((item) => item.code === "REPETITIVE_LOOP") ? 0.45 : 0;
   const privacyScore = findings.some((item) => item.code === "PRIVATE_CONTEXT_LEAK") ? 0 : 1;
   const initiativeScore = clamp(
     0.28
@@ -363,7 +402,8 @@ export function evaluatePersonaInitiativeQuality(input: {
     - genericAssistantPenalty
     - genericQuestionPenalty
     - passiveContextPenalty
-    - unsupportedInferencePenalty,
+    - unsupportedInferencePenalty
+    - repetitionPenalty,
   );
   const finalPass = initiativeScore >= 0.62
     && !findings.some((item) => item.severity === "error" || item.severity === "critical");
@@ -382,6 +422,7 @@ export function evaluatePersonaInitiativeQuality(input: {
     unsupportedInferencePenalty,
     genericQuestionPenalty,
     genericAssistantPenalty,
+    repetitionPenalty,
     findings,
     finalPass,
   };

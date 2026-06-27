@@ -11,6 +11,7 @@ const {
 } = require("../../app/lib/nemosine/conversation_continuity.ts");
 const {
   buildActiveFrontSnapshot,
+  buildDeterministicInitiativeFallback,
   buildPersonaInitiativeBrief,
   classifyConversationInputRichness,
   evaluatePersonaInitiativeQuality,
@@ -87,6 +88,104 @@ test("public active topic crosses personas on greeting continuity", () => {
   assert.equal(packet.activeTopics[0].id, "active-topic:topic-public-partnership");
   assert.equal(packet.metrics.crossPersonaContinuityUsed, true);
   assert.match(packet.selectedItems[0].text, /parceria profissional/i);
+});
+
+test("recent episode context strips deterministic assistant fallback echoes", () => {
+  const contract = getPersonaBehaviorContract("Guru");
+  const packet = buildConversationContextPacket({
+    userText: "o que vc pensa sobre isso?",
+    personaId: "Guru",
+    memoryScope: "Guru",
+    contract,
+    episodes: [
+      [
+        "[Conversa com Guru]",
+        "Usuario: Bom dia guru",
+        "Guru: Minha leitura provisoria e que a frente mais viva agora e esta: criar age of origins em travessia.",
+        "Guru: Pela minha funcao, o primeiro movimento nao e abrir outra entrevista; e converter a frente autorizada em imagem.",
+        "Usuario: o que vc pensa sobre isso?",
+      ].join("\n"),
+    ],
+    now,
+  });
+
+  assert.equal(packet.recentPublicEpisodes.length, 1);
+  assert.match(packet.recentPublicEpisodes[0].text, /Bom dia guru/i);
+  assert.match(packet.recentPublicEpisodes[0].text, /o que vc pensa/i);
+  assert.doesNotMatch(packet.recentPublicEpisodes[0].text, /Minha leitura provisoria/i);
+  assert.doesNotMatch(packet.recentPublicEpisodes[0].text, /abrir outra entrevista/i);
+});
+
+function guruInitiative(userText) {
+  const contract = getPersonaBehaviorContract("Guru");
+  const richness = classifyConversationInputRichness(userText);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Guru",
+    userText,
+    richness,
+    contract,
+    sources: [{
+      id: "active-topic:age-origins",
+      type: "active_topic",
+      text: "Criar Age of Origins em travessia no app Nemosine; pendencia de converter a frente autorizada em imagem, cena, contraste ou gesto simbolico com utilidade real.",
+      provenance: "ACTIVE_TOPICS",
+      visibility: "internal",
+      scope: "Guru",
+      recency: 0.97,
+    }],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Guru",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  return { contract, richness, snapshot, brief };
+}
+
+test("Guru deterministic fallback answers opinion and loop critique without repeating the same frame", () => {
+  const opinionState = guruInitiative("o que vc pensa sobre isso?");
+  const opinion = buildDeterministicInitiativeFallback({
+    personaId: "Guru",
+    userText: "o que vc pensa sobre isso?",
+    ...opinionState,
+  });
+  const loopState = guruInitiative("ue vc esta respondendo em looping?");
+  const loop = buildDeterministicInitiativeFallback({
+    personaId: "Guru",
+    userText: "ue vc esta respondendo em looping?",
+    ...loopState,
+  });
+
+  assert.notEqual(loop, opinion);
+  assert.match(opinion, /Minha leitura sobre isso/i);
+  assert.match(loop, /eco mecanico|repetir/i);
+  assert.doesNotMatch(loop, /Minha leitura provisoria e que a frente mais viva agora/i);
+});
+
+test("quality gate rejects near-duplicate persona responses as looping", () => {
+  const { contract, richness, snapshot, brief } = guruInitiative("o que vc pensa sobre isso?");
+  const previous = [
+    "Minha leitura provisoria e que a frente mais viva agora e esta: criar age of origins em travessia.",
+    "O dado autorizado aponta continuidade recente: criar age of origins em travessia no app Nemosine.",
+    "Pela minha funcao, o primeiro movimento nao e abrir outra entrevista; e converter a frente autorizada em imagem.",
+  ].join(" ");
+  const evaluation = evaluatePersonaInitiativeQuality({
+    responseText: previous,
+    personaId: "Guru",
+    userText: "o que vc pensa sobre isso?",
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+    recentAssistantTexts: [previous],
+  });
+
+  assert.equal(evaluation.finalPass, false);
+  assert.equal(evaluation.repetitionPenalty > 0, true);
+  assert.ok(evaluation.findings.some((finding) => finding.code === "REPETITIVE_LOOP"));
 });
 
 test("active topic extraction ignores greetings and extracts substantive public topics", () => {

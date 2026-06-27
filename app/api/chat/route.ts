@@ -355,6 +355,10 @@ export async function POST(req: NextRequest) {
         const promptAssembly = await buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, userText);
         const systemPrompt = promptAssembly.systemPrompt;
         const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(priorHistory);
+        const recentAssistantTexts = priorHistory
+            .filter((message) => message.role === 'assistant')
+            .slice(-4)
+            .map((message) => message.content);
         const history = [
             ...sanitizedHistory,
             {
@@ -434,6 +438,7 @@ export async function POST(req: NextRequest) {
                 contract: promptAssembly.initiative.contract,
                 brief: promptAssembly.initiative.brief,
                 privateRun: isPrivateMemorySpace(memoryScope),
+                recentAssistantTexts,
             });
 
             if (initiativeEvaluation.finalPass) {

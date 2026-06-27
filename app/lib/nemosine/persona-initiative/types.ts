@@ -76,7 +76,8 @@ export type PersonaInitiativeQualityFindingCode =
   | "EMPTY_FINAL_QUESTION"
   | "UNSUPPORTED_BIOGRAPHICAL_ASSERTION"
   | "PRIVATE_CONTEXT_LEAK"
-  | "GENERIC_CLOSING";
+  | "GENERIC_CLOSING"
+  | "REPETITIVE_LOOP";
 
 export type PersonaInitiativeQualityFinding = {
   code: PersonaInitiativeQualityFindingCode;
@@ -99,6 +100,7 @@ export type PersonaInitiativeQualityEvaluation = {
   unsupportedInferencePenalty: number;
   genericQuestionPenalty: number;
   genericAssistantPenalty: number;
+  repetitionPenalty: number;
   findings: PersonaInitiativeQualityFinding[];
   finalPass: boolean;
 };
