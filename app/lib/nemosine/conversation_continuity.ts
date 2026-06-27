@@ -258,6 +258,20 @@ function clamp(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
+function normalizeScope(value?: string | null) {
+  return normalizeInitiativeText(value || "");
+}
+
+function isSamePersonaScope(sourcePersonaId: string | null | undefined, personaId: string, memoryScope: string) {
+  const normalizedSource = normalizeScope(sourcePersonaId);
+  if (!normalizedSource) return true;
+  return normalizedSource === normalizeScope(personaId) || normalizedSource === normalizeScope(memoryScope);
+}
+
+function episodeSourcePersona(text: string) {
+  return text.match(/^\[Conversa com ([^\]\r\n]+)\]/i)?.[1]?.trim() || null;
+}
+
 export function stripAssistantEchoContext(text: string) {
   const lines = text.split(/\r?\n/);
   const kept = lines.filter((line) => !assistantEchoPatterns.some((pattern) => pattern.test(line)));
@@ -671,7 +685,11 @@ export function buildConversationContextPacket(input: {
   const richness = input.inputRichness || classifyConversationInputRichness(input.userText);
   const invocationMode = classifyInvocationMode(input.userText);
   const suppressContinuityContext = isPersonaRoleQuestion(input.userText) || isPersonaMetaCritique(input.userText);
-  const activeTopics = (input.activeTopics || []).map((topic) => makePacketItem({
+  const suppressCrossPersonaContinuity = invocationMode === "GREETING";
+  const activeTopicInputs = suppressCrossPersonaContinuity
+    ? (input.activeTopics || []).filter((topic) => isSamePersonaScope(topic.sourcePersonaId, input.personaId, input.memoryScope))
+    : (input.activeTopics || []);
+  const activeTopics = activeTopicInputs.map((topic) => makePacketItem({
     source: {
       id: `active-topic:${topic.id}`,
       type: "ACTIVE_TOPICS",
@@ -690,7 +708,13 @@ export function buildConversationContextPacket(input: {
     now: input.now,
   }));
 
-  const memories = (input.memories || []).map((memory, index) => {
+  const memoryInputs = suppressCrossPersonaContinuity
+    ? (input.memories || []).filter((memory) => {
+      const personaId = typeof memory === "string" ? input.memoryScope : memory.personaId;
+      return isSamePersonaScope(personaId, input.personaId, input.memoryScope);
+    })
+    : (input.memories || []);
+  const memories = memoryInputs.map((memory, index) => {
     const content = typeof memory === "string" ? memory : memory.content;
     const createdAt = typeof memory === "string" ? null : memory.createdAt;
     const personaId = typeof memory === "string" ? input.memoryScope : memory.personaId;
@@ -715,9 +739,10 @@ export function buildConversationContextPacket(input: {
   const episodes = (input.episodes || []).map((episode, index) => {
     const content = stripAssistantEchoContext(typeof episode === "string" ? episode : episode.content);
     const timestamp = typeof episode === "string" ? null : episode.timestamp;
-    const personaId = typeof episode === "string" ? null : episode.personaId;
+    const personaId = typeof episode === "string" ? episodeSourcePersona(content) : episode.personaId;
     const threadId = typeof episode === "string" ? null : episode.threadId;
     if (!content) return null;
+    if (suppressCrossPersonaContinuity && !isSamePersonaScope(personaId, input.personaId, input.memoryScope)) return null;
     return makePacketItem({
       source: {
         id: typeof episode === "string" ? `episode:${index}` : `episode:${episode.id || index}`,

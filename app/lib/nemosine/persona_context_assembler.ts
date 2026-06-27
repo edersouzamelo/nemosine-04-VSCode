@@ -526,7 +526,18 @@ export async function assemblePersonaContext({
     getUserRegistros(userId).catch(() => []),
   ]);
   const suppressContinuityContext = isPersonaRoleQuestion(userText) || isPersonaMetaCritique(userText);
-  const activeTopicsForContext = suppressContinuityContext ? [] : activeTopics;
+  const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
+  const samePersonaScope = (sourcePersonaId?: string | null) => {
+    const normalizedSource = normalizeForScoring(sourcePersonaId || "");
+    return !normalizedSource
+      || normalizedSource === normalizeForScoring(personaId)
+      || normalizedSource === normalizeForScoring(memoryScope);
+  };
+  const activeTopicsForContext = suppressContinuityContext
+    ? []
+    : suppressCrossPersonaContinuity
+      ? activeTopics.filter((topic) => samePersonaScope(topic.sourcePersonaId))
+      : activeTopics;
   const destinyContext = await loadDestinyContextSource({
     userId,
     personaId,

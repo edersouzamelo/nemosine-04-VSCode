@@ -153,7 +153,25 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     getUserRegistros(request.userId).catch(() => []),
   ]);
   const suppressContinuityContext = isPersonaRoleQuestion(request.userText) || isPersonaMetaCritique(request.userText);
-  const activeTopicsForContext = suppressContinuityContext ? [] : activeTopics;
+  const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
+  const normalizeScope = (value?: string | null) => (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const samePersonaScope = (sourcePersonaId?: string | null) => {
+    const normalizedSource = normalizeScope(sourcePersonaId);
+    return !normalizedSource
+      || normalizedSource === normalizeScope(request.personaId)
+      || normalizedSource === normalizeScope(request.memoryScope);
+  };
+  const activeTopicsForContext = suppressContinuityContext
+    ? []
+    : suppressCrossPersonaContinuity
+      ? activeTopics.filter((topic) => samePersonaScope(topic.sourcePersonaId))
+      : activeTopics;
   const agendaSummaries = agendaEvents.slice(0, 8).map(summarizeAgenda);
   const registrySummaries = registries.slice(0, 8).map(summarizeRegistry);
   const destinyContext = await loadDestinyContextSource({

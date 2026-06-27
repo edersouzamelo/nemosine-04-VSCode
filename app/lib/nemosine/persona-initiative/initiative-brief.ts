@@ -102,6 +102,19 @@ function metaCritiqueFallback(input: {
   ].join(" ");
 }
 
+function personaGreetingFallback(input: {
+  personaId: string;
+  contract: PersonaBehaviorContract;
+  greeting: string;
+}) {
+  const lens = getVocationalLens(input.contract.family);
+  return [
+    `${input.greeting || "Recebo. "}Eu entro como ${input.personaId}, nao como eco da ultima conversa.`,
+    `Minha funcao aqui e ${input.contract.operationalMission}`,
+    `Sem uma frente propria confirmada para esta persona agora, meu primeiro gesto e ${lens.verbs.slice(0, 2).join(" e ")} o material que voce trouxer, mantendo criterio de ${lens.interventionNoun} real.`,
+  ].join(" ");
+}
+
 export function buildPersonaInitiativeBrief(input: {
   personaId: string;
   userText: string;
@@ -221,6 +234,14 @@ export function buildDeterministicInitiativeFallback(input: {
     return metaCritiqueFallback({
       personaId: input.personaId,
       contract: input.contract,
+    });
+  }
+
+  if (!primary && input.richness.openingType === "greeting") {
+    return personaGreetingFallback({
+      personaId: input.personaId,
+      contract: input.contract,
+      greeting,
     });
   }
 

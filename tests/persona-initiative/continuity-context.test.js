@@ -20,8 +20,8 @@ const { getPersonaBehaviorContract } = require("../../app/lib/nemosine/persona_b
 
 const now = new Date("2026-06-26T12:00:00.000Z");
 
-function memory(id, content, createdAt) {
-  return { id, content, createdAt: new Date(createdAt), personaId: "Estrategista" };
+function memory(id, content, createdAt, personaId = "Astronomo") {
+  return { id, content, createdAt: new Date(createdAt), personaId };
 }
 
 test("Astronomo has a specific strategic longitudinal contract", () => {
@@ -57,10 +57,10 @@ test("short invocation ranks recent memories D and C before old A and B", () => 
   assert.equal(packet.relevantDurableMemories.some((item) => /A:|B:/.test(item.text)), false);
 });
 
-test("public active topic crosses personas on greeting continuity", () => {
+test("public active topic crosses personas on explicit continuation", () => {
   const contract = getPersonaBehaviorContract("Astronomo");
   const packet = buildConversationContextPacket({
-    userText: "Bom dia.",
+    userText: "Continue.",
     personaId: "Astronomo",
     memoryScope: "Astronomo",
     contract,
@@ -85,9 +85,124 @@ test("public active topic crosses personas on greeting continuity", () => {
   });
 
   assert.equal(packet.hasSubstantiveContext, true);
+  assert.equal(packet.invocationMode, "FOLLOW_UP");
   assert.equal(packet.activeTopics[0].id, "active-topic:topic-public-partnership");
   assert.equal(packet.metrics.crossPersonaContinuityUsed, true);
   assert.match(packet.selectedItems[0].text, /parceria profissional/i);
+});
+
+test("greeting does not let Guru active topic hijack Cientista", () => {
+  const contract = getPersonaBehaviorContract("Cientista");
+  const packet = buildConversationContextPacket({
+    userText: "bom dia cientista",
+    personaId: "Cientista",
+    memoryScope: "Cientista",
+    contract,
+    activeTopics: [{
+      id: "topic-guru-age-origins",
+      userId: "user-1",
+      title: "Criar age of origins em travessia",
+      summary: "Voce esta trabalhando no app Nemosine com o Guru sobre criar Age of Origins em travessia.",
+      keywords: ["age", "origins", "travessia", "guru"],
+      salience: 0.98,
+      status: "ACTIVE",
+      privacyScope: "PUBLIC",
+      sourceThreadId: "thread-guru",
+      sourcePersonaId: "Guru",
+      firstObservedAt: new Date("2026-06-27T12:00:00.000Z"),
+      lastObservedAt: new Date("2026-06-27T12:00:00.000Z"),
+      resolvedAt: null,
+      evidenceCount: 3,
+      metadata: { scope: "Guru" },
+    }],
+    memories: [{
+      id: "memory-guru",
+      content: "EPISODIO COM Guru | O usuario escreveu: criar Age of Origins em travessia.",
+      createdAt: new Date("2026-06-27T12:00:00.000Z"),
+      personaId: "Guru",
+    }],
+    episodes: [
+      "[Conversa com Guru]\nUsuario: criar Age of Origins em travessia.",
+    ],
+    now,
+  });
+
+  assert.equal(packet.invocationMode, "GREETING");
+  assert.equal(packet.activeTopics.length, 0);
+  assert.equal(packet.relevantDurableMemories.length, 0);
+  assert.equal(packet.recentPublicEpisodes.length, 0);
+  assert.equal(packet.selectedItems.length, 0);
+  assert.equal(packet.hasSubstantiveContext, false);
+});
+
+test("Cientista greeting fallback does not recycle Guru topic", () => {
+  const contract = getPersonaBehaviorContract("Cientista");
+  const userText = "bom dia cientista";
+  const richness = classifyConversationInputRichness(userText);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Cientista",
+    userText,
+    richness,
+    contract,
+    sources: [],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Cientista",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const fallback = buildDeterministicInitiativeFallback({
+    personaId: "Cientista",
+    userText,
+    richness,
+    snapshot,
+    brief,
+    contract,
+  });
+
+  assert.match(fallback, /Bom dia/i);
+  assert.match(fallback, /Cientista/i);
+  assert.match(fallback, /evidencia|hipotese|teste/i);
+  assert.doesNotMatch(fallback, /Age of Origins|age of origins|frente mais viva/i);
+});
+
+test("quality gate rejects generic Cientista exploration wording", () => {
+  const contract = getPersonaBehaviorContract("Cientista");
+  const userText = "nao sabe falar mais nada?";
+  const richness = classifyConversationInputRichness(userText);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Cientista",
+    userText,
+    richness,
+    contract,
+    sources: [],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Cientista",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const evaluation = evaluatePersonaInitiativeQuality({
+    responseText: [
+      "Estou aqui para explorar o projeto Castelo Vivo no Nemosine.",
+      "Para avancar, precisamos identificar qualquer gargalo ou bloqueio atual.",
+      "Se houver alguma area especifica do projeto que precise de atencao ou teste, podemos focar nisso para garantir que tudo funcione conforme esperado.",
+    ].join(" "),
+    personaId: "Cientista",
+    userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+
+  assert.equal(evaluation.finalPass, false);
+  assert.ok(evaluation.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE"));
 });
 
 test("recent episode context strips deterministic assistant fallback echoes", () => {

@@ -78,6 +78,9 @@ const personaMetaCritiquePatterns = [
   /\b(mesma coisa|igual|identico|idêntico)\b.*\b(guru|mentor|persona|resposta)\b/,
   /\b(loop|looping|repetindo|repeticao|repetição|repetiu|eco mecanico|eco mecânico)\b/,
   /\b(travou|travou as mensagens|mensagens travaram|nao foi possivel obter resposta|não foi possível obter resposta)\b/,
+  /\bnao sabe falar\b/,
+  /\bdo que (voce|vc) (esta|ta|tá) falando\b/,
+  /\bque (voce|vc) (esta|ta|tá) falando\b/,
   /\b(que bosta|merda|pessimo|péssimo|horrivel|horrível)\b/,
 ];
 

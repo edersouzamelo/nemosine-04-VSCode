@@ -14,6 +14,7 @@ import {
 
 const genericAssistantPatterns = [
   /\bestou aqui para (ajudar|auxiliar|oferecer|contribuir)\b/,
+  /\bestou aqui para (explorar|analisar|orientar|apoiar)\b/,
   /\bcomo posso (ajudar|auxiliar|contribuir)\b/,
   /\bo que posso fazer por voce\b/,
   /\bestou a disposicao\b/,
@@ -22,6 +23,8 @@ const genericAssistantPatterns = [
   /\batender melhor suas expectativas\b/,
   /\bse precisar de uma analise\b/,
   /\bposso (fazer|oferecer|elaborar|montar) uma analise\b/,
+  /\bpodemos focar nisso\b/,
+  /\bpara garantir que tudo funcione\b/,
 ];
 
 const falseContextDenialPatterns = [
@@ -55,6 +58,8 @@ const explicitDetailRequestPatterns = [
   /\bpara que eu possa compreender melhor\b/,
   /\bprecisaria de mais (dados|detalhes|informacoes)\b/,
   /\bse quiser posso aprofundar\b/,
+  /\bse houver (alguma )?(area|área|ponto|parte) especifica\b/,
+  /\bque precise de atencao ou teste\b/,
 ];
 
 const resonantInferencePatterns = [
