@@ -119,7 +119,6 @@ model Message {
   threadId       String
   role           String   // 'user' | 'assistant' | 'system'
   content        String
-  cognitiveRunId String?  @unique
   timestamp      DateTime @default(now())
 
   thread         Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)

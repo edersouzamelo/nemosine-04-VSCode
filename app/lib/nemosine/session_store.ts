@@ -140,60 +140,28 @@ export const persistAssistantMessageForCognitiveRun = async (
     cognitiveRunId: string,
     content: string,
 ): Promise<PersistedAssistantMessage> => {
-    const existing = await prisma.message.findUnique({
-        where: { cognitiveRunId },
-        include: { thread: true },
-    });
-
-    if (existing) {
-        if (existing.thread.userId !== userId || existing.threadId !== threadId || existing.role !== 'assistant') {
-            throw new Error("Cognitive run id is already linked to another message");
-        }
-        return {
-            id: existing.id,
-            threadId: existing.threadId,
-            cognitiveRunId,
-        };
-    }
-
     const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
     if (!thread) throw new Error("Thread not found or unauthorized");
 
-    try {
-        const message = await prisma.message.create({
-            data: {
-                threadId,
-                role: 'assistant',
-                content,
-                cognitiveRunId,
-            },
-        });
-
-        await prisma.thread.update({
-            where: { id: threadId },
-            data: { updatedAt: new Date() },
-        });
-
-        return {
-            id: message.id,
+    const message = await prisma.message.create({
+        data: {
             threadId,
-            cognitiveRunId,
-        };
-    } catch (error: any) {
-        if (error?.code !== "P2002") throw error;
-        const racedExisting = await prisma.message.findUnique({
-            where: { cognitiveRunId },
-            include: { thread: true },
-        });
-        if (!racedExisting || racedExisting.thread.userId !== userId || racedExisting.threadId !== threadId || racedExisting.role !== 'assistant') {
-            throw error;
-        }
-        return {
-            id: racedExisting.id,
-            threadId: racedExisting.threadId,
-            cognitiveRunId,
-        };
-    }
+            role: 'assistant',
+            content,
+        },
+        select: chatMessageSelect,
+    });
+
+    await prisma.thread.update({
+        where: { id: threadId },
+        data: { updatedAt: new Date() },
+    });
+
+    return {
+        id: message.id,
+        threadId,
+        cognitiveRunId,
+    };
 };
 
 export const updateThreadTitle = async (userId: string, threadId: string, title: string): Promise<void> => {

@@ -48,8 +48,3 @@ ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS registry_effect_count 
 ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS destiny_effect_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS assistant_message_persisted BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE cognitive_run_audits ADD COLUMN IF NOT EXISTS audit_persisted BOOLEAN NOT NULL DEFAULT FALSE;
-
-ALTER TABLE "Message" ADD COLUMN IF NOT EXISTS "cognitiveRunId" TEXT;
-CREATE UNIQUE INDEX IF NOT EXISTS "Message_cognitiveRunId_key"
-  ON "Message" ("cognitiveRunId")
-  WHERE "cognitiveRunId" IS NOT NULL;
