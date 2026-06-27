@@ -185,6 +185,85 @@ test("Astronomo quality gate rejects false context denial and accepts longitudin
   assert.ok(accepted.contextualConnectionsCount > 0);
 });
 
+test("Psicologo opens shallow greeting with contextual reading on first answer", () => {
+  const contract = getPersonaBehaviorContract("Psicologo");
+  const userText = "Psicologo boa noite";
+  const richness = classifyConversationInputRichness(userText);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Psicologo",
+    userText,
+    richness,
+    contract,
+    sources: [{
+      id: "episode:looping-emocional",
+      type: "episode",
+      text: "EPISODIO COM Psicologo | Usuario relatou tensao recorrente entre sentimentos de rejeicao e frustracao em areas pessoais e profissionais. Mencionou looping emocional, desejo de mudanca, dificuldade de romper ciclos antigos e busca por respostas mais diretas.",
+      provenance: "Thread.messages",
+      visibility: "internal",
+      scope: "Psicologo",
+      recency: 0.98,
+    }],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Psicologo",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+
+  assert.equal(richness.openingType, "greeting");
+  assert.equal(snapshot.hasSubstantiveContext, true);
+  assert.equal(brief.questionNecessary, false);
+
+  const receptionist = evaluatePersonaInitiativeQuality({
+    responseText: "Boa noite. O que voce gostaria de explorar hoje?",
+    personaId: "Psicologo",
+    userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+  assert.equal(receptionist.finalPass, false);
+  assert.ok(receptionist.findings.some((finding) => finding.code === "GENERIC_INTERVIEW_MODE"));
+  assert.ok(receptionist.findings.some((finding) => finding.code === "PASSIVE_CONTEXT_WITHHOLDING"));
+
+  const withheld = evaluatePersonaInitiativeQuality({
+    responseText: "Boa noite. Percebo uma tensao emocional recente, mas podemos olhar isso com calma.",
+    personaId: "Psicologo",
+    userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+  assert.equal(withheld.finalPass, false);
+  assert.ok(withheld.findings.some((finding) => finding.code === "PASSIVE_CONTEXT_WITHHOLDING"));
+
+  const opened = evaluatePersonaInitiativeQuality({
+    responseText: [
+      "Boa noite. Pelo que aparece nas conversas recentes, a frente emocional mais viva e a repeticao entre rejeicao, frustracao e tentativa de recuperar controle pela clareza.",
+      "Minha leitura provisoria: o ponto psicologico nao e falta de assunto; e o looping.",
+      "Quando a mente procura uma resposta definitiva, talvez esteja tentando aliviar uma ferida antiga sem encostar nela por inteiro.",
+      "O gesto de agora e separar fato, hipotese e necessidade: o que aconteceu, o que voce esta inferindo, e qual perda ou limite a ansiedade esta tentando evitar.",
+    ].join(" "),
+    personaId: "Psicologo",
+    userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+  assert.equal(opened.finalPass, true);
+  assert.equal(opened.elicitationMode, "RESONANT");
+  assert.ok(opened.resonantInferenceCount > 0);
+  assert.ok(opened.contextualConnectionsCount > 0);
+});
+
 test("quality gate rejects Destiny Line denial and pedantic data elicitation", () => {
   const contract = getPersonaBehaviorContract("Orquestrador-Arquiteto");
   const richness = classifyConversationInputRichness("O que tem na minha Linha do Destino?");

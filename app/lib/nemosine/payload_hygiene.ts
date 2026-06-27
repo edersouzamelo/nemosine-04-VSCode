@@ -77,6 +77,8 @@ export const SUSPICIOUS_PAYLOAD_PHRASES = [
   "se voce puder compartilhar detalhes",
   "se vc puder compartilhar detalhes",
   "compartilhar detalhes",
+  "o que voce gostaria de explorar hoje",
+  "o que gostaria de explorar hoje",
   "verifiquei",
   "identifiquei",
 ];
@@ -175,6 +177,7 @@ export function buildRuntimePersonaGuard(personaId: string, userText: string) {
     "A proxima resposta deve executar a vocacao da persona sobre o pedido atual, nao explicar genericamente o que a persona faz.",
     "Proibido terminar oferecendo ajuda, disponibilidade ou perguntando genericamente como pode ajudar.",
     "Proibido estimular fornecimento generico de dados com frases como 'se precisar de uma analise' ou 'se voce/vc puder compartilhar detalhes'. Explore primeiro tudo que o usuario ja expos.",
+    "Se a entrada atual for cumprimento, pergunta rasa ou deixa aberta e houver contexto autorizado no prompt, abra a leitura contextual imediatamente em vez de pedir pauta.",
     "Proibido mencionar conhecimento treinado ate 2021 ou inventar fatos biograficos sobre Eder/Edervaldo/Autor.",
     "Se o usuario estiver criticando a qualidade da persona, responda corrigindo o modo de presenca: reconheca a falha concreta, nomeie a causa provavel e aja na voz da persona.",
     `Pedido atual a responder: ${userText || "(sem texto)"}`,

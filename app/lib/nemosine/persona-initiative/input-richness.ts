@@ -17,6 +17,9 @@ const greetingPatterns = [
   /^e ai\b/,
 ];
 
+const embeddedGreetingPattern = /\b(bom dia|boa tarde|boa noite|oi|ola|hello|hi|salve)\b/;
+const contentAfterGreetingPattern = /\b(estou|to|estamos|preciso|quero|tento|tentando|houve|existe|aconteceu|sinto|sentindo)\b/;
+
 const returnPatterns = [
   /^voltei\b/,
   /^retornei\b/,
@@ -107,7 +110,11 @@ export function classifyConversationInputRichness(text: string): ConversationInp
     };
   }
 
-  if (matchesAny(greetingPatterns, normalized) && terms.length <= 2) {
+  if (
+    (matchesAny(greetingPatterns, normalized) || embeddedGreetingPattern.test(normalized))
+    && terms.length <= 4
+    && !contentAfterGreetingPattern.test(normalized)
+  ) {
     signals.push("greeting-only");
     return {
       richness: "low",

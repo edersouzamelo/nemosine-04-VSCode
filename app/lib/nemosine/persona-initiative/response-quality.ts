@@ -188,6 +188,10 @@ function specificityScore(response: string) {
   return clamp((terms.length >= 12 ? 0.55 : terms.length / 22) + (hasConcreteMarker ? 0.35 : 0));
 }
 
+function hasAppliedContextMarker(normalized: string) {
+  return /\b(frente|prioridade|hipotese|leitura|ordem|diagnostico|padrao|tensao|decisao|reparo|imagem|gesto|conflito|mecanismo|defesa|repeticao|ciclo|trajetoria)\b/.test(normalized);
+}
+
 export function evaluatePersonaInitiativeQuality(input: {
   responseText: string;
   personaId: string;
@@ -206,6 +210,7 @@ export function evaluatePersonaInitiativeQuality(input: {
   const grounding = contextGroundingScore(text, input.snapshot);
   const vocation = vocationalFitScore(text, input.contract, input.brief);
   const specificity = specificityScore(text);
+  const lexicalTermCount = lexicalTerms(text).length;
   const explicitDetailRequest = matchesAny(normalized, explicitDetailRequestPatterns);
   const genericQuestionCount = genericInterviewPatterns.filter((pattern) => pattern.test(normalized)).length
     + (text.endsWith("?") ? 1 : 0);
@@ -216,6 +221,16 @@ export function evaluatePersonaInitiativeQuality(input: {
     : resonantInferenceCount > 0 || contextualConnectionsCount > 0
       ? "RESONANT"
       : "NONE";
+  const requiresImmediateContextOpening = input.snapshot.hasSubstantiveContext
+    && input.richness.requiresContextExpansion;
+  const hasImmediateContextOpening = grounding >= 0.28
+    && specificity >= 0.62
+    && lexicalTermCount >= 20
+    && (
+      resonantInferenceCount > 0
+      || contextualConnectionsCount > 0
+      || hasAppliedContextMarker(normalized)
+    );
 
   if (matchesAny(normalized, genericAssistantPatterns)) {
     findings.push(finding(
@@ -257,6 +272,15 @@ export function evaluatePersonaInitiativeQuality(input: {
       "error",
       "A resposta tentou aprofundar por pedido generico de detalhes em vez de produzir leitura ressonante sobre contexto ja disponivel.",
       "Nao entreviste. Produza uma leitura especifica, corrigivel e vocacional que faca o aprofundamento surgir por ressonancia.",
+    ));
+  }
+
+  if (requiresImmediateContextOpening && !hasImmediateContextOpening) {
+    findings.push(finding(
+      "PASSIVE_CONTEXT_WITHHOLDING",
+      "error",
+      "A entrada era rasa, mas havia contexto autorizado; a persona reteve a leitura contextual que deveria aparecer na primeira resposta.",
+      "Abra a resposta usando uma frente ativa concreta, formule leitura ou hipotese corrigivel e entregue o gesto vocacional sem esperar uma segunda deixa.",
     ));
   }
 
@@ -327,6 +351,7 @@ export function evaluatePersonaInitiativeQuality(input: {
   const genericQuestionPenalty = findings.some((item) =>
     item.code === "GENERIC_INTERVIEW_MODE" || item.code === "EMPTY_FINAL_QUESTION" || item.code === "INTERROGATIVE_ELICITATION"
   ) ? 0.35 : 0;
+  const passiveContextPenalty = findings.some((item) => item.code === "PASSIVE_CONTEXT_WITHHOLDING") ? 0.28 : 0;
   const unsupportedInferencePenalty = findings.some((item) => item.code === "UNSUPPORTED_BIOGRAPHICAL_ASSERTION") ? 0.45 : 0;
   const privacyScore = findings.some((item) => item.code === "PRIVATE_CONTEXT_LEAK") ? 0 : 1;
   const initiativeScore = clamp(
@@ -337,6 +362,7 @@ export function evaluatePersonaInitiativeQuality(input: {
     + privacyScore * 0.08
     - genericAssistantPenalty
     - genericQuestionPenalty
+    - passiveContextPenalty
     - unsupportedInferencePenalty,
   );
   const finalPass = initiativeScore >= 0.62

@@ -92,6 +92,8 @@ function runtimeInstructions(language: CognitiveRequest["language"]) {
     "Do not directly commit memory, registry or Destiny Line actions. Proposed actions must be hidden metadata only.",
     "When Destiny Line context is present, use it as loaded biographical context; do not claim lack of access to the Destiny Line.",
     "Do not ask for generic details or end with availability formulas such as 'se precisar de uma analise' or 'se voce/vc puder compartilhar detalhes'. Explore authorized context first.",
+    "If the current input is shallow, a greeting or an open prompt and authorized context exists, treat it as an initiative trigger: surface the most salient active front and an applied reading in the first answer.",
+    "Do not wait for a second user cue such as 'what did you see in the last conversations?' before using loaded conversation, memory, registry or Destiny context.",
     `Respond in ${languageName}, unless the current user payload explicitly requests another language.`,
   ];
 }

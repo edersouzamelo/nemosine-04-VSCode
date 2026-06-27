@@ -276,7 +276,7 @@ test("persona initiative gate rejects generic interview candidate before promoti
     modelProvider: provider({
       candidates: [
         "Bom dia. Qual e o problema tecnico que voce quer diagnosticar?",
-        "Bom dia. O gargalo tecnico mais provavel esta no runtime cognitivo: as personas perdem iniciativa antes do quality gate. O reparo inicial e validar antes da entrega e testar esse fluxo como dependencia central.",
+        "Bom dia. O gargalo tecnico mais provavel esta no runtime cognitivo: as personas perdem iniciativa antes do quality gate, entao a falha nao e ausencia de pedido; e perda de comando quando a entrada e rasa. Minha leitura operacional e separar geracao, validacao e entrega: primeiro rejeitar entrevista generica, depois exigir leitura aplicada da frente ativa e por fim testar esse fluxo como dependencia central.",
       ],
     }),
     persistAssistantMessage: delivery.persistAssistantMessage,

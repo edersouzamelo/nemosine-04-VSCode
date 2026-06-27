@@ -57,6 +57,12 @@ test("classifies low-information openings without treating short substantive inp
   assert.equal(greeting.requiresContextExpansion, true);
   assert.equal(greeting.questionBudget, 0);
 
+  const namedGreeting = classifyConversationInputRichness("Psicologo boa noite");
+  assert.equal(namedGreeting.richness, "low");
+  assert.equal(namedGreeting.openingType, "greeting");
+  assert.equal(namedGreeting.requiresContextExpansion, true);
+  assert.equal(namedGreeting.questionBudget, 0);
+
   const substantive = classifyConversationInputRichness("Estou me separando");
   assert.equal(substantive.richness, "high");
   assert.equal(substantive.openingType, "substantive_request");

@@ -456,6 +456,7 @@ export async function POST(req: NextRequest) {
             promotedByFallback = true;
             finalResponse = buildDeterministicInitiativeFallback({
                 personaId,
+                userText,
                 richness: promptAssembly.initiative.richness,
                 snapshot: promptAssembly.initiative.snapshot,
                 brief: promptAssembly.initiative.brief,

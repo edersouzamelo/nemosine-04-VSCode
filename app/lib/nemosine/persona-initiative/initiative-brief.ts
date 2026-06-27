@@ -1,5 +1,6 @@
 import { PersonaBehaviorContract } from "@/app/lib/nemosine/persona_behavior_contracts";
 import { getVocationalLens } from "./active-fronts";
+import { normalizeInitiativeText } from "./input-richness";
 import {
   ActiveFrontSnapshot,
   ConversationInputRichness,
@@ -52,6 +53,16 @@ function inferTension(contract: PersonaBehaviorContract, snapshot: ActiveFrontSn
   }];
 }
 
+function greetingForUserText(userText: string, openingType: ConversationInputRichness["openingType"]) {
+  if (openingType !== "greeting") return "";
+  const normalized = normalizeInitiativeText(userText);
+
+  if (/\bboa noite\b/.test(normalized)) return "Boa noite. ";
+  if (/\bboa tarde\b/.test(normalized)) return "Boa tarde. ";
+  if (/\bbom dia\b/.test(normalized)) return "Bom dia. ";
+  return "Recebo. ";
+}
+
 export function buildPersonaInitiativeBrief(input: {
   personaId: string;
   userText: string;
@@ -88,6 +99,8 @@ export function buildPersonaInitiativeBrief(input: {
     requiredSubstance: hasContext
       ? [
         "abrir operando, nao entrevistando",
+        "em entrada rasa, abrir todo o jogo contextual ja na primeira resposta",
+        "nao esperar segunda deixa do usuario para dizer o que viu nas conversas anteriores",
         `usar a frente selecionada: ${primary?.theme || "frente autorizada"}`,
         `cumprir a vocacao: ${input.contract.operationalMission}`,
         "marcar incerteza quando a leitura for inferencial",
@@ -142,19 +155,20 @@ export function renderPersonaInitiativeControl(input: {
     `Aberturas proibidas: ${input.brief.prohibitedOpenings.join(" | ")}`,
     `Substancia obrigatoria: ${input.brief.requiredSubstance.join(" | ")}`,
     "",
-    "Regra global: a persona deve comecar operando. Se houver contexto autorizado, selecione uma frente, apresente leitura aplicada e cumpra a funcao vocacional antes de qualquer pergunta. Se nao houver contexto, nao invente; ofereca criterio, hipotese provisoria ou proximo teste sem virar recepcionista.",
+    "Regra global: a persona deve comecar operando. Entrada rasa com contexto autorizado e gatilho de iniciativa, nao convite para entrevista. Se houver contexto autorizado, selecione uma frente, apresente leitura aplicada ja na primeira resposta e cumpra a funcao vocacional antes de qualquer pergunta. Se nao houver contexto, nao invente; ofereca criterio, hipotese provisoria ou proximo teste sem virar recepcionista.",
   ].filter(Boolean).join("\n");
 }
 
 export function buildDeterministicInitiativeFallback(input: {
   personaId: string;
+  userText?: string;
   richness: ConversationInputRichness;
   snapshot: ActiveFrontSnapshot;
   brief: PersonaInitiativeBrief;
   contract: PersonaBehaviorContract;
 }) {
   const primary = input.snapshot.selectedFronts[0];
-  const greeting = input.richness.openingType === "greeting" ? "Bom dia. " : "";
+  const greeting = greetingForUserText(input.userText || "", input.richness.openingType);
   const lens = getVocationalLens(input.contract.family);
 
   if (primary) {
