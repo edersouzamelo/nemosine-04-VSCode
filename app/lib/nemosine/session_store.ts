@@ -2,7 +2,12 @@ import { SessionState, ChatThread } from './types';
 import { PrismaClient } from '@prisma/client';
 import { isPrivateMemorySpace, PRIVATE_MEMORY_SPACES } from './privacy';
 import { getPersonaLexicalHints } from './persona_behavior_contracts';
-import { classifyConversationInputRichness } from './persona-initiative';
+import {
+    classifyConversationInputRichness,
+    isConversationNavigationRequest,
+    isPersonaMetaCritique,
+    isPersonaRoleQuestion,
+} from './persona-initiative';
 
 export const prisma = new PrismaClient();
 
@@ -105,6 +110,27 @@ export const getThreadsForPersona = async (userId: string, personaId: string): P
         createdAt: thread.createdAt.getTime(),
         updatedAt: thread.updatedAt.getTime()
     }));
+};
+
+export type RecentConversationThread = {
+    id: string;
+    personaId: string;
+    title: string;
+    updatedAt: Date;
+};
+
+export const getRecentConversationThreads = async (userId: string, take = 8): Promise<RecentConversationThread[]> => {
+    return prisma.thread.findMany({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+        take,
+        select: {
+            id: true,
+            personaId: true,
+            title: true,
+            updatedAt: true,
+        },
+    });
 };
 
 export const addMessageToThread = async (userId: string, threadId: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> => {
@@ -392,6 +418,13 @@ export const addUserMemory = async (userId: string, content: string, personaId?:
 export const retainConversationEpisode = async (userId: string, personaId: string, content: string): Promise<void> => {
     const normalizedMessage = content.replace(/\s+/g, ' ').trim();
     if (normalizedMessage.length < 12) return;
+    if (
+        isConversationNavigationRequest(normalizedMessage)
+        || isPersonaMetaCritique(normalizedMessage)
+        || isPersonaRoleQuestion(normalizedMessage)
+    ) {
+        return;
+    }
 
     // Retain the user's public trail without presenting every utterance as an established fact.
     await addUserMemory(

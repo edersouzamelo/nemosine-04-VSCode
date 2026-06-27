@@ -8,6 +8,7 @@ const {
   buildPersonaInitiativeBrief,
   classifyConversationInputRichness,
   evaluatePersonaInitiativeQuality,
+  isConversationNavigationRequest,
 } = require("../../app/lib/nemosine/persona-initiative/index.ts");
 const { getPersonaBehaviorContract } = require("../../app/lib/nemosine/persona_behavior_contracts.ts");
 
@@ -67,6 +68,14 @@ test("classifies low-information openings without treating short substantive inp
   assert.equal(substantive.richness, "high");
   assert.equal(substantive.openingType, "substantive_request");
   assert.equal(substantive.requiresContextExpansion, false);
+});
+
+test("classifies recent-conversation navigation as explicit metacontext", () => {
+  const question = classifyConversationInputRichness("Cientista boa noite. Com quem acabei de falar?");
+  assert.equal(question.richness, "high");
+  assert.equal(question.requiresContextExpansion, false);
+  assert.ok(question.signals.includes("conversation-navigation"));
+  assert.equal(isConversationNavigationRequest("acho que vc errou. Estava falando com o treinador"), true);
 });
 
 test("low-information input selects active fronts by continuity rather than lexical greeting match", () => {

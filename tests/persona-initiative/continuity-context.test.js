@@ -824,3 +824,28 @@ test("classifies short greetings as continuity-bearing invocation", () => {
   assert.equal(classifyInvocationMode("Continue."), "FOLLOW_UP");
   assert.equal(classifyInvocationMode("Estou considerando encerrar uma parceria profissional."), "DIRECT_REQUEST");
 });
+
+test("conversation navigation corrections suppress continuity context and active topics", () => {
+  const contract = getPersonaBehaviorContract("Cientista");
+  const userText = "oi, ta bem? acho que vc errou. Estava falando com o treinador";
+  const packet = buildConversationContextPacket({
+    userText,
+    personaId: "Cientista",
+    memoryScope: "Cientista",
+    contract,
+    memories: [
+      memory("episode-cientista", "EPISODIO COM Cientista | O usuario escreveu: oi, ta bem? acho que vc errou.", "2026-06-26T11:00:00.000Z", "Cientista"),
+      memory("workout", "Treinador: campeonato NPC Campo Grande Contest em 29 de Agosto, treino, dieta e recuperacao.", "2026-06-26T10:00:00.000Z", "Treinador"),
+    ],
+    episodes: [
+      "[Conversa com Treinador]\nUsuario: Subir no campeonato NPC Campo Grande Contest, em 29 de Agosto",
+    ],
+    now,
+  });
+
+  assert.equal(packet.selectedItems.length, 0);
+  assert.equal(packet.metrics.memoriesCount, 0);
+  assert.equal(packet.metrics.recentEpisodesCount, 0);
+  assert.ok(packet.retrievalExplanation.some((line) => /continuity context suppressed/i.test(line)));
+  assert.deepEqual(extractActiveTopicCandidates({ userText, memoryScope: "Cientista" }), []);
+});

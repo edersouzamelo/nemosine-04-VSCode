@@ -5,6 +5,7 @@ import {
     getThread,
     addMessageToThread,
     getThreadsForPersona,
+    getRecentConversationThreads,
     updateThreadTitle,
     deleteThread,
     addUserMemory,
@@ -24,6 +25,10 @@ import { runCognitiveRuntime } from '@/app/lib/nemosine/cognitive-runtime/orches
 import {
     buildDeterministicInitiativeFallback,
     evaluatePersonaInitiativeQuality,
+    isConversationNavigationRequest,
+    isPersonaMetaCritique,
+    isPersonaRoleQuestion,
+    normalizeInitiativeText,
     renderPersonaInitiativeRepairFeedback,
 } from '@/app/lib/nemosine/persona-initiative';
 import type { PersonaInitiativeQualityEvaluation } from '@/app/lib/nemosine/persona-initiative';
@@ -211,6 +216,68 @@ function buildBufferedLlmFailureMessage(error: unknown) {
     return "O sistema esta instavel. Nao consigo concluir esta resposta agora.";
 }
 
+function splitConversationScope(scope: string) {
+    const [personaName, placeName] = scope.split(/\s+@\s+/);
+    return {
+        personaName: personaName?.trim() || scope,
+        placeName: placeName?.trim() || null,
+    };
+}
+
+function displayConversationScope(scope: string) {
+    const { personaName, placeName } = splitConversationScope(scope);
+    return placeName ? `${personaName} em ${placeName}` : personaName;
+}
+
+function resolveStatedConversationPartnerName(text: string) {
+    const normalized = normalizeInitiativeText(text || "");
+    const partnerSegment = [
+        /\b(?:estava|tava|estive|vinha|falava|conversava|acabei de)\s+(?:falando|conversando|falei|conversei|falar|conversar)?\s*com\s+(?:(?:o|a)\s+)?(.{2,80})/u,
+        /\b(?:falei|conversei)\s+com\s+(?:(?:o|a)\s+)?(.{2,80})/u,
+    ].map((pattern) => normalized.match(pattern)?.[1] || "")
+        .find((segment) => segment && !/\bquem\b/.test(segment));
+    if (!partnerSegment) return null;
+
+    const personas = Object.values(ENTITIES).filter((entity) => entity.type === "persona");
+    return personas.find((persona) => partnerSegment.includes(normalizeInitiativeText(persona.name)))?.name || null;
+}
+
+async function buildConversationNavigationAnswer(input: {
+    userId: string;
+    activeThreadId: string;
+    personaId: string;
+    memoryScope: string;
+    userText: string;
+}) {
+    if (!isConversationNavigationRequest(input.userText)) return null;
+
+    const normalized = normalizeInitiativeText(input.userText);
+    const mentionedPersonaName = resolveStatedConversationPartnerName(input.userText);
+    const recentThreads = await getRecentConversationThreads(input.userId, 8);
+    const previousThread = recentThreads.find((thread) => thread.id !== input.activeThreadId) || null;
+    const currentScope = displayConversationScope(input.personaId);
+    const correctionTone = /\b(errou|errado|estava|tava|estive|vinha|falava|conversava)\b/.test(normalized);
+
+    if (mentionedPersonaName) {
+        return [
+            correctionTone ? "Voce tem razao: vou corrigir a navegacao." : "Sim.",
+            `O rastro que devo considerar e a conversa com ${mentionedPersonaName}.`,
+            "Isso e metacontexto do chat, nao uma pauta para eu transformar em frente ativa.",
+        ].join(" ");
+    }
+
+    if (!previousThread) {
+        return `Nao encontrei uma conversa anterior registrada fora desta janela. O que aparece agora para mim e apenas esta conversa com ${currentScope}.`;
+    }
+
+    if (isPrivateMemorySpace(previousThread.personaId) && !isPrivateMemorySpace(input.memoryScope)) {
+        return "Ha uma conversa privada recente fora desta janela, mas eu nao vou nomea-la dentro de uma persona publica. Se voce voltar ao espaco privado, eu consigo manter esse limite sem misturar as vozes.";
+    }
+
+    const previousScope = displayConversationScope(previousThread.personaId);
+    return `Pelo registro recente, antes daqui voce estava falando com ${previousScope}. Posso ver apenas o que esta registrado no Nemosine, mas o rastro mais proximo e esse.`;
+}
+
 async function getAuthenticatedUserId(): Promise<string | null> {
     const session = await auth();
     return session?.user?.id ?? null;
@@ -335,17 +402,43 @@ export async function POST(req: NextRequest) {
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
-        await Promise.all([
+        const shouldRetainConversationContinuity = !isConversationNavigationRequest(userText)
+            && !isPersonaMetaCritique(userText)
+            && !isPersonaRoleQuestion(userText);
+        const persistenceTasks: Promise<unknown>[] = [
             addMessageToThread(userId, activeThreadId, 'user', displayUserText),
-            retainConversationEpisode(userId, memoryScope, userText),
-            retainActiveTopicsFromUserMessage({
-                userId,
-                threadId: activeThreadId,
-                personaId,
-                memoryScope,
-                userText,
-            }),
-        ]);
+        ];
+        if (shouldRetainConversationContinuity) {
+            persistenceTasks.push(
+                retainConversationEpisode(userId, memoryScope, userText),
+                retainActiveTopicsFromUserMessage({
+                    userId,
+                    threadId: activeThreadId,
+                    personaId,
+                    memoryScope,
+                    userText,
+                }),
+            );
+        }
+        await Promise.all(persistenceTasks);
+
+        const conversationNavigationAnswer = await buildConversationNavigationAnswer({
+            userId,
+            activeThreadId,
+            personaId: conversationScope,
+            memoryScope,
+            userText,
+        });
+        if (conversationNavigationAnswer) {
+            await addMessageToThread(userId, activeThreadId, 'assistant', conversationNavigationAnswer);
+            return createPromotedUIMessageStreamResponse({
+                text: conversationNavigationAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-conversation-navigation-answer': 'true',
+                },
+            });
+        }
 
         const cognitiveRequest = createCognitiveRequest({
             userId,

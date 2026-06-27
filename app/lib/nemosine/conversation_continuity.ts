@@ -8,6 +8,7 @@ import {
   ActiveFrontSource,
   classifyConversationInputRichness,
   ConversationInputRichness,
+  isConversationNavigationRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
   normalizeInitiativeText,
@@ -275,6 +276,7 @@ function isLowValueContinuityText(text: string) {
   if (countSignalHits(normalized, substantiveSignals) > 0) return false;
   if (countSignalHits(normalized, unresolvedSignals) > 0) return false;
   if (countSignalHits(normalized, recurrenceSignals) > 0) return false;
+  if (isConversationNavigationRequest(normalized)) return true;
   if (isPersonaMetaCritique(normalized)) return true;
   if (trivialContinuityPatterns.some((pattern) => pattern.test(semantic))) return true;
 
@@ -370,6 +372,7 @@ export function classifyInvocationMode(userText: string): InvocationMode {
   const greetingWithOptionalPersona = /^(bom dia|boa tarde|boa noite|oi|ola|hello|hi|salve|fala)\b/.test(normalized)
     && uniqueTerms(userText).length <= 3;
 
+  if (isConversationNavigationRequest(userText)) return "DIRECT_REQUEST";
   if (isPersonaMetaCritique(userText)) return "META_CRITIQUE";
   if (isPersonaRoleQuestion(userText)) return "DIRECT_REQUEST";
   if (/\b(prompt|resposta|persona|chatbot|raso|generico|profundidade|falha)\b/.test(normalized)) {
@@ -396,6 +399,7 @@ export function extractActiveTopicCandidates(input: {
   const terms = uniqueTerms(raw);
 
   if (!normalized || (richness.richness === "low" && terms.length <= 5)) return [];
+  if (isConversationNavigationRequest(raw) || isPersonaMetaCritique(raw) || isPersonaRoleQuestion(raw)) return [];
   if (raw.trim().length < 24 && countSignalHits(normalized, substantiveSignals) === 0) return [];
 
   const signalHits = countSignalHits(normalized, substantiveSignals);
@@ -760,7 +764,9 @@ export function buildConversationContextPacket(input: {
 }): ConversationContextPacket {
   const richness = input.inputRichness || classifyConversationInputRichness(input.userText);
   const invocationMode = classifyInvocationMode(input.userText);
-  const suppressContinuityContext = isPersonaRoleQuestion(input.userText) || isPersonaMetaCritique(input.userText);
+  const suppressContinuityContext = isPersonaRoleQuestion(input.userText)
+    || isPersonaMetaCritique(input.userText)
+    || isConversationNavigationRequest(input.userText);
   const suppressCrossPersonaContinuity = invocationMode === "GREETING";
   const activeTopicInputs = suppressCrossPersonaContinuity
     ? (input.activeTopics || []).filter((topic) => canCrossPersonaOnGreeting(

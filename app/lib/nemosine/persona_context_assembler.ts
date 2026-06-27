@@ -20,6 +20,7 @@ import {
   buildPersonaInitiativeBrief,
   classifyConversationInputRichness,
   ConversationInputRichness,
+  isConversationNavigationRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
   PersonaInitiativeBrief,
@@ -538,7 +539,9 @@ export async function assemblePersonaContext({
     getAgendaEvents(userId).catch(() => []),
     getUserRegistros(userId).catch(() => []),
   ]);
-  const suppressContinuityContext = isPersonaRoleQuestion(userText) || isPersonaMetaCritique(userText);
+  const suppressContinuityContext = isPersonaRoleQuestion(userText)
+    || isPersonaMetaCritique(userText)
+    || isConversationNavigationRequest(userText);
   const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
   const activeTopicsForContext = suppressContinuityContext
     ? []

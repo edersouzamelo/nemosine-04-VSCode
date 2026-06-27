@@ -75,6 +75,7 @@ const personaRoleQuestionPatterns = [
 ];
 
 const personaMetaCritiquePatterns = [
+  /\bacho que (voce|vc) errou\b/,
   /\b(respondendo|respondeu|falando|falou)\b.*\b(mesma coisa|igual|identico|idêntico)\b/,
   /\b(mesma coisa|igual|identico|idêntico)\b.*\b(guru|mentor|persona|resposta)\b/,
   /\b(loop|looping|repetindo|repeticao|repetição|repetiu|eco mecanico|eco mecânico)\b/,
@@ -83,6 +84,13 @@ const personaMetaCritiquePatterns = [
   /\bdo que (voce|vc) (esta|ta|tá) falando\b/,
   /\bque (voce|vc) (esta|ta|tá) falando\b/,
   /\b(que bosta|merda|pessimo|péssimo|horrivel|horrível)\b/,
+];
+
+const conversationNavigationPatterns = [
+  /\bcom quem\b.{0,80}\b(acabei|estava|tava|estive|vinha)\b.{0,80}\b(falar|falando|falei|conversar|conversando|conversei)\b/,
+  /\bquem\b.{0,80}\b(acabei|estava|tava|estive|vinha)\b.{0,80}\b(falar|falando|falei|conversar|conversando|conversei)\b/,
+  /\b(acabei de|estava|tava|estive|vinha)\s+(falando|conversando|falei|conversei)\s+com\b/,
+  /\b(falava|conversava)\s+com\b/,
 ];
 
 export function normalizeInitiativeText(text: string) {
@@ -116,6 +124,11 @@ export function isPersonaMetaCritique(text: string) {
   return matchesAny(personaMetaCritiquePatterns, normalized);
 }
 
+export function isConversationNavigationRequest(text: string) {
+  const normalized = normalizeInitiativeText(text || "");
+  return matchesAny(conversationNavigationPatterns, normalized);
+}
+
 export function classifyConversationInputRichness(text: string): ConversationInputRichness {
   const normalized = normalizeInitiativeText(text || "");
   const terms = contentTerms(normalized);
@@ -133,6 +146,17 @@ export function classifyConversationInputRichness(text: string): ConversationInp
 
   if (isPersonaRoleQuestion(normalized)) {
     signals.push("persona-role-question");
+    return {
+      richness: "high",
+      openingType: "substantive_request",
+      requiresContextExpansion: false,
+      questionBudget: 0,
+      signals,
+    };
+  }
+
+  if (isConversationNavigationRequest(normalized)) {
+    signals.push("conversation-navigation");
     return {
       richness: "high",
       openingType: "substantive_request",

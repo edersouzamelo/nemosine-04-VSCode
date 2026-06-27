@@ -7,13 +7,15 @@ interface CollapsiblePanelProps {
     children: React.ReactNode;
     defaultOpen?: boolean;
     className?: string;
+    contentClassName?: string;
 }
 
 export default function CollapsiblePanel({
     title,
     children,
     defaultOpen = false,
-    className = ""
+    className = "",
+    contentClassName = ""
 }: CollapsiblePanelProps) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -39,7 +41,7 @@ export default function CollapsiblePanel({
 
             {/* Content */}
             {isOpen && (
-                <div className="p-4 space-y-4 bg-black/20">
+                <div className={`p-4 space-y-4 bg-black/20 ${contentClassName}`}>
                     {children}
                 </div>
             )}

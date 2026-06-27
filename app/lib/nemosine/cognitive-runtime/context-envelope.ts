@@ -16,6 +16,7 @@ import {
   buildActiveFrontSnapshot,
   buildPersonaInitiativeBrief,
   classifyConversationInputRichness,
+  isConversationNavigationRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
   renderPersonaInitiativeControl,
@@ -157,7 +158,9 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     getAgendaEvents(request.userId).catch(() => []),
     getUserRegistros(request.userId).catch(() => []),
   ]);
-  const suppressContinuityContext = isPersonaRoleQuestion(request.userText) || isPersonaMetaCritique(request.userText);
+  const suppressContinuityContext = isPersonaRoleQuestion(request.userText)
+    || isPersonaMetaCritique(request.userText)
+    || isConversationNavigationRequest(request.userText);
   const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
   const activeTopicsForContext = suppressContinuityContext
     ? []

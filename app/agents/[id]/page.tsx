@@ -398,7 +398,7 @@ export default function AgentDetailPage() {
 
                 {/* LEFT: LARGE IMAGE & MEMORIES (Desktop Only) */}
                 {!isEmbedded && (
-                    <div className="hidden lg:flex lg:w-1/4 p-6 flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-y-auto scrollbar-thin scrollbar-thumb-[#c5a059]/20 gap-6">
+                    <div className="hidden lg:flex lg:w-1/4 min-h-0 p-6 flex-col items-center border-r border-[#c5a059]/10 bg-black/20 overflow-hidden gap-6">
                     <div className="flex w-full items-start justify-center gap-3">
                     {/* Desktop Image */}
                     {cognitiveMode === "sober" ? (
@@ -471,14 +471,15 @@ export default function AgentDetailPage() {
                     </div>
 
                     {/* Desktop Memories Panel */}
-                    <div data-tour="chat-history" className="w-full">
-                    <CollapsiblePanel title={t("recentMemories")} defaultOpen={false} className="w-full">
+                    <div data-tour="chat-history" className="w-full min-h-0">
+                    <CollapsiblePanel title={t("recentMemories")} defaultOpen={true} className="w-full" contentClassName="space-y-0">
                         {conversationScope ? (
                             <ChatHistoryList
                                 personaId={conversationScope}
                                 currentThreadId={currentThreadId}
                                 onSelectThread={setCurrentThreadId}
                                 refreshTrigger={refreshHistory}
+                                expanded
                             />
                         ) : (
                             <p className="mt-3 text-xs italic text-[#c5a059]/60">Convoque uma persona para iniciar uma memória neste lugar.</p>
