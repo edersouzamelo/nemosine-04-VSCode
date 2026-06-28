@@ -1,6 +1,6 @@
 import { SessionState, ChatThread } from './types';
 import { PrismaClient } from '@prisma/client';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { isPrivateMemorySpace, PRIVATE_MEMORY_SPACES } from './privacy';
 import { getPersonaLexicalHints } from './persona_behavior_contracts';
 import {
@@ -145,10 +145,67 @@ const legacyThreadSelect = {
 } as const;
 
 const isMissingMigratedSchemaError = (error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error || "");
-    return message.includes("does not exist in the current database")
+    const code = typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code || "")
+        : "";
+    const metaCause = typeof error === "object" && error !== null && "meta" in error
+        ? String((error as { meta?: { cause?: unknown; column?: unknown } }).meta?.cause
+            || (error as { meta?: { cause?: unknown; column?: unknown } }).meta?.column
+            || "")
+        : "";
+    const message = [
+        error instanceof Error ? error.message : String(error || ""),
+        metaCause,
+    ].join("\n");
+    return code === "P2021"
+        || code === "P2022"
+        || message.includes("does not exist in the current database")
+        || message.includes("The column")
+        || message.includes("Unknown arg")
         || message.includes("P2021")
         || message.includes("P2022");
+};
+
+const createLegacyThread = async (
+    userId: string,
+    personaId: string,
+    title: string,
+) => {
+    const now = new Date();
+    const id = randomUUID();
+    const rows = await prisma.$queryRaw<Array<{
+        id: string;
+        personaId: string;
+        title: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>>`
+        INSERT INTO "Thread" ("id", "userId", "personaId", "title", "createdAt", "updatedAt")
+        VALUES (${id}, ${userId}, ${personaId}, ${title}, ${now}, ${now})
+        RETURNING "id", "personaId", "title", "createdAt", "updatedAt"
+    `;
+    return { ...rows[0], messages: [] };
+};
+
+const createLegacyMessage = async (
+    threadId: string,
+    role: 'user' | 'assistant' | 'system',
+    content: string,
+) => {
+    const now = new Date();
+    const id = randomUUID();
+    const rows = await prisma.$queryRaw<Array<{
+        id: string;
+        threadId: string;
+        role: string;
+        content: string;
+        timestamp: Date;
+    }>>`
+        INSERT INTO "Message" ("id", "threadId", "role", "content", "timestamp")
+        VALUES (${id}, ${threadId}, ${role}, ${content}, ${now})
+        RETURNING "id", "threadId", "role", "content", "timestamp"
+    `;
+    return rows[0];
 };
 
 // Use a global variable to persist state across hot reloads in development
@@ -195,14 +252,11 @@ export const createThread = async (
     } catch (error) {
         if (!isMissingMigratedSchemaError(error)) throw error;
         const legacyPersonaId = options.placeId ? `${personaId} @ ${options.placeId}` : personaId;
-        const thread = await prisma.thread.create({
-            data: {
-                userId,
-                personaId: legacyPersonaId,
-                title: title || `Conversa com ${legacyPersonaId}`,
-            },
-            select: legacyThreadSelect,
-        });
+        const thread = await createLegacyThread(
+            userId,
+            legacyPersonaId,
+            title || `Conversa com ${legacyPersonaId}`,
+        );
         return mapLegacyChatThread(thread);
     }
 };
@@ -324,7 +378,7 @@ export const addMessageToThread = async (
     options: AddMessageOptions = {},
 ) => {
     // Verify ownership
-    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId }, select: { id: true } });
     if (!thread) throw new Error("Thread not found or unauthorized");
 
     let message;
@@ -343,20 +397,14 @@ export const addMessageToThread = async (
         });
     } catch (error) {
         if (!isMissingMigratedSchemaError(error)) throw error;
-        message = await prisma.message.create({
-            data: {
-                threadId,
-                role,
-                content,
-            },
-            select: legacyChatMessageSelect,
-        });
+        message = await createLegacyMessage(threadId, role, content);
     }
 
     // Update thread updatedAt
     await prisma.thread.update({
         where: { id: threadId },
-        data: { updatedAt: new Date() }
+        data: { updatedAt: new Date() },
+        select: { id: true },
     });
 
     return mapChatMessage(message);
@@ -374,7 +422,7 @@ export const persistAssistantMessageForCognitiveRun = async (
     cognitiveRunId: string,
     content: string,
 ): Promise<PersistedAssistantMessage> => {
-    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId }, select: { id: true } });
     if (!thread) throw new Error("Thread not found or unauthorized");
 
     let message;
@@ -391,19 +439,13 @@ export const persistAssistantMessageForCognitiveRun = async (
         });
     } catch (error) {
         if (!isMissingMigratedSchemaError(error)) throw error;
-        message = await prisma.message.create({
-            data: {
-                threadId,
-                role: 'assistant',
-                content,
-            },
-            select: legacyChatMessageSelect,
-        });
+        message = await createLegacyMessage(threadId, 'assistant', content);
     }
 
     await prisma.thread.update({
         where: { id: threadId },
         data: { updatedAt: new Date() },
+        select: { id: true },
     });
 
     return {
@@ -419,7 +461,7 @@ export const createPendingPersonaMessage = async (
     speakerPersonaId: string,
     turnGroupId: string,
 ) => {
-    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId }, select: { id: true } });
     if (!thread) throw new Error("Thread not found or unauthorized");
 
     const message = await prisma.message.create({
@@ -438,6 +480,7 @@ export const createPendingPersonaMessage = async (
     await prisma.thread.update({
         where: { id: threadId },
         data: { updatedAt: new Date() },
+        select: { id: true },
     });
 
     return mapChatMessage(message);
@@ -467,6 +510,7 @@ export const updatePersonaMessageGeneration = async (
     await prisma.thread.update({
         where: { id: existing.threadId },
         data: { updatedAt: new Date() },
+        select: { id: true },
     });
 
     return mapChatMessage(message);
@@ -474,22 +518,24 @@ export const updatePersonaMessageGeneration = async (
 
 export const updateThreadTitle = async (userId: string, threadId: string, title: string): Promise<void> => {
     // Verify ownership
-    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId }, select: { id: true } });
     if (!thread) return;
 
     await prisma.thread.update({
         where: { id: threadId },
-        data: { title }
+        data: { title },
+        select: { id: true },
     });
 };
 
 export const deleteThread = async (userId: string, threadId: string): Promise<void> => {
     // Verify ownership
-    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId }, select: { id: true } });
     if (!thread) return;
 
     await prisma.thread.delete({
-        where: { id: threadId }
+        where: { id: threadId },
+        select: { id: true },
     });
 };
 
@@ -634,7 +680,10 @@ const getVisibleConversationEpisodeCandidates = async (
         },
         orderBy: { updatedAt: 'desc' },
         take: 30,
-        include: {
+        select: {
+            id: true,
+            personaId: true,
+            updatedAt: true,
             messages: {
                 orderBy: { timestamp: 'desc' },
                 take: 4,
