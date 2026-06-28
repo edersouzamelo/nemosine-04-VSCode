@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import { ENTITIES } from "@/app/data/entities";
-import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
+import { buildNativePersonaSoulCard, getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
 import { PersonaBehaviorContract } from "@/app/lib/nemosine/persona_behavior_contracts";
 import { hashText } from "@/app/lib/nemosine/cognitive-runtime/audit-redaction";
 import {
@@ -21,10 +21,13 @@ const languageName: Record<ResponsePipelineRequest["language"], string> = {
 function getNativePrompt(personaId: string) {
   const personaData = Object.values(ENTITIES).find((entity) => entity.name === personaId && entity.type === "persona");
   const nativePromptRecord = getNativePersonaPromptRecord(personaId);
+  const sourcePrompt = nativePromptRecord?.prompt || personaData?.prompt || `Voce e ${personaId}.`;
+  const localPersonaVoice = personaData?.script || personaData?.transcription || sourcePrompt;
+  const nativeSoulCard = buildNativePersonaSoulCard(personaId, localPersonaVoice);
   return {
-    prompt: nativePromptRecord?.prompt || personaData?.prompt || `Voce e ${personaId}.`,
-    source: nativePromptRecord?.source || "entities-fallback",
-    key: nativePromptRecord?.promptKey || personaId,
+    prompt: nativeSoulCard.soulCard,
+    source: nativeSoulCard.source,
+    key: nativeSoulCard.promptKey,
   };
 }
 

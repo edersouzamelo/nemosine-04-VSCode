@@ -146,7 +146,7 @@ function cleanFallbackContext(front?: SelectedFront) {
     .replace(/\bUsuario:\s*/gi, "")
     .replace(/\bAssistant:\s*/gi, "")
     .replace(/\[Conversa com [^\]\r\n]+\]/gi, "")
-    .replace(/\bfrente autorizada\b/gi, "materia escolhida")
+    .replace(/\bfrente autorizada\b/gi, "assunto escolhido")
     .replace(/\bfrente ativa\b/gi, "tema vivo")
     .replace(/\bfrente mais viva\b/gi, "tema mais vivo")
     .replace(/\bcentro de gravidade\b/gi, "centro")
@@ -163,10 +163,14 @@ function cleanFallbackContext(front?: SelectedFront) {
 
 function cleanFallbackMovement(text: string) {
   return text
-    .replace(/\bfrente autorizada\b/gi, "materia escolhida")
+    .replace(/\bhierarquizar a materia\b/gi, "ordenar o assunto")
+    .replace(/\bhierarquizar materia\b/gi, "ordenar o assunto")
+    .replace(/\bfrente autorizada\b/gi, "assunto escolhido")
     .replace(/\bfrente ativa\b/gi, "tema vivo")
     .replace(/\bfrente mais viva\b/gi, "tema mais vivo")
-    .replace(/\bfrente\b/gi, "materia")
+    .replace(/\bfrente\b/gi, "assunto")
+    .replace(/\bmateria\b/gi, "assunto")
+    .replace(/\ba assunto\b/gi, "o assunto")
     .replace(/\bcentro de gravidade\b/gi, "centro")
     .replace(/\s+/g, " ")
     .trim();
@@ -214,18 +218,18 @@ function contextualPersonaFallback(input: {
   const movement = cleanFallbackMovement(input.primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e "));
   const cue = fallbackFamilyCue(input.contract);
   const contextLine = usableContext
-    ? `Do contexto recente, aproveito apenas isto: ${usableContext}`
-    : "O contexto recente esta contaminado por falas de reparo e nao deve comandar esta resposta.";
+    ? `Do rastro recente, aproveito apenas isto: ${usableContext}`
+    : "O rastro recente nao traz um assunto aproveitavel; vou responder ao pedido atual sem fingir memoria.";
   const stanceLine = input.opinionMode
     ? "Minha opiniao pratica: quando a continuidade vira repeticao, o melhor movimento e cortar o automatismo e voltar ao pedido atual."
     : "Minha leitura pratica: o pedido atual vem antes de qualquer memoria solta; a memoria so ajuda quando melhora a resposta, nao quando toma o lugar dela.";
 
   return [
-    `${input.greeting || "Recebo. "}Vou direto ao ponto.`,
+    `${input.greeting || "Entendi. "}Sem bastidor.`,
     contextLine,
     cue,
     stanceLine,
-    `O proximo movimento e ${movement}.`,
+    `O proximo passo e ${movement}.`,
   ].join("\n\n");
 }
 
@@ -441,7 +445,7 @@ export function buildDeterministicInitiativeFallback(input: {
   }
 
   return [
-    `${greeting || "Recebo. "}Vou direto ao ponto.`,
+    `${greeting || "Entendi. "}Sem bastidor.`,
     "Ainda nao ha materia concreta suficiente neste turno para uma leitura pessoal responsavel.",
     fallbackFamilyCue(input.contract),
     `O movimento inicial e ${cleanFallbackMovement(lens.verbs.slice(0, 2).join(" e "))}: responder ao presente, manter a fala limpa e nao inventar profundidade onde ainda nao ha assunto.`,

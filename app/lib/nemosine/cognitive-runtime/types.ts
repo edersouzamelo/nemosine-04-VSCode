@@ -118,6 +118,7 @@ export type CognitiveContextEnvelope = {
     appName: string;
     promptKey: string;
     prompt: string;
+    soulCard?: string;
     sha256: string;
     source: string;
   };

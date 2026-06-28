@@ -420,7 +420,7 @@ test("Guru deterministic fallback answers opinion and loop critique without repe
   });
 
   assert.notEqual(loop, opinion);
-  assert.match(opinion, /Vou direto ao ponto/i);
+  assert.match(opinion, /Sem bastidor/i);
   assert.match(loop, /falou sobre o proprio funcionamento|contato direto/i);
   assert.ok(opinion.split(/\n\s*\n/).length >= 3);
   assert.doesNotMatch(opinion, /Minha leitura sobre isso|O dado autorizado|Pela lente|Meu movimento agora|O sinal mais forte|centro de gravidade|frente autorizada|Eu respondo como|protocolo de memoria|material .*ruidoso/i);

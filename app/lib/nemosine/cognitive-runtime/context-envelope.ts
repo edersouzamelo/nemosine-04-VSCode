@@ -1,5 +1,5 @@
 import { ENTITIES } from "@/app/data/entities";
-import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
+import { buildNativePersonaSoulCard, getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
 import { getAgendaEvents } from "@/app/lib/sovereignStore";
 import { getVisibleUserSources, getVisibleUserSourceProfileSummaries } from "@/app/lib/sourceStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
@@ -118,7 +118,7 @@ export function renderContextEnvelopeForPrompt(context: CognitiveContextEnvelope
     "",
     "[NATIVE PERSONA SOUL - PRIMARY VISIBLE VOICE]",
     "Use this as the main source of persona identity. Translate every runtime constraint back into this voice before answering.",
-    context.nativePrompt.prompt,
+    context.nativePrompt.soulCard || context.nativePrompt.prompt,
     "",
     "[FUNCTIONAL CONTRACT]",
     context.functionalContract.text,
@@ -142,6 +142,8 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
 
   const nativePromptRecord = getNativePersonaPromptRecord(request.personaId);
   const prompt = nativePromptRecord?.prompt || personaData.prompt || `Voce e ${request.personaId}.`;
+  const localPersonaVoice = personaData.script || personaData.transcription || personaData.prompt || `Voce e ${request.personaId}.`;
+  const nativeSoulCard = buildNativePersonaSoulCard(request.personaId, localPersonaVoice);
   const promptKey = nativePromptRecord?.promptKey || request.personaId;
   const contract = getPersonaBehaviorContract(request.personaId);
   const contractText = formatPersonaBehaviorContract(contract);
@@ -297,6 +299,7 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
       appName: request.personaId,
       promptKey,
       prompt,
+      soulCard: nativeSoulCard.soulCard,
       sha256: hashText(prompt),
       source: nativePromptRecord?.source || "entities-fallback",
     },

@@ -124,6 +124,23 @@ function RichAssistantMessage({ content }: { content: string }) {
     );
 }
 
+function ThinkingIndicator() {
+    return (
+        <div
+            role="status"
+            aria-label="Processando resposta"
+            className="chat-readable inline-flex items-center gap-2 rounded-2xl rounded-tl-sm border border-[#c5a059]/10 bg-[#0a0a0c] px-4 py-3 text-[#d9c28b] shadow-[0_4px_16px_rgba(0,0,0,0.12)]"
+        >
+            <span className="material-icons animate-spin text-[20px] leading-none" aria-hidden="true">hourglass_empty</span>
+            <span className="flex items-center gap-1" aria-hidden="true">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#c5a059]"></span>
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#c5a059] [animation-delay:0.2s]"></span>
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#c5a059] [animation-delay:0.4s]"></span>
+            </span>
+        </div>
+    );
+}
+
 export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat, actionMenu }: MedievalChatProps) {
     const { language, t, entityName } = useLanguage();
     const displayedPersonaName = entityName(personaId);
@@ -147,6 +164,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [input, setInput] = useState("");
     const [actionsOpen, setActionsOpen] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textInputRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         const openMenuForTourStep = (event: Event) => {
@@ -230,6 +248,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     });
 
     const isLoading = status === 'submitted' || status === 'streaming';
+    const showThinkingIndicator = status === 'submitted'
+        || (status === 'streaming' && (messages.length === 0 || messages[messages.length - 1].role === 'user'));
+
+    useEffect(() => {
+        const textArea = textInputRef.current;
+        if (!textArea) return;
+        textArea.style.height = "auto";
+        textArea.style.height = `${Math.min(textArea.scrollHeight, 128)}px`;
+    }, [input]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -359,7 +386,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages, isLoading]);
+    }, [messages, isLoading, showThinkingIndicator]);
 
     const [lastLoadedThreadId, setLastLoadedThreadId] = useState<string | null>(null);
 
@@ -513,7 +540,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
             {/* Messages Area - SCROLLABLE CONTAINER */}
             <div data-tour="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[#c5a059]/30 scrollbar-track-transparent bg-black/40">
-                {messages.length === 0 && (
+                {messages.length === 0 && !showThinkingIndicator && (
                     <div className="flex flex-col items-center justify-center h-full text-[#c5a059]/30 gap-4">
                         <div className="w-16 h-16 rounded-full border border-[#c5a059]/20 flex items-center justify-center">
                             <span className="text-3xl">✦</span>
@@ -539,13 +566,9 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     </div>
                 )))}
 
-                {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-                    <div className="flex justify-start">
-                        <div className="bg-[#0a0a0c] border border-[#c5a059]/10 p-3 rounded-2xl rounded-tl-sm flex gap-2 items-center">
-                            <div className="w-1.5 h-1.5 bg-[#c5a059] rounded-full animate-bounce"></div>
-                            <div className="w-1.5 h-1.5 bg-[#c5a059] rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                            <div className="w-1.5 h-1.5 bg-[#c5a059] rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                        </div>
+                {showThinkingIndicator && (
+                    <div className={`flex ${messages.length === 0 ? "h-full items-center justify-center" : "justify-start"}`}>
+                        <ThinkingIndicator />
                     </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -593,12 +616,12 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     </div>
                 )}
 
-                <div className="relative flex gap-3 items-center">
+                <div className="relative flex items-end gap-2 sm:gap-3">
                     <button
                         type="button"
                         data-tour="chat-attachments"
                         onClick={() => fileInputRef.current?.click()}
-                        className="grid h-12 w-12 place-items-center rounded-xl border border-[#c5a059]/35 bg-black/50 text-[0px] text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] transition-colors hover:bg-[#c5a059]/10"
+                        className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[#c5a059]/35 bg-black/50 text-[0px] text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] transition-colors hover:bg-[#c5a059]/10"
                         title="Anexar PDF ou arquivo de texto"
                     >
                         <span className="material-icons text-[22px]">attach_file</span>
@@ -619,25 +642,33 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         type="button"
                         data-tour="chat-voice"
                         onClick={toggleListening}
-                        className={`grid h-12 w-12 place-items-center rounded-xl text-[0px] transition-all ${isListening ? 'animate-pulse border border-red-500/50 bg-red-500/20 text-red-300 shadow-[0_0_18px_rgba(239,68,68,0.15)]' : 'border border-[#c5a059]/35 bg-black/50 text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] hover:bg-[#c5a059]/10'}`}
+                        className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl text-[0px] transition-all ${isListening ? 'animate-pulse border border-red-500/50 bg-red-500/20 text-red-300 shadow-[0_0_18px_rgba(239,68,68,0.15)]' : 'border border-[#c5a059]/35 bg-black/50 text-[#c5a059] shadow-[inset_0_0_18px_rgba(197,160,89,0.08)] hover:bg-[#c5a059]/10'}`}
                         title={isListening ? "Parar gravacao" : "Anexar audio"}
                     >
                         <span className="material-icons text-[22px]">{isListening ? "stop_circle" : "mic"}</span>
                     </button>
 
-                    <input
-                        type="text"
+                    <textarea
+                        ref={textInputRef}
                         data-tour="chat-input"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                                e.preventDefault();
+                                e.currentTarget.form?.requestSubmit();
+                            }
+                        }}
                         placeholder={t("messagePlaceholder")}
-                        className="chat-readable-input flex-1 bg-black/50 border border-[#c5a059]/30 p-4 text-[#e1e1e6] placeholder-[#c5a059]/30 focus:outline-none focus:border-[#c5a059] transition-all rounded-xl"
+                        rows={1}
+                        className="chat-readable-input max-h-32 min-h-12 min-w-0 flex-1 resize-none overflow-y-auto rounded-xl border border-[#c5a059]/30 bg-black/50 px-4 py-3 text-[#e1e1e6] transition-all placeholder-[#c5a059]/30 focus:border-[#c5a059] focus:outline-none"
                     />
                     <button
                         type="submit"
                         data-tour="chat-send"
                         disabled={isLoading || (!input.trim() && !selectedFile && !voiceTranscript.trim())}
-                        className="px-6 py-3 bg-[#c5a059] hover:bg-[#b08d48] text-black font-bold uppercase tracking-widest text-xs transition-colors rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#c5a059] text-black transition-colors hover:bg-[#b08d48] disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Enviar mensagem"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

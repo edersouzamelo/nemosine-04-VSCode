@@ -1,5 +1,5 @@
 import { ENTITIES } from "@/app/data/entities";
-import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
+import { buildNativePersonaSoulCard, getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
 import { getVisibleUserSources, getVisibleUserSourceProfileSummaries } from "@/app/lib/sourceStore";
 import { getAgendaEvents } from "@/app/lib/sovereignStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
@@ -522,6 +522,8 @@ export async function assemblePersonaContext({
   const contract = getPersonaBehaviorContract(personaId);
   const nativePromptRecord = getNativePersonaPromptRecord(personaId);
   const primaryPersonaPrompt = nativePromptRecord?.prompt || personaData.prompt || `Voce e ${personaId}.`;
+  const localPersonaVoice = personaData.script || personaData.transcription || personaData.prompt || `Voce e ${personaId}.`;
+  const nativeSoulCard = buildNativePersonaSoulCard(personaId, localPersonaVoice);
   const contractText = formatPersonaBehaviorContract(contract);
   const genericHelpInstructionsFound = detectGenericHelpInstructions(primaryPersonaPrompt, contractText);
   const inputRichness = classifyConversationInputRichness(userText);
@@ -659,7 +661,7 @@ export async function assemblePersonaContext({
     section("ALMA NATIVA DA PERSONA", [
       buildSoulPrimacyRule(personaId),
       "",
-      primaryPersonaPrompt.trim(),
+      nativeSoulCard.soulCard,
     ].join("\n")),
     section("PEDIDO ATUAL DO USUARIO", userText || "(pedido atual nao informado ao assembler)"),
     section("PROIBICAO DE MODO ASSISTENTE GENERICO", buildAntiGenericAssistantRule()),

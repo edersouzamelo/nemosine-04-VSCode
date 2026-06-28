@@ -1,4 +1,4 @@
-import { resolveNativePersonaPrompt } from "@/app/data/nativePersonaPrompts";
+import { normalizePersonaPromptKey, resolveNativePersonaPrompt } from "@/app/data/nativePersonaPrompts";
 
 export interface EntityData {
     name: string;
@@ -12650,24 +12650,15 @@ export const ENTITIES: Record<string, EntityData> = {};
 // Helper to generate slugs consistent with current dashboard logic
 const getSlug = (name: string) => name.toLowerCase().replace(/\s+/g, '-');
 
-const normalizePersonaKey = (name: string) => name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
-    .toLowerCase()
-    .replace(/^(o|a)\s+/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
 const resolvePersonaPrompt = (name: string) => {
     const nativePrompt = resolveNativePersonaPrompt(name);
     if (nativePrompt) {
         return nativePrompt;
     }
 
-    const normalizedName = normalizePersonaKey(name);
+    const normalizedName = normalizePersonaPromptKey(name);
     const promptEntry = Object.entries(PERSONA_PROMPTS).find(
-        ([promptName]) => normalizePersonaKey(promptName) === normalizedName
+        ([promptName]) => normalizePersonaPromptKey(promptName) === normalizedName
     );
 
     return promptEntry?.[1]
