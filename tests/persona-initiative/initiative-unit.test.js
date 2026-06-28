@@ -98,6 +98,9 @@ test("classifies system/persona failure complaints as meta-critique, not durable
   assert.equal(isPersonaMetaCritique("hum parece que vc ainda ta meio grogue heim"), true);
   assert.equal(isPersonaMetaCritique("o sistema esta colapsando, os personas estao todos malucos"), true);
   assert.equal(isPersonaMetaCritique("Eu nao quero compartilhar detalhes porra, quero que vc saiba minhas ultimas conversas e tenha iniciativa!"), true);
+  assert.equal(isPersonaMetaCritique("Por que voce esta falando consigo mesmo em vez de falar comigo?"), true);
+  assert.equal(isPersonaMetaCritique("Para de responder deterministicamente"), true);
+  assert.equal(isPersonaMetaCritique("AFF esta ruim"), true);
 });
 
 test("classifies first-contact greeting as shallow opening", () => {
@@ -236,4 +239,79 @@ test("deterministic fallback scrubs polluted episode scaffolding", () => {
 
   assert.doesNotMatch(fallback, /EPISODIO COM|O usuario escreveu|O sinal mais forte|centro de gravidade|frente autorizada|respondendo assim/i);
   assert.match(fallback, /Guru|contexto|material|voz/i);
+});
+
+test("health-check fallback talks to the user instead of narrating itself", () => {
+  const personaId = "Estrategista";
+  const userText = "Bom dia voce esta falando bem? Estou testando";
+  const richness = classifyConversationInputRichness(userText);
+  const contract = getPersonaBehaviorContract(personaId);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId,
+    userText,
+    richness,
+    contract,
+    sources: [{
+      id: "memory-repair-noise",
+      type: "memory",
+      text: "EPISODIO COM Estrategista | O usuario escreveu: ah agora vc esta se comportando corretamente.",
+      provenance: "UserMemory",
+      visibility: "internal",
+      scope: personaId,
+      recency: 1,
+    }],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const fallback = buildDeterministicInitiativeFallback({
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    brief,
+    contract,
+  });
+
+  assert.match(fallback, /Estou te ouvindo/i);
+  assert.match(fallback, /teste|estavel|responder ao que voce disse/i);
+  assert.doesNotMatch(fallback, /Eu respondo como|material .*ruidoso|material util|protocolo de memoria|trocar etiqueta|O gesto deste turno|ah agora vc esta se comportando/i);
+});
+
+test("quality gate rejects self-narrating strategist repair answer", () => {
+  const personaId = "Estrategista";
+  const userText = "Por que voce esta falando consigo mesmo em vez de falar comigo?";
+  const richness = classifyConversationInputRichness(userText);
+  const contract = getPersonaBehaviorContract(personaId);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId,
+    userText,
+    richness,
+    contract,
+    sources: [],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const evaluation = evaluatePersonaInitiativeQuality({
+    responseText: "Estou aqui para tracar rotas e antecipar movimentos, sempre focando no cenario maior. Vamos direto ao ponto: qual e o objetivo ou desafio que voce esta enfrentando agora? Posso ajudar a desenhar um caminho claro para avancar.",
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    contract,
+    brief,
+    privateRun: false,
+  });
+
+  assert.equal(evaluation.finalPass, false);
+  assert.ok(evaluation.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE"));
 });

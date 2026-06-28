@@ -15,6 +15,7 @@ import {
 const genericAssistantPatterns = [
   /\bestou aqui para (ajudar|auxiliar|oferecer|contribuir)\b/,
   /\bestou aqui para (explorar|analisar|orientar|apoiar)\b/,
+  /\bestou aqui para (tracar|traçar) rotas\b/,
   /\bcomo posso (ajudar|auxiliar|contribuir)\b/,
   /\bo que posso fazer por voce\b/,
   /\bestou a disposicao\b/,
@@ -23,6 +24,7 @@ const genericAssistantPatterns = [
   /\batender melhor suas expectativas\b/,
   /\bse precisar de uma analise\b/,
   /\bposso (fazer|oferecer|elaborar|montar) uma analise\b/,
+  /\bposso ajudar a (desenhar|montar|tracar|traçar)\b/,
   /\bpodemos focar nisso\b/,
   /\bpara garantir que tudo funcione\b/,
 ];
@@ -39,7 +41,7 @@ const falseContextDenialPatterns = [
 ];
 
 const genericInterviewPatterns = [
-  /\bqual (e )?(a )?(missao|prioridade|tarefa|demanda|questao|assunto|desafio)\b.*\?/,
+  /\bqual (e )?(a )?(missao|prioridade|tarefa|demanda|questao|assunto|objetivo|desafio)\b.*\?/,
   /\bsobre o que (voce )?(quer|gostaria de) (falar|tratar|explorar)\b.*\?/,
   /\bo que (voce )?(quer|gostaria de) (fazer|explorar)\b.*\?/,
   /\bpor onde (quer|gostaria de) comecar\b.*\?/,

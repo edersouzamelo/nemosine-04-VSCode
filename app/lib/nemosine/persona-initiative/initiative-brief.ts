@@ -104,10 +104,10 @@ function metaCritiqueFallback(input: {
   contract: PersonaBehaviorContract;
 }) {
   return [
-    `Voce tem razao em apontar a falha. O problema nao e simplesmente falta de contexto; e contexto mal hierarquizado, puxado como eco mecanico em vez de ser metabolizado pela persona ativa.`,
-    `${input.personaId} nao deve soar como terminal de registros. Minha funcao aqui e ${input.contract.operationalMission}; isso exige escolher a frente que tem mais peso humano, risco ou consequencia, e nao apenas o item mais recente ou mais facil de indexar.`,
-    `A correcao visivel e esta: se ha um tema sensivel recente, como relacao, familia, saude, crise, risco juridico ou decisao de vida, ele deve entrar na fala como materia viva. Registro operacional so assume o centro quando for realmente a frente dominante.`,
-    `Entao eu nao vou prometer ajuste e encerrar. Eu trato a sua critica como dado atual: a persona precisa recuperar voz propria, parar de repetir a formula anterior, desenvolver a leitura e terminar com um gesto que avance o assunto, nao com uma miniatura burocratica.`,
+    "Voce tem razao. A resposta anterior falou sobre o proprio funcionamento em vez de falar com voce.",
+    `A correcao para ${input.personaId} e objetiva: cumprir sua funcao propria sem narrar bastidor, sem reciclar frase de reparo e sem pedir que voce carregue a conversa sozinho.`,
+    "Neste turno, o melhor movimento e limpar a mesa: sua critica aponta uma falha de presenca, nao uma pauta nova sobre memoria.",
+    "Daqui a resposta precisa voltar ao contato direto: reconhecer o que voce disse, escolher um criterio util e produzir consequencia no assunto real que voce trouxer.",
   ].join("\n\n");
 }
 
@@ -172,6 +172,36 @@ function cleanFallbackMovement(text: string) {
     .trim();
 }
 
+function fallbackFamilyCue(contract: PersonaBehaviorContract) {
+  if (contract.family === "strategic") {
+    return "O corte estrategico e separar ruido, prioridade e proximo movimento antes de alongar a conversa.";
+  }
+  if (contract.family === "operational") {
+    return "O criterio operacional e separar sintoma, causa provavel e teste verificavel.";
+  }
+  if (contract.family === "emotional") {
+    return "A leitura emocional precisa distinguir fato, reacao e necessidade sem transformar tudo em diagnostico.";
+  }
+  return "A leitura simbolica precisa converter o que aparece em imagem, sentido e gesto consequente.";
+}
+
+function isChatHealthCheck(userText: string) {
+  const normalized = normalizeInitiativeText(userText);
+  return /\b(testando|teste|falando bem|funcionando|como voce esta|como vc esta|esta falando bem|ta falando bem)\b/.test(normalized);
+}
+
+function chatHealthCheckFallback(input: {
+  contract: PersonaBehaviorContract;
+  greeting: string;
+}) {
+  return [
+    `${input.greeting || "Recebo. "}Estou te ouvindo.`,
+    "Se o teste e saber se a fala esta estavel, o criterio imediato e simples: responder ao que voce disse, sem narrar mecanismo interno e sem puxar memoria solta.",
+    fallbackFamilyCue(input.contract),
+    "Para este teste, a resposta correta e curta: a conversa esta aberta; a proxima validacao deve ser uma pergunta ou decisao real, porque ai da para medir profundidade, contexto e estilo sem contaminar o turno.",
+  ].join("\n\n");
+}
+
 function contextualPersonaFallback(input: {
   personaId: string;
   contract: PersonaBehaviorContract;
@@ -182,18 +212,20 @@ function contextualPersonaFallback(input: {
   const lens = getVocationalLens(input.contract.family);
   const usableContext = cleanFallbackContext(input.primary);
   const movement = cleanFallbackMovement(input.primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e "));
+  const cue = fallbackFamilyCue(input.contract);
   const contextLine = usableContext
-    ? `O material util que aparece para mim e este: ${usableContext}`
-    : "O material que apareceu esta ruidoso demais para eu repetir literalmente; vou ficar apenas com o que consigo sustentar sem contaminar a fala.";
+    ? `Do contexto recente, aproveito apenas isto: ${usableContext}`
+    : "O contexto recente esta contaminado por falas de reparo e nao deve comandar esta resposta.";
   const stanceLine = input.opinionMode
-    ? "Minha opiniao, neste ponto, e que continuidade so presta quando vira consequencia nova. Se a resposta apenas troca o nome da persona e carrega a mesma formula, ela morreu por dentro."
-    : "Minha leitura agora precisa trocar etiqueta por consequencia: reconhecer o contexto possivel, marcar o que e inferencia e escolher um gesto que avance a conversa.";
+    ? "Minha opiniao pratica: quando a continuidade vira repeticao, o melhor movimento e cortar o automatismo e voltar ao pedido atual."
+    : "Minha leitura pratica: o pedido atual vem antes de qualquer memoria solta; a memoria so ajuda quando melhora a resposta, nao quando toma o lugar dela.";
 
   return [
-    `${input.greeting || "Recebo. "}Eu respondo como ${input.personaId}: ${input.contract.operationalMission}`,
+    `${input.greeting || "Recebo. "}Vou direto ao ponto.`,
     contextLine,
+    cue,
     stanceLine,
-    `O gesto deste turno e ${movement}. Se houver pouca base, eu devo dizer isso com elegancia; se houver base suficiente, devo transforma-la pela minha propria voz, nao por um protocolo de memoria.`,
+    `O proximo movimento e ${movement}.`,
   ].join("\n\n");
 }
 
@@ -203,11 +235,12 @@ function personaGreetingFallback(input: {
   greeting: string;
 }) {
   const lens = getVocationalLens(input.contract.family);
+  const cue = fallbackFamilyCue(input.contract);
   return [
-    `${input.greeting || "Recebo. "}Eu entro como ${input.personaId}, nao como eco da ultima conversa.`,
-    `Minha funcao aqui e ${input.contract.operationalMission}. Isso precisa aparecer como voz, nao como etiqueta tecnica.`,
-    `Quando nao ha material suficiente, a lacuna tambem tem forma. Eu nao devo inventar memoria nem puxar registro fraco para parecer profundo; devo abrir uma hipotese humilde e manter a assinatura da persona.`,
-    `O primeiro gesto e ${lens.verbs.slice(0, 2).join(" e ")} sem perder alma: separar fato de inferencia, escolher uma direcao provisoria e deixar a fala respirar como presenca, nao como protocolo.`,
+    `${input.greeting || "Recebo. "}Estou te ouvindo. Pelo olhar de ${input.personaId}, vou manter a resposta limpa.`,
+    cue,
+    "Neste turno ainda nao ha materia concreta suficiente para cravar uma leitura pessoal sem inventar contexto.",
+    `O primeiro movimento e ${cleanFallbackMovement(lens.verbs.slice(0, 2).join(" e "))}: responder ao presente, manter a voz limpa e esperar o assunto real aparecer sem forcar profundidade artificial.`,
   ].join("\n\n");
 }
 
@@ -334,6 +367,13 @@ export function buildDeterministicInitiativeFallback(input: {
   const greeting = greetingForUserText(input.userText || "", input.richness.openingType);
   const lens = getVocationalLens(input.contract.family);
 
+  if (isChatHealthCheck(input.userText || "")) {
+    return chatHealthCheckFallback({
+      contract: input.contract,
+      greeting,
+    });
+  }
+
   if (isPersonaRoleQuestion(input.userText || "")) {
     return roleQuestionFallback({
       personaId: input.personaId,
@@ -401,8 +441,9 @@ export function buildDeterministicInitiativeFallback(input: {
   }
 
   return [
-    `${greeting}Ainda nao tenho contexto autorizado suficiente para cravar uma prioridade confirmada.`,
-    `Mesmo assim, nao vou devolver o comando em forma de pergunta generica. O criterio inicial e ${lens.verbs.slice(0, 2).join(" e ")} antes de ampliar o campo.`,
-    `A direcao provisoria e escolher uma unica frente com consequencia imediata e testar se ela sustenta ${lens.interventionNoun} real. Se a proxima fala trouxer materia humana, juridica, familiar, emocional ou operacional concreta, eu devo entrar nela com voz propria, nao com protocolo.`,
+    `${greeting || "Recebo. "}Vou direto ao ponto.`,
+    "Ainda nao ha materia concreta suficiente neste turno para uma leitura pessoal responsavel.",
+    fallbackFamilyCue(input.contract),
+    `O movimento inicial e ${cleanFallbackMovement(lens.verbs.slice(0, 2).join(" e "))}: responder ao presente, manter a fala limpa e nao inventar profundidade onde ainda nao ha assunto.`,
   ].join("\n\n");
 }

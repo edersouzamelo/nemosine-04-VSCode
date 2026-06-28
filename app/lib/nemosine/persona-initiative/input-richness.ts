@@ -92,11 +92,15 @@ const personaMetaCritiquePatterns = [
   /\bque (voce|vc) (esta|ta|tá) falando\b/,
   /\b(que bosta|merda|pessimo|péssimo|horrivel|horrível)\b/,
   /\b(respondendo|respondeu|falando|falou)\b.*\b(confusao|confuso|confusa|grogue|besta|idiota|raso|rasa|inutil|deterministico|deterministica)\b/,
-  /\b(confusao|confuso|confusa|grogue|besta|idiota|raso|rasa|inutil|deterministico|deterministica)\b.*\b(resposta|respondendo|falando|persona|personas|sistema|voce|vc)\b/,
+  /\b(confusao|confuso|confusa|grogue|besta|idiota|raso|rasa|inutil|ruim|deterministico|deterministica|deterministicamente)\b.*\b(resposta|respondendo|falando|persona|personas|sistema|voce|vc)\b/,
   /\b(persona|personas|sistema)\b.*\b(colapsando|colapso|maluco|maluca|malucos|malucas|doido|doida|doidos|doidas|quebrado|quebrada|zumbi|zumbis|perdido|perdida)\b/,
-  /\b(resposta|respostas|persona|personas)\b.*\b(inutil|inuteis|idiota|idiotas|raso|rasa|rasas|deterministico|deterministica|deterministicas|perdido|perdida|piores|terrivel|terriveis|pessimo|pessima|pessimas)\b/,
+  /\b(resposta|respostas|persona|personas)\b.*\b(inutil|inuteis|idiota|idiotas|raso|rasa|rasas|ruim|deterministico|deterministica|deterministicas|deterministicamente|perdido|perdida|piores|terrivel|terriveis|pessimo|pessima|pessimas)\b/,
   /\b(nao quero compartilhar detalhes|ultimas conversas|tenha iniciativa|foda se|pataquada|me fode)\b/,
   /\b(meio grogue|ta grogue|esta grogue)\b/,
+  /\bfalando consigo mesmo\b/,
+  /\b(em vez de|ao inves de)\s+falar comigo\b/,
+  /\b(esta|ta)\s+ruim\b/,
+  /\bpara de responder deterministicamente\b/,
 ];
 
 const conversationNavigationPatterns = [
