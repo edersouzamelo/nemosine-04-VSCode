@@ -23,6 +23,7 @@ import {
   isConversationNavigationRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
+  isSourceReferenceRequest,
   PersonaInitiativeBrief,
   renderPersonaInitiativeControl,
 } from "./persona-initiative";
@@ -98,6 +99,7 @@ type AssemblePersonaContextInput = {
   userText: string;
   language?: ResponseLanguage;
   placeId?: string;
+  activeThreadId?: string;
 };
 
 const languageName: Record<ResponseLanguage, string> = {
@@ -510,6 +512,7 @@ export async function assemblePersonaContext({
   userText,
   language = "pt-BR",
   placeId,
+  activeThreadId,
 }: AssemblePersonaContextInput): Promise<PersonaContextAssembly> {
   const personaData = Object.values(ENTITIES).find((entity) => entity.name === personaId && entity.type === "persona");
   if (!personaData) {
@@ -522,14 +525,17 @@ export async function assemblePersonaContext({
   const contractText = formatPersonaBehaviorContract(contract);
   const genericHelpInstructionsFound = detectGenericHelpInstructions(primaryPersonaPrompt, contractText);
   const inputRichness = classifyConversationInputRichness(userText);
+  const sourceReferenceRequest = isSourceReferenceRequest(userText);
   const memoryScope = isPrivateMemorySpace(personaId)
     ? personaId
     : placeId && isPrivateMemorySpace(placeId) ? placeId : personaId;
 
   const memoryPromise = getUserMemoryRecords(userId, memoryScope, inputRichness.requiresContextExpansion ? 60 : 40);
-  const episodePromise = inputRichness.requiresContextExpansion
-    ? getVisibleConversationEpisodes(userId, memoryScope).then((items) => items.slice(0, 10))
-    : getVisibleConversationEpisodes(userId, memoryScope).then((items) => items.slice(0, 8));
+  const episodePromise = sourceReferenceRequest
+    ? Promise.resolve([])
+    : inputRichness.requiresContextExpansion
+      ? getVisibleConversationEpisodes(userId, memoryScope, { excludeThreadId: activeThreadId }).then((items) => items.slice(0, 10))
+      : getVisibleConversationEpisodes(userId, memoryScope, { excludeThreadId: activeThreadId }).then((items) => items.slice(0, 8));
 
   const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
     memoryPromise,
@@ -541,7 +547,8 @@ export async function assemblePersonaContext({
   ]);
   const suppressContinuityContext = isPersonaRoleQuestion(userText)
     || isPersonaMetaCritique(userText)
-    || isConversationNavigationRequest(userText);
+    || isConversationNavigationRequest(userText)
+    || sourceReferenceRequest;
   const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
   const activeTopicsForContext = suppressContinuityContext
     ? []
@@ -667,6 +674,14 @@ export async function assemblePersonaContext({
         : "",
     ].filter(Boolean).join("\n")),
     section("CONTEXT PACKET PRIORIZADO", renderConversationContextPacket(contextPacket)),
+    section("PEDIDO SOBRE FONTE OU DOSSIE", sourceReferenceRequest
+      ? [
+        "O usuario esta perguntando sobre documento/fonte carregada.",
+        "Priorize FONTES PERSISTENTES AUTORIZADAS e responda como leitura do material, nao como eco da pergunta atual.",
+        "Nao transforme a propria pergunta do usuario em episodio, memoria ou tema principal.",
+        "Se nenhuma fonte estiver presente para esta persona, diga isso com clareza e nao invente conteudo do dossie.",
+      ].join("\n")
+      : ""),
     section("INICIATIVA CONTEXTUAL GLOBAL", initiativeControl),
     listSection("MEMORIAS RELEVANTES", selectedMemories),
     listSection("EPISODIOS RECENTES RELEVANTES", selectedEpisodes),

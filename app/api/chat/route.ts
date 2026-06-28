@@ -28,6 +28,7 @@ import {
     isConversationNavigationRequest,
     isPersonaMetaCritique,
     isPersonaRoleQuestion,
+    isSourceReferenceRequest,
     normalizeInitiativeText,
     renderPersonaInitiativeRepairFeedback,
 } from '@/app/lib/nemosine/persona-initiative';
@@ -404,7 +405,8 @@ export async function POST(req: NextRequest) {
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
         const shouldRetainConversationContinuity = !isConversationNavigationRequest(userText)
             && !isPersonaMetaCritique(userText)
-            && !isPersonaRoleQuestion(userText);
+            && !isPersonaRoleQuestion(userText)
+            && !isSourceReferenceRequest(userText);
         const persistenceTasks: Promise<unknown>[] = [
             addMessageToThread(userId, activeThreadId, 'user', displayUserText),
         ];
@@ -466,7 +468,7 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        const promptAssembly = await buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, userText);
+        const promptAssembly = await buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, userText, activeThreadId);
         const systemPrompt = promptAssembly.systemPrompt;
         const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(priorHistory);
         const recentAssistantTexts = priorHistory

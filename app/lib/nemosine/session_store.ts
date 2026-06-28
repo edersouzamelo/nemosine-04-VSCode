@@ -7,6 +7,7 @@ import {
     isConversationNavigationRequest,
     isPersonaMetaCritique,
     isPersonaRoleQuestion,
+    isSourceReferenceRequest,
 } from './persona-initiative';
 
 export const prisma = new PrismaClient();
@@ -336,10 +337,19 @@ export const getRelevantUserMemories = async (
     return rankRelevantSnippets(memories, targetPersonaId, userText, limit);
 };
 
-const getVisibleConversationEpisodeCandidates = async (userId: string, targetPersonaId: string): Promise<string[]> => {
+type ConversationEpisodeLookupOptions = {
+    excludeThreadId?: string | null;
+};
+
+const getVisibleConversationEpisodeCandidates = async (
+    userId: string,
+    targetPersonaId: string,
+    options: ConversationEpisodeLookupOptions = {},
+): Promise<string[]> => {
     const threads = await prisma.thread.findMany({
         where: {
-            userId
+            userId,
+            ...(options.excludeThreadId ? { id: { not: options.excludeThreadId } } : {}),
         },
         orderBy: { updatedAt: 'desc' },
         take: 30,
@@ -372,8 +382,12 @@ const getVisibleConversationEpisodeCandidates = async (userId: string, targetPer
         });
 };
 
-export const getVisibleConversationEpisodes = async (userId: string, targetPersonaId: string): Promise<string[]> => {
-    const candidates = await getVisibleConversationEpisodeCandidates(userId, targetPersonaId);
+export const getVisibleConversationEpisodes = async (
+    userId: string,
+    targetPersonaId: string,
+    options: ConversationEpisodeLookupOptions = {},
+): Promise<string[]> => {
+    const candidates = await getVisibleConversationEpisodeCandidates(userId, targetPersonaId, options);
     return candidates.slice(0, 8);
 };
 
@@ -382,8 +396,9 @@ export const getRelevantConversationEpisodes = async (
     targetPersonaId: string,
     userText: string,
     limit = 6,
+    options: ConversationEpisodeLookupOptions = {},
 ): Promise<string[]> => {
-    const candidates = await getVisibleConversationEpisodeCandidates(userId, targetPersonaId);
+    const candidates = await getVisibleConversationEpisodeCandidates(userId, targetPersonaId, options);
     return rankRelevantSnippets(
         candidates.map((content) => ({ content })),
         targetPersonaId,
@@ -422,6 +437,7 @@ export const retainConversationEpisode = async (userId: string, personaId: strin
         isConversationNavigationRequest(normalizedMessage)
         || isPersonaMetaCritique(normalizedMessage)
         || isPersonaRoleQuestion(normalizedMessage)
+        || isSourceReferenceRequest(normalizedMessage)
     ) {
         return;
     }

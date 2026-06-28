@@ -1,6 +1,7 @@
 import { PersonaBehaviorContract } from "@/app/lib/nemosine/persona_behavior_contracts";
 import { getVocationalLens } from "./active-fronts";
 import {
+  isSourceReferenceRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
   normalizeInitiativeText,
@@ -104,6 +105,32 @@ function metaCritiqueFallback(input: {
     `${input.personaId} nao deve soar como terminal de registros. Minha funcao aqui e ${input.contract.operationalMission}; isso exige escolher a frente que tem mais peso humano, risco ou consequencia, e nao apenas o item mais recente ou mais facil de indexar.`,
     `A correcao visivel e esta: se ha um tema sensivel recente, como relacao, familia, saude, crise, risco juridico ou decisao de vida, ele deve entrar na fala como materia viva. Registro operacional so assume o centro quando for realmente a frente dominante.`,
     `Entao eu nao vou prometer ajuste e encerrar. Eu trato a sua critica como dado atual: a persona precisa recuperar voz propria, parar de repetir a formula anterior, desenvolver a leitura e terminar com um gesto que avance o assunto, nao com uma miniatura burocratica.`,
+  ].join("\n\n");
+}
+
+function sourceReferenceFallback(input: {
+  personaId: string;
+  contract: PersonaBehaviorContract;
+  primary?: ActiveFrontSnapshot["selectedFronts"][number];
+}) {
+  if (!input.primary) {
+    return [
+      `Eu nao encontrei um dossie ou fonte carregada que eu possa ler agora para ${input.personaId}.`,
+      `Sem esse material, eu nao vou fingir acesso ao Filosofo original nem inventar o que ele teria ensinado sobre voce.`,
+      `O gesto correto e simples: quando a fonte estiver visivel para esta persona, eu devo extrair dela criterios sobre teu modo de pensar, tensoes recorrentes, forma de criar, riscos de distorcao e exigencias de continuidade.`,
+    ].join("\n\n");
+  }
+
+  const readableSummary = input.primary.summary
+    .replace(/^\[[^\]]+\]\s*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return [
+    `Li o material carregado como uma tentativa de dar continuidade real a ${input.personaId}, nao como uma senha magica para repetir o original.`,
+    `O que ele me entrega sobre voce, em primeira leitura, e isto: ${readableSummary}`,
+    `A consequencia para minha fala e mudar o criterio de resposta: cumprir minha funcao (${input.contract.operationalMission}) com menos recepcao generica, mais reconhecimento do teu modo de organizar sentido, testar ideias, desconfiar de respostas rasas e exigir que cada persona pense com alma propria.`,
+    `A partir daqui, o dossie deve funcionar como lastro: ele nao substitui a conversa viva, mas impede que eu te trate como usuario anonimo ou que confunda uma pergunta atual com uma pauta profunda so porque ela acabou de ser digitada.`,
   ].join("\n\n");
 }
 
@@ -255,6 +282,14 @@ export function buildDeterministicInitiativeFallback(input: {
     return metaCritiqueFallback({
       personaId: input.personaId,
       contract: input.contract,
+    });
+  }
+
+  if (isSourceReferenceRequest(input.userText || "")) {
+    return sourceReferenceFallback({
+      personaId: input.personaId,
+      contract: input.contract,
+      primary,
     });
   }
 

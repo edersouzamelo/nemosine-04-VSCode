@@ -849,3 +849,57 @@ test("conversation navigation corrections suppress continuity context and active
   assert.ok(packet.retrievalExplanation.some((line) => /continuity context suppressed/i.test(line)));
   assert.deepEqual(extractActiveTopicCandidates({ userText, memoryScope: "Cientista" }), []);
 });
+
+test("uploaded source question suppresses self-echo episodes and selects the source", () => {
+  const contract = getPersonaBehaviorContract("Filósofo");
+  const userText = "olá, viu o que o filósofo original do Nemosine em Chat GPT te ensinou sobre mim?";
+  const richness = classifyConversationInputRichness(userText);
+  const packet = buildConversationContextPacket({
+    userText,
+    personaId: "Filósofo",
+    memoryScope: "Filósofo",
+    contract,
+    memories: [
+      memory("self-echo", "EPISODIO COM Filósofo | O usuario escreveu: olá, viu o que o filósofo original do Nemosine em Chat GPT te ensinou sobre mim?", "2026-06-26T11:00:00.000Z", "Filósofo"),
+    ],
+    episodes: [
+      "[Conversa com Filósofo]\nUsuario: olá, viu o que o filósofo original do Nemosine em Chat GPT te ensinou sobre mim?",
+    ],
+    sources: [
+      "[Fonte do persona Filósofo | Dossie_de_Continuidade_Filosofica.docx]\nNEMOSINE NOUS DOSSIÊ DE CONTINUIDADE FILOSÓFICA. O perfil descreve Edwardo como criador que pensa por sistemas simbólicos, exige profundidade, rejeita respostas burocráticas e precisa de personas com alma própria.",
+    ],
+    now,
+  });
+  const frontSources = contextPacketToActiveFrontSources(packet);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId: "Filósofo",
+    userText,
+    richness,
+    contract,
+    sources: frontSources,
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId: "Filósofo",
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const fallback = buildDeterministicInitiativeFallback({
+    personaId: "Filósofo",
+    userText,
+    richness,
+    snapshot,
+    brief,
+    contract,
+  });
+
+  assert.equal(packet.recentPublicEpisodes.length, 0);
+  assert.equal(packet.relevantDurableMemories.length, 0);
+  assert.equal(packet.personaAffinityContext.length, 1);
+  assert.equal(packet.selectedItems[0].type, "PERSONA_AFFINITY_CONTEXT");
+  assert.match(snapshot.selectedFronts[0].summary, /Dossie_de_Continuidade_Filosofica|DOSSI/i);
+  assert.doesNotMatch(fallback, /O sinal|frente autorizada|EPISODIO COM/i);
+  assert.match(fallback, /dossie|fonte carregada|material carregado/i);
+  assert.deepEqual(extractActiveTopicCandidates({ userText, memoryScope: "Filósofo" }), []);
+});

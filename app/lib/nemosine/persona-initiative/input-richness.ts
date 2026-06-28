@@ -93,6 +93,12 @@ const conversationNavigationPatterns = [
   /\b(falava|conversava)\s+com\b/,
 ];
 
+const sourceReferencePatterns = [
+  /\b(fonte|fontes|dossie|dossi[eê]|arquivo|documento|upload|subi|carreguei|anexei|pdf|docx|txt|csv)\b/,
+  /\b(chat gpt|chatgpt|nemosine original|original do nemosine|persona original|filosofo original)\b.*\b(ensinou|dossie|dossi[eê]|perfil|sobre mim|continuidade)\b/,
+  /\b(viu|leu|consultou|considerou)\b.{0,120}\b(ensinou|diz|fala|aponta|mostra|revela)\b.{0,80}\bsobre mim\b/,
+];
+
 export function normalizeInitiativeText(text: string) {
   return text
     .normalize("NFD")
@@ -129,6 +135,11 @@ export function isConversationNavigationRequest(text: string) {
   return matchesAny(conversationNavigationPatterns, normalized);
 }
 
+export function isSourceReferenceRequest(text: string) {
+  const normalized = normalizeInitiativeText(text || "");
+  return matchesAny(sourceReferencePatterns, normalized);
+}
+
 export function classifyConversationInputRichness(text: string): ConversationInputRichness {
   const normalized = normalizeInitiativeText(text || "");
   const terms = contentTerms(normalized);
@@ -157,6 +168,17 @@ export function classifyConversationInputRichness(text: string): ConversationInp
 
   if (isConversationNavigationRequest(normalized)) {
     signals.push("conversation-navigation");
+    return {
+      richness: "high",
+      openingType: "substantive_request",
+      requiresContextExpansion: false,
+      questionBudget: 0,
+      signals,
+    };
+  }
+
+  if (isSourceReferenceRequest(normalized)) {
+    signals.push("source-reference");
     return {
       richness: "high",
       openingType: "substantive_request",

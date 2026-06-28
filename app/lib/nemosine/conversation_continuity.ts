@@ -11,6 +11,7 @@ import {
   isConversationNavigationRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
+  isSourceReferenceRequest,
   normalizeInitiativeText,
 } from "./persona-initiative";
 
@@ -276,6 +277,7 @@ function isLowValueContinuityText(text: string) {
   if (countSignalHits(normalized, substantiveSignals) > 0) return false;
   if (countSignalHits(normalized, unresolvedSignals) > 0) return false;
   if (countSignalHits(normalized, recurrenceSignals) > 0) return false;
+  if (isSourceReferenceRequest(normalized)) return true;
   if (isConversationNavigationRequest(normalized)) return true;
   if (isPersonaMetaCritique(normalized)) return true;
   if (trivialContinuityPatterns.some((pattern) => pattern.test(semantic))) return true;
@@ -372,6 +374,7 @@ export function classifyInvocationMode(userText: string): InvocationMode {
   const greetingWithOptionalPersona = /^(bom dia|boa tarde|boa noite|oi|ola|hello|hi|salve|fala)\b/.test(normalized)
     && uniqueTerms(userText).length <= 3;
 
+  if (isSourceReferenceRequest(userText)) return "DIRECT_REQUEST";
   if (isConversationNavigationRequest(userText)) return "DIRECT_REQUEST";
   if (isPersonaMetaCritique(userText)) return "META_CRITIQUE";
   if (isPersonaRoleQuestion(userText)) return "DIRECT_REQUEST";
@@ -399,7 +402,7 @@ export function extractActiveTopicCandidates(input: {
   const terms = uniqueTerms(raw);
 
   if (!normalized || (richness.richness === "low" && terms.length <= 5)) return [];
-  if (isConversationNavigationRequest(raw) || isPersonaMetaCritique(raw) || isPersonaRoleQuestion(raw)) return [];
+  if (isSourceReferenceRequest(raw) || isConversationNavigationRequest(raw) || isPersonaMetaCritique(raw) || isPersonaRoleQuestion(raw)) return [];
   if (raw.trim().length < 24 && countSignalHits(normalized, substantiveSignals) === 0) return [];
 
   const signalHits = countSignalHits(normalized, substantiveSignals);
@@ -764,9 +767,11 @@ export function buildConversationContextPacket(input: {
 }): ConversationContextPacket {
   const richness = input.inputRichness || classifyConversationInputRichness(input.userText);
   const invocationMode = classifyInvocationMode(input.userText);
+  const sourceReferenceRequest = isSourceReferenceRequest(input.userText);
   const suppressContinuityContext = isPersonaRoleQuestion(input.userText)
     || isPersonaMetaCritique(input.userText)
     || isConversationNavigationRequest(input.userText);
+  const suppressNonSourceContext = suppressContinuityContext || sourceReferenceRequest;
   const suppressCrossPersonaContinuity = invocationMode === "GREETING";
   const activeTopicInputs = suppressCrossPersonaContinuity
     ? (input.activeTopics || []).filter((topic) => canCrossPersonaOnGreeting(
@@ -918,13 +923,13 @@ export function buildConversationContextPacket(input: {
     now: input.now,
   }));
 
-  const durableMemorySelection = suppressContinuityContext ? [] : selectTop(memories, richness.requiresContextExpansion ? 2 : 6);
-  const episodeSelection = suppressContinuityContext ? [] : selectTop(episodes, richness.requiresContextExpansion ? 8 : 5);
-  const activeTopicSelection = suppressContinuityContext ? [] : selectTop(activeTopics, 5);
-  const sourceSelection = suppressContinuityContext ? [] : selectTop(sources, 4);
-  const destinySelection = suppressContinuityContext ? [] : selectTop(destiny, 8);
-  const agendaRegistrySelection = suppressContinuityContext ? [] : selectTop(agendaAndRegistry, 6);
-  const currentThreadSelection = suppressContinuityContext ? [] : selectTop(currentThread, 4);
+  const durableMemorySelection = suppressNonSourceContext ? [] : selectTop(memories, richness.requiresContextExpansion ? 2 : 6);
+  const episodeSelection = suppressNonSourceContext ? [] : selectTop(episodes, richness.requiresContextExpansion ? 8 : 5);
+  const activeTopicSelection = suppressNonSourceContext ? [] : selectTop(activeTopics, 5);
+  const sourceSelection = suppressContinuityContext ? [] : selectTop(sources, sourceReferenceRequest ? 6 : 4);
+  const destinySelection = suppressNonSourceContext ? [] : selectTop(destiny, 8);
+  const agendaRegistrySelection = suppressNonSourceContext ? [] : selectTop(agendaAndRegistry, 6);
+  const currentThreadSelection = suppressNonSourceContext ? [] : selectTop(currentThread, 4);
   const selectedItems = selectTop([
     ...activeTopicSelection,
     ...episodeSelection,
@@ -968,6 +973,9 @@ export function buildConversationContextPacket(input: {
         : "substantive request weighted by lexical relevance, recency, salience and persona affinity",
       suppressContinuityContext
         ? "continuity context suppressed for persona role question or meta-critique"
+        : "",
+      sourceReferenceRequest
+        ? "source reference request: non-source continuity suppressed while persistent sources remain eligible"
         : "",
       ...selectedItems.slice(0, 6).map((item) => `${item.id}: ${renderScore(item)} reason=${item.reason}`),
     ].filter(Boolean),

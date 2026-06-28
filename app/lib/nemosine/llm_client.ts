@@ -61,8 +61,9 @@ export async function buildSystemPrompt(
     language: ResponseLanguage = "pt-BR",
     placeId?: string,
     userText = "",
+    activeThreadId?: string,
 ): Promise<string> {
-    return (await buildSystemPromptAssembly(userId, personaId, language, placeId, userText)).systemPrompt;
+    return (await buildSystemPromptAssembly(userId, personaId, language, placeId, userText, activeThreadId)).systemPrompt;
 }
 
 export async function buildSystemPromptAssembly(
@@ -71,6 +72,7 @@ export async function buildSystemPromptAssembly(
     language: ResponseLanguage = "pt-BR",
     placeId?: string,
     userText = "",
+    activeThreadId?: string,
 ) {
     const assembly = await assemblePersonaContext({
         userId,
@@ -78,6 +80,7 @@ export async function buildSystemPromptAssembly(
         language,
         placeId,
         userText,
+        activeThreadId,
     });
 
     assembly.debug.maxOutputTokens = DEFAULT_CHAT_MAX_OUTPUT_TOKENS;

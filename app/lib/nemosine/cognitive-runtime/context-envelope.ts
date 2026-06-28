@@ -19,6 +19,7 @@ import {
   isConversationNavigationRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
+  isSourceReferenceRequest,
   renderPersonaInitiativeControl,
 } from "@/app/lib/nemosine/persona-initiative";
 import {
@@ -145,10 +146,13 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
   const contract = getPersonaBehaviorContract(request.personaId);
   const contractText = formatPersonaBehaviorContract(contract);
   const inputRichness = classifyConversationInputRichness(request.userText);
+  const sourceReferenceRequest = isSourceReferenceRequest(request.userText);
   const memoryPromise = getUserMemoryRecords(request.userId, request.memoryScope, inputRichness.requiresContextExpansion ? 60 : 40);
-  const episodePromise = inputRichness.requiresContextExpansion
-    ? getVisibleConversationEpisodes(request.userId, request.memoryScope).then((items) => items.slice(0, 10))
-    : getVisibleConversationEpisodes(request.userId, request.memoryScope).then((items) => items.slice(0, 8));
+  const episodePromise = sourceReferenceRequest
+    ? Promise.resolve([])
+    : inputRichness.requiresContextExpansion
+      ? getVisibleConversationEpisodes(request.userId, request.memoryScope, { excludeThreadId: request.threadId }).then((items) => items.slice(0, 10))
+      : getVisibleConversationEpisodes(request.userId, request.memoryScope, { excludeThreadId: request.threadId }).then((items) => items.slice(0, 8));
 
   const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
     memoryPromise.catch(() => []),
@@ -160,7 +164,8 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
   ]);
   const suppressContinuityContext = isPersonaRoleQuestion(request.userText)
     || isPersonaMetaCritique(request.userText)
-    || isConversationNavigationRequest(request.userText);
+    || isConversationNavigationRequest(request.userText)
+    || sourceReferenceRequest;
   const suppressCrossPersonaContinuity = inputRichness.openingType === "greeting";
   const activeTopicsForContext = suppressContinuityContext
     ? []
