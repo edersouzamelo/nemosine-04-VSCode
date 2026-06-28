@@ -44,6 +44,13 @@ import {
     writePromptDebugAudit,
 } from '@/app/lib/nemosine/payload_hygiene';
 import { retainActiveTopicsFromUserMessage } from '@/app/lib/nemosine/conversation_continuity';
+import {
+    commitExtractedMemoryEffects,
+    readResponsePipelineConfig,
+    runResponsePipelineV2,
+    storeResponsePipelineAudit,
+} from '@/app/lib/nemosine/response';
+import type { ResponsePipelineRequest } from '@/app/lib/nemosine/response';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -210,6 +217,24 @@ function getConfiguredPrimaryChatModel() {
         id: "primary",
         model,
         modelInstance: vercelOpenai(model),
+    };
+}
+
+function createResponsePipelineRequest(input: {
+    cognitiveRequest: ReturnType<typeof createCognitiveRequest>;
+}): ResponsePipelineRequest {
+    return {
+        runId: crypto.randomUUID(),
+        userId: input.cognitiveRequest.userId,
+        threadId: input.cognitiveRequest.threadId,
+        personaId: input.cognitiveRequest.personaId,
+        placeId: input.cognitiveRequest.placeId,
+        language: input.cognitiveRequest.language,
+        userText: input.cognitiveRequest.userText,
+        displayUserText: input.cognitiveRequest.displayUserText,
+        memoryScope: input.cognitiveRequest.memoryScope,
+        privateRun: input.cognitiveRequest.privateRun,
+        priorHistory: input.cognitiveRequest.priorHistory || [],
     };
 }
 
@@ -447,6 +472,83 @@ export async function POST(req: NextRequest) {
             priorHistory,
         });
         const runtimeConfig = readCognitiveRuntimeConfig();
+        const responsePipelineConfig = readResponsePipelineConfig();
+        let activeChatModel = getConfiguredPrimaryChatModel();
+
+        if (responsePipelineConfig.mode === "enforce") {
+            const responsePipelineRequest = createResponsePipelineRequest({ cognitiveRequest });
+            try {
+                const responsePipelineResult = await runResponsePipelineV2({
+                    request: responsePipelineRequest,
+                    config: responsePipelineConfig,
+                    model: activeChatModel,
+                });
+                const blockingFailures = responsePipelineResult.validation.criticalFailures
+                    .filter((failure) => failure !== "TOO_SHORT_FOR_DEEP_RESPONSE");
+                if (blockingFailures.length > 0) {
+                    throw new Error(`response_pipeline_v2_blocked:${blockingFailures.join(",")}`);
+                }
+
+                await addMessageToThread(userId, activeThreadId, 'assistant', responsePipelineResult.answer);
+                let sideEffectsCommitted = { memory: 0, registry: 0, destiny: 0 };
+                await commitExtractedMemoryEffects({
+                    request: responsePipelineRequest,
+                    extraction: responsePipelineResult.memoryExtraction,
+                }).then((committed) => {
+                    sideEffectsCommitted = committed;
+                }).catch((error) => {
+                    console.warn("[API/Chat] Response pipeline memory extraction commit skipped.", error);
+                });
+
+                if (shouldRetainConversationContinuity) {
+                    await Promise.all([
+                        retainConversationEpisode(userId, memoryScope, userText),
+                        retainActiveTopicsFromUserMessage({
+                            userId,
+                            threadId: activeThreadId,
+                            personaId,
+                            memoryScope,
+                            userText,
+                        }),
+                    ]).catch((error) => {
+                        console.warn("[API/Chat] Conversation continuity retention skipped after response pipeline.", error);
+                    });
+                }
+
+                await storeResponsePipelineAudit({
+                    request: responsePipelineRequest,
+                    result: responsePipelineResult,
+                    delivered: true,
+                    sideEffectsCommitted,
+                }).catch((error) => {
+                    console.warn("[API/Chat] Response pipeline audit skipped.", error);
+                });
+
+                if (runtimeConfig.mode === "shadow") {
+                    await runCognitiveRuntime(cognitiveRequest, {
+                        config: runtimeConfig,
+                        candidateOverride: responsePipelineResult.answer,
+                    }).catch((error) => {
+                        console.error("[API/Chat] Cognitive runtime shadow audit failed after response pipeline:", error);
+                    });
+                }
+
+                return createPromotedUIMessageStreamResponse({
+                    text: responsePipelineResult.answer,
+                    headers: {
+                        'x-thread-id': activeThreadId,
+                        'x-llm-provider': activeChatModel.id,
+                        'x-llm-model': activeChatModel.model,
+                        'x-response-pipeline-v2': responsePipelineConfig.mode,
+                        'x-response-pipeline-v2-run-id': responsePipelineResult.runId,
+                        'x-response-pipeline-v2-director': String(responsePipelineResult.director.usedDirector),
+                        'x-response-pipeline-v2-depth': responsePipelineResult.director.plan.recommendedDepth,
+                    },
+                });
+            } catch (error) {
+                console.error("[API/Chat] Response pipeline v2 enforce failed; falling back to legacy path.", error);
+            }
+        }
 
         if (runtimeConfig.mode === "enforce") {
             const runtimeResult = await executeCognitiveRuntime(cognitiveRequest);
@@ -501,8 +603,6 @@ export async function POST(req: NextRequest) {
             role: message.role as 'user' | 'assistant' | 'system',
             content: message.content
         }));
-
-        let activeChatModel = getConfiguredPrimaryChatModel();
 
         await writePromptDebugAudit({
             personaId,
@@ -633,6 +733,24 @@ export async function POST(req: NextRequest) {
                 }),
             ]).catch((error) => {
                 console.warn("[API/Chat] Conversation continuity retention skipped after response.", error);
+            });
+        }
+
+        if (responsePipelineConfig.mode === "shadow") {
+            const responsePipelineRequest = createResponsePipelineRequest({ cognitiveRequest });
+            await runResponsePipelineV2({
+                request: responsePipelineRequest,
+                config: responsePipelineConfig,
+                model: activeChatModel,
+            }).then(async (responsePipelineResult) => {
+                await storeResponsePipelineAudit({
+                    request: responsePipelineRequest,
+                    result: responsePipelineResult,
+                    delivered: false,
+                    shadowDeliveredAnswer: finalResponse,
+                });
+            }).catch((error) => {
+                console.error("[API/Chat] Response pipeline v2 shadow audit failed:", error);
             });
         }
 

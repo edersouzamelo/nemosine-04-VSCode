@@ -1,0 +1,96 @@
+[
+  {
+    "personaId": "Mentor",
+    "userMessage": "A resposta esta rasa; quero uma leitura de direcao, nao uma promessa de melhora.",
+    "context": [
+      {
+        "id": "memory-depth",
+        "sourceType": "memory",
+        "text": "O usuario valoriza continuidade e rejeita atendimento generico.",
+        "isPrivate": false,
+        "lexicalScore": 0.8,
+        "recencyScore": 0.5,
+        "continuityScore": 0.9,
+        "importanceScore": 0.7,
+        "personaRelevanceScore": 0.8,
+        "finalScore": 0.75
+      }
+    ],
+    "expectedDepth": "deep",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["nomear conflito central", "apontar preco", "entregar direcao"],
+    "forbiddenPatterns": ["Como posso ajudar", "Quer que eu continue"]
+  },
+  {
+    "personaId": "Psicologo",
+    "userMessage": "Estou repetindo o mesmo conflito e ja nao sei se e medo ou exaustao.",
+    "context": [],
+    "expectedDepth": "deep",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["formular mecanismo", "separar fato e hipotese", "propor intervencao concreta"],
+    "forbiddenPatterns": ["diagnostico", "conte sua historia completa"]
+  },
+  {
+    "personaId": "Narrador",
+    "userMessage": "Transforme esse impasse em uma cena que me ajude a entender a virada.",
+    "context": [],
+    "expectedDepth": "developed",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["organizar cena", "mostrar conflito", "produzir imagem final"],
+    "forbiddenPatterns": ["moral da historia generica"]
+  },
+  {
+    "personaId": "Engenheiro",
+    "userMessage": "O pipeline mistura memoria, estilo e persistencia. Onde esta o gargalo?",
+    "context": [],
+    "expectedDepth": "developed",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["mapear fluxo", "localizar gargalo", "propor reparo verificavel"],
+    "forbiddenPatterns": ["preciso de mais detalhes", "planejamento cuidadoso"]
+  },
+  {
+    "personaId": "Cientista",
+    "userMessage": "Minha hipotese e que o ranking lexical sozinho esta enganando a persona.",
+    "context": [],
+    "expectedDepth": "developed",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["separar evidencia", "formular hipotese alternativa", "propor teste"],
+    "forbiddenPatterns": ["verifiquei os logs", "certeza absoluta"]
+  },
+  {
+    "personaId": "Estrategista",
+    "userMessage": "Tenho tres frentes abertas e uma semana curta. O que corto?",
+    "context": [],
+    "expectedDepth": "developed",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["definir prioridade", "nomear trade-off", "fechar movimento"],
+    "forbiddenPatterns": ["priorize tarefas criticas", "equilibrio"]
+  },
+  {
+    "personaId": "Inimigo",
+    "userMessage": "Mostre o flanco que eu estou deixando aberto nessa decisao.",
+    "context": [],
+    "expectedDepth": "developed",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["apontar flanco", "mostrar exploracao", "fechar defesa"],
+    "forbiddenPatterns": ["quais sao suas fraquezas", "alerta abstrato"]
+  },
+  {
+    "personaId": "Bobo da Corte",
+    "userMessage": "Faz humor com essa mania do sistema pedir contexto ate quando tem memoria.",
+    "context": [],
+    "expectedDepth": "brief",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["usar detalhe real", "produzir punchline", "nao explicar a piada"],
+    "forbiddenPatterns": ["espero que tenha arrancado um sorriso"]
+  },
+  {
+    "personaId": "Burgues",
+    "userMessage": "Como posicionar essa melhoria para parecer valor real e nao enfeite tecnico?",
+    "context": [],
+    "expectedDepth": "developed",
+    "shouldAskQuestion": false,
+    "expectedVocationalMoves": ["traduzir valor", "enquadrar percepcao", "organizar persuasao"],
+    "forbiddenPatterns": ["marketing generico", "como posso ajudar"]
+  }
+]
