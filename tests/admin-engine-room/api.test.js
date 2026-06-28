@@ -7,6 +7,10 @@ const {
   handleCognitiveRunsListRequest,
   handleCognitiveRunDetailRequest,
 } = require("../../app/lib/admin/cognitiveRuns.ts");
+const {
+  getSafeCognitiveRuntimeConfig,
+  handleCognitiveRuntimeConfigRequest,
+} = require("../../app/lib/admin/cognitiveRuntimeConfig.ts");
 
 const adminSession = { user: { email: "edersouzamelo@gmail.com" } };
 const userSession = { user: { email: "not-admin@example.com" } };
@@ -27,15 +31,15 @@ function auditRow(overrides = {}) {
       { code: "PROFILE_SELECTED", at: "2026-06-22T00:00:00.000Z", detail: { selectedProfile: "full" } },
       { code: "SIDE_EFFECTS_BLOCKED", at: "2026-06-22T00:00:03.000Z", detail: { reason: "audit_policy", candidateText: "SECRET CANDIDATE" } },
     ],
-    deliveryStatus: overrides.deliveryStatus || "persisted",
-    sideEffectStatus: overrides.sideEffectStatus || "blocked",
+    deliveryStatus: "deliveryStatus" in overrides ? overrides.deliveryStatus : "persisted",
+    sideEffectStatus: "sideEffectStatus" in overrides ? overrides.sideEffectStatus : "blocked",
     memoryEffectCount: overrides.memoryEffectCount ?? 0,
     registryEffectCount: overrides.registryEffectCount ?? 0,
     destinyEffectCount: overrides.destinyEffectCount ?? 0,
     assistantMessagePersisted: overrides.assistantMessagePersisted ?? true,
     auditPersisted: overrides.auditPersisted ?? true,
-    iterationCount: overrides.iterationCount ?? 1,
-    coherence: overrides.coherence ?? 0.91,
+    iterationCount: "iterationCount" in overrides ? overrides.iterationCount : 1,
+    coherence: "coherence" in overrides ? overrides.coherence : 0.91,
     dimensionScores: overrides.dimensionScores || { factualSupport: 0.9, userSovereignty: 0.88 },
     findingCodes: overrides.findingCodes || ["SIDE_EFFECTS_BLOCKED"],
     promotionDecision: overrides.promotionDecision || "promoted",
@@ -61,6 +65,7 @@ function matchesWhere(row, where = {}) {
       continue;
     }
     if (key === "coherence") {
+      if ("not" in value && value.not === null && row.coherence === null) return false;
       if (typeof value.gte === "number" && row.coherence < value.gte) return false;
       if (typeof value.lte === "number" && row.coherence > value.lte) return false;
       continue;
@@ -105,7 +110,10 @@ function mockPrisma(rows) {
       },
       async aggregate(input = {}) {
         const result = rows.filter((row) => matchesWhere(row, input.where || {}));
-        const avg = (field) => result.length === 0 ? null : result.reduce((sum, row) => sum + row[field], 0) / result.length;
+        const avg = (field) => {
+          const values = result.map((row) => row[field]).filter((value) => typeof value === "number" && Number.isFinite(value));
+          return values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length;
+        };
         return { _avg: { coherence: avg("coherence"), iterationCount: avg("iterationCount") } };
       },
       async groupBy(input = {}) {
@@ -227,4 +235,107 @@ test("detail timeline preserves transition order", async () => {
     "FINAL_ANSWER_SELECTED",
     "DELIVERY_PERSISTED",
   ]);
+});
+
+test("shadow_only legacy observation is not counted as promotion or rejection", async () => {
+  const rows = [
+    auditRow({ id: "promoted", promotionDecision: "promoted" }),
+    auditRow({ id: "rejected", promotionDecision: "rejected" }),
+    auditRow({
+      id: "shadow-legacy",
+      runtimeMode: "shadow",
+      promotionDecision: "shadow_only",
+      deliveryStatus: "shadow_external",
+      iterationCount: 0,
+      coherence: null,
+      dimensionScores: {},
+      findingCodes: [],
+      stateTransitions: [],
+    }),
+  ];
+  const response = await handleCognitiveRunsListRequest(new Request("https://local/api/admin/cognitive-runs"), {
+    session: adminSession,
+    prisma: mockPrisma(rows),
+  });
+  const json = await body(response);
+  assert.equal(response.status, 200);
+  assert.equal(json.summary.shadowOnlyCount, 1);
+  assert.equal(json.summary.governedDecisionDenominator, 2);
+  assert.equal(json.summary.promotionRate, 0.5);
+  assert.equal(json.summary.rejectionRate, 0.5);
+});
+
+test("null coherence and null theta are represented as absence, not zero", async () => {
+  const response = await handleCognitiveRunsListRequest(new Request("https://local/api/admin/cognitive-runs"), {
+    session: adminSession,
+    prisma: mockPrisma([
+      auditRow({
+        id: "shadow-legacy",
+        runtimeMode: "shadow",
+        promotionDecision: "shadow_only",
+        deliveryStatus: "shadow_external",
+        iterationCount: 0,
+        coherence: null,
+        dimensionScores: {},
+        findingCodes: [],
+        stateTransitions: [],
+      }),
+    ]),
+  });
+  const json = await body(response);
+  assert.equal(json.rows[0].coherence, null);
+  assert.equal(json.rows[0].coherenceThreshold, null);
+  assert.equal(json.summary.averageCoherence, null);
+  assert.equal(json.summary.averageCoherenceValidCount, 0);
+});
+
+test("detail does not claim complete Double Vigilance without telemetry", async () => {
+  const response = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
+    session: adminSession,
+    prisma: mockPrisma([
+      auditRow({
+        id: "shadow-legacy",
+        runtimeMode: "shadow",
+        promotionDecision: "shadow_only",
+        deliveryStatus: "shadow_external",
+        iterationCount: 0,
+        coherence: null,
+        dimensionScores: {},
+        findingCodes: [],
+        stateTransitions: [],
+      }),
+    ]),
+    runId: "shadow-legacy",
+  });
+  const json = await body(response);
+  assert.equal(response.status, 200);
+  assert.equal(json.doubleVigilance.telemetryStatus, "insufficient");
+  assert.match(json.doubleVigilance.telemetryMessage, /Sem telemetria suficiente/);
+  assert.match(json.narrative, /rota legada/);
+});
+
+test("safe runtime config endpoint exposes no secret environment values", async () => {
+  const env = {
+    OPENAI_API_KEY: "sk-secret-value",
+    OPENAI_CHAT_MODEL: "gpt-test",
+    NEMOSINE_COGNITIVE_RUNTIME_MODE: "enforce",
+    NEMOSINE_COGNITIVE_EXECUTION_PROFILE: "full",
+    NEMOSINE_COHERENCE_THRESHOLD: "0.77",
+    NEMOSINE_COGNITIVE_MAX_RETRIES: "3",
+    NEMOSINE_DOUBLE_VIGILANCE: "true",
+    NEMOSINE_COGNITIVE_AUDIT: "true",
+    VERCEL_GIT_COMMIT_SHA: "abc123",
+  };
+  const config = getSafeCognitiveRuntimeConfig(env);
+  const serialized = JSON.stringify(config);
+  assert.equal(config.runtimeMode, "enforce");
+  assert.equal(config.generationModel, "gpt-test");
+  assert.equal(config.coherenceThreshold, 0.77);
+  assert.equal(serialized.includes("sk-secret-value"), false);
+  assert.equal(serialized.includes("OPENAI_API_KEY"), false);
+
+  const denied = await handleCognitiveRuntimeConfigRequest({ session: userSession, env });
+  assert.equal(denied.status, 403);
+  const allowed = await handleCognitiveRuntimeConfigRequest({ session: adminSession, env });
+  assert.equal(allowed.status, 200);
 });

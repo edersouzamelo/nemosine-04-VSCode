@@ -1,4 +1,10 @@
 import { isAdminEmail } from "@/app/lib/accessControl";
+import {
+  buildRunNarrative,
+  doubleVigilanceMessage,
+  insufficientDoubleVigilanceTelemetry,
+  isLegacyShadowObservation,
+} from "@/app/lib/admin/cognitiveRunsUi";
 
 type AdminSession = {
   user?: {
@@ -319,6 +325,31 @@ function totalLatencyMs(row: any) {
   return total || null;
 }
 
+function latencyBreakdown(row: any) {
+  const totalMs = totalLatencyMs(row);
+  const stageLatencyMs = asObject(row.latencyPerStageMs);
+  const sanitizedStageLatencyMs = Object.fromEntries(
+    Object.entries(stageLatencyMs)
+      .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
+      .map(([key, value]) => [key.slice(0, 120), value as number]),
+  );
+  const stageTotal = Object.values(sanitizedStageLatencyMs).reduce((sum, value) => sum + value, 0);
+  const legacyShadow = isLegacyShadowObservation({
+    runtimeMode: row.runtimeMode,
+    promotionDecision: row.promotionDecision,
+    deliveryStatus: row.deliveryStatus,
+    iterationCount: row.iterationCount,
+    coherence: safeNumber(row.coherence) ?? null,
+  });
+
+  return {
+    totalMs,
+    runtimeMs: legacyShadow ? null : (stageTotal || totalMs),
+    legacyRouteMs: legacyShadow ? totalMs : null,
+    stageLatencyMs: sanitizedStageLatencyMs,
+  };
+}
+
 function retryRequested(row: any) {
   return sanitizeTransitions(row.stateTransitions).some((transition: any) => transition.to === "OCV_RETRY_REQUESTED");
 }
@@ -346,14 +377,41 @@ function average(values: number[]) {
 function summarizeRowsForJsonMetrics(rows: any[]) {
   const coherenceValues = rows.map((row) => safeNumber(row.coherence)).filter((value): value is number => typeof value === "number");
   const latencyValues = rows.map(totalLatencyMs).filter((value): value is number => typeof value === "number");
+  const cognitiveRows = rows.filter((row) => Number(row.iterationCount || 0) > 0 && row.promotionDecision !== "shadow_only");
+  const iterationValues = cognitiveRows
+    .map((row) => safeNumber(row.iterationCount))
+    .filter((value): value is number => typeof value === "number");
   const retryCount = rows.filter(retryRequested).length;
   const auditPersistenceFailureCount = rows.filter((row) =>
     sanitizeAuditEvents(row.auditEvents).some((event: any) => event.code === "AUDIT_PERSISTENCE_FAILURE"),
   ).length;
+  const stageLatencyBuckets = new Map<string, number[]>();
+  let runtimeLatencyValues: number[] = [];
+  let legacyRouteLatencyValues: number[] = [];
+
+  for (const row of rows) {
+    const breakdown = latencyBreakdown(row);
+    if (typeof breakdown.runtimeMs === "number") runtimeLatencyValues.push(breakdown.runtimeMs);
+    if (typeof breakdown.legacyRouteMs === "number") legacyRouteLatencyValues.push(breakdown.legacyRouteMs);
+    for (const [stage, value] of Object.entries(breakdown.stageLatencyMs)) {
+      if (!stageLatencyBuckets.has(stage)) stageLatencyBuckets.set(stage, []);
+      stageLatencyBuckets.get(stage)?.push(value);
+    }
+  }
 
   return {
+    averageCoherence: average(coherenceValues),
+    coherenceValidCount: coherenceValues.length,
     medianCoherence: median(coherenceValues),
+    averageIterations: average(iterationValues),
+    cognitiveExecutionCount: cognitiveRows.length,
     averageLatencyMs: average(latencyValues),
+    latency: {
+      averageTotalMs: average(latencyValues),
+      averageRuntimeMs: average(runtimeLatencyValues),
+      averageLegacyRouteMs: average(legacyRouteLatencyValues),
+      stageAveragesMs: Object.fromEntries([...stageLatencyBuckets.entries()].map(([stage, values]) => [stage, average(values)])),
+    },
     retryCount,
     auditPersistenceFailureCount,
     aggregationLimit: rows.length,
@@ -361,6 +419,7 @@ function summarizeRowsForJsonMetrics(rows: any[]) {
 }
 
 function safeRow(row: any) {
+  const latency = latencyBreakdown(row);
   return {
     runId: row.id,
     createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
@@ -378,7 +437,8 @@ function safeRow(row: any) {
     privateRun: Boolean(row.privateRun),
     metadataOnly: Boolean(row.metadataOnly),
     finalStatus: row.finalStatus,
-    latencyMs: totalLatencyMs(row),
+    latencyMs: latency.totalMs,
+    latency,
     retryRequested: retryRequested(row),
     findingCodes: sanitizeFindingCodes(row.findingCodes).slice(0, 12),
     assistantMessagePersisted: Boolean(row.assistantMessagePersisted),
@@ -392,7 +452,7 @@ function safeRow(row: any) {
 function buildSummary(input: {
   total: number;
   averageCoherence: number | null;
-  averageIterations: number | null;
+  averageCoherenceValidCount: number;
   promotionDistribution: Record<string, number>;
   runtimeModeDistribution: Record<string, number>;
   executionProfileDistribution: Record<string, number>;
@@ -405,19 +465,27 @@ function buildSummary(input: {
   const promoted = input.promotionDistribution.promoted || 0;
   const rejected = input.promotionDistribution.rejected || 0;
   const failedSafe = input.promotionDistribution.failed_safe || 0;
+  const shadowOnly = input.promotionDistribution.shadow_only || 0;
+  const governedDecisionDenominator = Math.max(0, total - shadowOnly);
+  const cognitiveExecutionCount = input.jsonMetrics.cognitiveExecutionCount;
   const retryCount = input.jsonMetrics.retryCount;
 
   return {
     hasData: total > 0,
     totalRuns: total,
-    promotionRate: total > 0 ? promoted / total : null,
-    rejectionRate: total > 0 ? rejected / total : null,
-    failedSafeRate: total > 0 ? failedSafe / total : null,
+    governedDecisionDenominator,
+    shadowOnlyCount: shadowOnly,
+    promotionRate: governedDecisionDenominator > 0 ? promoted / governedDecisionDenominator : null,
+    rejectionRate: governedDecisionDenominator > 0 ? rejected / governedDecisionDenominator : null,
+    failedSafeRate: governedDecisionDenominator > 0 ? failedSafe / governedDecisionDenominator : null,
     averageCoherence: input.averageCoherence,
+    averageCoherenceValidCount: input.averageCoherenceValidCount,
     medianCoherence: input.jsonMetrics.medianCoherence,
-    averageIterations: input.averageIterations,
-    retryRate: total > 0 ? retryCount / total : null,
+    averageIterations: input.jsonMetrics.averageIterations,
+    cognitiveExecutionCount,
+    retryRate: cognitiveExecutionCount > 0 ? retryCount / cognitiveExecutionCount : null,
     averageLatencyMs: input.jsonMetrics.averageLatencyMs,
+    latency: input.jsonMetrics.latency,
     executionProfileDistribution: input.executionProfileDistribution,
     runtimeModeDistribution: input.runtimeModeDistribution,
     deliveryPersistenceFailureCount: input.deliveryDistribution.failed || 0,
@@ -427,7 +495,65 @@ function buildSummary(input: {
     privateRunCount: input.privateRunCount,
     aggregation: {
       jsonSampleLimit: input.jsonMetrics.aggregationLimit,
-      note: "Median coherence, retry rate, audit persistence failure count and latency are computed from a bounded V1 JSON-safe sample.",
+      note: "Metricas derivadas de JSON, retries, auditoria e latencias por etapa usam uma amostra limitada de ate 5000 registros V1.",
+    },
+    provenance: {
+      totalRuns: {
+        field: "cognitive_run_audits.id",
+        calculation: "count(*) apos filtros",
+        denominator: "registros filtrados",
+        validRecords: total,
+        limitations: [],
+      },
+      promotionRate: {
+        field: "promotion_decision",
+        calculation: "count(promoted) / (total - count(shadow_only))",
+        denominator: governedDecisionDenominator,
+        validRecords: promoted,
+        limitations: ["shadow_only e observacao, nao promocao governada"],
+      },
+      rejectionRate: {
+        field: "promotion_decision",
+        calculation: "count(rejected) / (total - count(shadow_only))",
+        denominator: governedDecisionDenominator,
+        validRecords: rejected,
+        limitations: ["shadow_only nao conta como rejeicao"],
+      },
+      averageCoherence: {
+        field: "coherence",
+        calculation: "avg(coherence) ignorando null",
+        denominator: input.averageCoherenceValidCount,
+        validRecords: input.averageCoherenceValidCount,
+        limitations: ["C(m) null significa nao calculado ou nao armazenado, nao zero"],
+      },
+      averageIterations: {
+        field: "iteration_count",
+        calculation: "avg(iteration_count) em execucoes com iteration_count > 0 e promotion_decision != shadow_only",
+        denominator: cognitiveExecutionCount,
+        validRecords: cognitiveExecutionCount,
+        limitations: ["calculado a partir da amostra JSON-safe V1"],
+      },
+      retryRate: {
+        field: "state_transitions",
+        calculation: "count(transicao OCV_RETRY_REQUESTED) / execucoes cognitivas reais",
+        denominator: cognitiveExecutionCount,
+        validRecords: retryCount,
+        limitations: ["depende da preservacao de stateTransitions"],
+      },
+      failedSafeRate: {
+        field: "promotion_decision",
+        calculation: "count(failed_safe) / (total - count(shadow_only))",
+        denominator: governedDecisionDenominator,
+        validRecords: failedSafe,
+        limitations: [],
+      },
+      latency: {
+        field: "created_at, completed_at, latency_per_stage_ms",
+        calculation: "completed_at - created_at; etapas quando latency_per_stage_ms existe",
+        denominator: input.jsonMetrics.aggregationLimit,
+        validRecords: input.jsonMetrics.aggregationLimit,
+        limitations: ["latencia de rota legada so e distinguida quando o padrao shadow legado e detectado"],
+      },
     },
   };
 }
@@ -484,7 +610,7 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
     finalStatus: true,
   };
 
-  const [total, rows, aggregate, promotionGroups, runtimeGroups, profileGroups, deliveryGroups, sideEffectGroups, privateRunCount, jsonMetricRows] = await Promise.all([
+  const [total, rows, aggregate, coherenceValidCount, promotionGroups, runtimeGroups, profileGroups, deliveryGroups, sideEffectGroups, privateRunCount, jsonMetricRows] = await Promise.all([
     prisma.cognitiveRunAudit.count({ where }),
     prisma.cognitiveRunAudit.findMany({
       where,
@@ -496,6 +622,7 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
     prisma.cognitiveRunAudit.aggregate
       ? prisma.cognitiveRunAudit.aggregate({ where, _avg: { coherence: true, iterationCount: true } })
       : Promise.resolve({ _avg: { coherence: null, iterationCount: null } }),
+    prisma.cognitiveRunAudit.count({ where: { ...where, coherence: { not: null } } }),
     groupDistribution(prisma, where, "promotionDecision"),
     groupDistribution(prisma, where, "runtimeMode"),
     groupDistribution(prisma, where, "executionProfile"),
@@ -508,6 +635,10 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
       take: 5000,
       select: {
         coherence: true,
+        iterationCount: true,
+        promotionDecision: true,
+        runtimeMode: true,
+        deliveryStatus: true,
         createdAt: true,
         completedAt: true,
         stateTransitions: true,
@@ -520,7 +651,7 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
   const summary = buildSummary({
     total,
     averageCoherence: aggregate?._avg?.coherence ?? null,
-    averageIterations: aggregate?._avg?.iterationCount ?? null,
+    averageCoherenceValidCount: coherenceValidCount,
     promotionDistribution: promotionGroups,
     runtimeModeDistribution: runtimeGroups,
     executionProfileDistribution: profileGroups,
@@ -645,8 +776,17 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
     .filter((model) => typeof model === "string")
     .map((model) => model.slice(0, 120));
   const dimensions = dimensionsFromScores(row.dimensionScores);
+  const latency = latencyBreakdown(row);
+  const iterations = deriveIterations(row);
+  const doubleVigilanceTelemetry = doubleVigilanceMessage({
+    iterationCount: row.iterationCount,
+    dimensionCount: dimensions.length,
+    scientistFindingCodes,
+    philosopherFindingCodes,
+    modelIdentifiers,
+  });
 
-  return {
+  const detail = {
     identity: {
       runId: row.id,
       createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
@@ -660,31 +800,34 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
       metadataOnly: Boolean(row.metadataOnly),
       finalStatus: row.finalStatus,
       promotionDecision: row.promotionDecision,
+      deliveryStatus: row.deliveryStatus || "not_attempted",
       failureReason: row.failureReason || null,
     },
     timeline: sanitizeTransitions(row.stateTransitions),
-    iterations: deriveIterations(row),
+    iterations,
     vigia: {
       finalCoherence: safeNumber(row.coherence) ?? null,
       threshold: null,
       dimensions,
       weights: {},
       hardFailures: findingCodes.filter((code) => /HARD|VIOLATION|PRIVACY|VOCATION/i.test(code)),
-      formula: "C(m) is the runtime promotion-coherence index stored in the redacted audit. Historic V1 rows do not retain threshold or weight JSON.",
+      formula: "C(m) e o indice operacional de coerencia armazenado na auditoria redigida. O schema V1 nao retém theta nem pesos por execucao.",
       profile: row.executionProfile,
     },
     doubleVigilance: {
+      telemetryStatus: doubleVigilanceTelemetry === insufficientDoubleVigilanceTelemetry ? "insufficient" : "partial",
+      telemetryMessage: doubleVigilanceTelemetry,
       scientist: {
-        roleLabel: "functional evaluation role",
-        approved: scientistFindingCodes.length === 0,
+        roleLabel: "Cientista - logica, fatos, contradicoes e incerteza honesta",
+        approved: null,
         findingCodes: scientistFindingCodes,
         severity: scientistFindingCodes.length > 0 ? "finding-recorded" : "none-recorded",
         dimensionScores: dimensions.filter((dimension) => /factual|logical|uncertainty|access|biographical|relevance|consistency/i.test(dimension.name)),
         externalVerificationAvailable: null,
       },
       philosopher: {
-        roleLabel: "validation axis",
-        approved: philosopherFindingCodes.length === 0,
+        roleLabel: "Filosofo - etica, epistemologia e conformidade constitucional",
+        approved: null,
         findingCodes: philosopherFindingCodes,
         severity: philosopherFindingCodes.length > 0 ? "finding-recorded" : "none-recorded",
         userSovereigntyStatus: findingCodes.some((code) => /SOVEREIGNTY/i.test(code)) ? "finding-recorded" : "no-finding-recorded",
@@ -692,6 +835,7 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
         dependencyManipulationStatus: findingCodes.some((code) => /DEPENDENCY|MANIPULATION/i.test(code)) ? "finding-recorded" : "no-finding-recorded",
       },
     },
+    latency,
     persistence: {
       deliveryStatus: row.deliveryStatus || "not_attempted",
       assistantMessagePersisted: Boolean(row.assistantMessagePersisted),
@@ -713,6 +857,22 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
       privateNotice: row.privateRun ? "Execucao privada: somente metadados tecnicos sao exibidos." : null,
     },
     auditEvents,
+    findingCodes,
+    provenance: {
+      redaction: "Somente metadados, hashes, comprimentos, estados e codigos seguros sao retornados.",
+      missingSchemaFields: [
+        "coherence_threshold por execucao",
+        "coherence_weights por execucao",
+        "temperatura por chamada",
+        "avaliacoes completas por iteracao",
+        "aprovacao explicita por eixo da Double Vigilance",
+      ],
+    },
+  };
+
+  return {
+    ...detail,
+    narrative: buildRunNarrative(detail),
   };
 }
 
