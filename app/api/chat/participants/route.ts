@@ -3,8 +3,10 @@ import { auth } from "@/auth";
 import { ENTITIES } from "@/app/data/entities";
 import {
   createCollectiveThreadWithHost,
+  getCollectiveSchemaStatus,
   getParticipantSnapshot,
   invitePersona,
+  isMissingCollectiveSchemaError,
   isMultiPersonaEnabled,
   removePersona,
 } from "@/app/lib/nemosine/conversation_participants";
@@ -44,14 +46,47 @@ export async function GET(request: NextRequest) {
     if (!enabled) {
       return NextResponse.json({ enabled: false, participants: [], guestCount: 0 });
     }
-
     if (threadId) {
+      const schemaStatus = await getCollectiveSchemaStatus();
+      if (!schemaStatus.ready) {
+        return NextResponse.json({
+          enabled: false,
+          migrationRequired: true,
+          missing: schemaStatus.missing,
+          participants: [],
+          guestCount: 0,
+          message: "A arquitetura multi-persona esta no codigo, mas a migracao do banco ainda nao foi aplicada.",
+        });
+      }
       const snapshot = await getParticipantSnapshot(userId, threadId);
       return NextResponse.json({ enabled: true, ...snapshot });
     }
 
     if (!isValidPersona(hostPersonaId) || !isValidPlace(placeId)) {
       return NextResponse.json({ error: "Invalid host or place" }, { status: 400 });
+    }
+    const schemaStatus = await getCollectiveSchemaStatus();
+    if (!schemaStatus.ready) {
+      return NextResponse.json({
+        enabled: false,
+        migrationRequired: true,
+        missing: schemaStatus.missing,
+        threadId: null,
+        hostPersonaId,
+        placeId: placeId || null,
+        mode: "SINGLE",
+        guestCount: 0,
+        participants: hostPersonaId ? [{
+          id: "pending-host",
+          threadId: null,
+          personaId: hostPersonaId,
+          role: "HOST",
+          active: true,
+          joinedAt: new Date().toISOString(),
+          leftAt: null,
+        }] : [],
+        message: "A arquitetura multi-persona esta no codigo, mas a migracao do banco ainda nao foi aplicada.",
+      });
     }
 
     return NextResponse.json({
@@ -84,6 +119,14 @@ export async function POST(request: NextRequest) {
     if (!isMultiPersonaEnabled()) {
       return NextResponse.json({ error: "Multi-persona disabled" }, { status: 403 });
     }
+    const schemaStatus = await getCollectiveSchemaStatus();
+    if (!schemaStatus.ready) {
+      return NextResponse.json({
+        error: "MIGRATION_REQUIRED",
+        message: "A migracao multi-persona ainda nao foi aplicada no banco.",
+        missing: schemaStatus.missing,
+      }, { status: 409 });
+    }
 
     const { action, threadId, personaId, hostPersonaId, placeId } = await request.json();
     if ((action !== "invite" && action !== "remove") || !isValidPersona(personaId)) {
@@ -115,6 +158,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ enabled: true, ...snapshot });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal Server Error";
+    if (isMissingCollectiveSchemaError(error)) {
+      return NextResponse.json({
+        error: "MIGRATION_REQUIRED",
+        message: "A migracao multi-persona ainda nao foi aplicada no banco.",
+      }, { status: 409 });
+    }
     const status = [
       "INVALID_PERSONA",
       "HOST_ALREADY_PRESENT",

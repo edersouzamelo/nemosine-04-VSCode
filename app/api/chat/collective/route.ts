@@ -5,6 +5,7 @@ import { ENTITIES } from "@/app/data/entities";
 import { createCollectiveChatStream } from "@/app/lib/nemosine/collective_chat_orchestrator";
 import {
   createCollectiveThreadWithHost,
+  getCollectiveSchemaStatus,
   getThreadHostAndPlace,
   isMultiPersonaEnabled,
 } from "@/app/lib/nemosine/conversation_participants";
@@ -94,6 +95,14 @@ export async function POST(req: NextRequest) {
     if (!userId) return unauthorizedResponse();
     if (!isMultiPersonaEnabled()) {
       return NextResponse.json({ error: "Multi-persona disabled" }, { status: 403 });
+    }
+    const schemaStatus = await getCollectiveSchemaStatus();
+    if (!schemaStatus.ready) {
+      return NextResponse.json({
+        error: "MIGRATION_REQUIRED",
+        message: "A migracao multi-persona ainda nao foi aplicada no banco.",
+        missing: schemaStatus.missing,
+      }, { status: 409 });
     }
 
     const body = await req.json();

@@ -232,6 +232,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [voiceTranscript, setVoiceTranscript] = useState("");
     const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
     const [multiPersonaEnabled, setMultiPersonaEnabled] = useState(false);
+    const [collectiveMigrationRequired, setCollectiveMigrationRequired] = useState(false);
     const [participants, setParticipants] = useState<PersonaPresence[]>([]);
     const [participantGuestCount, setParticipantGuestCount] = useState(0);
     const [collectiveStatus, setCollectiveStatus] = useState<"idle" | "submitted" | "streaming">("idle");
@@ -304,12 +305,14 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             }
             const res = await fetch(`/api/chat/participants?${params.toString()}`);
             const data = await res.json();
-            setMultiPersonaEnabled(Boolean(data.enabled));
+            setCollectiveMigrationRequired(Boolean(data.migrationRequired));
+            setMultiPersonaEnabled(Boolean(data.enabled || data.migrationRequired));
             setParticipants(Array.isArray(data.participants) ? data.participants : []);
             setParticipantGuestCount(Number(data.guestCount || 0));
         } catch (fetchError) {
             console.error("Failed to load participants", fetchError);
             setMultiPersonaEnabled(false);
+            setCollectiveMigrationRequired(false);
             setParticipants([]);
             setParticipantGuestCount(0);
         }
@@ -334,13 +337,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         });
         const data = await res.json();
         if (!res.ok) {
-            setCollectiveError(data.error || "Nao foi possivel atualizar participantes.");
+            setCollectiveMigrationRequired(data.error === "MIGRATION_REQUIRED" || Boolean(data.migrationRequired));
+            setCollectiveError(data.message || data.error || "Nao foi possivel atualizar participantes.");
             return;
         }
         if (data.threadId && data.threadId !== currentThreadIdRef.current) {
             onThreadCreated(data.threadId);
         }
-        setMultiPersonaEnabled(Boolean(data.enabled));
+        setCollectiveMigrationRequired(Boolean(data.migrationRequired));
+        setMultiPersonaEnabled(Boolean(data.enabled || data.migrationRequired));
         setParticipants(Array.isArray(data.participants) ? data.participants : []);
         setParticipantGuestCount(Number(data.guestCount || 0));
     }, [onThreadCreated, personaId, placeId]);
@@ -795,7 +800,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         hostPersonaId={personaId}
                                         presentPersonaIds={participants.filter((participant) => participant.active).map((participant) => participant.personaId)}
                                         guestCount={participantGuestCount}
-                                        disabled={isLoading}
+                                        disabled={isLoading || collectiveMigrationRequired}
                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                     />
                                 )}
@@ -809,9 +814,14 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             {multiPersonaEnabled && participants.length > 0 && (
                 <PersonaPresenceStrip
                     participants={participants}
-                    disabled={isLoading}
+                    disabled={isLoading || collectiveMigrationRequired}
                     onRemove={(targetPersonaId) => mutateParticipant("remove", targetPersonaId)}
                 />
+            )}
+            {collectiveMigrationRequired && (
+                <div className="border-b border-amber-500/25 bg-amber-950/35 px-3 py-2 text-xs text-amber-100">
+                    Migração multi-persona pendente no banco. O convite está desativado até aplicar o SQL aditivo.
+                </div>
             )}
 
             {/* Messages Area - SCROLLABLE CONTAINER */}

@@ -45,6 +45,83 @@ export function isMultiPersonaEnabled() {
   return process.env.MULTI_PERSONA_ENABLED === "true";
 }
 
+export type CollectiveSchemaStatus = {
+  ready: boolean;
+  missing: string[];
+};
+
+export async function getCollectiveSchemaStatus(): Promise<CollectiveSchemaStatus> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{
+      thread_place_id: boolean;
+      thread_mode: boolean;
+      message_speaker_persona_id: boolean;
+      message_turn_group_id: boolean;
+      presence_table: boolean;
+      episode_table: boolean;
+      audit_table: boolean;
+    }>>`
+      SELECT
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'Thread' AND column_name = 'placeId'
+        ) AS thread_place_id,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'Thread' AND column_name = 'mode'
+        ) AS thread_mode,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'Message' AND column_name = 'speakerPersonaId'
+        ) AS message_speaker_persona_id,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'Message' AND column_name = 'turnGroupId'
+        ) AS message_turn_group_id,
+        EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'ThreadPersonaPresence'
+        ) AS presence_table,
+        EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'PersonaConversationEpisode'
+        ) AS episode_table,
+        EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'CollectiveGenerationAudit'
+        ) AS audit_table
+    `;
+    const row = rows[0];
+    const checks: Record<string, boolean> = {
+      "Thread.placeId": Boolean(row?.thread_place_id),
+      "Thread.mode": Boolean(row?.thread_mode),
+      "Message.speakerPersonaId": Boolean(row?.message_speaker_persona_id),
+      "Message.turnGroupId": Boolean(row?.message_turn_group_id),
+      "ThreadPersonaPresence": Boolean(row?.presence_table),
+      "PersonaConversationEpisode": Boolean(row?.episode_table),
+      "CollectiveGenerationAudit": Boolean(row?.audit_table),
+    };
+    const missing = Object.entries(checks)
+      .filter(([, present]) => !present)
+      .map(([name]) => name);
+    return { ready: missing.length === 0, missing };
+  } catch (error) {
+    console.warn("[CollectiveParticipants] Schema preflight failed.", {
+      errorCode: error instanceof Error ? error.name : "unknown",
+    });
+    return { ready: false, missing: ["schema_preflight_failed"] };
+  }
+}
+
+export function isMissingCollectiveSchemaError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return message.includes("does not exist in the current database")
+    || message.includes("column")
+    || message.includes("table")
+    || message.includes("P2021")
+    || message.includes("P2022");
+}
+
 function getPersonaEntity(personaId: string) {
   return Object.values(ENTITIES).find((entity) => entity.name === personaId && entity.type === "persona") || null;
 }
