@@ -38,7 +38,9 @@ export async function POST(request: NextRequest) {
 
     await ensureSharedChatsTable();
     const token = crypto.randomUUID().replace(/-/g, "");
-    const messagesJson = JSON.stringify(thread.messages.filter((message) => message.role !== "system"));
+    const messagesJson = JSON.stringify(thread.messages.filter((message) => (
+      message.role !== "system" || message.messageKind === "SYSTEM_EVENT"
+    )));
 
     await prisma.$executeRaw`
       INSERT INTO shared_chats (token, user_id, thread_id, title, persona_id, messages_json)

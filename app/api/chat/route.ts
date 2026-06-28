@@ -256,6 +256,19 @@ function displayConversationScope(scope: string) {
     return placeName ? `${personaName} em ${placeName}` : personaName;
 }
 
+function threadMatchesRequest(
+    thread: { personaId: string; placeId?: string | null },
+    personaId: string,
+    placeId: string | undefined,
+    legacyConversationScope: string,
+) {
+    if (thread.personaId === legacyConversationScope) return true;
+    const legacyThreadScope = splitConversationScope(thread.personaId);
+    const threadHost = legacyThreadScope.personaName;
+    const threadPlace = thread.placeId || legacyThreadScope.placeName || undefined;
+    return threadHost === personaId && (threadPlace || undefined) === (placeId || undefined);
+}
+
 function compactNavigationText(text: string, maxLength = 260) {
     const cleaned = stripLegacyActionTags(text)
         .replace(/\s+/g, " ")
@@ -516,7 +529,7 @@ export async function POST(req: NextRequest) {
             if (!thread) {
                 return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
             }
-            if (thread.personaId !== conversationScope) {
+            if (!threadMatchesRequest(thread, personaId, normalizedPlaceId, conversationScope)) {
                 return NextResponse.json({ error: 'Thread does not belong to this persona' }, { status: 403 });
             }
             activeThreadId = thread.id;

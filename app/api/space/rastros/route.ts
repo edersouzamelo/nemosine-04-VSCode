@@ -83,6 +83,7 @@ export async function GET() {
               id: true,
               role: true,
               content: true,
+              speakerPersonaId: true,
               timestamp: true,
             },
           },
@@ -124,8 +125,12 @@ export async function GET() {
 
       const chronological = [...thread.messages].reverse();
       const summary = chronological
-        .map((message) => `${message.role === "user" ? "Usuário" : "Nemosine"}: ${compactText(message.content, 220)}`)
+        .map((message) => {
+          const speaker = message.role === "user" ? "Usuário" : (message.speakerPersonaId || thread.personaId.split(/\s+@\s+/)[0]);
+          return `${speaker}: ${compactText(message.content, 220)}`;
+        })
         .join("\n");
+      const hostPersonaId = thread.personaId.split(/\s+@\s+/)[0];
 
       traces.push({
         id: traceId,
@@ -133,7 +138,7 @@ export async function GET() {
         title: thread.title || `Conversa com ${thread.personaId}`,
         summary: compactText(summary, 860),
         occurredAt: thread.updatedAt.toISOString(),
-        sourceHref: `/agents/${getEntitySlug(thread.personaId)}?threadId=${encodeURIComponent(thread.id)}`,
+        sourceHref: `/agents/${getEntitySlug(hostPersonaId)}?threadId=${encodeURIComponent(thread.id)}`,
       });
     }
 

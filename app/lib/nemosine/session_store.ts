@@ -1,5 +1,6 @@
 import { SessionState, ChatThread } from './types';
 import { PrismaClient } from '@prisma/client';
+import { createHash } from 'crypto';
 import { isPrivateMemorySpace, PRIVATE_MEMORY_SPACES } from './privacy';
 import { getPersonaLexicalHints } from './persona_behavior_contracts';
 import {
@@ -17,8 +18,83 @@ const chatMessageSelect = {
     threadId: true,
     role: true,
     content: true,
-    timestamp: true
+    timestamp: true,
+    speakerPersonaId: true,
+    turnGroupId: true,
+    messageKind: true,
+    generationStatus: true
 } as const;
+
+const chatParticipantSelect = {
+    id: true,
+    personaId: true,
+    role: true,
+    joinedAt: true,
+    leftAt: true,
+    active: true,
+} as const;
+
+type SelectedMessage = {
+    id: string;
+    role: string;
+    content: string;
+    timestamp: Date;
+    speakerPersonaId?: string | null;
+    turnGroupId?: string | null;
+    messageKind?: string | null;
+    generationStatus?: string | null;
+};
+
+type SelectedParticipant = {
+    id: string;
+    personaId: string;
+    role: string;
+    joinedAt: Date;
+    leftAt?: Date | null;
+    active: boolean;
+};
+
+const mapChatMessage = (m: SelectedMessage) => ({
+    id: m.id,
+    role: m.role as 'user' | 'assistant' | 'system',
+    content: m.content,
+    timestamp: m.timestamp.getTime(),
+    speakerPersonaId: m.speakerPersonaId ?? null,
+    turnGroupId: m.turnGroupId ?? null,
+    messageKind: (m.messageKind ?? null) as 'USER' | 'PERSONA' | 'SYSTEM_EVENT' | null,
+    generationStatus: (m.generationStatus ?? null) as 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | null,
+});
+
+const mapChatParticipant = (participant: SelectedParticipant) => ({
+    id: participant.id,
+    personaId: participant.personaId,
+    role: participant.role as 'HOST' | 'GUEST',
+    joinedAt: participant.joinedAt.getTime(),
+    leftAt: participant.leftAt?.getTime() ?? null,
+    active: participant.active,
+});
+
+const mapChatThread = (thread: {
+    id: string;
+    personaId: string;
+    placeId?: string | null;
+    mode?: string;
+    title: string;
+    messages: SelectedMessage[];
+    participants?: SelectedParticipant[];
+    createdAt: Date;
+    updatedAt: Date;
+}): ChatThread => ({
+    id: thread.id,
+    personaId: thread.personaId,
+    placeId: thread.placeId ?? null,
+    mode: (thread.mode || 'SINGLE') as 'SINGLE' | 'COLLECTIVE',
+    title: thread.title,
+    messages: thread.messages.map(mapChatMessage),
+    participants: thread.participants?.map(mapChatParticipant) || [],
+    createdAt: thread.createdAt.getTime(),
+    updatedAt: thread.updatedAt.getTime()
+});
 
 // Use a global variable to persist state across hot reloads in development
 const globalForNemosine = globalThis as unknown as { nemosineSession: SessionState };
@@ -42,80 +118,70 @@ export const getSession = (): SessionState => {
 };
 
 // Thread Management (Now Async via Prisma)
-export const createThread = async (userId: string, personaId: string, title?: string): Promise<ChatThread> => {
+export const createThread = async (
+    userId: string,
+    personaId: string,
+    title?: string,
+    options: { placeId?: string | null; mode?: 'SINGLE' | 'COLLECTIVE' } = {},
+): Promise<ChatThread> => {
     const thread = await prisma.thread.create({
         data: {
             userId,
             personaId,
+            placeId: options.placeId || null,
+            mode: options.mode || 'SINGLE',
             title: title || `Conversa com ${personaId}`,
         },
-        include: { messages: { select: chatMessageSelect } }
+        include: {
+            messages: { select: chatMessageSelect },
+            participants: { orderBy: { joinedAt: 'asc' }, select: chatParticipantSelect },
+        }
     });
 
-    // Convert to ChatThread format
-    return {
-        id: thread.id,
-        personaId: thread.personaId,
-        title: thread.title,
-        messages: thread.messages.map(m => ({
-            id: m.id,
-            role: m.role as 'user' | 'assistant' | 'system',
-            content: m.content,
-            timestamp: m.timestamp.getTime()
-        })),
-        createdAt: thread.createdAt.getTime(),
-        updatedAt: thread.updatedAt.getTime()
-    };
+    return mapChatThread(thread);
 };
 
 export const getThread = async (userId: string, threadId: string): Promise<ChatThread | null> => {
     const thread = await prisma.thread.findFirst({
         where: { id: threadId, userId },
-        include: { messages: { orderBy: { timestamp: 'asc' }, select: chatMessageSelect } }
+        include: {
+            messages: { orderBy: { timestamp: 'asc' }, select: chatMessageSelect },
+            participants: { orderBy: { joinedAt: 'asc' }, select: chatParticipantSelect },
+        }
     });
 
     if (!thread) return null;
 
-    return {
-        id: thread.id,
-        personaId: thread.personaId,
-        title: thread.title,
-        messages: thread.messages.map(m => ({
-            id: m.id,
-            role: m.role as 'user' | 'assistant' | 'system',
-            content: m.content,
-            timestamp: m.timestamp.getTime()
-        })),
-        createdAt: thread.createdAt.getTime(),
-        updatedAt: thread.updatedAt.getTime()
-    };
+    return mapChatThread(thread);
 };
 
 export const getThreadsForPersona = async (userId: string, personaId: string): Promise<ChatThread[]> => {
+    const [legacyPersonaName, legacyPlaceName] = personaId.split(/\s+@\s+/).map((part) => part?.trim()).filter(Boolean);
     const threads = await prisma.thread.findMany({
-        where: { userId, personaId },
+        where: {
+            userId,
+            OR: [
+                { personaId },
+                legacyPersonaName && legacyPlaceName ? { personaId: legacyPersonaName, placeId: legacyPlaceName } : undefined,
+                { participants: { some: { personaId } } },
+                legacyPersonaName ? { participants: { some: { personaId: legacyPersonaName } } } : undefined,
+            ].filter(Boolean) as any,
+        },
         orderBy: { updatedAt: 'desc' },
-        include: { messages: { select: chatMessageSelect } }
+        include: {
+            messages: { select: chatMessageSelect },
+            participants: { orderBy: { joinedAt: 'asc' }, select: chatParticipantSelect },
+        }
     });
 
-    return threads.map(thread => ({
-        id: thread.id,
-        personaId: thread.personaId,
-        title: thread.title,
-        messages: thread.messages.map(m => ({
-            id: m.id,
-            role: m.role as 'user' | 'assistant' | 'system',
-            content: m.content,
-            timestamp: m.timestamp.getTime()
-        })),
-        createdAt: thread.createdAt.getTime(),
-        updatedAt: thread.updatedAt.getTime()
-    }));
+    return threads.map(mapChatThread);
 };
 
 export type RecentConversationThread = {
     id: string;
     personaId: string;
+    placeId: string | null;
+    mode: 'SINGLE' | 'COLLECTIVE';
     title: string;
     updatedAt: Date;
 };
@@ -128,22 +194,41 @@ export const getRecentConversationThreads = async (userId: string, take = 8): Pr
         select: {
             id: true,
             personaId: true,
+            placeId: true,
+            mode: true,
             title: true,
             updatedAt: true,
         },
     });
 };
 
-export const addMessageToThread = async (userId: string, threadId: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> => {
+export type AddMessageOptions = {
+    speakerPersonaId?: string | null;
+    turnGroupId?: string | null;
+    messageKind?: 'USER' | 'PERSONA' | 'SYSTEM_EVENT' | null;
+    generationStatus?: 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | null;
+};
+
+export const addMessageToThread = async (
+    userId: string,
+    threadId: string,
+    role: 'user' | 'assistant' | 'system',
+    content: string,
+    options: AddMessageOptions = {},
+) => {
     // Verify ownership
     const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
     if (!thread) throw new Error("Thread not found or unauthorized");
 
-    await prisma.message.create({
+    const message = await prisma.message.create({
         data: {
             threadId,
             role,
-            content
+            content,
+            speakerPersonaId: options.speakerPersonaId ?? null,
+            turnGroupId: options.turnGroupId ?? null,
+            messageKind: options.messageKind ?? (role === 'user' ? 'USER' : role === 'assistant' ? 'PERSONA' : 'SYSTEM_EVENT'),
+            generationStatus: options.generationStatus ?? null,
         },
         select: chatMessageSelect
     });
@@ -153,6 +238,8 @@ export const addMessageToThread = async (userId: string, threadId: string, role:
         where: { id: threadId },
         data: { updatedAt: new Date() }
     });
+
+    return mapChatMessage(message);
 };
 
 export type PersistedAssistantMessage = {
@@ -175,6 +262,8 @@ export const persistAssistantMessageForCognitiveRun = async (
             threadId,
             role: 'assistant',
             content,
+            messageKind: 'PERSONA',
+            generationStatus: 'COMPLETED',
         },
         select: chatMessageSelect,
     });
@@ -189,6 +278,65 @@ export const persistAssistantMessageForCognitiveRun = async (
         threadId,
         cognitiveRunId,
     };
+};
+
+export const createPendingPersonaMessage = async (
+    userId: string,
+    threadId: string,
+    speakerPersonaId: string,
+    turnGroupId: string,
+) => {
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId } });
+    if (!thread) throw new Error("Thread not found or unauthorized");
+
+    const message = await prisma.message.create({
+        data: {
+            threadId,
+            role: 'assistant',
+            content: '',
+            speakerPersonaId,
+            turnGroupId,
+            messageKind: 'PERSONA',
+            generationStatus: 'PENDING',
+        },
+        select: chatMessageSelect,
+    });
+
+    await prisma.thread.update({
+        where: { id: threadId },
+        data: { updatedAt: new Date() },
+    });
+
+    return mapChatMessage(message);
+};
+
+export const updatePersonaMessageGeneration = async (
+    userId: string,
+    messageId: string,
+    content: string,
+    generationStatus: 'STREAMING' | 'COMPLETED' | 'FAILED',
+) => {
+    const existing = await prisma.message.findFirst({
+        where: {
+            id: messageId,
+            thread: { userId },
+        },
+        select: { id: true, threadId: true },
+    });
+    if (!existing) throw new Error("Message not found or unauthorized");
+
+    const message = await prisma.message.update({
+        where: { id: messageId },
+        data: { content, generationStatus },
+        select: chatMessageSelect,
+    });
+
+    await prisma.thread.update({
+        where: { id: existing.threadId },
+        data: { updatedAt: new Date() },
+    });
+
+    return mapChatMessage(message);
 };
 
 export const updateThreadTitle = async (userId: string, threadId: string, title: string): Promise<void> => {
@@ -346,7 +494,8 @@ const getVisibleConversationEpisodeCandidates = async (
     targetPersonaId: string,
     options: ConversationEpisodeLookupOptions = {},
 ): Promise<string[]> => {
-    const threads = await prisma.thread.findMany({
+    const [threads, personaEpisodes] = await Promise.all([
+        prisma.thread.findMany({
         where: {
             userId,
             ...(options.excludeThreadId ? { id: { not: options.excludeThreadId } } : {}),
@@ -360,9 +509,27 @@ const getVisibleConversationEpisodeCandidates = async (
                 select: chatMessageSelect
             }
         }
-    });
+        }),
+        prisma.personaConversationEpisode.findMany({
+            where: {
+                userId,
+                personaId: targetPersonaId,
+                ...(options.excludeThreadId ? { threadId: { not: options.excludeThreadId } } : {}),
+                ...(isPrivateMemorySpace(targetPersonaId)
+                    ? {}
+                    : { visibilityPolicy: { not: 'CONFESSOR_SEALED' } }),
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+            select: {
+                content: true,
+                visibilityPolicy: true,
+                createdAt: true,
+            },
+        }),
+    ]);
 
-    return threads
+    const legacyEpisodes = threads
         .filter((thread) => {
             if (!isPrivateMemorySpace(thread.personaId)) return true;
             if (!isPrivateMemorySpace(targetPersonaId)) return false;
@@ -380,6 +547,16 @@ const getVisibleConversationEpisodeCandidates = async (
 
             return `[Conversa com ${thread.personaId}]\n${excerpt}`;
         });
+
+    return [
+        ...personaEpisodes.map((episode) => {
+            const label = episode.visibilityPolicy === 'CONFESSOR_SEALED'
+                ? 'Episodio coletivo privado selado'
+                : 'Episodio coletivo';
+            return `[${label} de ${targetPersonaId}]\n${episode.content}`;
+        }),
+        ...legacyEpisodes,
+    ];
 };
 
 export const getVisibleConversationEpisodes = async (
@@ -451,6 +628,40 @@ export const retainConversationEpisode = async (userId: string, personaId: strin
         `EPISODIO COM ${personaId} | O usuario escreveu: ${normalizedMessage.slice(0, 900)}`,
         personaId
     );
+};
+
+export const retainPersonaConversationEpisode = async (input: {
+    userId: string;
+    personaId: string;
+    threadId: string;
+    turnGroupId?: string | null;
+    content: string;
+    visibilityPolicy: 'SHARED' | 'PERSONA_PRIVATE' | 'CONFESSOR_SEALED';
+}): Promise<boolean> => {
+    const normalizedContent = input.content.replace(/\s+/g, ' ').trim().slice(0, 2400);
+    if (normalizedContent.length < 24) return false;
+
+    const sourceHash = createHash('sha256')
+        .update(`${input.threadId}:${input.personaId}:${normalizedContent}`)
+        .digest('hex');
+
+    try {
+        await prisma.personaConversationEpisode.create({
+            data: {
+                userId: input.userId,
+                personaId: input.personaId,
+                threadId: input.threadId,
+                turnGroupId: input.turnGroupId || null,
+                content: normalizedContent,
+                sourceHash,
+                visibilityPolicy: input.visibilityPolicy,
+            },
+        });
+        return true;
+    } catch (error: any) {
+        if (error?.code === 'P2002') return false;
+        throw error;
+    }
 };
 
 // Legacy support

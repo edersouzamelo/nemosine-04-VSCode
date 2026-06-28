@@ -7,6 +7,11 @@ interface ChatThread {
     id: string;
     title: string;
     updatedAt: number;
+    participants?: Array<{
+        personaId: string;
+        role: "HOST" | "GUEST";
+        active: boolean;
+    }>;
 }
 
 interface ChatHistoryListProps {
@@ -24,7 +29,7 @@ export default function ChatHistoryList({ personaId, onSelectThread, currentThre
     useEffect(() => {
         const fetchThreads = async () => {
             try {
-                const res = await fetch(`/api/chat?personaId=${personaId}`);
+                const res = await fetch(`/api/chat?personaId=${encodeURIComponent(personaId)}`);
                 const data = await res.json();
                 if (data.threads) {
                     setThreads(data.threads);
@@ -53,7 +58,14 @@ export default function ChatHistoryList({ personaId, onSelectThread, currentThre
                                 : "text-[#e1e1e6]/60 hover:text-[#c5a059] hover:bg-[#c5a059]/5"
                             }`}
                     >
-                        {thread.title.replaceAll("Confessor 2.0", entityName("Confessor 2.0"))}
+                        <span className="block truncate">
+                            {thread.title.replaceAll("Confessor 2.0", entityName("Confessor 2.0"))}
+                        </span>
+                        {thread.participants && thread.participants.length > 1 && (
+                            <span className="mt-1 block truncate text-[9px] uppercase tracking-[0.16em] text-[#c5a059]/45">
+                                Conselho: {thread.participants.map((participant) => participant.personaId).join(", ")}
+                            </span>
+                        )}
                     </button>
                 ))}
             </div>

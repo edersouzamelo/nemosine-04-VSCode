@@ -35,15 +35,33 @@ export interface SessionState {
 export interface ChatThread {
     id: string;
     personaId: string;
+    placeId?: string | null;
+    mode?: 'SINGLE' | 'COLLECTIVE';
+    participants?: ChatThreadParticipant[];
     title: string;
-    messages: {
-        id: string;
-        role: 'user' | 'assistant' | 'system';
-        content: string;
-        timestamp: number;
-    }[];
+    messages: ChatThreadMessage[];
     createdAt: number;
     updatedAt: number;
+}
+
+export interface ChatThreadParticipant {
+    id: string;
+    personaId: string;
+    role: 'HOST' | 'GUEST';
+    joinedAt: number;
+    leftAt?: number | null;
+    active: boolean;
+}
+
+export interface ChatThreadMessage {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: number;
+    speakerPersonaId?: string | null;
+    turnGroupId?: string | null;
+    messageKind?: 'USER' | 'PERSONA' | 'SYSTEM_EVENT' | null;
+    generationStatus?: 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | null;
 }
 
 // Logic helper to determine visibility

@@ -6,6 +6,9 @@ import { UIMessage, DefaultChatTransport } from "ai";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useLanguage } from "./LanguageProvider";
+import InvitePersonaButton from "./InvitePersonaButton";
+import PersonaPresenceStrip, { PersonaPresence } from "./PersonaPresenceStrip";
+import PersonaSpeakerBadge from "./PersonaSpeakerBadge";
 
 interface MedievalChatProps {
     personaId: string;
@@ -124,6 +127,33 @@ function RichAssistantMessage({ content }: { content: string }) {
     );
 }
 
+type CollectiveMessage = UIMessage & {
+    content?: string;
+    speakerPersonaId?: string | null;
+    turnGroupId?: string | null;
+    messageKind?: "USER" | "PERSONA" | "SYSTEM_EVENT" | null;
+    generationStatus?: "PENDING" | "STREAMING" | "COMPLETED" | "FAILED" | null;
+};
+
+function hasLocalPresenceCommand(text: string) {
+    const normalized = text
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    return /(^|\s)\/?(convidar|convide|chame|chama|traga|desconvidar|dispense|retire|expulse|remova)\b/.test(normalized)
+        || /\bquero\s+chamar\b/.test(normalized)
+        || /\bpode\s+sair\b/.test(normalized);
+}
+
+function readFileAsDataUrl(file: File) {
+    return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+    });
+}
+
 function ThinkingIndicator() {
     return (
         <div
@@ -201,6 +231,11 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [voiceTranscript, setVoiceTranscript] = useState("");
     const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
+    const [multiPersonaEnabled, setMultiPersonaEnabled] = useState(false);
+    const [participants, setParticipants] = useState<PersonaPresence[]>([]);
+    const [participantGuestCount, setParticipantGuestCount] = useState(0);
+    const [collectiveStatus, setCollectiveStatus] = useState<"idle" | "submitted" | "streaming">("idle");
+    const [collectiveError, setCollectiveError] = useState<string | null>(null);
 
     const currentThreadIdRef = useRef(currentThreadId);
     useEffect(() => {
@@ -247,8 +282,72 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         transport
     });
 
-    const isLoading = status === 'submitted' || status === 'streaming';
+    const messagesRef = useRef<UIMessage[]>([]);
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    const replaceMessages = React.useCallback((nextMessages: UIMessage[]) => {
+        messagesRef.current = nextMessages;
+        setMessages(nextMessages);
+    }, [setMessages]);
+
+    const fetchParticipants = React.useCallback(async (threadIdOverride?: string | null) => {
+        try {
+            const params = new URLSearchParams();
+            const effectiveThreadId = threadIdOverride ?? currentThreadIdRef.current;
+            if (effectiveThreadId) {
+                params.set("threadId", effectiveThreadId);
+            } else {
+                params.set("personaId", personaId);
+                if (placeId) params.set("placeId", placeId);
+            }
+            const res = await fetch(`/api/chat/participants?${params.toString()}`);
+            const data = await res.json();
+            setMultiPersonaEnabled(Boolean(data.enabled));
+            setParticipants(Array.isArray(data.participants) ? data.participants : []);
+            setParticipantGuestCount(Number(data.guestCount || 0));
+        } catch (fetchError) {
+            console.error("Failed to load participants", fetchError);
+            setMultiPersonaEnabled(false);
+            setParticipants([]);
+            setParticipantGuestCount(0);
+        }
+    }, [personaId, placeId]);
+
+    useEffect(() => {
+        fetchParticipants(currentThreadId);
+    }, [currentThreadId, personaId, placeId, fetchParticipants]);
+
+    const mutateParticipant = React.useCallback(async (action: "invite" | "remove", targetPersonaId: string) => {
+        setCollectiveError(null);
+        const res = await fetch("/api/chat/participants", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action,
+                personaId: targetPersonaId,
+                threadId: currentThreadIdRef.current || undefined,
+                hostPersonaId: personaId,
+                placeId,
+            }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            setCollectiveError(data.error || "Nao foi possivel atualizar participantes.");
+            return;
+        }
+        if (data.threadId && data.threadId !== currentThreadIdRef.current) {
+            onThreadCreated(data.threadId);
+        }
+        setMultiPersonaEnabled(Boolean(data.enabled));
+        setParticipants(Array.isArray(data.participants) ? data.participants : []);
+        setParticipantGuestCount(Number(data.guestCount || 0));
+    }, [onThreadCreated, personaId, placeId]);
+
+    const isLoading = status === 'submitted' || status === 'streaming' || collectiveStatus !== "idle";
     const showThinkingIndicator = status === 'submitted'
+        || collectiveStatus === "submitted"
         || (status === 'streaming' && (messages.length === 0 || messages[messages.length - 1].role === 'user'));
 
     useEffect(() => {
@@ -257,6 +356,154 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         textArea.style.height = "auto";
         textArea.style.height = `${Math.min(textArea.scrollHeight, 128)}px`;
     }, [input]);
+
+    const appendMessage = React.useCallback((message: CollectiveMessage) => {
+        replaceMessages([...messagesRef.current, message as UIMessage]);
+    }, [replaceMessages]);
+
+    const updateMessageById = React.useCallback((messageId: string, updater: (message: CollectiveMessage) => CollectiveMessage) => {
+        replaceMessages(messagesRef.current.map((message) => (
+            message.id === messageId ? updater(message as CollectiveMessage) as UIMessage : message
+        )));
+    }, [replaceMessages]);
+
+    const handleCollectiveEvent = React.useCallback((event: any) => {
+        if (!event?.type) return;
+
+        if (event.type === "participant-joined" || event.type === "participant-left") {
+            const content = event.type === "participant-joined"
+                ? `${event.personaId} entrou na conversa.`
+                : `${event.personaId} deixou a conversa.`;
+            appendMessage({
+                id: `presence-${event.type}-${event.personaId}-${Date.now()}`,
+                role: "system",
+                content,
+                parts: [{ type: "text", text: content }],
+                messageKind: "SYSTEM_EVENT",
+                speakerPersonaId: event.personaId,
+                turnGroupId: event.turnGroupId || null,
+            } as CollectiveMessage);
+            return;
+        }
+
+        if (event.type === "round-start") {
+            setCollectiveStatus("streaming");
+            return;
+        }
+
+        if (event.type === "persona-start") {
+            appendMessage({
+                id: event.messageId,
+                role: "assistant",
+                content: "",
+                parts: [{ type: "text", text: "" }],
+                speakerPersonaId: event.personaId,
+                turnGroupId: event.turnGroupId,
+                messageKind: "PERSONA",
+                generationStatus: "PENDING",
+            } as CollectiveMessage);
+            return;
+        }
+
+        if (event.type === "persona-delta") {
+            updateMessageById(event.messageId, (message) => {
+                const currentText = getMessageText(message);
+                const nextText = currentText ? `${currentText}${event.delta || ""}` : String(event.delta || "");
+                return {
+                    ...message,
+                    content: nextText,
+                    parts: [{ type: "text", text: nextText }],
+                    generationStatus: "STREAMING",
+                } as CollectiveMessage;
+            });
+            return;
+        }
+
+        if (event.type === "persona-finish" || event.type === "persona-error") {
+            updateMessageById(event.messageId, (message) => ({
+                ...message,
+                content: String(event.content || ""),
+                parts: [{ type: "text", text: String(event.content || "") }],
+                generationStatus: event.status,
+                speakerPersonaId: event.personaId || message.speakerPersonaId,
+                turnGroupId: event.turnGroupId || message.turnGroupId,
+                messageKind: "PERSONA",
+            } as CollectiveMessage));
+            return;
+        }
+
+        if (event.type === "round-finish") {
+            setCollectiveStatus("idle");
+            fetchParticipants(currentThreadIdRef.current);
+        }
+    }, [appendMessage, updateMessageById, fetchParticipants]);
+
+    const sendCollectiveMessage = React.useCallback(async (messageText: string, hiddenVoiceTranscript: string, file: File | null) => {
+        setCollectiveStatus("submitted");
+        setCollectiveError(null);
+        const userMessage: CollectiveMessage = {
+            id: `user-${Date.now()}`,
+            role: "user",
+            content: messageText,
+            parts: [{ type: "text", text: messageText }],
+            messageKind: "USER",
+        } as CollectiveMessage;
+        appendMessage(userMessage);
+
+        try {
+            const fileParts = file ? [{
+                filename: file.name || "Arquivo anexado",
+                mediaType: file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "text/plain"),
+                url: await readFileAsDataUrl(file),
+            }] : [];
+            const response = await fetch("/api/chat/collective", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    messages: [{ role: "user", content: messageText }],
+                    personaId,
+                    placeId,
+                    threadId: currentThreadIdRef.current || undefined,
+                    language,
+                    voiceTranscript: hiddenVoiceTranscript || undefined,
+                    fileParts,
+                }),
+            });
+            const newThreadId = response.headers.get("x-thread-id");
+            if (newThreadId && newThreadId !== currentThreadIdRef.current) {
+                onThreadCreated(newThreadId);
+            }
+            if (!response.ok || !response.body) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || "Nao foi possivel iniciar a rodada coletiva.");
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                let eventEnd = buffer.indexOf("\n\n");
+                while (eventEnd >= 0) {
+                    const rawEvent = buffer.slice(0, eventEnd);
+                    buffer = buffer.slice(eventEnd + 2);
+                    const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
+                    if (dataLine) {
+                        handleCollectiveEvent(JSON.parse(dataLine.slice(6)));
+                    }
+                    eventEnd = buffer.indexOf("\n\n");
+                }
+            }
+        } catch (sendError) {
+            console.error("Collective chat error:", sendError);
+            setCollectiveError(sendError instanceof Error ? sendError.message : "Erro na rodada coletiva.");
+        } finally {
+            setCollectiveStatus("idle");
+            fetchParticipants(currentThreadIdRef.current);
+        }
+    }, [appendMessage, fetchParticipants, handleCollectiveEvent, language, onThreadCreated, personaId, placeId]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -268,6 +515,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             selectedFile ? `[NEMOSINE_FILE:${selectedFile.name || "Arquivo anexado"}]` : "",
             hiddenVoiceTranscript ? "[NEMOSINE_AUDIO]" : ""
         ].filter(Boolean).join("\n");
+        const fileForSend = selectedFile;
         let files: FileList | undefined;
         if (selectedFile) {
             const transfer = new DataTransfer();
@@ -286,7 +534,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
-        await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
+        const shouldUseCollective = multiPersonaEnabled
+            && (participantGuestCount > 0 || hasLocalPresenceCommand(`${messageText}\n${hiddenVoiceTranscript}`));
+        if (shouldUseCollective) {
+            await sendCollectiveMessage(messageText, hiddenVoiceTranscript, fileForSend);
+        } else {
+            await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
+        }
     };
 
     const toggleListening = () => {
@@ -416,7 +670,12 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     setMessages(data.thread.messages.map((m: any) => ({
                         id: m.id,
                         role: m.role,
-                        content: m.content
+                        content: m.content,
+                        parts: [{ type: "text", text: m.content }],
+                        speakerPersonaId: m.speakerPersonaId,
+                        turnGroupId: m.turnGroupId,
+                        messageKind: m.messageKind,
+                        generationStatus: m.generationStatus
                     })));
                     setThreadTitle(data.thread.title);
                     setLastLoadedThreadId(currentThreadId);
@@ -531,12 +790,29 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         Guia
                                     </span>
                                 </button>
+                                {multiPersonaEnabled && (
+                                    <InvitePersonaButton
+                                        hostPersonaId={personaId}
+                                        presentPersonaIds={participants.filter((participant) => participant.active).map((participant) => participant.personaId)}
+                                        guestCount={participantGuestCount}
+                                        disabled={isLoading}
+                                        onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
+                                    />
+                                )}
                                 {actionMenu}
                             </div>
                         </div>
                     )}
                 </div>
             </div>
+
+            {multiPersonaEnabled && participants.length > 0 && (
+                <PersonaPresenceStrip
+                    participants={participants}
+                    disabled={isLoading}
+                    onRemove={(targetPersonaId) => mutateParticipant("remove", targetPersonaId)}
+                />
+            )}
 
             {/* Messages Area - SCROLLABLE CONTAINER */}
             <div data-tour="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[#c5a059]/30 scrollbar-track-transparent bg-black/40">
@@ -549,22 +825,48 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     </div>
                 )}
 
-                {messages.map((msg: UIMessage) => (msg.role !== 'system' && (
-                    <div
-                        key={msg.id}
-                        className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                        <div className={`chat-readable max-w-[92%] p-3 shadow-[0_4px_16px_rgba(0,0,0,0.12)] ${msg.role === "user"
-                            ? "whitespace-pre-wrap bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#f0ebe3] rounded-2xl rounded-tr-sm"
-                            : "chat-rich-assistant bg-[#0a0a0c] border border-[#c5a059]/10 text-[#e1e1e6] rounded-2xl rounded-tl-sm"
-                            }`}
+                {messages.map((rawMsg: UIMessage) => {
+                    const msg = rawMsg as CollectiveMessage;
+                    if (msg.role === "system" || msg.messageKind === "SYSTEM_EVENT") {
+                        return (
+                            <div key={msg.id} className="flex justify-center">
+                                <div className="max-w-[92%] rounded-full border border-[#c5a059]/15 bg-black/35 px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">
+                                    {cleanContent(getMessageText(msg))}
+                                </div>
+                            </div>
+                        );
+                    }
+                    const speakerPersonaId = msg.role === "assistant" ? (msg.speakerPersonaId || personaId) : null;
+                    const speakerRole = speakerPersonaId
+                        ? (participants.find((participant) => participant.personaId === speakerPersonaId && participant.active)?.role || (speakerPersonaId === personaId ? "HOST" : "GUEST"))
+                        : undefined;
+
+                    return (
+                        <div
+                            key={msg.id}
+                            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                         >
-                            {msg.role === "assistant"
-                                ? <RichAssistantMessage content={cleanContent(getMessageText(msg))} />
-                                : <UserMessageContent content={cleanContent(getMessageText(msg))} />}
+                            <div className={`chat-readable max-w-[92%] p-3 shadow-[0_4px_16px_rgba(0,0,0,0.12)] ${msg.role === "user"
+                                ? "whitespace-pre-wrap bg-[#c5a059]/10 border border-[#c5a059]/30 text-[#f0ebe3] rounded-2xl rounded-tr-sm"
+                                : "chat-rich-assistant bg-[#0a0a0c] border border-[#c5a059]/10 text-[#e1e1e6] rounded-2xl rounded-tl-sm"
+                                }`}
+                            >
+                                {msg.role === "assistant" && speakerPersonaId && (
+                                    <PersonaSpeakerBadge
+                                        personaId={speakerPersonaId}
+                                        role={speakerRole}
+                                        status={msg.generationStatus}
+                                    />
+                                )}
+                                {msg.role === "assistant"
+                                    ? (cleanContent(getMessageText(msg))
+                                        ? <RichAssistantMessage content={cleanContent(getMessageText(msg))} />
+                                        : <ThinkingIndicator />)
+                                    : <UserMessageContent content={cleanContent(getMessageText(msg))} />}
+                            </div>
                         </div>
-                    </div>
-                )))}
+                    );
+                })}
 
                 {showThinkingIndicator && (
                     <div className={`flex ${messages.length === 0 ? "h-full items-center justify-center" : "justify-start"}`}>
@@ -576,9 +878,9 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
             {/* Input Area */}
             <form onSubmit={handleSend} className="shrink-0 p-3 bg-black/80 backdrop-blur-md border-t border-[#c5a059]/20 flex flex-col gap-2">
-                {error && (
+                {(error || collectiveError) && (
                     <div className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-xs text-red-200">
-                        {t("responseError")}
+                        {collectiveError || t("responseError")}
                     </div>
                 )}
 

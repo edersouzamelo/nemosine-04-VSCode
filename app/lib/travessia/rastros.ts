@@ -138,6 +138,7 @@ export async function syncRastrosFromExistingActivity(userId: string) {
     select: {
       id: true,
       personaId: true,
+      mode: true,
       title: true,
       updatedAt: true,
       messages: {
@@ -149,15 +150,16 @@ export async function syncRastrosFromExistingActivity(userId: string) {
   });
 
   for (const thread of threads) {
+    const hostPersonaId = thread.personaId.split(/\s+@\s+/)[0];
     await trackRastroEvent({
       userId,
       tipo: "uso_persona",
-      origem: `persona:${thread.personaId}`,
-      titulo: thread.title || `Interacao com ${thread.personaId}`,
-      descricao: compact(thread.messages[0]?.content || `Usuario consultou ${thread.personaId}.`),
-      payload: { threadId: thread.id, personaId: thread.personaId, updatedAt: thread.updatedAt.toISOString() },
+      origem: `persona:${hostPersonaId}`,
+      titulo: thread.title || `Interacao com ${hostPersonaId}`,
+      descricao: compact(thread.messages[0]?.content || `Usuario consultou ${hostPersonaId}.`),
+      payload: { threadId: thread.id, personaId: hostPersonaId, threadPersonaId: thread.personaId, updatedAt: thread.updatedAt.toISOString() },
       evidencia: thread.id,
-      tags: [thread.personaId.toLowerCase(), "persona"],
+      tags: [hostPersonaId.toLowerCase(), thread.mode === "COLLECTIVE" ? "conselho" : "persona"],
       sourceKey: `thread:${thread.id}`,
     });
   }

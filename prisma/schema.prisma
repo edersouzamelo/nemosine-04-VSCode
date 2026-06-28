@@ -19,6 +19,7 @@ model User {
   sessions      Session[]
   threads       Thread[]        // Added for chat isolation
   memories      UserMemory[]    // Added for persistent AI learning
+  personaConversationEpisodes PersonaConversationEpisode[]
   activeTopics  ActiveTopic[]
   termsAcceptances TermsAcceptance[]
 
@@ -27,6 +28,35 @@ model User {
  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum ThreadMode {
+  SINGLE
+  COLLECTIVE
+}
+
+enum ThreadPersonaRole {
+  HOST
+  GUEST
+}
+
+enum MessageKind {
+  USER
+  PERSONA
+  SYSTEM_EVENT
+}
+
+enum GenerationStatus {
+  PENDING
+  STREAMING
+  COMPLETED
+  FAILED
+}
+
+enum PersonaEpisodeVisibilityPolicy {
+  SHARED
+  PERSONA_PRIVATE
+  CONFESSOR_SEALED
 }
 
 model TermsAcceptance {
@@ -106,22 +136,103 @@ model Thread {
   id        String    @id @default(cuid())
   userId    String
   personaId String
+  placeId   String?
+  mode      ThreadMode @default(SINGLE)
   title     String
   messages  Message[]
+  participants ThreadPersonaPresence[]
+  episodes  PersonaConversationEpisode[]
+  generationAudits CollectiveGenerationAudit[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, personaId])
+  @@index([userId, placeId])
+  @@index([userId, mode])
 }
 
 model Message {
-  id             String   @id @default(cuid())
-  threadId       String
-  role           String   // 'user' | 'assistant' | 'system'
-  content        String
-  timestamp      DateTime @default(now())
+  id               String   @id @default(cuid())
+  threadId         String
+  role             String   // 'user' | 'assistant' | 'system'
+  content          String
+  speakerPersonaId String?
+  turnGroupId      String?
+  messageKind      MessageKind?
+  generationStatus GenerationStatus?
+  timestamp        DateTime @default(now())
 
-  thread         Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread           Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, turnGroupId])
+  @@index([threadId, speakerPersonaId])
+  @@index([messageKind])
+  @@index([generationStatus])
+}
+
+model ThreadPersonaPresence {
+  id        String   @id @default(cuid())
+  threadId  String
+  personaId String
+  role      ThreadPersonaRole
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  thread    Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([personaId])
+  @@index([active])
+  @@index([threadId, active])
+  @@index([threadId, personaId, active])
+}
+
+model PersonaConversationEpisode {
+  id               String   @id @default(cuid())
+  userId           String
+  personaId        String
+  threadId         String
+  turnGroupId      String?
+  content          String
+  sourceHash       String
+  visibilityPolicy PersonaEpisodeVisibilityPolicy
+  createdAt        DateTime @default(now())
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread           Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, personaId, sourceHash])
+  @@index([userId, personaId, createdAt])
+  @@index([threadId, turnGroupId])
+  @@index([visibilityPolicy])
+}
+
+model CollectiveGenerationAudit {
+  id                   String   @id @default(cuid())
+  userId               String
+  threadId             String
+  turnGroupId          String
+  personaId            String
+  participantRole      ThreadPersonaRole
+  generationStatus     GenerationStatus
+  latencyMs            Int
+  model                String
+  tokens               Json?
+  memoryWrites         Int      @default(0)
+  filteredHistoryCount Int      @default(0)
+  errorCode            String?
+  createdAt            DateTime @default(now())
+
+  thread               Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, turnGroupId])
+  @@index([personaId])
+  @@index([generationStatus])
+  @@index([createdAt])
 }
 
 model UserMemory {

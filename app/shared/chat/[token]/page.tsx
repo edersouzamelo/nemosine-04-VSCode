@@ -4,12 +4,16 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import PersonaSpeakerBadge from "@/app/components/PersonaSpeakerBadge";
 
 type SharedMessage = {
   id: string;
   role: "user" | "assistant" | "system";
   content?: string;
   parts?: Array<{ type: string; text?: string }>;
+  speakerPersonaId?: string | null;
+  messageKind?: "USER" | "PERSONA" | "SYSTEM_EVENT" | null;
+  generationStatus?: string | null;
 };
 
 type SharedChat = {
@@ -65,14 +69,26 @@ export default function SharedChatPage() {
               <p className="mt-2 text-xs uppercase tracking-widest text-white/35">{chat.personaId}</p>
             </header>
             <div className="space-y-4 p-5">
-              {chat.messages.map((message) => (
-                <article key={message.id} className={`rounded-2xl border p-4 ${message.role === "user" ? "ml-auto border-[#c5a059]/30 bg-[#c5a059]/10" : "mr-auto border-[#c5a059]/15 bg-black/45"}`}>
-                  <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-[#c5a059]/60">{message.role === "user" ? "Usuário" : "Nemosine"}</p>
-                  <div className="chat-readable chat-rich-assistant max-w-none text-sm leading-relaxed text-[#eee8dc]">
-                    <Markdown remarkPlugins={[remarkGfm]}>{getMessageText(message).replace(/\[MEMORY:\s*.*?\]/ig, "").trim()}</Markdown>
-                  </div>
-                </article>
-              ))}
+              {chat.messages.map((message) => {
+                if (message.role === "system" || message.messageKind === "SYSTEM_EVENT") {
+                  return (
+                    <div key={message.id} className="text-center text-[10px] uppercase tracking-[0.22em] text-[#c5a059]/55">
+                      {getMessageText(message)}
+                    </div>
+                  );
+                }
+                const speaker = message.role === "user" ? "Usuário" : (message.speakerPersonaId || chat.personaId);
+                return (
+                  <article key={message.id} className={`rounded-2xl border p-4 ${message.role === "user" ? "ml-auto border-[#c5a059]/30 bg-[#c5a059]/10" : "mr-auto border-[#c5a059]/15 bg-black/45"}`}>
+                    {message.role === "assistant"
+                      ? <PersonaSpeakerBadge personaId={speaker} status={message.generationStatus} />
+                      : <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-[#c5a059]/60">{speaker}</p>}
+                    <div className="chat-readable chat-rich-assistant max-w-none text-sm leading-relaxed text-[#eee8dc]">
+                      <Markdown remarkPlugins={[remarkGfm]}>{getMessageText(message).replace(/\[MEMORY:\s*.*?\]/ig, "").trim()}</Markdown>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </div>
         )}

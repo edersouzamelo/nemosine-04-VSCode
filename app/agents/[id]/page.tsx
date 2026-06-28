@@ -83,12 +83,13 @@ export default function AgentDetailPage() {
     const audioRef = React.useRef<HTMLAudioElement | null>(null);
     const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
     const [refreshHistory, setRefreshHistory] = useState(0);
-    const [summonedPersona, setSummonedPersona] = useState("");
+    const [summonedPersonas, setSummonedPersonas] = useState<string[]>([]);
     const [dossierOpen, setDossierOpen] = useState(false);
     const [chatGuideAutoStart, setChatGuideAutoStart] = useState(false);
 
     const entity = ENTITIES[id];
-    const activePersonaName = entity?.type === "place" ? summonedPersona : entity?.name || "";
+    const hostSummonedPersona = summonedPersonas[0] || "";
+    const activePersonaName = entity?.type === "place" ? hostSummonedPersona : entity?.name || "";
 
     React.useEffect(() => {
         if (entity) {
@@ -100,7 +101,7 @@ export default function AgentDetailPage() {
 
     React.useEffect(() => {
         setCurrentThreadId(null);
-    }, [id, summonedPersona]);
+    }, [id, hostSummonedPersona]);
 
     React.useEffect(() => {
         const threadId = searchParams.get("threadId");
@@ -219,7 +220,10 @@ export default function AgentDetailPage() {
             const usefulMessages = messages
                 .filter((message: any) => message.role !== "system")
                 .slice(-6)
-                .map((message: any) => `${message.role === "user" ? "Usuário" : activePersonaName}: ${String(message.content || "").replace(/\[MEMORY:\s*.*?\]/ig, "").trim()}`)
+                .map((message: any) => {
+                    const speaker = message.role === "user" ? "Usuário" : (message.speakerPersonaId || activePersonaName);
+                    return `${speaker}: ${String(message.content || "").replace(/\[MEMORY:\s*.*?\]/ig, "").trim()}`;
+                })
                 .filter(Boolean);
             const summary = usefulMessages.join("\n\n").slice(0, 1800);
             const idea = summary || `Conversa com ${activePersonaName}`;
@@ -498,8 +502,8 @@ export default function AgentDetailPage() {
                             </label>
                             <select
                                 id="summoned-persona"
-                                value={summonedPersona}
-                                onChange={(event) => setSummonedPersona(event.target.value)}
+                                value={hostSummonedPersona}
+                                onChange={(event) => setSummonedPersonas(event.target.value ? [event.target.value] : [])}
                                 className="w-full rounded-lg border border-[#c5a059]/25 bg-[#0a0a0c] px-3 py-2.5 font-serif text-sm text-[#e1e1e6] outline-none focus:border-[#c5a059]/60"
                             >
                                 <option value="">Escolha quem o acompanhará neste lugar...</option>
