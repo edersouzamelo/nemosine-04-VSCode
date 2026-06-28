@@ -433,11 +433,14 @@ export const addUserMemory = async (userId: string, content: string, personaId?:
 export const retainConversationEpisode = async (userId: string, personaId: string, content: string): Promise<void> => {
     const normalizedMessage = content.replace(/\s+/g, ' ').trim();
     if (normalizedMessage.length < 12) return;
+    const richness = classifyConversationInputRichness(normalizedMessage);
     if (
         isConversationNavigationRequest(normalizedMessage)
         || isPersonaMetaCritique(normalizedMessage)
         || isPersonaRoleQuestion(normalizedMessage)
         || isSourceReferenceRequest(normalizedMessage)
+        || richness.richness !== "high"
+        || richness.requiresContextExpansion
     ) {
         return;
     }

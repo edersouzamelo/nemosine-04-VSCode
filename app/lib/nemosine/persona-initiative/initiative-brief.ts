@@ -1,6 +1,7 @@
 import { PersonaBehaviorContract } from "@/app/lib/nemosine/persona_behavior_contracts";
 import { getVocationalLens } from "./active-fronts";
 import {
+  isConversationNavigationRequest,
   isSourceReferenceRequest,
   isPersonaMetaCritique,
   isPersonaRoleQuestion,
@@ -21,6 +22,8 @@ const prohibitedOpenings = [
   "Sobre o que voce quer falar?",
   "Estou aqui para ajudar.",
 ];
+
+type SelectedFront = ActiveFrontSnapshot["selectedFronts"][number];
 
 function interventionForContract(contract: PersonaBehaviorContract, snapshot: ActiveFrontSnapshot) {
   const primary = snapshot.selectedFronts[0];
@@ -134,6 +137,66 @@ function sourceReferenceFallback(input: {
   ].join("\n\n");
 }
 
+function cleanFallbackContext(front?: SelectedFront) {
+  const raw = `${front?.summary || front?.theme || ""}`;
+  const cleaned = raw
+    .replace(/^\[[^\]]+\]\s*/g, "")
+    .replace(/^EPISODIO COM [^|]+\|\s*/i, "")
+    .replace(/\bO usuario escreveu:\s*/gi, "")
+    .replace(/\bUsuario:\s*/gi, "")
+    .replace(/\bAssistant:\s*/gi, "")
+    .replace(/\[Conversa com [^\]\r\n]+\]/gi, "")
+    .replace(/\bfrente autorizada\b/gi, "materia escolhida")
+    .replace(/\bfrente ativa\b/gi, "tema vivo")
+    .replace(/\bfrente mais viva\b/gi, "tema mais vivo")
+    .replace(/\bcentro de gravidade\b/gi, "centro")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "";
+  if (isPersonaMetaCritique(cleaned)) return "";
+  if (isConversationNavigationRequest(cleaned)) return "";
+  if (isPersonaRoleQuestion(cleaned)) return "";
+  if (isSourceReferenceRequest(cleaned)) return "";
+  return cleaned.slice(0, 520);
+}
+
+function cleanFallbackMovement(text: string) {
+  return text
+    .replace(/\bfrente autorizada\b/gi, "materia escolhida")
+    .replace(/\bfrente ativa\b/gi, "tema vivo")
+    .replace(/\bfrente mais viva\b/gi, "tema mais vivo")
+    .replace(/\bfrente\b/gi, "materia")
+    .replace(/\bcentro de gravidade\b/gi, "centro")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function contextualPersonaFallback(input: {
+  personaId: string;
+  contract: PersonaBehaviorContract;
+  primary: SelectedFront;
+  greeting: string;
+  opinionMode?: boolean;
+}) {
+  const lens = getVocationalLens(input.contract.family);
+  const usableContext = cleanFallbackContext(input.primary);
+  const movement = cleanFallbackMovement(input.primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e "));
+  const contextLine = usableContext
+    ? `O material util que aparece para mim e este: ${usableContext}`
+    : "O material que apareceu esta ruidoso demais para eu repetir literalmente; vou ficar apenas com o que consigo sustentar sem contaminar a fala.";
+  const stanceLine = input.opinionMode
+    ? "Minha opiniao, neste ponto, e que continuidade so presta quando vira consequencia nova. Se a resposta apenas troca o nome da persona e carrega a mesma formula, ela morreu por dentro."
+    : "Minha leitura agora precisa trocar etiqueta por consequencia: reconhecer o contexto possivel, marcar o que e inferencia e escolher um gesto que avance a conversa.";
+
+  return [
+    `${input.greeting || "Recebo. "}Eu respondo como ${input.personaId}: ${input.contract.operationalMission}`,
+    contextLine,
+    stanceLine,
+    `O gesto deste turno e ${movement}. Se houver pouca base, eu devo dizer isso com elegancia; se houver base suficiente, devo transforma-la pela minha propria voz, nao por um protocolo de memoria.`,
+  ].join("\n\n");
+}
+
 function personaGreetingFallback(input: {
   personaId: string;
   contract: PersonaBehaviorContract;
@@ -152,7 +215,7 @@ function videnteForecastFallback(input: {
   primary?: ActiveFrontSnapshot["selectedFronts"][number];
 }) {
   const contextLine = input.primary
-    ? `O sinal mais proximo que aparece no campo e este: ${input.primary.summary}`
+    ? `A linha contextual mais proxima que aparece no campo e esta: ${cleanFallbackContext(input.primary) || "ha um rastro recente, mas ele esta ruidoso demais para virar profecia literal."}`
     : "Nao ha sinal contextual forte o bastante para eu fingir uma profecia pessoal.";
 
   return [
@@ -316,20 +379,21 @@ export function buildDeterministicInitiativeFallback(input: {
     }
 
     if (isOpinionPrompt(input.userText || "", input.richness.openingType)) {
-      return [
-        `${greeting}O ponto que se apresenta nao deve ser tratado apenas como assunto retomado, mas como materia que precisa ganhar forma util: ${primary.theme}.`,
-        `O sinal concreto e este: ${primary.summary}`,
-        `A diferenca importante e separar continuidade real de repeticao verbal. Continuidade avanca quando encontra tensao, consequencia ou criterio novo; repeticao apenas troca a etiqueta e deixa voce no mesmo lugar.`,
-        `Neste turno, a fala precisa decidir o que esse tema exige agora, em vez de apenas lembrar que ele existe.`,
-      ].join("\n\n");
+      return contextualPersonaFallback({
+        personaId: input.personaId,
+        contract: input.contract,
+        primary,
+        greeting,
+        opinionMode: true,
+      });
     }
 
-    return [
-      `${greeting}O sinal mais forte aponta para ${primary.theme}, mas eu nao vou tratar isso como etiqueta fixa.`,
-      `${primary.summary}`,
-      `A tensao esta em decidir se esse tema merece centro de gravidade agora ou se esta apenas disputando espaco com anotacoes mais barulhentas. O criterio nao e novidade bruta; e consequencia, risco, recorrencia e encaixe com a voz chamada.`,
-      `A prioridade provisoria e fazer isso produzir consequencia agora: ${primary.possibleNextMove || lens.verbs.slice(0, 2).join(" e ")}.`,
-    ].join("\n\n");
+    return contextualPersonaFallback({
+      personaId: input.personaId,
+      contract: input.contract,
+      primary,
+      greeting,
+    });
   }
 
   if (normalizeInitiativeText(input.personaId) === "vidente" && isForecastPrompt(input.userText || "")) {

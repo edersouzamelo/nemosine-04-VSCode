@@ -4,7 +4,8 @@ const stopwords = new Set([
   "a", "o", "os", "as", "um", "uma", "de", "do", "da", "dos", "das", "e",
   "em", "para", "por", "com", "que", "como", "qual", "quais", "me", "meu",
   "minha", "voce", "vc", "eu", "tu", "nos", "isso", "esse", "essa", "este",
-  "esta", "agora", "hoje", "ai", "la", "aqui",
+  "esta", "agora", "hoje", "ai", "la", "aqui", "bom", "boa", "dia", "noite",
+  "tarde", "ola", "oi", "ainda", "nao",
 ]);
 
 const greetingPatterns = [
@@ -57,6 +58,12 @@ const reactionPatterns = [
   /^pesado\b/,
 ];
 
+const firstContactPatterns = [
+  /\b(ainda nao|nunca)\s+conversei\s+com\s+(voce|vc|tu)\b/,
+  /\bnao\s+conversei\s+com\s+(voce|vc|tu)\s+ainda\b/,
+  /\bprimeira vez\b.*\b(falo|converso|conversei)\b.*\b(voce|vc|tu)\b/,
+];
+
 const substantivePatterns = [
   /\b(estou|to|estamos|preciso|quero|tento|tentando|temos|houve|existe|aconteceu)\b.*\b(separando|separei|separacao|divorcio|luto|morreu|doenca|doente|crise|ansiedade|demitido|falencia|processo|prazo|urgente|risco|erro|bug|build|deploy|runtime|arquitetura|memoria|privacidade|patente|contrato|paper|artigo)\b/,
   /\b(separando|separei|separacao|divorcio|luto|morreu|doenca|doente|crise|ansiedade|demitido|falencia|processo|prazo|urgente|risco|erro|bug|build|deploy|runtime|arquitetura|memoria|privacidade|patente|contrato|paper|artigo)\b/,
@@ -84,6 +91,12 @@ const personaMetaCritiquePatterns = [
   /\bdo que (voce|vc) (esta|ta|tá) falando\b/,
   /\bque (voce|vc) (esta|ta|tá) falando\b/,
   /\b(que bosta|merda|pessimo|péssimo|horrivel|horrível)\b/,
+  /\b(respondendo|respondeu|falando|falou)\b.*\b(confusao|confuso|confusa|grogue|besta|idiota|raso|rasa|inutil|deterministico|deterministica)\b/,
+  /\b(confusao|confuso|confusa|grogue|besta|idiota|raso|rasa|inutil|deterministico|deterministica)\b.*\b(resposta|respondendo|falando|persona|personas|sistema|voce|vc)\b/,
+  /\b(persona|personas|sistema)\b.*\b(colapsando|colapso|maluco|maluca|malucos|malucas|doido|doida|doidos|doidas|quebrado|quebrada|zumbi|zumbis|perdido|perdida)\b/,
+  /\b(resposta|respostas|persona|personas)\b.*\b(inutil|inuteis|idiota|idiotas|raso|rasa|rasas|deterministico|deterministica|deterministicas|perdido|perdida|piores|terrivel|terriveis|pessimo|pessima|pessimas)\b/,
+  /\b(nao quero compartilhar detalhes|ultimas conversas|tenha iniciativa|foda se|pataquada|me fode)\b/,
+  /\b(meio grogue|ta grogue|esta grogue)\b/,
 ];
 
 const conversationNavigationPatterns = [
@@ -194,6 +207,20 @@ export function classifyConversationInputRichness(text: string): ConversationInp
       richness: "high",
       openingType: "substantive_request",
       requiresContextExpansion: false,
+      questionBudget: 0,
+      signals,
+    };
+  }
+
+  if (
+    matchesAny(firstContactPatterns, normalized)
+    && (matchesAny(greetingPatterns, normalized) || embeddedGreetingPattern.test(normalized))
+  ) {
+    signals.push("first-contact-greeting");
+    return {
+      richness: "low",
+      openingType: "greeting",
+      requiresContextExpansion: true,
       questionBudget: 0,
       signals,
     };

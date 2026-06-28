@@ -274,14 +274,15 @@ function isLowValueContinuityText(text: string) {
   const normalized = normalizeInitiativeText(semantic);
   if (!normalized) return true;
   if (normalized.includes("perfil geral do usuario")) return false;
+  if (isSourceReferenceRequest(normalized)) return true;
+  if (isConversationNavigationRequest(normalized)) return true;
+  if (isPersonaMetaCritique(normalized)) return true;
+  if (isPersonaRoleQuestion(normalized)) return true;
+  if (trivialContinuityPatterns.some((pattern) => pattern.test(semantic))) return true;
   if (highSalienceHumanScore(normalized) > 0) return false;
   if (countSignalHits(normalized, substantiveSignals) > 0) return false;
   if (countSignalHits(normalized, unresolvedSignals) > 0) return false;
   if (countSignalHits(normalized, recurrenceSignals) > 0) return false;
-  if (isSourceReferenceRequest(normalized)) return true;
-  if (isConversationNavigationRequest(normalized)) return true;
-  if (isPersonaMetaCritique(normalized)) return true;
-  if (trivialContinuityPatterns.some((pattern) => pattern.test(semantic))) return true;
 
   const terms = uniqueTerms(semantic).filter((term) => !continuityBoilerplateTerms.has(term));
   return semantic.length < 24 || terms.length <= 2;

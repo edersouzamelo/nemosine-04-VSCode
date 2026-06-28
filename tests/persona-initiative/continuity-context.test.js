@@ -420,10 +420,10 @@ test("Guru deterministic fallback answers opinion and loop critique without repe
   });
 
   assert.notEqual(loop, opinion);
-  assert.match(opinion, /O ponto que se apresenta/i);
+  assert.match(opinion, /Eu respondo como Guru/i);
   assert.match(loop, /eco mecanico|repetir/i);
   assert.ok(opinion.split(/\n\s*\n/).length >= 3);
-  assert.doesNotMatch(opinion, /Minha leitura sobre isso|O dado autorizado|Pela lente|Meu movimento agora/i);
+  assert.doesNotMatch(opinion, /Minha leitura sobre isso|O dado autorizado|Pela lente|Meu movimento agora|O sinal mais forte|centro de gravidade|frente autorizada/i);
   assert.doesNotMatch(loop, /Minha leitura provisoria e que a frente mais viva agora/i);
 });
 
@@ -849,6 +849,34 @@ test("conversation navigation corrections suppress continuity context and active
   assert.equal(packet.metrics.recentEpisodesCount, 0);
   assert.ok(packet.retrievalExplanation.some((line) => /continuity context suppressed/i.test(line)));
   assert.deepEqual(extractActiveTopicCandidates({ userText, memoryScope: "Cientista" }), []);
+});
+
+test("meta-critique memories are filtered even when they look recent", () => {
+  const contract = getPersonaBehaviorContract("Guru");
+  const userText = "oie";
+  const packet = buildConversationContextPacket({
+    userText,
+    personaId: "Guru",
+    memoryScope: "Guru",
+    contract,
+    memories: [
+      memory("confused", "EPISODIO COM Guru | O usuario escreveu: oxe, porque esta respondendo assim de forma confusa?", "2026-06-27T21:00:00.000Z", "Guru"),
+      memory("grogue", "EPISODIO COM Guru | O usuario escreveu: hum parece que vc ainda ta meio grogue heim", "2026-06-27T21:10:00.000Z", "Guru"),
+      memory("initiative-complaint", "EPISODIO COM Promotor | O usuario escreveu: Eu nao quero compartilhar detalhes porra, quero que vc saiba minhas ultimas conversas e tenha iniciativa!", "2026-06-27T21:20:00.000Z", "Promotor"),
+    ],
+    episodes: [
+      "[Conversa com Promotor]\nUsuario: Eu nao quero compartilhar detalhes porra, quero que vc saiba minhas ultimas conversas e tenha iniciativa!",
+    ],
+    now,
+  });
+
+  assert.equal(packet.relevantDurableMemories.length, 0);
+  assert.equal(packet.recentPublicEpisodes.length, 0);
+  assert.equal(packet.selectedItems.length, 0);
+  assert.deepEqual(extractActiveTopicCandidates({
+    userText: "o sistema esta colapsando, os personas estao todos malucos",
+    memoryScope: "Guru",
+  }), []);
 });
 
 test("uploaded source question suppresses self-echo episodes and selects the source", () => {

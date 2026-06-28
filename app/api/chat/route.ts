@@ -24,6 +24,7 @@ import {
 import { runCognitiveRuntime } from '@/app/lib/nemosine/cognitive-runtime/orchestrator';
 import {
     buildDeterministicInitiativeFallback,
+    classifyConversationInputRichness,
     evaluatePersonaInitiativeQuality,
     isConversationNavigationRequest,
     isPersonaMetaCritique,
@@ -279,6 +280,16 @@ async function buildConversationNavigationAnswer(input: {
     return `Pelo registro recente, antes daqui voce estava falando com ${previousScope}. Posso ver apenas o que esta registrado no Nemosine, mas o rastro mais proximo e esse.`;
 }
 
+function shouldRetainUserInputForContinuity(userText: string) {
+    const richness = classifyConversationInputRichness(userText);
+    return richness.richness === "high"
+        && !richness.requiresContextExpansion
+        && !isConversationNavigationRequest(userText)
+        && !isPersonaMetaCritique(userText)
+        && !isPersonaRoleQuestion(userText)
+        && !isSourceReferenceRequest(userText);
+}
+
 async function getAuthenticatedUserId(): Promise<string | null> {
     const session = await auth();
     return session?.user?.id ?? null;
@@ -403,26 +414,8 @@ export async function POST(req: NextRequest) {
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
-        const shouldRetainConversationContinuity = !isConversationNavigationRequest(userText)
-            && !isPersonaMetaCritique(userText)
-            && !isPersonaRoleQuestion(userText)
-            && !isSourceReferenceRequest(userText);
-        const persistenceTasks: Promise<unknown>[] = [
-            addMessageToThread(userId, activeThreadId, 'user', displayUserText),
-        ];
-        if (shouldRetainConversationContinuity) {
-            persistenceTasks.push(
-                retainConversationEpisode(userId, memoryScope, userText),
-                retainActiveTopicsFromUserMessage({
-                    userId,
-                    threadId: activeThreadId,
-                    personaId,
-                    memoryScope,
-                    userText,
-                }),
-            );
-        }
-        await Promise.all(persistenceTasks);
+        const shouldRetainConversationContinuity = shouldRetainUserInputForContinuity(userText);
+        await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
 
         const conversationNavigationAnswer = await buildConversationNavigationAnswer({
             userId,
@@ -457,6 +450,20 @@ export async function POST(req: NextRequest) {
 
         if (runtimeConfig.mode === "enforce") {
             const runtimeResult = await executeCognitiveRuntime(cognitiveRequest);
+            if (shouldRetainConversationContinuity) {
+                await Promise.all([
+                    retainConversationEpisode(userId, memoryScope, userText),
+                    retainActiveTopicsFromUserMessage({
+                        userId,
+                        threadId: activeThreadId,
+                        personaId,
+                        memoryScope,
+                        userText,
+                    }),
+                ]).catch((error) => {
+                    console.warn("[API/Chat] Conversation continuity retention skipped after enforced runtime.", error);
+                });
+            }
             return createPromotedUIMessageStreamResponse({
                 text: runtimeResult.answer,
                 headers: {
@@ -613,6 +620,21 @@ export async function POST(req: NextRequest) {
             userText,
         });
         await addMessageToThread(userId, activeThreadId, 'assistant', finalResponse);
+
+        if (shouldRetainConversationContinuity) {
+            await Promise.all([
+                retainConversationEpisode(userId, memoryScope, userText),
+                retainActiveTopicsFromUserMessage({
+                    userId,
+                    threadId: activeThreadId,
+                    personaId,
+                    memoryScope,
+                    userText,
+                }),
+            ]).catch((error) => {
+                console.warn("[API/Chat] Conversation continuity retention skipped after response.", error);
+            });
+        }
 
         if (runtimeConfig.mode === "shadow") {
             await runCognitiveRuntime(cognitiveRequest, {

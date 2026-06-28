@@ -5,10 +5,12 @@ const assert = require("node:assert/strict");
 
 const {
   buildActiveFrontSnapshot,
+  buildDeterministicInitiativeFallback,
   buildPersonaInitiativeBrief,
   classifyConversationInputRichness,
   evaluatePersonaInitiativeQuality,
   isConversationNavigationRequest,
+  isPersonaMetaCritique,
   isSourceReferenceRequest,
 } = require("../../app/lib/nemosine/persona-initiative/index.ts");
 const { getPersonaBehaviorContract } = require("../../app/lib/nemosine/persona_behavior_contracts.ts");
@@ -86,6 +88,24 @@ test("classifies uploaded-source questions as source references", () => {
   assert.equal(sourceQuestion.requiresContextExpansion, false);
   assert.ok(sourceQuestion.signals.includes("source-reference"));
   assert.equal(isSourceReferenceRequest("o dossiê que subi te ensina algo sobre meu perfil?"), true);
+});
+
+test("classifies system/persona failure complaints as meta-critique, not durable topic", () => {
+  const confused = classifyConversationInputRichness("oxe, porque esta respondendo assim de forma confusa?");
+  assert.equal(confused.richness, "high");
+  assert.equal(confused.requiresContextExpansion, false);
+  assert.ok(confused.signals.includes("persona-meta-critique"));
+  assert.equal(isPersonaMetaCritique("hum parece que vc ainda ta meio grogue heim"), true);
+  assert.equal(isPersonaMetaCritique("o sistema esta colapsando, os personas estao todos malucos"), true);
+  assert.equal(isPersonaMetaCritique("Eu nao quero compartilhar detalhes porra, quero que vc saiba minhas ultimas conversas e tenha iniciativa!"), true);
+});
+
+test("classifies first-contact greeting as shallow opening", () => {
+  const firstContact = classifyConversationInputRichness("boa noite, ainda nao conversei com vc");
+  assert.equal(firstContact.richness, "low");
+  assert.equal(firstContact.openingType, "greeting");
+  assert.equal(firstContact.requiresContextExpansion, true);
+  assert.ok(firstContact.signals.includes("first-contact-greeting"));
 });
 
 test("builds a non-literal general profile memory from persona source uploads", () => {
@@ -176,4 +196,44 @@ test("privacy filter prevents private-only source from becoming public active fr
 
   assert.equal(snapshot.fronts.length, 0);
   assert.equal(snapshot.selectedFronts.length, 0);
+});
+
+test("deterministic fallback scrubs polluted episode scaffolding", () => {
+  const personaId = "Guru";
+  const userText = "oie";
+  const richness = classifyConversationInputRichness(userText);
+  const contract = getPersonaBehaviorContract(personaId);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId,
+    userText,
+    richness,
+    contract,
+    sources: [{
+      id: "memory-confused",
+      type: "memory",
+      text: "EPISODIO COM Guru | O usuario escreveu: oxe, porque esta respondendo assim de forma confusa?",
+      provenance: "UserMemory",
+      visibility: "internal",
+      scope: personaId,
+      recency: 1,
+    }],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const fallback = buildDeterministicInitiativeFallback({
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    brief,
+    contract,
+  });
+
+  assert.doesNotMatch(fallback, /EPISODIO COM|O usuario escreveu|O sinal mais forte|centro de gravidade|frente autorizada|respondendo assim/i);
+  assert.match(fallback, /Guru|contexto|material|voz/i);
 });
