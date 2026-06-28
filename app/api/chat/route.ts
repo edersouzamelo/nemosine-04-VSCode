@@ -256,6 +256,61 @@ function displayConversationScope(scope: string) {
     return placeName ? `${personaName} em ${placeName}` : personaName;
 }
 
+function compactNavigationText(text: string, maxLength = 260) {
+    const cleaned = stripLegacyActionTags(text)
+        .replace(/\s+/g, " ")
+        .trim();
+    if (cleaned.length <= maxLength) return cleaned;
+    return `${cleaned.slice(0, maxLength).trim()}...`;
+}
+
+function summarizeConversationForNavigation(input: {
+    activeScope: string;
+    targetScope: string;
+    messages: Array<{ role: string; content: string }>;
+}) {
+    const targetName = displayConversationScope(input.targetScope);
+    const activeName = displayConversationScope(input.activeScope);
+    const visibleMessages = input.messages
+        .filter((message) => (message.role === "user" || message.role === "assistant") && message.content.trim())
+        .slice(-10);
+    const userTurns = visibleMessages
+        .filter((message) => message.role === "user")
+        .map((message) => compactNavigationText(message.content, 220))
+        .filter(Boolean)
+        .slice(-5);
+    const assistantTurns = visibleMessages
+        .filter((message) => message.role === "assistant")
+        .map((message) => compactNavigationText(message.content, 220))
+        .filter(Boolean)
+        .slice(-3);
+
+    if (userTurns.length === 0 && assistantTurns.length === 0) {
+        return `Encontrei a conversa com ${targetName}, mas ela nao tem mensagens legiveis suficientes para eu resumir.`;
+    }
+
+    return [
+        `Sim. Eu vejo o registro recente da conversa com ${targetName}.`,
+        userTurns.length > 0
+            ? [
+                "O que voce levou para la foi:",
+                userTurns.map((turn, index) => `${index + 1}. ${turn}`).join("\n"),
+            ].join("\n")
+            : "",
+        assistantTurns.length > 0
+            ? `${targetName} respondeu em torno disto: ${assistantTurns.join(" / ")}`
+            : "",
+        `Falando como ${activeName}, o ponto vivo nao e adivinhar: e usar esse rastro sem trocar minha voz pela de ${targetName}.`,
+    ].filter(Boolean).join("\n\n");
+}
+
+function asksPreviousConversationContent(text: string) {
+    const normalized = normalizeInitiativeText(text || "");
+    return /\b(o que|que)\b.{0,80}\b(disse|falei|falamos|conversei|conversamos|foi dito)\b/.test(normalized)
+        || /\bnessa conversa\b/.test(normalized)
+        || /\bnessa ultima conversa\b/.test(normalized);
+}
+
 function resolveStatedConversationPartnerName(text: string) {
     const normalized = normalizeInitiativeText(text || "");
     const partnerSegment = [
@@ -280,17 +335,37 @@ async function buildConversationNavigationAnswer(input: {
 
     const normalized = normalizeInitiativeText(input.userText);
     const mentionedPersonaName = resolveStatedConversationPartnerName(input.userText);
-    const recentThreads = await getRecentConversationThreads(input.userId, 8);
+    const recentThreads = await getRecentConversationThreads(input.userId, 20);
     const previousThread = recentThreads.find((thread) => thread.id !== input.activeThreadId) || null;
     const currentScope = displayConversationScope(input.personaId);
     const correctionTone = /\b(errou|errado|estava|tava|estive|vinha|falava|conversava)\b/.test(normalized);
 
     if (mentionedPersonaName) {
-        return [
-            correctionTone ? "Voce tem razao: vou corrigir a navegacao." : "Sim.",
-            `O rastro que devo considerar e a conversa com ${mentionedPersonaName}.`,
-            "Isso e metacontexto do chat, nao uma pauta para eu transformar em frente ativa.",
-        ].join(" ");
+        const targetThread = recentThreads.find((thread) =>
+            thread.id !== input.activeThreadId
+            && normalizeInitiativeText(splitConversationScope(thread.personaId).personaName) === normalizeInitiativeText(mentionedPersonaName)
+        ) || null;
+
+        if (!targetThread) {
+            return `Voce citou ${mentionedPersonaName}, mas eu nao encontrei uma conversa recente registrada com essa persona fora desta janela.`;
+        }
+
+        if (isPrivateMemorySpace(targetThread.personaId) && !isPrivateMemorySpace(input.memoryScope)) {
+            return `Ha uma conversa privada recente com ${mentionedPersonaName}, mas eu nao vou trazer esse conteudo para ${currentScope}.`;
+        }
+
+        const targetConversation = await getThread(input.userId, targetThread.id);
+        if (!targetConversation) {
+            return `Encontrei o rastro de ${mentionedPersonaName}, mas nao consegui abrir as mensagens dessa conversa agora.`;
+        }
+
+        const summary = summarizeConversationForNavigation({
+            activeScope: input.personaId,
+            targetScope: targetThread.personaId,
+            messages: targetConversation.messages,
+        });
+
+        return correctionTone ? `Voce tem razao: eu tinha que olhar esse rastro.\n\n${summary}` : summary;
     }
 
     if (!previousThread) {
@@ -302,6 +377,16 @@ async function buildConversationNavigationAnswer(input: {
     }
 
     const previousScope = displayConversationScope(previousThread.personaId);
+    if (asksPreviousConversationContent(input.userText)) {
+        const previousConversation = await getThread(input.userId, previousThread.id);
+        if (previousConversation) {
+            return summarizeConversationForNavigation({
+                activeScope: input.personaId,
+                targetScope: previousThread.personaId,
+                messages: previousConversation.messages,
+            });
+        }
+    }
     return `Pelo registro recente, antes daqui voce estava falando com ${previousScope}. Posso ver apenas o que esta registrado no Nemosine, mas o rastro mais proximo e esse.`;
 }
 

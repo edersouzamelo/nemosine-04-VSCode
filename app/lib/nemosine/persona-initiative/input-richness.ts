@@ -88,6 +88,8 @@ const personaMetaCritiquePatterns = [
   /\b(loop|looping|repetindo|repeticao|repetição|repetiu|eco mecanico|eco mecânico)\b/,
   /\b(travou|travou as mensagens|mensagens travaram|nao foi possivel obter resposta|não foi possível obter resposta)\b/,
   /\bnao sabe falar\b/,
+  /\b(fala|fale|responda)\s+(igual|como)\s+gente\b/,
+  /\b(parece|soou|soa)\s+(robo|rob[oÃ´]|maquina|m[aÃ¡]quina|protocolo)\b/,
   /\bdo que (voce|vc) (esta|ta|tá) falando\b/,
   /\bque (voce|vc) (esta|ta|tá) falando\b/,
   /\b(que bosta|merda|pessimo|péssimo|horrivel|horrível)\b/,
@@ -104,6 +106,11 @@ const personaMetaCritiquePatterns = [
 ];
 
 const conversationNavigationPatterns = [
+  /\bquem foi (a|o)?\s*(ultima|ultimo)\s+(persona|personagem|agente)?\s*com quem\s+(eu\s+)?(conversei|falei)\b/,
+  /\b(ultima|ultimo)\s+(persona|personagem|agente)\s+com quem\s+(eu\s+)?(conversei|falei)\b/,
+  /\bcom quem\s+(eu\s+)?(conversei|falei)\s+(por ultimo|pela ultima vez)\b/,
+  /\b(viu|sabe|lembra|consegue ver|consegue saber)\b.{0,100}\b(o que|que)\b.{0,80}\b(falei|falamos|conversei|conversamos)\s+com\b/,
+  /\bquero saber\b.{0,120}\b(sabe|viu|lembra|consegue ver|consegue saber)\b.{0,100}\b(o que|que)\b.{0,80}\b(falei|falamos|conversei|conversamos)\s+com\b/,
   /\bcom quem\b.{0,80}\b(acabei|estava|tava|estive|vinha)\b.{0,80}\b(falar|falando|falei|conversar|conversando|conversei)\b/,
   /\bquem\b.{0,80}\b(acabei|estava|tava|estive|vinha)\b.{0,80}\b(falar|falando|falei|conversar|conversando|conversei)\b/,
   /\b(acabei de|estava|tava|estive|vinha)\s+(falando|conversando|falei|conversei)\s+com\b/,

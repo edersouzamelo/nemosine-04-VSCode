@@ -80,6 +80,9 @@ test("classifies recent-conversation navigation as explicit metacontext", () => 
   assert.equal(question.requiresContextExpansion, false);
   assert.ok(question.signals.includes("conversation-navigation"));
   assert.equal(isConversationNavigationRequest("acho que vc errou. Estava falando com o treinador"), true);
+  assert.equal(isConversationNavigationRequest("Mentor voce viu o que eu conversei com a cigana?"), true);
+  assert.equal(isConversationNavigationRequest("Eu quero saber se voce sabe o que eu falei com a cigana!!!!"), true);
+  assert.equal(isConversationNavigationRequest("oi cigana. Quem foi a ultima persona com quem eu conversei? o que disse nessa conversa?"), true);
 });
 
 test("classifies uploaded-source questions as source references", () => {
@@ -101,6 +104,7 @@ test("classifies system/persona failure complaints as meta-critique, not durable
   assert.equal(isPersonaMetaCritique("Por que voce esta falando consigo mesmo em vez de falar comigo?"), true);
   assert.equal(isPersonaMetaCritique("Para de responder deterministicamente"), true);
   assert.equal(isPersonaMetaCritique("AFF esta ruim"), true);
+  assert.equal(isPersonaMetaCritique("Fala igual gente"), true);
 });
 
 test("classifies first-contact greeting as shallow opening", () => {
@@ -237,8 +241,8 @@ test("deterministic fallback scrubs polluted episode scaffolding", () => {
     contract,
   });
 
-  assert.doesNotMatch(fallback, /EPISODIO COM|O usuario escreveu|O sinal mais forte|centro de gravidade|frente autorizada|respondendo assim/i);
-  assert.match(fallback, /Guru|contexto|material|voz/i);
+  assert.doesNotMatch(fallback, /EPISODIO COM|O usuario escreveu|O sinal mais forte|centro de gravidade|frente autorizada|respondendo assim|contexto recente esta contaminado/i);
+  assert.match(fallback, /Sem bastidor|rastro recente|memoria/i);
 });
 
 test("health-check fallback talks to the user instead of narrating itself", () => {
