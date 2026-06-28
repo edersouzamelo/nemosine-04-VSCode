@@ -1,7 +1,7 @@
 import { ENTITIES } from "@/app/data/entities";
 import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
 import { getAgendaEvents } from "@/app/lib/sovereignStore";
-import { getVisibleUserSources } from "@/app/lib/sourceStore";
+import { getVisibleUserSources, getVisibleUserSourceProfileSummaries } from "@/app/lib/sourceStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
   getUserMemoryRecords,
@@ -154,8 +154,9 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
       ? getVisibleConversationEpisodes(request.userId, request.memoryScope, { excludeThreadId: request.threadId }).then((items) => items.slice(0, 10))
       : getVisibleConversationEpisodes(request.userId, request.memoryScope, { excludeThreadId: request.threadId }).then((items) => items.slice(0, 8));
 
-  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
+  const [memoryRecords, sourceProfileSummaries, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
     memoryPromise.catch(() => []),
+    getVisibleUserSourceProfileSummaries(request.userId, request.memoryScope).catch(() => []),
     episodePromise.catch(() => []),
     getVisibleActiveTopics(request.userId, request.memoryScope, 10).catch(() => []),
     getVisibleUserSources(request.userId, request.personaId).catch(() => []),
@@ -195,7 +196,12 @@ export async function assembleCognitiveContextEnvelope(request: CognitiveRequest
     contract,
     inputRichness,
     activeTopics: activeTopicsForContext,
-    memories: memoryRecords,
+    memories: [
+      ...memoryRecords,
+      ...sourceProfileSummaries.filter((summary) =>
+        !memoryRecords.some((memory) => memory.content === summary.content)
+      ),
+    ],
     episodes,
     sources: userSources.slice(0, 5),
     agenda: agendaSummaries,

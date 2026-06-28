@@ -12,6 +12,7 @@ const {
   isSourceReferenceRequest,
 } = require("../../app/lib/nemosine/persona-initiative/index.ts");
 const { getPersonaBehaviorContract } = require("../../app/lib/nemosine/persona_behavior_contracts.ts");
+const { buildUserSourceProfileMemory } = require("../../app/lib/sourceStore.ts");
 
 function commanderSnapshot() {
   const richness = classifyConversationInputRichness("bom dia");
@@ -85,6 +86,25 @@ test("classifies uploaded-source questions as source references", () => {
   assert.equal(sourceQuestion.requiresContextExpansion, false);
   assert.ok(sourceQuestion.signals.includes("source-reference"));
   assert.equal(isSourceReferenceRequest("o dossiê que subi te ensina algo sobre meu perfil?"), true);
+});
+
+test("builds a non-literal general profile memory from persona source uploads", () => {
+  const memory = buildUserSourceProfileMemory({
+    personaId: "Filósofo",
+    filename: "Dossie_de_Continuidade_Filosofica.docx",
+    content: [
+      "NEMOSINE NOUS DOSSIÊ DE CONTINUIDADE FILOSÓFICA.",
+      "O perfil descreve Edwardo como criador que pensa por sistemas simbólicos, exige profundidade, rejeita respostas burocráticas e precisa de personas com alma própria.",
+      "Esse usuário valoriza continuidade cognitiva e não quer que cada persona recomece como atendente genérico.",
+    ].join(" "),
+  });
+
+  assert.ok(memory);
+  assert.match(memory, /PERFIL GERAL DO USUARIO/);
+  assert.match(memory, /Sintese nao literal/);
+  assert.match(memory, /fonte bruta permanece restrita ao persona de origem/);
+  assert.doesNotMatch(memory, /Dossie_de_Continuidade_Filosofica/);
+  assert.ok(memory.length < 900);
 });
 
 test("low-information input selects active fronts by continuity rather than lexical greeting match", () => {

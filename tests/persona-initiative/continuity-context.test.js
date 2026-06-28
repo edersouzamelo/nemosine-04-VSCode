@@ -17,6 +17,7 @@ const {
   evaluatePersonaInitiativeQuality,
 } = require("../../app/lib/nemosine/persona-initiative/index.ts");
 const { getPersonaBehaviorContract } = require("../../app/lib/nemosine/persona_behavior_contracts.ts");
+const { buildUserSourceProfileMemory } = require("../../app/lib/sourceStore.ts");
 
 const now = new Date("2026-06-26T12:00:00.000Z");
 
@@ -902,4 +903,31 @@ test("uploaded source question suppresses self-echo episodes and selects the sou
   assert.doesNotMatch(fallback, /O sinal|frente autorizada|EPISODIO COM/i);
   assert.match(fallback, /dossie|fonte carregada|material carregado/i);
   assert.deepEqual(extractActiveTopicCandidates({ userText, memoryScope: "Filósofo" }), []);
+});
+
+test("source upload assimilation can inform other personas without exposing the raw source", () => {
+  const contract = getPersonaBehaviorContract("Comandante");
+  const userText = "bom dia";
+  const profileMemory = buildUserSourceProfileMemory({
+    personaId: "Filósofo",
+    filename: "Dossie_de_Continuidade_Filosofica.docx",
+    content: "O perfil descreve Edwardo como criador de sistemas simbolicos que exige profundidade, continuidade cognitiva e personas com alma propria.",
+  });
+  assert.ok(profileMemory);
+
+  const packet = buildConversationContextPacket({
+    userText,
+    personaId: "Comandante",
+    memoryScope: "Comandante",
+    contract,
+    memories: [
+      { id: "profile-from-source", content: profileMemory, createdAt: now, personaId: null },
+    ],
+    sources: [],
+    now,
+  });
+
+  assert.ok(packet.relevantDurableMemories.some((item) => /PERFIL GERAL DO USUARIO/.test(item.text)));
+  assert.equal(packet.personaAffinityContext.length, 0);
+  assert.doesNotMatch(packet.selectedItems.map((item) => item.text).join("\n"), /Dossie_de_Continuidade_Filosofica/);
 });

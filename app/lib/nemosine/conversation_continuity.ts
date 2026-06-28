@@ -273,6 +273,7 @@ function isLowValueContinuityText(text: string) {
   const semantic = semanticContinuityText(stripAssistantEchoContext(text));
   const normalized = normalizeInitiativeText(semantic);
   if (!normalized) return true;
+  if (normalized.includes("perfil geral do usuario")) return false;
   if (highSalienceHumanScore(normalized) > 0) return false;
   if (countSignalHits(normalized, substantiveSignals) > 0) return false;
   if (countSignalHits(normalized, unresolvedSignals) > 0) return false;

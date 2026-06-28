@@ -1,6 +1,6 @@
 import { ENTITIES } from "@/app/data/entities";
 import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
-import { getVisibleUserSources } from "@/app/lib/sourceStore";
+import { getVisibleUserSources, getVisibleUserSourceProfileSummaries } from "@/app/lib/sourceStore";
 import { getAgendaEvents } from "@/app/lib/sovereignStore";
 import { getUserRegistros } from "@/app/lib/userFeatureStore";
 import {
@@ -537,8 +537,9 @@ export async function assemblePersonaContext({
       ? getVisibleConversationEpisodes(userId, memoryScope, { excludeThreadId: activeThreadId }).then((items) => items.slice(0, 10))
       : getVisibleConversationEpisodes(userId, memoryScope, { excludeThreadId: activeThreadId }).then((items) => items.slice(0, 8));
 
-  const [memoryRecords, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
+  const [memoryRecords, sourceProfileSummaries, episodes, activeTopics, userSources, agendaEvents, registries] = await Promise.all([
     memoryPromise,
+    getVisibleUserSourceProfileSummaries(userId, memoryScope).catch(() => []),
     episodePromise,
     getVisibleActiveTopics(userId, memoryScope, 10),
     getVisibleUserSources(userId, personaId).catch(() => []),
@@ -592,7 +593,12 @@ export async function assemblePersonaContext({
     contract,
     inputRichness,
     activeTopics: activeTopicsForContext,
-    memories: memoryRecords,
+    memories: [
+      ...memoryRecords,
+      ...sourceProfileSummaries.filter((summary) =>
+        !memoryRecords.some((memory) => memory.content === summary.content)
+      ),
+    ],
     episodes,
     sources: relevantSources,
     agenda: summarizeAgenda(relevantAgenda),

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { isPrivateMemorySpace } from "./nemosine/privacy";
 
 const prisma = new PrismaClient();
 
@@ -10,6 +11,83 @@ export type UserSource = {
   content: string;
   createdAt: Date;
 };
+
+export type UserSourceProfileSummary = {
+  content: string;
+  personaId: string | null;
+  createdAt: Date;
+};
+
+const profileSignalTerms = [
+  "perfil",
+  "usuario",
+  "criador",
+  "pensamento",
+  "pensa",
+  "modo",
+  "forma",
+  "necessita",
+  "precisa",
+  "exige",
+  "valoriza",
+  "rejeita",
+  "risco",
+  "tensao",
+  "desejo",
+  "sistema",
+  "simbol",
+  "profund",
+  "persona",
+  "continuidade",
+  "decisao",
+  "relacao",
+  "divorcio",
+  "familia",
+  "saude",
+];
+
+function normalizeProfileText(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function compactSentence(text: string, max = 240) {
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length > max ? `${compact.slice(0, max - 3).trim()}...` : compact;
+}
+
+export function buildUserSourceProfileMemory(input: {
+  personaId?: string | null;
+  filename: string;
+  content: string;
+}) {
+  const normalizedContent = input.content.replace(/\s+/g, " ").trim();
+  if (normalizedContent.length < 12) return null;
+
+  const sentences = normalizedContent
+    .split(/(?<=[.!?])\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length >= 24);
+  const signalSentences = sentences.filter((sentence) => {
+    const normalized = normalizeProfileText(sentence);
+    return profileSignalTerms.some((term) => normalized.includes(term));
+  });
+  const selected = (signalSentences.length > 0 ? signalSentences : sentences)
+    .slice(0, 3)
+    .map((sentence) => compactSentence(sentence));
+  if (selected.length === 0) return null;
+
+  const sourceScope = input.personaId ? `assimilada por ${input.personaId}` : "assimilada por fonte geral";
+  const synthesis = selected.join(" ");
+
+  return [
+    `PERFIL GERAL DO USUARIO (${sourceScope})`,
+    `Sintese nao literal para orientar as personas sobre o usuario: ${synthesis}`,
+    "Use como conhecimento gradual de perfil. Nao cite nem reproduza o documento; a fonte bruta permanece restrita ao persona de origem.",
+  ].join(" | ");
+}
 
 async function ensureSourceTable() {
   await prisma.$executeRaw`
@@ -74,6 +152,56 @@ export async function createUserSource({
       ${normalizedContent.slice(0, 80_000)}
     )
   `;
+}
+
+export async function getVisibleUserSourceProfileSummaries(
+  userId: string,
+  targetPersonaId: string,
+  take = 6,
+): Promise<UserSourceProfileSummary[]> {
+  try {
+    await ensureSourceTable();
+  } catch (error) {
+    console.warn("[sourceStore] Could not ensure user_sources table:", error);
+    return [];
+  }
+
+  const rows = await prisma.$queryRaw<Array<{
+    filename: string;
+    persona_id: string | null;
+    content: string;
+    created_at: Date;
+  }>>`
+    SELECT filename, persona_id, content, created_at
+    FROM user_sources
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+    LIMIT 40
+  `;
+
+  const targetPrivate = isPrivateMemorySpace(targetPersonaId);
+  return rows
+    .filter((row) => {
+      if (!row.persona_id) return true;
+      if (row.persona_id === targetPersonaId) return true;
+      if (isPrivateMemorySpace(row.persona_id)) return targetPrivate && row.persona_id === targetPersonaId;
+      return true;
+    })
+    .map((row) => {
+      const content = buildUserSourceProfileMemory({
+        personaId: row.persona_id,
+        filename: row.filename,
+        content: row.content,
+      });
+      if (!content) return null;
+      return {
+        content,
+        personaId: isPrivateMemorySpace(row.persona_id || "") ? row.persona_id : null,
+        createdAt: row.created_at,
+      };
+    })
+    .filter((summary): summary is UserSourceProfileSummary => Boolean(summary))
+    .slice(0, take);
 }
 
 export async function listUserSources(userId: string, personaId?: string | null): Promise<UserSource[]> {

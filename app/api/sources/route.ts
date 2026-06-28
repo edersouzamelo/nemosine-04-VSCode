@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
 import mammoth from "mammoth";
 import { auth } from "@/auth";
-import { createUserSource, deleteUserSource, listUserSources } from "@/app/lib/sourceStore";
+import { createUserSource, deleteUserSource, listUserSources, buildUserSourceProfileMemory } from "@/app/lib/sourceStore";
+import { addUserMemory } from "@/app/lib/nemosine/session_store";
+import { isPrivateMemorySpace } from "@/app/lib/nemosine/privacy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -97,6 +99,18 @@ export async function POST(req: NextRequest) {
       mimeType: file.type || null,
       content,
     });
+    const profileMemory = buildUserSourceProfileMemory({
+      personaId: personaId || null,
+      filename: file.name || "fonte",
+      content,
+    });
+    if (profileMemory) {
+      await addUserMemory(
+        userId,
+        profileMemory,
+        personaId && isPrivateMemorySpace(personaId) ? personaId : undefined,
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
