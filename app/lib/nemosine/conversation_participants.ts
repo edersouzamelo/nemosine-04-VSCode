@@ -14,6 +14,7 @@ export type ConversationParticipant = {
   joinedAt: Date;
   leftAt: Date | null;
   active: boolean;
+  muted: boolean;
 };
 
 export type ParticipantSnapshot = {
@@ -137,9 +138,22 @@ export function assertPersonaCanParticipate(personaId: string) {
 async function getOwnedThread(userId: string, threadId: string) {
   const thread = await prisma.thread.findFirst({
     where: { id: threadId, userId },
-    include: {
+    select: {
+      id: true,
+      personaId: true,
+      placeId: true,
+      mode: true,
       participants: {
         orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
+        select: {
+          id: true,
+          threadId: true,
+          personaId: true,
+          role: true,
+          joinedAt: true,
+          leftAt: true,
+          active: true,
+        },
       },
     },
   });
@@ -155,7 +169,7 @@ function mapPresence(presence: {
   joinedAt: Date;
   leftAt: Date | null;
   active: boolean;
-}): ConversationParticipant {
+}, muted = false): ConversationParticipant {
   return {
     id: presence.id,
     threadId: presence.threadId,
@@ -164,7 +178,24 @@ function mapPresence(presence: {
     joinedAt: presence.joinedAt,
     leftAt: presence.leftAt,
     active: presence.active,
+    muted,
   };
+}
+
+async function getMutedPresenceIds(threadId: string) {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "ThreadPersonaPresence"
+      WHERE "threadId" = ${threadId}
+        AND "active" = true
+        AND "muted" = true
+    `;
+    return new Set(rows.map((row) => row.id));
+  } catch (error) {
+    if (isMissingCollectiveSchemaError(error)) return new Set<string>();
+    throw error;
+  }
 }
 
 function sortParticipants(participants: ConversationParticipant[]) {
@@ -207,8 +238,18 @@ export async function getActiveParticipants(userId: string, threadId: string) {
   const presences = await prisma.threadPersonaPresence.findMany({
     where: { threadId, active: true },
     orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
+    select: {
+      id: true,
+      threadId: true,
+      personaId: true,
+      role: true,
+      joinedAt: true,
+      leftAt: true,
+      active: true,
+    },
   });
-  const participants = sortParticipants(presences.map(mapPresence));
+  const mutedIds = await getMutedPresenceIds(threadId);
+  const participants = sortParticipants(presences.map((presence) => mapPresence(presence, mutedIds.has(presence.id))));
   assertParticipantLimit(participants);
   return participants;
 }
@@ -266,6 +307,57 @@ export async function invitePersona(userId: string, threadId: string, personaId:
   return mapPresence(presence);
 }
 
+export async function setPersonaMuted(userId: string, threadId: string, personaId: string, muted: boolean) {
+  assertPersonaCanParticipate(personaId);
+  await ensureHostPresence(userId, threadId);
+
+  const activePresence = await prisma.threadPersonaPresence.findFirst({
+    where: {
+      threadId,
+      personaId,
+      active: true,
+    },
+    orderBy: { joinedAt: "desc" },
+    select: {
+      id: true,
+      threadId: true,
+      personaId: true,
+      role: true,
+      joinedAt: true,
+      leftAt: true,
+      active: true,
+    },
+  });
+  if (!activePresence) {
+    throw new Error("PERSONA_NOT_PRESENT");
+  }
+
+  try {
+    await prisma.$executeRaw`
+      UPDATE "ThreadPersonaPresence"
+      SET "muted" = ${muted}
+      WHERE "id" = ${activePresence.id}
+    `;
+  } catch (error) {
+    if (isMissingCollectiveSchemaError(error)) {
+      throw new Error("MUTING_MIGRATION_REQUIRED");
+    }
+    throw error;
+  }
+
+  await prisma.thread.update({
+    where: { id: threadId },
+    data: { updatedAt: new Date() },
+    select: { id: true },
+  });
+  await addMessageToThread(userId, threadId, "system", muted ? `${personaId} foi silenciado.` : `${personaId} voltou a falar.`, {
+    speakerPersonaId: personaId,
+    messageKind: "SYSTEM_EVENT",
+  });
+
+  return mapPresence(activePresence, muted);
+}
+
 export async function removePersona(userId: string, threadId: string, personaId: string) {
   assertPersonaCanParticipate(personaId);
   const thread = await getOwnedThread(userId, threadId);
@@ -304,6 +396,48 @@ export async function removePersona(userId: string, threadId: string, personaId:
     messageKind: "SYSTEM_EVENT",
   });
   return mapPresence(presence);
+}
+
+function normalizeAddressText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}@,;:.?!\s-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+}
+
+export function detectAddressedParticipantIds(text: string, participants: Array<{ personaId: string; active: boolean }>) {
+  const normalizedText = normalizeAddressText(text);
+  if (!normalizedText) return [];
+
+  return participants
+    .filter((participant) => participant.active)
+    .map((participant) => {
+      const normalizedName = normalizeAddressText(participant.personaId);
+      const namePattern = escapeRegExp(normalizedName);
+      const startsWithName = new RegExp(`^@?${namePattern}(?:\\s|,|:|;|$)`, "u").test(normalizedText);
+      const sentenceVocative = new RegExp(`(?:^|[.!?;]\\s+)@?${namePattern}\\s*(?:,|:|;)`, "u").test(normalizedText);
+      const explicitTarget = new RegExp(`\\b(?:para|pra|pro|ao|a)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText)
+        || new RegExp(`\\b(?:pergunta|duvida|questao)\\s+(?:e\\s+)?(?:para|pra|pro|ao|a)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText);
+      return startsWithName || sentenceVocative || explicitTarget ? participant.personaId : null;
+    })
+    .filter((personaId): personaId is string => Boolean(personaId));
+}
+
+export function selectSpeakingParticipantsForRound(
+  participants: ConversationParticipant[],
+  userText: string,
+) {
+  const available = participants.filter((participant) => participant.active && !participant.muted);
+  const addressed = new Set(detectAddressedParticipantIds(userText, participants));
+  if (addressed.size === 0) return available;
+  return available.filter((participant) => addressed.has(participant.personaId));
 }
 
 export async function isPersonaPresentAt(threadId: string, personaId: string, timestamp: Date) {

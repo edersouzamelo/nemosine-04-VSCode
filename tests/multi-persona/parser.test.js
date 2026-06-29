@@ -50,6 +50,18 @@ test("parses direct persona can leave command", () => {
   assert.equal(parsed.commands[0].action, "remove");
 });
 
+test("parses mute and unmute commands", () => {
+  const mute = parsePersonaPresenceCommands("silencie o Vigia por enquanto");
+  assert.equal(mute.commands.length, 1);
+  assert.equal(mute.commands[0].action, "mute");
+  assert.deepEqual(mute.commands[0].personaIds, ["Vigia"]);
+
+  const unmute = parsePersonaPresenceCommands("Vigia pode falar de novo");
+  assert.equal(unmute.commands.length, 1);
+  assert.equal(unmute.commands[0].action, "unmute");
+  assert.deepEqual(unmute.commands[0].personaIds, ["Vigia"]);
+});
+
 test("avoids narrative false positives", () => {
   const parsed = parsePersonaPresenceCommands("ontem conversei com o Cientista sobre isso");
   assert.deepEqual(parsed.commands, []);

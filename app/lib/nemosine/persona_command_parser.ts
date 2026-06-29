@@ -1,6 +1,6 @@
 import { ENTITIES } from "@/app/data/entities";
 
-export type PersonaPresenceCommandAction = "invite" | "remove";
+export type PersonaPresenceCommandAction = "invite" | "remove" | "mute" | "unmute";
 
 export type PersonaPresenceCommand = {
   action: PersonaPresenceCommandAction;
@@ -34,6 +34,25 @@ const REMOVE_TRIGGERS = [
   "retire",
   "expulse",
   "remova",
+];
+
+const MUTE_TRIGGERS = [
+  "/silenciar",
+  "silencie",
+  "silencia",
+  "mute",
+  "calar",
+  "cale",
+];
+
+const UNMUTE_TRIGGERS = [
+  "/reativar",
+  "/dessilenciar",
+  "dessilencie",
+  "reative",
+  "deixe falar",
+  "pode falar",
+  "volte a falar",
 ];
 
 function normalizeWithIndexMap(value: string): NormalizedText {
@@ -132,6 +151,22 @@ function findCanLeaveCommands(text: string): PersonaPresenceCommand | null {
   };
 }
 
+function findCanSpeakCommands(text: string): PersonaPresenceCommand | null {
+  const normalizedText = normalizePersonaCommandText(text);
+  const personaIds = getPersonaNames().filter((personaName) => {
+    const normalizedPersona = escapedNormalizedName(personaName);
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${normalizedPersona}\\s*,?\\s+(?:pode\\s+falar|volte\\s+a\\s+falar|pode\\s+voltar)(?=$|[^\\p{L}\\p{N}])`, "u")
+      .test(normalizedText);
+  });
+
+  if (personaIds.length === 0) return null;
+  return {
+    action: "unmute",
+    personaIds,
+    raw: text.trim(),
+  };
+}
+
 function dedupeCommands(commands: PersonaPresenceCommand[]) {
   const seen = new Set<string>();
   return commands
@@ -181,7 +216,10 @@ export function parsePersonaPresenceCommands(text: string, voiceTranscript?: str
   const commands = dedupeCommands([
     findTriggeredCommand(combinedText, "invite", INVITE_TRIGGERS),
     findTriggeredCommand(combinedText, "remove", REMOVE_TRIGGERS),
+    findTriggeredCommand(combinedText, "mute", MUTE_TRIGGERS),
+    findTriggeredCommand(combinedText, "unmute", UNMUTE_TRIGGERS),
     findCanLeaveCommands(combinedText),
+    findCanSpeakCommands(combinedText),
   ].filter((command): command is PersonaPresenceCommand => Boolean(command)));
 
   return {

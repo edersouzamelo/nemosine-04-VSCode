@@ -12,6 +12,8 @@ import {
   getParticipantSnapshot,
   invitePersona,
   removePersona,
+  selectSpeakingParticipantsForRound,
+  setPersonaMuted,
 } from "./conversation_participants";
 import {
   addMessageToThread,
@@ -48,17 +50,30 @@ type CollectiveStreamEvent = {
     | "persona-delta"
     | "persona-finish"
     | "persona-error"
+    | "round-notice"
     | "round-finish"
     | "participant-joined"
-    | "participant-left";
+    | "participant-left"
+    | "participant-muted"
+    | "participant-unmuted";
   [key: string]: unknown;
 };
 
 const INDEPENDENCE_RULE = [
-  "Produza seu raciocinio segundo sua propria vocacao.",
+  "Esta e uma sessao colegiada: voce participa de uma conversa comum, nao de uma resposta isolada.",
+  "Leia as falas anteriores identificadas por persona e as falas ja concluidas nesta rodada.",
+  "Voce pode responder ao usuario e tambem se dirigir nominalmente a outras personas quando concordar, corrigir, tensionar ou complementar.",
+  "Mantenha sua perspectiva exclusiva, mas deixe concordancias e dissonancias claras: use formulacoes como 'Concordo com Mentor...' ou 'Diverjo de Juiz...'.",
   "Nao presuma consenso, nao harmonize artificialmente e discorde quando sua analise divergir.",
-  "Voce nao tem acesso aos rascunhos das demais personas desta rodada.",
+  "Fale em primeira pessoa quando estiver se pronunciando; evite narrar a si mesmo em terceira pessoa.",
+  "Nao fale por personas ausentes ou silenciadas.",
 ].join(" ");
+
+type CompletedRoundMessage = {
+  personaId: string;
+  role: "HOST" | "GUEST";
+  content: string;
+};
 
 function getConfiguredPrimaryChatModel() {
   const model = process.env.OPENAI_CHAT_MODEL?.trim()
@@ -213,15 +228,16 @@ function buildPersonaHistory(priorHistory: ChatThreadMessage[], personaId: strin
     .filter((message) => message.role === "user" || message.role === "assistant" || message.role === "system")
     .map((message) => {
       if (message.role !== "assistant") {
+        const prefix = message.role === "user" ? "Usuario" : "Evento do conselho";
         return {
           id: message.id,
           role: message.role,
-          content: message.content,
+          content: `[${prefix}]\n${message.content}`,
           timestamp: message.timestamp,
         };
       }
       const speaker = message.speakerPersonaId || personaId;
-      const label = speaker === personaId ? `Sua fala anterior (${speaker})` : `Fala concluida de ${speaker}`;
+      const label = speaker === personaId ? `Sua fala anterior (${speaker})` : `Fala anterior de ${speaker}`;
       return {
         id: message.id,
         role: message.role,
@@ -229,6 +245,20 @@ function buildPersonaHistory(priorHistory: ChatThreadMessage[], personaId: strin
         timestamp: message.timestamp,
       };
     });
+}
+
+function buildCurrentRoundContext(completedMessages: CompletedRoundMessage[]) {
+  if (completedMessages.length === 0) {
+    return "Nenhuma outra persona falou ainda nesta rodada. Abra sua perspectiva sem fingir que ouviu alguem.";
+  }
+
+  return [
+    "Falas ja concluidas nesta mesma rodada. Use isto para concordar, discordar, corrigir ou complementar nominalmente:",
+    ...completedMessages.map((message) => [
+      `${message.personaId} (${message.role === "HOST" ? "anfitriao" : "convidado"}):`,
+      message.content.slice(0, 1800),
+    ].join("\n")),
+  ].join("\n\n");
 }
 
 function safeErrorCode(error: unknown) {
@@ -250,9 +280,13 @@ async function executePresenceCommands(input: CollectiveChatRoundInput) {
       if (command.action === "invite") {
         await invitePersona(input.userId, input.threadId, personaId);
         events.push({ type: "participant-joined", threadId: input.threadId, personaId });
-      } else {
+      } else if (command.action === "remove") {
         await removePersona(input.userId, input.threadId, personaId);
         events.push({ type: "participant-left", threadId: input.threadId, personaId });
+      } else {
+        const muted = command.action === "mute";
+        await setPersonaMuted(input.userId, input.threadId, personaId, muted);
+        events.push({ type: muted ? "participant-muted" : "participant-unmuted", threadId: input.threadId, personaId });
       }
     }
   }
@@ -265,8 +299,9 @@ async function runPersonaGeneration(input: {
   participant: { personaId: string; role: "HOST" | "GUEST" };
   turnGroupId: string;
   messageId: string;
+  completedRoundMessages: CompletedRoundMessage[];
   controller: ReadableStreamDefaultController<Uint8Array>;
-}) {
+}): Promise<{ status: "COMPLETED" | "FAILED"; content: string }> {
   const startedAt = Date.now();
   const activeChatModel = getConfiguredPrimaryChatModel();
   const memoryScope = getMemoryScope(input.participant.personaId, input.round.placeId);
@@ -296,6 +331,7 @@ async function runPersonaGeneration(input: {
         content: [
           buildRuntimePersonaGuard(input.participant.personaId, input.round.userText),
           INDEPENDENCE_RULE,
+          buildCurrentRoundContext(input.completedRoundMessages),
         ].join("\n\n"),
         timestamp: Date.now(),
       },
@@ -353,6 +389,9 @@ async function runPersonaGeneration(input: {
       content: [
         `Participantes da rodada: snapshot congelado em ${input.turnGroupId}.`,
         `Usuario: ${input.round.displayUserText.slice(0, 900)}`,
+        input.completedRoundMessages.length > 0
+          ? `Falas anteriores na rodada:\n${input.completedRoundMessages.map((message) => `${message.personaId}: ${message.content.slice(0, 600)}`).join("\n")}`
+          : "Primeira fala da rodada.",
         `Fala de ${input.participant.personaId}: ${visibleText.slice(0, 1200)}`,
       ].join("\n"),
     });
@@ -402,6 +441,7 @@ async function runPersonaGeneration(input: {
         filteredHistoryCount,
       },
     });
+    return { status: "COMPLETED", content: visibleText };
   } catch (error) {
     status = "FAILED";
     errorCode = safeErrorCode(error);
@@ -431,6 +471,7 @@ async function runPersonaGeneration(input: {
         errorCode,
       },
     }).catch(() => null);
+    return { status: "FAILED", content: failureMessage };
   } finally {
     console.log("[CollectiveChat] persona_generation", {
       threadId: input.round.threadId,
@@ -471,14 +512,46 @@ export function createCollectiveChatStream(input: CollectiveChatRoundInput) {
           });
 
           const snapshot = await getParticipantSnapshot(input.userId, input.threadId);
+          const speakingParticipants = selectSpeakingParticipantsForRound(snapshot.participants, input.displayUserText || input.userText);
+          const mutedCount = snapshot.participants.filter((participant) => participant.muted).length;
+          const addressedCount = speakingParticipants.length < snapshot.participants.filter((participant) => !participant.muted).length
+            ? speakingParticipants.length
+            : 0;
           enqueueEvent(controller, {
             type: "round-start",
             threadId: input.threadId,
             turnGroupId,
             participantCount: snapshot.participants.length,
+            speakingParticipantCount: speakingParticipants.length,
+            mutedCount,
+            addressedCount,
           });
 
-          const pendingMessages = await Promise.all(snapshot.participants.map(async (participant) => {
+          if (speakingParticipants.length === 0) {
+            const content = "Nenhuma persona esta com voz ativa nesta rodada.";
+            await addMessageToThread(input.userId, input.threadId, "system", content, {
+              turnGroupId,
+              messageKind: "SYSTEM_EVENT",
+            });
+            enqueueEvent(controller, {
+              type: "round-notice",
+              threadId: input.threadId,
+              turnGroupId,
+              content,
+            });
+            enqueueEvent(controller, {
+              type: "round-finish",
+              threadId: input.threadId,
+              turnGroupId,
+              status: "COMPLETED",
+              mutedCount,
+              speakingParticipantCount: 0,
+            });
+            return;
+          }
+
+          const completedRoundMessages: CompletedRoundMessage[] = [];
+          for (const participant of speakingParticipants) {
             const message = await createPendingPersonaMessage(
               input.userId,
               input.threadId,
@@ -493,18 +566,22 @@ export function createCollectiveChatStream(input: CollectiveChatRoundInput) {
               messageId: message.id,
               status: "PENDING",
             });
-            return { participant, messageId: message.id };
-          }));
-
-          await Promise.allSettled(pendingMessages.map(({ participant, messageId }) =>
-            runPersonaGeneration({
+            const result = await runPersonaGeneration({
               round: input,
               participant: { personaId: participant.personaId, role: participant.role },
               turnGroupId,
-              messageId,
+              messageId: message.id,
+              completedRoundMessages,
               controller,
-            })
-          ));
+            });
+            if (result.status === "COMPLETED" && result.content.trim()) {
+              completedRoundMessages.push({
+                personaId: participant.personaId,
+                role: participant.role,
+                content: result.content,
+              });
+            }
+          }
 
           enqueueEvent(controller, {
             type: "round-finish",

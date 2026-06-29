@@ -140,9 +140,11 @@ function hasLocalPresenceCommand(text: string) {
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase();
-    return /(^|\s)\/?(convidar|convide|chame|chama|traga|desconvidar|dispense|retire|expulse|remova)\b/.test(normalized)
+    return /(^|\s)\/?(convidar|convide|chame|chama|traga|desconvidar|dispense|retire|expulse|remova|silenciar|silencie|silencia|reativar|dessilenciar|dessilencie)\b/.test(normalized)
         || /\bquero\s+chamar\b/.test(normalized)
-        || /\bpode\s+sair\b/.test(normalized);
+        || /\bpode\s+sair\b/.test(normalized)
+        || /\bpode\s+falar\b/.test(normalized)
+        || /\bvolte\s+a\s+falar\b/.test(normalized);
 }
 
 function readFileAsDataUrl(file: File) {
@@ -322,7 +324,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         fetchParticipants(currentThreadId);
     }, [currentThreadId, personaId, placeId, fetchParticipants]);
 
-    const mutateParticipant = React.useCallback(async (action: "invite" | "remove", targetPersonaId: string) => {
+    const mutateParticipant = React.useCallback(async (action: "invite" | "remove" | "mute" | "unmute", targetPersonaId: string) => {
         setCollectiveError(null);
         const res = await fetch("/api/chat/participants", {
             method: "POST",
@@ -375,10 +377,22 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const handleCollectiveEvent = React.useCallback((event: any) => {
         if (!event?.type) return;
 
-        if (event.type === "participant-joined" || event.type === "participant-left") {
-            const content = event.type === "participant-joined"
+        if (
+            event.type === "participant-joined"
+            || event.type === "participant-left"
+            || event.type === "participant-muted"
+            || event.type === "participant-unmuted"
+            || event.type === "round-notice"
+        ) {
+            const content = event.type === "round-notice"
+                ? String(event.content || "")
+                : event.type === "participant-joined"
                 ? `${event.personaId} entrou na conversa.`
-                : `${event.personaId} deixou a conversa.`;
+                : event.type === "participant-left"
+                    ? `${event.personaId} deixou a conversa.`
+                    : event.type === "participant-muted"
+                        ? `${event.personaId} foi silenciado.`
+                        : `${event.personaId} voltou a falar.`;
             appendMessage({
                 id: `presence-${event.type}-${event.personaId}-${Date.now()}`,
                 role: "system",
@@ -816,6 +830,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     participants={participants}
                     disabled={isLoading || collectiveMigrationRequired}
                     onRemove={(targetPersonaId) => mutateParticipant("remove", targetPersonaId)}
+                    onMuteToggle={(targetPersonaId, muted) => mutateParticipant(muted ? "unmute" : "mute", targetPersonaId)}
                 />
             )}
             {collectiveMigrationRequired && (

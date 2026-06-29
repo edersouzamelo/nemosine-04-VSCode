@@ -9,6 +9,7 @@ import {
   isMissingCollectiveSchemaError,
   isMultiPersonaEnabled,
   removePersona,
+  setPersonaMuted,
 } from "@/app/lib/nemosine/conversation_participants";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
           personaId: hostPersonaId,
           role: "HOST",
           active: true,
+          muted: false,
           joinedAt: new Date().toISOString(),
           leftAt: null,
         }] : [],
@@ -102,6 +104,7 @@ export async function GET(request: NextRequest) {
         personaId: hostPersonaId,
         role: "HOST",
         active: true,
+        muted: false,
         joinedAt: new Date().toISOString(),
         leftAt: null,
       }] : [],
@@ -129,7 +132,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { action, threadId, personaId, hostPersonaId, placeId } = await request.json();
-    if ((action !== "invite" && action !== "remove") || !isValidPersona(personaId)) {
+    if (!["invite", "remove", "mute", "unmute"].includes(action) || !isValidPersona(personaId)) {
       return NextResponse.json({ error: "Invalid participant action" }, { status: 400 });
     }
 
@@ -150,8 +153,10 @@ export async function POST(request: NextRequest) {
 
     if (action === "invite") {
       await invitePersona(userId, activeThreadId, personaId);
-    } else {
+    } else if (action === "remove") {
       await removePersona(userId, activeThreadId, personaId);
+    } else {
+      await setPersonaMuted(userId, activeThreadId, personaId, action === "mute");
     }
 
     const snapshot = await getParticipantSnapshot(userId, activeThreadId);
@@ -173,6 +178,12 @@ export async function POST(request: NextRequest) {
       "PARTICIPANT_LIMIT_EXCEEDED",
       "THREAD_NOT_FOUND",
     ].some((code) => message.startsWith(code)) ? 400 : 500;
+    if (message.startsWith("MUTING_MIGRATION_REQUIRED")) {
+      return NextResponse.json({
+        error: "MIGRATION_REQUIRED",
+        message: "A migracao de silenciamento ainda nao foi aplicada no banco.",
+      }, { status: 409 });
+    }
     console.error("[API/Chat Participants POST] Error:", { errorCode: message.split(":")[0] });
     return NextResponse.json({ error: message }, { status });
   }

@@ -46,12 +46,18 @@ export default function InvitePersonaDialog({
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center">
-            <div className="flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[#c5a059]/25 bg-[#050507] shadow-2xl">
-                <header className="flex items-center justify-between border-b border-[#c5a059]/15 p-4">
+        <div className="fixed inset-0 z-[120] flex justify-end bg-black/70 backdrop-blur-sm">
+            <button
+                type="button"
+                aria-label="Fechar convite"
+                onClick={onClose}
+                className="absolute inset-0 cursor-default"
+            />
+            <aside className="relative z-[121] flex h-full w-full max-w-[34rem] flex-col overflow-hidden border-l border-[#c5a059]/25 bg-[#050507]/98 shadow-2xl">
+                <header className="flex items-center justify-between border-b border-[#c5a059]/15 p-5">
                     <div>
                         <h2 className="font-serif text-lg uppercase tracking-widest text-[#ecd49c]">Convidar persona</h2>
-                        <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">{guestCount} de 4 convidados</p>
+                        <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">{guestCount} de 4 convidados ativos</p>
                     </div>
                     <button
                         type="button"
@@ -62,7 +68,7 @@ export default function InvitePersonaDialog({
                         <span className="material-icons text-[20px]">close</span>
                     </button>
                 </header>
-                <div className="border-b border-[#c5a059]/15 p-4">
+                <div className="border-b border-[#c5a059]/15 p-5">
                     <div className="flex items-center gap-2 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 py-2">
                         <span className="material-icons text-[18px] text-[#c5a059]/65">search</span>
                         <input
@@ -73,7 +79,8 @@ export default function InvitePersonaDialog({
                         />
                     </div>
                 </div>
-                <div className="grid max-h-[58dvh] grid-cols-1 gap-2 overflow-y-auto p-4 sm:grid-cols-2">
+                <div className="min-h-0 flex-1 overflow-y-auto p-5 scrollbar-thin scrollbar-thumb-[#c5a059]/30 scrollbar-track-transparent">
+                    <div className="grid grid-cols-1 gap-3">
                     {personas.map((persona) => {
                         const isHost = persona.name === hostPersonaId;
                         const isPresent = present.has(persona.name);
@@ -86,21 +93,22 @@ export default function InvitePersonaDialog({
                                 type="button"
                                 disabled={disabled}
                                 onClick={() => onInvite(persona.name)}
-                                className="flex min-h-20 items-center gap-3 rounded-lg border border-[#c5a059]/15 bg-black/35 p-3 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/10 disabled:cursor-not-allowed disabled:opacity-45"
+                                className="flex min-h-24 items-center gap-4 rounded-lg border border-[#c5a059]/15 bg-black/35 p-3 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/10 disabled:cursor-not-allowed disabled:opacity-45"
                             >
-                                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-[#c5a059]/20 bg-black/50">
-                                    {persona.image && <Image src={persona.image} alt={persona.name} fill className="object-cover" sizes="48px" />}
+                                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-[#c5a059]/20 bg-black/50">
+                                    {persona.image && <Image src={persona.image} alt={persona.name} fill className="object-cover" sizes="64px" />}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <div className="truncate text-xs font-bold uppercase tracking-[0.18em] text-[#ecd49c]">{persona.name}</div>
-                                    <div className="mt-1 line-clamp-2 text-xs leading-snug text-[#e1e1e6]/60">{persona.phrase}</div>
+                                    <div className="text-sm font-bold uppercase tracking-[0.18em] text-[#ecd49c]">{persona.name}</div>
+                                    <div className="mt-1 line-clamp-3 text-xs leading-snug text-[#e1e1e6]/65">{persona.phrase}</div>
                                 </div>
-                                <span className="shrink-0 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]/65">{reason}</span>
+                                <span className="hidden shrink-0 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]/65 sm:block">{reason}</span>
                             </button>
                         );
                     })}
+                    </div>
                 </div>
-            </div>
+            </aside>
         </div>
     );
 }
