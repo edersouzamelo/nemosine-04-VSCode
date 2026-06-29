@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import React from "react";
+import { createPortal } from "react-dom";
 import { ENTITIES, PERSONAS } from "@/app/data/entities";
 
 export default function InvitePersonaDialog({
@@ -20,6 +21,7 @@ export default function InvitePersonaDialog({
     onInvite: (personaId: string) => void;
 }) {
     const [query, setQuery] = React.useState("");
+    const [mounted, setMounted] = React.useState(false);
     const present = new Set(presentPersonaIds);
     const limitReached = guestCount >= 4;
     const normalizedQuery = query
@@ -40,12 +42,16 @@ export default function InvitePersonaDialog({
         });
 
     React.useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    React.useEffect(() => {
         if (!open) setQuery("");
     }, [open]);
 
-    if (!open) return null;
+    if (!open || !mounted) return null;
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[120] flex justify-end bg-black/70 backdrop-blur-sm">
             <button
                 type="button"
@@ -109,6 +115,7 @@ export default function InvitePersonaDialog({
                     </div>
                 </div>
             </aside>
-        </div>
+        </div>,
+        document.body
     );
 }
