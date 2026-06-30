@@ -11,6 +11,7 @@
     "test:cognitive-runtime": "node --test tests/cognitive-runtime/*.test.js",
     "test:response-pipeline": "node --test tests/response-pipeline/*.test.js",
     "test:cognitive-foundation": "node --test tests/cognitive-foundation/*.test.js",
+    "test:presence-adjustment": "node --test tests/presence-adjustment/*.test.js",
     "test:sala-de-maquinas": "node --test tests/admin-engine-room/*.test.js",
     "test:multi-persona": "node --test tests/multi-persona/*.test.js",
     "test:persona-identity": "node --test tests/persona-identity/*.test.js",
