@@ -11,6 +11,8 @@ import {
 } from "@/app/lib/nemosine/conversation_participants";
 import { getThread } from "@/app/lib/nemosine/session_store";
 import { parsePersonaPresenceCommands } from "@/app/lib/nemosine/persona_command_parser";
+import { normalizePresenceMode } from "@/app/lib/nemosine/presence_adjustment";
+import type { ConversationPresenceContract } from "@/app/lib/nemosine/presence_adjustment";
 import type { ChatThreadMessage } from "@/app/lib/nemosine/types";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +109,14 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { messages, personaId, placeId, threadId, language, voiceTranscript } = body;
+    const presenceRuntimeMode = normalizePresenceMode(process.env.PRESENCE_ADJUSTMENT_MODE);
+    const submittedPresenceContract = body.presenceContract && typeof body.presenceContract === "object"
+      ? body.presenceContract as ConversationPresenceContract
+      : null;
+    const activePresenceContract = submittedPresenceContract?.userId === userId
+      && (presenceRuntimeMode === "internal" || presenceRuntimeMode === "enforce" || presenceRuntimeMode === "shadow")
+      ? submittedPresenceContract
+      : null;
 
     if (!Array.isArray(messages) || messages.length === 0 || typeof personaId !== "string" || !personaId.trim()) {
       return NextResponse.json({ error: "Invalid request format or missing personaId" }, { status: 400 });
@@ -194,6 +204,8 @@ export async function POST(req: NextRequest) {
       displayUserText,
       priorHistory,
       commands: parsedCommands.commands,
+      presenceContract: activePresenceContract,
+      presenceAdjustmentMode: presenceRuntimeMode,
     });
   } catch (error) {
     console.error("[API/Collective Chat] Error:", error);

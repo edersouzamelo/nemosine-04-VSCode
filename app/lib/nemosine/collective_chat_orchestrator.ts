@@ -38,6 +38,12 @@ import {
 } from "./persona-initiative";
 import type { PersonaInitiativeQualityEvaluation } from "./persona-initiative";
 import type { PersonaBehaviorContract } from "./persona_behavior_contracts";
+import {
+  detectGenericClosingViolation,
+  removeGenericClosingByContract,
+  renderPresenceContractForRuntime,
+} from "./presence_adjustment";
+import type { ConversationPresenceContract, PresenceAdjustmentMode } from "./presence_adjustment";
 import type { ChatThreadMessage } from "./types";
 import type { PersonaPresenceCommand } from "./persona_command_parser";
 
@@ -53,6 +59,8 @@ type CollectiveChatRoundInput = {
   displayUserText: string;
   priorHistory: ChatThreadMessage[];
   commands: PersonaPresenceCommand[];
+  presenceContract?: ConversationPresenceContract | null;
+  presenceAdjustmentMode?: PresenceAdjustmentMode;
 };
 
 type CollectiveStreamEvent = {
@@ -427,6 +435,22 @@ async function runPersonaGeneration(input: {
     const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(
       buildPersonaHistory(input.round.priorHistory, input.participant.personaId),
     );
+    const presenceMode = input.round.presenceAdjustmentMode || "off";
+    const shouldApplyPresenceContract = Boolean(input.round.presenceContract && presenceMode !== "shadow" && presenceMode !== "off");
+    const presenceRuntimePrompt = renderPresenceContractForRuntime(input.round.presenceContract, presenceMode);
+    const applyPresenceContractToResponse = (text: string) => {
+      if (!shouldApplyPresenceContract || !input.round.presenceContract) return text;
+      const cleaned = removeGenericClosingByContract(text, input.round.presenceContract);
+      const violation = detectGenericClosingViolation({ responseText: text, contract: input.round.presenceContract });
+      if (violation.violation) {
+        console.warn("[PresenceAdjustment] collective generic closing blocked", {
+          personaId: input.participant.personaId,
+          threadId: input.round.threadId,
+          reasons: violation.reasons,
+        });
+      }
+      return cleaned;
+    };
     filteredHistoryCount = filteredHistory.length;
     const history = [
       ...sanitizedHistory,
@@ -439,6 +463,7 @@ async function runPersonaGeneration(input: {
           buildCurrentRoundContext(input.completedRoundMessages),
           buildCollectiveAntiHerdRule(input.participant, input.completedRoundMessages),
           buildCollectiveVocationalExecutionRule(input.participant.personaId, promptAssembly.initiative.contract),
+          presenceRuntimePrompt,
         ].join("\n\n"),
         timestamp: Date.now(),
       },
@@ -500,7 +525,7 @@ async function runPersonaGeneration(input: {
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const result = await generateCandidate(repairFeedback);
       const rawCandidate = result.text || "";
-      const visibleCandidate = stripGenericAssistantClosing(stripLegacyActionTags(rawCandidate));
+      const visibleCandidate = applyPresenceContractToResponse(stripGenericAssistantClosing(stripLegacyActionTags(rawCandidate)));
       const initiativeEvaluation = evaluatePersonaInitiativeQuality({
         responseText: visibleCandidate,
         personaId: input.participant.personaId,

@@ -44,6 +44,13 @@ import {
     stripGenericAssistantClosing,
     writePromptDebugAudit,
 } from '@/app/lib/nemosine/payload_hygiene';
+import {
+    detectGenericClosingViolation,
+    normalizePresenceMode,
+    removeGenericClosingByContract,
+    renderPresenceContractForRuntime,
+} from '@/app/lib/nemosine/presence_adjustment';
+import type { ConversationPresenceContract } from '@/app/lib/nemosine/presence_adjustment';
 import { retainActiveTopicsFromUserMessage } from '@/app/lib/nemosine/conversation_continuity';
 import {
     commitExtractedMemoryEffects,
@@ -432,6 +439,29 @@ export async function POST(req: NextRequest) {
         const t0 = Date.now();
         const body = await req.json();
         const { messages, personaId, placeId, threadId, language, voiceTranscript } = body;
+        const presenceRuntimeMode = normalizePresenceMode(process.env.PRESENCE_ADJUSTMENT_MODE);
+        const submittedPresenceContract = body.presenceContract && typeof body.presenceContract === "object"
+            ? body.presenceContract as ConversationPresenceContract
+            : null;
+        const activePresenceContract = submittedPresenceContract?.userId === userId
+            && (presenceRuntimeMode === "internal" || presenceRuntimeMode === "enforce" || presenceRuntimeMode === "shadow")
+            ? submittedPresenceContract
+            : null;
+        const shouldApplyPresenceContract = Boolean(activePresenceContract && presenceRuntimeMode !== "shadow");
+        const presenceRuntimePrompt = renderPresenceContractForRuntime(activePresenceContract, presenceRuntimeMode);
+        const applyPresenceContractToResponse = (text: string) => {
+            if (!shouldApplyPresenceContract || !activePresenceContract) return text;
+            const cleaned = removeGenericClosingByContract(text, activePresenceContract);
+            const violation = detectGenericClosingViolation({ responseText: text, contract: activePresenceContract });
+            if (violation.violation) {
+                console.warn("[PresenceAdjustment] generic closing blocked", {
+                    personaId,
+                    threadId: typeof threadId === "string" ? threadId : null,
+                    reasons: violation.reasons,
+                });
+            }
+            return cleaned;
+        };
 
         if (!Array.isArray(messages) || messages.length === 0 || typeof personaId !== 'string' || !personaId.trim()) {
             return NextResponse.json({ error: 'Invalid request format or missing personaId' }, { status: 400 });
@@ -589,7 +619,8 @@ export async function POST(req: NextRequest) {
                     throw new Error(`response_pipeline_v2_blocked:${blockingFailures.join(",")}`);
                 }
 
-                await addMessageToThread(userId, activeThreadId, 'assistant', responsePipelineResult.answer);
+                const deliveredPipelineAnswer = applyPresenceContractToResponse(responsePipelineResult.answer);
+                await addMessageToThread(userId, activeThreadId, 'assistant', deliveredPipelineAnswer);
                 let sideEffectsCommitted = { memory: 0, registry: 0, destiny: 0 };
                 await commitExtractedMemoryEffects({
                     request: responsePipelineRequest,
@@ -630,7 +661,7 @@ export async function POST(req: NextRequest) {
                     placeId: normalizedPlaceId,
                     memoryScope,
                     userText,
-                    responseText: responsePipelineResult.answer,
+                    responseText: deliveredPipelineAnswer,
                     participantCount: 1,
                     privateRun: responsePipelineRequest.privateRun,
                 }).catch((error) => {
@@ -647,7 +678,7 @@ export async function POST(req: NextRequest) {
                 }
 
                 return createPromotedUIMessageStreamResponse({
-                    text: responsePipelineResult.answer,
+                    text: deliveredPipelineAnswer,
                     headers: {
                         'x-thread-id': activeThreadId,
                         'x-llm-provider': activeChatModel.id,
@@ -665,6 +696,7 @@ export async function POST(req: NextRequest) {
 
         if (runtimeConfig.mode === "enforce") {
             const runtimeResult = await executeCognitiveRuntime(cognitiveRequest);
+            const deliveredRuntimeAnswer = applyPresenceContractToResponse(runtimeResult.answer);
             if (shouldRetainConversationContinuity) {
                 await Promise.all([
                     retainConversationEpisode(userId, memoryScope, userText),
@@ -686,14 +718,14 @@ export async function POST(req: NextRequest) {
                 placeId: normalizedPlaceId,
                 memoryScope,
                 userText,
-                responseText: runtimeResult.answer,
+                responseText: deliveredRuntimeAnswer,
                 participantCount: 1,
                 privateRun: cognitiveRequest.privateRun,
             }).catch((error) => {
                 console.warn("[API/Chat] Cognitive foundation observation skipped after enforced runtime.", error);
             });
             return createPromotedUIMessageStreamResponse({
-                text: runtimeResult.answer,
+                text: deliveredRuntimeAnswer,
                 headers: {
                     'x-thread-id': activeThreadId,
                     'x-cognitive-runtime': runtimeResult.runtimeMode,
@@ -715,7 +747,10 @@ export async function POST(req: NextRequest) {
             {
                 id: 'runtime-persona-guard',
                 role: 'system' as const,
-                content: buildRuntimePersonaGuard(personaId, userText),
+                content: [
+                    buildRuntimePersonaGuard(personaId, userText),
+                    presenceRuntimePrompt,
+                ].filter(Boolean).join("\n\n"),
                 timestamp: Date.now()
             },
             {
@@ -782,7 +817,7 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            const visibleCandidate = stripGenericAssistantClosing(stripLegacyActionTags(rawText));
+            const visibleCandidate = applyPresenceContractToResponse(stripGenericAssistantClosing(stripLegacyActionTags(rawText)));
             const initiativeEvaluation = evaluatePersonaInitiativeQuality({
                 responseText: visibleCandidate,
                 personaId,
@@ -837,7 +872,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        finalResponse = stripGenericAssistantClosing(finalResponse);
+        finalResponse = applyPresenceContractToResponse(stripGenericAssistantClosing(finalResponse));
 
         await commitPromotedLegacyEffects({
             rawText: selectedRawText,
