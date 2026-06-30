@@ -36,6 +36,13 @@ import {
   renderConversationContextPacket,
 } from "./conversation_continuity";
 import { loadDestinyContextSource } from "./destiny_context";
+import {
+  buildPersonaContextProjection,
+  getUserProfileNodesForProjection,
+  isFoundationModeActive,
+  readCognitiveFoundationConfig,
+  renderPersonaContextProjection,
+} from "./cognitive-foundation";
 
 type ResponseLanguage = "pt-BR" | "es" | "en";
 
@@ -80,6 +87,10 @@ export type PersonaContextDebugInfo = {
   activeFrontCandidates: number;
   selectedActiveFronts: number;
   initiativeHasSubstantiveContext: boolean;
+  userGraphProjectionMode: string;
+  userGraphProjectionCoreCount: number;
+  userGraphProjectionVocationalCount: number;
+  userGraphProjectionBlockedCount: number;
 };
 
 export type PersonaContextAssembly = {
@@ -531,6 +542,7 @@ export async function assemblePersonaContext({
   const memoryScope = isPrivateMemorySpace(personaId)
     ? personaId
     : placeId && isPrivateMemorySpace(placeId) ? placeId : personaId;
+  const cognitiveFoundationConfig = readCognitiveFoundationConfig();
 
   const memoryPromise = getUserMemoryRecords(userId, memoryScope, inputRichness.requiresContextExpansion ? 60 : 40);
   const episodePromise = sourceReferenceRequest
@@ -646,6 +658,17 @@ export async function assemblePersonaContext({
     brief: initiativeBrief,
     contract,
   });
+  const userGraphNodes = isFoundationModeActive(cognitiveFoundationConfig.personaProjectionMode)
+    ? await getUserProfileNodesForProjection({ userId })
+    : [];
+  const userGraphProjection = buildPersonaContextProjection({
+    personaId,
+    memoryScope,
+    nodes: userGraphNodes,
+  });
+  const userGraphProjectionText = cognitiveFoundationConfig.personaProjectionMode === "enforce"
+    ? renderPersonaContextProjection(userGraphProjection)
+    : "";
 
   const now = new Date();
   const timeContext = `Hoje e ${now.toLocaleDateString("pt-BR", {
@@ -682,6 +705,7 @@ export async function assemblePersonaContext({
         : "",
     ].filter(Boolean).join("\n")),
     section("CONTEXT PACKET PRIORIZADO", renderConversationContextPacket(contextPacket)),
+    section("PROJECAO VOCACIONAL DO USER GRAPH", userGraphProjectionText),
     section("PEDIDO SOBRE FONTE OU DOSSIE", sourceReferenceRequest
       ? [
         "O usuario esta perguntando sobre documento/fonte carregada.",
@@ -758,6 +782,10 @@ export async function assemblePersonaContext({
       activeFrontCandidates: activeFrontSnapshot.fronts.length,
       selectedActiveFronts: activeFrontSnapshot.selectedFronts.length,
       initiativeHasSubstantiveContext: activeFrontSnapshot.hasSubstantiveContext,
+      userGraphProjectionMode: cognitiveFoundationConfig.personaProjectionMode,
+      userGraphProjectionCoreCount: userGraphProjection.core.length,
+      userGraphProjectionVocationalCount: userGraphProjection.vocational.length,
+      userGraphProjectionBlockedCount: userGraphProjection.blockedCount,
     },
   };
 }

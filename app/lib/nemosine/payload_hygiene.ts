@@ -123,6 +123,82 @@ export function detectSuspiciousPayloadPhrases(text: string) {
   );
 }
 
+const GENERIC_CLOSING_PHRASES = [
+  "se puder",
+  "se quiser",
+  "se precisar",
+  "se houver algo especifico",
+  "se houver alguma area",
+  "se houver algum ponto",
+  "podemos explorar",
+  "podemos ajustar",
+  "podemos aprofundar",
+  "podemos continuar",
+  "vamos ver como",
+  "vamos trabalhar",
+  "vamos continuar",
+  "vamos explorar",
+  "vamos torcer",
+  "estou aqui",
+  "fico a disposicao",
+  "estou a disposicao",
+  "posso ajudar",
+  "compartilhar mais detalhes",
+  "fornecer mais detalhes",
+  "trazer mais contexto",
+  "para que eu possa compreender melhor",
+];
+
+function isGenericAssistantClosingSegment(segment: string) {
+  const normalized = normalizePayloadText(segment);
+  if (!normalized || normalized.length > 480) return false;
+
+  return GENERIC_CLOSING_PHRASES.some((phrase) =>
+    normalized.includes(normalizePayloadText(phrase))
+  );
+}
+
+function stripGenericClosingSentences(text: string) {
+  const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+  if (!sentences || sentences.length < 2) return text.trim();
+
+  const nextSentences = [...sentences];
+  while (
+    nextSentences.length > 1
+    && isGenericAssistantClosingSegment(nextSentences[nextSentences.length - 1])
+  ) {
+    nextSentences.pop();
+  }
+
+  return nextSentences.join(" ").replace(/\s+/g, " ").trim();
+}
+
+export function stripGenericAssistantClosing(text: string) {
+  const cleaned = text.trim();
+  if (!cleaned) return cleaned;
+
+  const paragraphs = cleaned
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  while (
+    paragraphs.length > 1
+    && isGenericAssistantClosingSegment(paragraphs[paragraphs.length - 1])
+  ) {
+    paragraphs.pop();
+  }
+
+  const lastParagraph = paragraphs[paragraphs.length - 1] || "";
+  const withoutClosingSentence = stripGenericClosingSentences(lastParagraph);
+  const finalParagraphs = [
+    ...paragraphs.slice(0, -1),
+    withoutClosingSentence,
+  ].map((paragraph) => paragraph.trim()).filter(Boolean);
+
+  return finalParagraphs.join("\n\n").trim() || cleaned;
+}
+
 export function isContaminatedAssistantMessage(content: string) {
   const normalized = normalizePayloadText(content);
   if (normalized.length < 24) return false;

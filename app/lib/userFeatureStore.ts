@@ -2,8 +2,18 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const MAX_FAVORITE_PERSONAS = 12;
+let developerMessagesBaseTableChecked = false;
+let developerMessagesColumnMigrationAttempted = false;
+
+function runtimeDdlEnabled(scope: "favorite_personas" | "developer_messages") {
+  if (process.env.USER_FEATURE_RUNTIME_DDL === "true") return true;
+  if (scope === "favorite_personas") return process.env.FAVORITE_PERSONAS_AUTO_MIGRATE === "true";
+  return process.env.DEVELOPER_MESSAGES_AUTO_MIGRATE === "true";
+}
 
 async function ensureFavoritePersonasTable() {
+  if (!runtimeDdlEnabled("favorite_personas")) return;
+
   await prisma.$executeRaw`
     CREATE TABLE IF NOT EXISTS favorite_personas (
       user_id TEXT NOT NULL,
@@ -15,27 +25,40 @@ async function ensureFavoritePersonasTable() {
 }
 
 async function ensureDeveloperMessagesTable() {
-  await prisma.$executeRaw`
-    CREATE TABLE IF NOT EXISTS developer_messages (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL,
-      subject TEXT,
-      message TEXT NOT NULL,
-      user_id TEXT,
-      user_email TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
-  try {
-    await prisma.$executeRaw`ALTER TABLE developer_messages ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE`;
-  } catch (e) {
-    console.error("Error adding archived column:", e);
+  if (!runtimeDdlEnabled("developer_messages")) {
+    developerMessagesBaseTableChecked = true;
+    developerMessagesColumnMigrationAttempted = true;
+    return;
   }
-  try {
-    await prisma.$executeRaw`ALTER TABLE developer_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE`;
-  } catch (e) {
-    console.error("Error adding is_read column:", e);
+
+  if (!developerMessagesBaseTableChecked) {
+    await prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS developer_messages (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        subject TEXT,
+        message TEXT NOT NULL,
+        user_id TEXT,
+        user_email TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    developerMessagesBaseTableChecked = true;
+  }
+
+  if (!developerMessagesColumnMigrationAttempted) {
+    developerMessagesColumnMigrationAttempted = true;
+    try {
+      await prisma.$executeRaw`ALTER TABLE developer_messages ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE`;
+    } catch (e) {
+      console.warn("Developer messages archived column migration skipped:", e);
+    }
+    try {
+      await prisma.$executeRaw`ALTER TABLE developer_messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE`;
+    } catch (e) {
+      console.warn("Developer messages is_read column migration skipped:", e);
+    }
   }
 }
 

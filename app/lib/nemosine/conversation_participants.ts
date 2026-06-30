@@ -51,7 +51,18 @@ export type CollectiveSchemaStatus = {
   missing: string[];
 };
 
+let collectiveSchemaStatusCache: { checkedAt: number; status: CollectiveSchemaStatus } | null = null;
+const COLLECTIVE_SCHEMA_STATUS_CACHE_MS = 60_000;
+
 export async function getCollectiveSchemaStatus(): Promise<CollectiveSchemaStatus> {
+  const now = Date.now();
+  if (
+    collectiveSchemaStatusCache
+    && now - collectiveSchemaStatusCache.checkedAt < COLLECTIVE_SCHEMA_STATUS_CACHE_MS
+  ) {
+    return collectiveSchemaStatusCache.status;
+  }
+
   try {
     const rows = await prisma.$queryRaw<Array<{
       thread_place_id: boolean;
@@ -105,12 +116,16 @@ export async function getCollectiveSchemaStatus(): Promise<CollectiveSchemaStatu
     const missing = Object.entries(checks)
       .filter(([, present]) => !present)
       .map(([name]) => name);
-    return { ready: missing.length === 0, missing };
+    const status = { ready: missing.length === 0, missing };
+    collectiveSchemaStatusCache = { checkedAt: now, status };
+    return status;
   } catch (error) {
     console.warn("[CollectiveParticipants] Schema preflight failed.", {
       errorCode: error instanceof Error ? error.name : "unknown",
     });
-    return { ready: false, missing: ["schema_preflight_failed"] };
+    const status = { ready: false, missing: ["schema_preflight_failed"] };
+    collectiveSchemaStatusCache = { checkedAt: now, status };
+    return status;
   }
 }
 

@@ -19,6 +19,7 @@ model User {
   sessions      Session[]
   threads       Thread[]        // Added for chat isolation
   memories      UserMemory[]    // Added for persistent AI learning
+  profileNodes  UserProfileNode[]
   personaConversationEpisodes PersonaConversationEpisode[]
   activeTopics  ActiveTopic[]
   termsAcceptances TermsAcceptance[]
@@ -57,6 +58,46 @@ enum PersonaEpisodeVisibilityPolicy {
   SHARED
   PERSONA_PRIVATE
   CONFESSOR_SEALED
+}
+
+enum UserProfileEpistemicType {
+  DECLARED_FACT
+  OBSERVED_BEHAVIOR
+  INFERRED_PATTERN
+  USER_PREFERENCE
+  GOAL
+  VALUE
+  RELATIONSHIP
+  PROJECT
+  CONSTRAINT
+  HYPOTHESIS
+  PUBLIC_SOURCE_CANDIDATE
+}
+
+enum UserProfileStatus {
+  CANDIDATE
+  CONFIRMED
+  REJECTED
+  SUPERSEDED
+  EXPIRED
+  DELETED
+}
+
+enum UserProfileSensitivity {
+  PUBLIC
+  NORMAL
+  PERSONAL
+  SENSITIVE
+  CONFESSOR_ONLY
+}
+
+enum UserProfileScopeType {
+  GLOBAL
+  AUTHORIZED_PERSONAS
+  PERSONA_SPECIFIC
+  CONFESSOR
+  SYSTEM
+  NON_PROJECTABLE
 }
 
 model TermsAcceptance {
@@ -243,6 +284,82 @@ model UserMemory {
   createdAt DateTime @default(now())
 
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserProfileNode {
+  id                 String                    @id @default(cuid())
+  userId             String
+  normalizedContent  String
+  shortSummary       String
+  category           String
+  subtype            String?
+  epistemicType      UserProfileEpistemicType
+  sourceType         String
+  sourceReference    String?
+  sourceDate         DateTime?
+  capturedAt         DateTime                  @default(now())
+  confidence         Float                     @default(0.5)
+  sensitivity        UserProfileSensitivity    @default(NORMAL)
+  scopeType          UserProfileScopeType      @default(GLOBAL)
+  authorizedPersonas Json?
+  status             UserProfileStatus         @default(CANDIDATE)
+  validFrom          DateTime?
+  validUntil         DateTime?
+  createdBy          String
+  updatedAt          DateTime                  @updatedAt
+  removedAt          DateTime?
+
+  user               User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evidence           UserProfileEvidence[]
+
+  @@index([userId, status, updatedAt])
+  @@index([userId, category, status])
+  @@index([userId, epistemicType, status])
+  @@index([userId, sensitivity, status])
+  @@index([scopeType])
+}
+
+model UserProfileEvidence {
+  id                String          @id @default(cuid())
+  profileNodeId     String
+  sourceType        String
+  sourceId          String?
+  redactedSummary   String?
+  contentHash       String?
+  evidenceWeight    Float           @default(0.5)
+  evidenceDate      DateTime?
+  origin            String?
+  allowedAccess     Json?
+  createdAt         DateTime         @default(now())
+
+  profileNode       UserProfileNode  @relation(fields: [profileNodeId], references: [id], onDelete: Cascade)
+
+  @@index([profileNodeId])
+  @@index([sourceType, sourceId])
+  @@index([contentHash])
+}
+
+model CognitiveFoundationAudit {
+  id             String   @id @default(cuid())
+  userIdHash     String
+  threadIdHash   String?
+  personaId      String?
+  feature        String
+  mode           String
+  eventType      String
+  status         String
+  metrics        Json
+  findingCodes   Json
+  contentHashes  Json
+  contentLengths Json
+  privateRun     Boolean  @default(false)
+  metadataOnly   Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([feature, eventType, createdAt])
+  @@index([mode, createdAt])
+  @@index([personaId, createdAt])
+  @@index([privateRun, createdAt])
 }
 
 model ActiveTopic {

@@ -41,6 +41,7 @@ import { createDestinyEvent } from '@/app/lib/sovereignStore';
 import {
     buildRuntimePersonaGuard,
     sanitizeConversationHistory,
+    stripGenericAssistantClosing,
     writePromptDebugAudit,
 } from '@/app/lib/nemosine/payload_hygiene';
 import { retainActiveTopicsFromUserMessage } from '@/app/lib/nemosine/conversation_continuity';
@@ -51,6 +52,7 @@ import {
     storeResponsePipelineAudit,
 } from '@/app/lib/nemosine/response';
 import type { ResponsePipelineRequest } from '@/app/lib/nemosine/response';
+import { observeCognitiveFoundationResponse } from '@/app/lib/nemosine/cognitive-foundation';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -621,6 +623,19 @@ export async function POST(req: NextRequest) {
                 }).catch((error) => {
                     console.warn("[API/Chat] Response pipeline audit skipped.", error);
                 });
+                await observeCognitiveFoundationResponse({
+                    userId,
+                    threadId: activeThreadId,
+                    personaId,
+                    placeId: normalizedPlaceId,
+                    memoryScope,
+                    userText,
+                    responseText: responsePipelineResult.answer,
+                    participantCount: 1,
+                    privateRun: responsePipelineRequest.privateRun,
+                }).catch((error) => {
+                    console.warn("[API/Chat] Cognitive foundation observation skipped.", error);
+                });
 
                 if (runtimeConfig.mode === "shadow") {
                     await runCognitiveRuntime(cognitiveRequest, {
@@ -664,6 +679,19 @@ export async function POST(req: NextRequest) {
                     console.warn("[API/Chat] Conversation continuity retention skipped after enforced runtime.", error);
                 });
             }
+            await observeCognitiveFoundationResponse({
+                userId,
+                threadId: activeThreadId,
+                personaId,
+                placeId: normalizedPlaceId,
+                memoryScope,
+                userText,
+                responseText: runtimeResult.answer,
+                participantCount: 1,
+                privateRun: cognitiveRequest.privateRun,
+            }).catch((error) => {
+                console.warn("[API/Chat] Cognitive foundation observation skipped after enforced runtime.", error);
+            });
             return createPromotedUIMessageStreamResponse({
                 text: runtimeResult.answer,
                 headers: {
@@ -754,7 +782,7 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            const visibleCandidate = stripLegacyActionTags(rawText);
+            const visibleCandidate = stripGenericAssistantClosing(stripLegacyActionTags(rawText));
             const initiativeEvaluation = evaluatePersonaInitiativeQuality({
                 responseText: visibleCandidate,
                 personaId,
@@ -809,6 +837,8 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        finalResponse = stripGenericAssistantClosing(finalResponse);
+
         await commitPromotedLegacyEffects({
             rawText: selectedRawText,
             userId,
@@ -860,6 +890,19 @@ export async function POST(req: NextRequest) {
                 console.error("[API/Chat] Cognitive runtime shadow audit failed:", error);
             });
         }
+        await observeCognitiveFoundationResponse({
+            userId,
+            threadId: activeThreadId,
+            personaId,
+            placeId: normalizedPlaceId,
+            memoryScope,
+            userText,
+            responseText: finalResponse,
+            participantCount: 1,
+            privateRun: cognitiveRequest.privateRun,
+        }).catch((error) => {
+            console.warn("[API/Chat] Cognitive foundation observation skipped.", error);
+        });
 
         return createPromotedUIMessageStreamResponse({
             text: finalResponse,

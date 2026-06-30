@@ -50,6 +50,10 @@ function logPromptDebug(debug: PersonaContextDebugInfo, model: string, temperatu
         destinyEventsSelected: debug.destinyEventsSelected,
         destinyErrorCode: debug.destinyErrorCode,
         destinyUserIdMatched: debug.destinyUserIdMatched,
+        userGraphProjectionMode: debug.userGraphProjectionMode,
+        userGraphProjectionCoreCount: debug.userGraphProjectionCoreCount,
+        userGraphProjectionVocationalCount: debug.userGraphProjectionVocationalCount,
+        userGraphProjectionBlockedCount: debug.userGraphProjectionBlockedCount,
         model,
         temperature,
     });

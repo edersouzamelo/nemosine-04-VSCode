@@ -195,8 +195,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [input, setInput] = useState("");
     const [actionsOpen, setActionsOpen] = useState(false);
+    const [primerGoal, setPrimerGoal] = useState("");
+    const [primerContext, setPrimerContext] = useState("");
+    const [primerLimits, setPrimerLimits] = useState("");
+    const [primerDismissed, setPrimerDismissed] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textInputRef = useRef<HTMLTextAreaElement>(null);
+    const primerScopeRef = useRef(`${personaId}:${currentThreadId || "new"}`);
 
     useEffect(() => {
         const openMenuForTourStep = (event: Event) => {
@@ -210,12 +215,25 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     }, []);
 
     useEffect(() => {
+        const nextScope = `${personaId}:${currentThreadId || "new"}`;
+        if (primerScopeRef.current === nextScope) return;
+
+        primerScopeRef.current = nextScope;
+        setPrimerDismissed(false);
+        setPrimerGoal("");
+        setPrimerContext("");
+        setPrimerLimits("");
+    }, [currentThreadId, personaId]);
+
+    useEffect(() => {
         try {
             const stored = window.localStorage.getItem("nemosine-onboarding-entry");
             if (!stored) return;
             const entry = JSON.parse(stored) as { destination?: string; text?: string };
             if (entry.destination === personaId && entry.text?.trim()) {
-                setInput(entry.text.trim());
+                const entryText = entry.text.trim();
+                setInput(entryText);
+                setPrimerGoal((current) => current || entryText);
                 window.localStorage.removeItem("nemosine-onboarding-entry");
             }
         } catch {
@@ -237,6 +255,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [collectiveMigrationRequired, setCollectiveMigrationRequired] = useState(false);
     const [participants, setParticipants] = useState<PersonaPresence[]>([]);
     const [participantGuestCount, setParticipantGuestCount] = useState(0);
+    const [pendingParticipantIds, setPendingParticipantIds] = useState<string[]>([]);
     const [collectiveStatus, setCollectiveStatus] = useState<"idle" | "submitted" | "streaming">("idle");
     const [collectiveError, setCollectiveError] = useState<string | null>(null);
 
@@ -309,7 +328,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             const data = await res.json();
             setCollectiveMigrationRequired(Boolean(data.migrationRequired));
             setMultiPersonaEnabled(Boolean(data.enabled || data.migrationRequired));
-            setParticipants(Array.isArray(data.participants) ? data.participants : []);
+            const nextParticipants = Array.isArray(data.participants) ? data.participants : [];
+            setParticipants(nextParticipants);
+            const activePersonaIds = new Set(nextParticipants.filter((participant: PersonaPresence) => participant.active).map((participant: PersonaPresence) => participant.personaId));
+            setPendingParticipantIds((current) => current.filter((personaId) => !activePersonaIds.has(personaId)));
             setParticipantGuestCount(Number(data.guestCount || 0));
         } catch (fetchError) {
             console.error("Failed to load participants", fetchError);
@@ -324,35 +346,67 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         fetchParticipants(currentThreadId);
     }, [currentThreadId, personaId, placeId, fetchParticipants]);
 
+    const optimisticParticipants = React.useMemo(() => {
+        const activePersonaIds = new Set(participants.filter((participant) => participant.active).map((participant) => participant.personaId));
+        const optimisticGuests = pendingParticipantIds
+            .filter((pendingPersonaId) => !activePersonaIds.has(pendingPersonaId))
+            .map((pendingPersonaId) => ({
+                id: `pending-${pendingPersonaId}`,
+                personaId: pendingPersonaId,
+                role: "GUEST" as const,
+                active: true,
+                muted: false,
+                pending: true,
+            }));
+        return [...participants, ...optimisticGuests];
+    }, [participants, pendingParticipantIds]);
+
+    const optimisticGuestCount = optimisticParticipants.filter((participant) => participant.active && participant.role === "GUEST").length;
+
     const mutateParticipant = React.useCallback(async (action: "invite" | "remove" | "mute" | "unmute", targetPersonaId: string) => {
         setCollectiveError(null);
-        const res = await fetch("/api/chat/participants", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action,
-                personaId: targetPersonaId,
-                threadId: currentThreadIdRef.current || undefined,
-                hostPersonaId: personaId,
-                placeId,
-            }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-            setCollectiveMigrationRequired(data.error === "MIGRATION_REQUIRED" || Boolean(data.migrationRequired));
-            setCollectiveError(data.message || data.error || "Nao foi possivel atualizar participantes.");
-            return;
+        const alreadyActive = participants.some((participant) => participant.active && participant.personaId === targetPersonaId);
+        const alreadyPending = pendingParticipantIds.includes(targetPersonaId);
+        if (action === "invite") {
+            if (alreadyActive || alreadyPending) return;
+            setPendingParticipantIds((current) => current.includes(targetPersonaId) ? current : [...current, targetPersonaId]);
         }
-        if (data.threadId && data.threadId !== currentThreadIdRef.current) {
-            onThreadCreated(data.threadId);
-        }
-        setCollectiveMigrationRequired(Boolean(data.migrationRequired));
-        setMultiPersonaEnabled(Boolean(data.enabled || data.migrationRequired));
-        setParticipants(Array.isArray(data.participants) ? data.participants : []);
-        setParticipantGuestCount(Number(data.guestCount || 0));
-    }, [onThreadCreated, personaId, placeId]);
 
-    const isLoading = status === 'submitted' || status === 'streaming' || collectiveStatus !== "idle";
+        try {
+            const res = await fetch("/api/chat/participants", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action,
+                    personaId: targetPersonaId,
+                    threadId: currentThreadIdRef.current || undefined,
+                    hostPersonaId: personaId,
+                    placeId,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setCollectiveMigrationRequired(data.error === "MIGRATION_REQUIRED" || Boolean(data.migrationRequired));
+                setCollectiveError(data.message || data.error || "Nao foi possivel atualizar participantes.");
+                return;
+            }
+            if (data.threadId && data.threadId !== currentThreadIdRef.current) {
+                onThreadCreated(data.threadId);
+            }
+            setCollectiveMigrationRequired(Boolean(data.migrationRequired));
+            setMultiPersonaEnabled(Boolean(data.enabled || data.migrationRequired));
+            setParticipants(Array.isArray(data.participants) ? data.participants : []);
+            setParticipantGuestCount(Number(data.guestCount || 0));
+        } catch (mutationError) {
+            setCollectiveError(mutationError instanceof Error ? mutationError.message : "Nao foi possivel atualizar participantes.");
+        } finally {
+            if (action === "invite") {
+                setPendingParticipantIds((current) => current.filter((personaId) => personaId !== targetPersonaId));
+            }
+        }
+    }, [onThreadCreated, participants, pendingParticipantIds, personaId, placeId]);
+
+    const isLoading = status === 'submitted' || status === 'streaming' || collectiveStatus !== "idle" || pendingParticipantIds.length > 0;
     const showThinkingIndicator = status === 'submitted'
         || collectiveStatus === "submitted"
         || (status === 'streaming' && (messages.length === 0 || messages[messages.length - 1].role === 'user'));
@@ -524,6 +578,37 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         }
     }, [appendMessage, fetchParticipants, handleCollectiveEvent, language, onThreadCreated, personaId, placeId]);
 
+    const clearComposer = React.useCallback(() => {
+        shouldKeepListeningRef.current = false;
+        recognitionRef.current?.stop();
+        setInput("");
+        setSelectedFile(null);
+        setVoiceTranscript("");
+        setLiveVoiceTranscript("");
+        finalVoiceSegmentsRef.current = [];
+        finalVoiceSegmentKeysRef.current = new Set();
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+    }, []);
+
+    const submitPreparedMessage = React.useCallback(async (
+        messageText: string,
+        hiddenVoiceTranscript: string,
+        fileForSend: File | null,
+        files?: FileList,
+    ) => {
+        clearError();
+        clearComposer();
+        const shouldUseCollective = multiPersonaEnabled
+            && (participantGuestCount > 0 || hasLocalPresenceCommand(`${messageText}\n${hiddenVoiceTranscript}`));
+        if (shouldUseCollective) {
+            await sendCollectiveMessage(messageText, hiddenVoiceTranscript, fileForSend);
+        } else {
+            await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
+        }
+    }, [clearComposer, clearError, multiPersonaEnabled, participantGuestCount, sendCollectiveMessage, sendMessage]);
+
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
         const hiddenVoiceTranscript = voiceTranscript.trim();
@@ -541,25 +626,28 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             transfer.items.add(selectedFile);
             files = transfer.files;
         }
-        clearError();
-        shouldKeepListeningRef.current = false;
-        recognitionRef.current?.stop();
-        setInput("");
-        setSelectedFile(null);
-        setVoiceTranscript("");
-        setLiveVoiceTranscript("");
-        finalVoiceSegmentsRef.current = [];
-        finalVoiceSegmentKeysRef.current = new Set();
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
-        const shouldUseCollective = multiPersonaEnabled
-            && (participantGuestCount > 0 || hasLocalPresenceCommand(`${messageText}\n${hiddenVoiceTranscript}`));
-        if (shouldUseCollective) {
-            await sendCollectiveMessage(messageText, hiddenVoiceTranscript, fileForSend);
-        } else {
-            await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
-        }
+        await submitPreparedMessage(messageText, hiddenVoiceTranscript, fileForSend, files);
+    };
+
+    const hasPrimerInput = Boolean(primerGoal.trim() || primerContext.trim() || primerLimits.trim());
+    const showContextPrimer = messages.length === 0 && !showThinkingIndicator && !primerDismissed;
+
+    const buildPrimerMessage = React.useCallback(() => {
+        return [
+            "Contexto inicial autorizado para esta conversa:",
+            primerGoal.trim() ? `- Frente atual: ${primerGoal.trim()}` : "",
+            primerContext.trim() ? `- Contexto basilar: ${primerContext.trim()}` : "",
+            primerLimits.trim() ? `- Limites/fatos que nao devem ser inventados: ${primerLimits.trim()}` : "",
+            `Responda como ${displayedPersonaName}. Use estes dados como ancora inicial, separe fato de hipotese e marque lacunas sem mendigar contexto generico.`,
+        ].filter(Boolean).join("\n");
+    }, [displayedPersonaName, primerContext, primerGoal, primerLimits]);
+
+    const handlePrimerSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!hasPrimerInput || isLoading) return;
+
+        setPrimerDismissed(true);
+        await submitPreparedMessage(buildPrimerMessage(), "", null);
     };
 
     const toggleListening = () => {
@@ -812,8 +900,8 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                 {multiPersonaEnabled && (
                                     <InvitePersonaButton
                                         hostPersonaId={personaId}
-                                        presentPersonaIds={participants.filter((participant) => participant.active).map((participant) => participant.personaId)}
-                                        guestCount={participantGuestCount}
+                                        presentPersonaIds={optimisticParticipants.filter((participant) => participant.active).map((participant) => participant.personaId)}
+                                        guestCount={optimisticGuestCount}
                                         disabled={isLoading || collectiveMigrationRequired}
                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                     />
@@ -825,9 +913,9 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 </div>
             </div>
 
-            {multiPersonaEnabled && participants.length > 0 && (
+            {multiPersonaEnabled && optimisticParticipants.length > 0 && (
                 <PersonaPresenceStrip
-                    participants={participants}
+                    participants={optimisticParticipants}
                     disabled={isLoading || collectiveMigrationRequired}
                     onRemove={(targetPersonaId) => mutateParticipant("remove", targetPersonaId)}
                     onMuteToggle={(targetPersonaId, muted) => mutateParticipant(muted ? "unmute" : "mute", targetPersonaId)}
@@ -841,7 +929,70 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
             {/* Messages Area - SCROLLABLE CONTAINER */}
             <div data-tour="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-[#c5a059]/30 scrollbar-track-transparent bg-black/40">
-                {messages.length === 0 && !showThinkingIndicator && (
+                {messages.length === 0 && !showThinkingIndicator && showContextPrimer && (
+                    <form
+                        onSubmit={handlePrimerSubmit}
+                        className="mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center gap-3 text-[#ecd49c]"
+                    >
+                        <div className="rounded-lg border border-[#c5a059]/25 bg-[#050507]/85 p-4 shadow-[0_18px_42px_rgba(0,0,0,0.28)]">
+                            <div className="mb-3 flex items-center gap-2">
+                                <span className="material-icons text-[20px] text-[#c5a059]">psychology_alt</span>
+                                <h3 className="font-serif text-sm font-bold uppercase tracking-[0.22em] text-[#c5a059]">Contexto de partida</h3>
+                            </div>
+                            <div className="grid gap-3">
+                                <label className="grid gap-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/70">O que voce quer atravessar agora?</span>
+                                    <textarea
+                                        value={primerGoal}
+                                        onChange={(e) => setPrimerGoal(e.target.value)}
+                                        rows={2}
+                                        className="chat-readable-input min-h-16 resize-none rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 py-2 text-sm text-[#f0ebe3] placeholder-[#c5a059]/30 focus:border-[#c5a059] focus:outline-none"
+                                        placeholder="Ex.: quero decidir, entender um padrao, testar as personas..."
+                                    />
+                                </label>
+                                <label className="grid gap-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/70">Contexto minimo que as personas podem usar</span>
+                                    <textarea
+                                        value={primerContext}
+                                        onChange={(e) => setPrimerContext(e.target.value)}
+                                        rows={3}
+                                        className="chat-readable-input min-h-20 resize-none rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 py-2 text-sm text-[#f0ebe3] placeholder-[#c5a059]/30 focus:border-[#c5a059] focus:outline-none"
+                                        placeholder="Fatos, estado atual, pessoas envolvidas, prazo, historico curto..."
+                                    />
+                                </label>
+                                <label className="grid gap-1.5">
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/70">Limites para nao inventar</span>
+                                    <textarea
+                                        value={primerLimits}
+                                        onChange={(e) => setPrimerLimits(e.target.value)}
+                                        rows={2}
+                                        className="chat-readable-input min-h-16 resize-none rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 py-2 text-sm text-[#f0ebe3] placeholder-[#c5a059]/30 focus:border-[#c5a059] focus:outline-none"
+                                        placeholder="O que ainda nao se sabe, o que deve ficar fora, fatos sensiveis..."
+                                    />
+                                </label>
+                            </div>
+                            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPrimerDismissed(true)}
+                                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-black/35 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/70 transition-colors hover:border-[#c5a059]/45 hover:text-[#ecd49c]"
+                                >
+                                    <span className="material-icons text-[17px]">skip_next</span>
+                                    Pular
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={!hasPrimerInput || isLoading}
+                                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#c5a059] px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-black transition-colors hover:bg-[#b08d48] disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <span className="material-icons text-[17px]">send</span>
+                                    Iniciar
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                )}
+                {messages.length === 0 && !showThinkingIndicator && !showContextPrimer && (
                     <div className="flex flex-col items-center justify-center h-full text-[#c5a059]/30 gap-4">
                         <div className="w-16 h-16 rounded-full border border-[#c5a059]/20 flex items-center justify-center">
                             <span className="text-3xl">✦</span>
@@ -863,7 +1014,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     }
                     const speakerPersonaId = msg.role === "assistant" ? (msg.speakerPersonaId || personaId) : null;
                     const speakerRole = speakerPersonaId
-                        ? (participants.find((participant) => participant.personaId === speakerPersonaId && participant.active)?.role || (speakerPersonaId === personaId ? "HOST" : "GUEST"))
+                        ? (optimisticParticipants.find((participant) => participant.personaId === speakerPersonaId && participant.active)?.role || (speakerPersonaId === personaId ? "HOST" : "GUEST"))
                         : undefined;
 
                     return (

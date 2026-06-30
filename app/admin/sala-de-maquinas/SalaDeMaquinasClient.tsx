@@ -132,6 +132,33 @@ type RuntimeConfig = {
   limitations: string[];
 };
 
+type CognitiveFoundationAdminResponse = {
+  config: {
+    userGraphMode: string;
+    memoryExtractorMode: string;
+    depthGateMode: string;
+    personaProjectionMode: string;
+    onboardingV2Mode: string;
+    webEnrichmentMode: string;
+    sources: Record<string, string>;
+  };
+  summary: {
+    migrationReady: boolean;
+    rows: Array<{
+      feature: string;
+      eventType: string;
+      status: string;
+      count: number;
+    }>;
+  };
+  privacy: {
+    rawPromptsReturned: boolean;
+    rawMessagesReturned: boolean;
+    confessorContentReturned: boolean;
+    metadataOnly: boolean;
+  };
+};
+
 const modeOptions = ["", "shadow", "enforce"];
 const profileOptions = ["", "light", "standard", "full"];
 const decisionOptions = ["", "promoted", "rejected", "failed_safe", "shadow_only"];
@@ -205,6 +232,65 @@ function ContextBadges({ run }: { run: RunRow | any }) {
   );
 }
 
+function CognitiveFoundationPanel({ data, loading }: { data: CognitiveFoundationAdminResponse | null; loading: boolean }) {
+  const flags = data ? [
+    ["User Graph", data.config.userGraphMode],
+    ["Extrator", data.config.memoryExtractorMode],
+    ["Depth Gate", data.config.depthGateMode],
+    ["Projecao", data.config.personaProjectionMode],
+    ["Onboarding V2", data.config.onboardingV2Mode],
+    ["Web Enrichment", data.config.webEnrichmentMode],
+  ] : [];
+  const totalEvents = data?.summary.rows.reduce((sum, row) => sum + row.count, 0) ?? 0;
+  const attentionEvents = data?.summary.rows
+    .filter((row) => row.status !== "ok")
+    .reduce((sum, row) => sum + row.count, 0) ?? 0;
+
+  return (
+    <section className="mb-6 rounded-lg border border-[#c5a059]/20 bg-black/45 p-5 backdrop-blur-md" aria-label="Fundacao cognitiva">
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#c5a059]/70">Fundacao cognitiva</p>
+          <h2 className="mt-1 font-serif text-xl text-[#fde68a]">User Graph, projecoes e Depth Gate</h2>
+        </div>
+        <StatusPill
+          value={data?.summary.migrationReady ? "persisted" : "warning"}
+          label={loading ? "carregando" : data?.summary.migrationReady ? "migration pronta" : "migration pendente"}
+        />
+      </div>
+
+      {loading && <p className="text-xs uppercase tracking-[0.2em] text-[#c5a059]/70">Carregando fundacao...</p>}
+      {!loading && !data && <WarningBanner>Fundacao cognitiva indisponivel para este usuario ou ambiente.</WarningBanner>}
+      {!loading && data && (
+        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {flags.map(([label, value]) => (
+              <div key={label} className="rounded border border-[#c5a059]/10 bg-black/35 p-3">
+                <dt className="text-[10px] uppercase tracking-widest text-white/35">{label}</dt>
+                <dd className="mt-1 font-mono text-sm text-[#fde68a]">{value}</dd>
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+            <div className="rounded border border-[#c5a059]/10 bg-black/35 p-3">
+              <dt className="text-[10px] uppercase tracking-widest text-white/35">Eventos</dt>
+              <dd className="mt-1 font-mono text-sm text-[#fde68a]">{totalEvents}</dd>
+            </div>
+            <div className="rounded border border-[#c5a059]/10 bg-black/35 p-3">
+              <dt className="text-[10px] uppercase tracking-widest text-white/35">Atencao</dt>
+              <dd className="mt-1 font-mono text-sm text-amber-100">{attentionEvents}</dd>
+            </div>
+            <div className="rounded border border-[#c5a059]/10 bg-black/35 p-3">
+              <dt className="text-[10px] uppercase tracking-widest text-white/35">Privacidade</dt>
+              <dd className="mt-1 font-mono text-sm text-emerald-100">{data.privacy.metadataOnly ? "metadata-only" : "revisar"}</dd>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function WarningBanner({ children }: { children: ReactNode }) {
   return (
     <div className="rounded-lg border border-amber-400/35 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-100">
@@ -266,8 +352,10 @@ export default function SalaDeMaquinasClient() {
   const [data, setData] = useState<ListResponse | null>(null);
   const [detail, setDetail] = useState<any | null>(null);
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | null>(null);
+  const [foundationData, setFoundationData] = useState<CognitiveFoundationAdminResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [configLoading, setConfigLoading] = useState(true);
+  const [foundationLoading, setFoundationLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
   const [detailError, setDetailError] = useState("");
@@ -318,6 +406,23 @@ export default function SalaDeMaquinasClient() {
         if (caught.name !== "AbortError") setRuntimeConfig(null);
       })
       .finally(() => setConfigLoading(false));
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setFoundationLoading(true);
+    fetch("/api/admin/cognitive-foundation", { signal: controller.signal })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error || "Falha ao carregar fundacao cognitiva.");
+        return body;
+      })
+      .then(setFoundationData)
+      .catch((caught) => {
+        if (caught.name !== "AbortError") setFoundationData(null);
+      })
+      .finally(() => setFoundationLoading(false));
     return () => controller.abort();
   }, []);
 
@@ -413,6 +518,8 @@ export default function SalaDeMaquinasClient() {
             </div>
           </div>
         </header>
+
+        <CognitiveFoundationPanel data={foundationData} loading={foundationLoading} />
 
         {error && <EmptyState kind="diagnostic" />}
 

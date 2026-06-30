@@ -24,8 +24,20 @@ import {
   updatePersonaMessageGeneration,
 } from "./session_store";
 import { isPrivateMemorySpace } from "./privacy";
-import { buildRuntimePersonaGuard, sanitizeConversationHistory, writePromptDebugAudit } from "./payload_hygiene";
+import {
+  buildRuntimePersonaGuard,
+  sanitizeConversationHistory,
+  stripGenericAssistantClosing,
+  writePromptDebugAudit,
+} from "./payload_hygiene";
 import { retainActiveTopicsFromUserMessage } from "./conversation_continuity";
+import { observeCognitiveFoundationResponse } from "./cognitive-foundation";
+import {
+  evaluatePersonaInitiativeQuality,
+  renderPersonaInitiativeRepairFeedback,
+} from "./persona-initiative";
+import type { PersonaInitiativeQualityEvaluation } from "./persona-initiative";
+import type { PersonaBehaviorContract } from "./persona_behavior_contracts";
 import type { ChatThreadMessage } from "./types";
 import type { PersonaPresenceCommand } from "./persona_command_parser";
 
@@ -91,6 +103,15 @@ function getMemoryScope(personaId: string, placeId?: string | null) {
   if (isPrivateMemorySpace(personaId)) return personaId;
   if (placeId && isPrivateMemorySpace(placeId)) return placeId;
   return personaId;
+}
+
+function readCollectiveVocationalRepairLimit() {
+  const parsed = Number(
+    process.env.NEMOSINE_COLLECTIVE_VOCATIONAL_MAX_REPAIRS
+    || process.env.NEMOSINE_PERSONA_INITIATIVE_MAX_REPAIRS,
+  );
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(0, Math.min(2, Math.floor(parsed)));
 }
 
 function hasExplicitDestinyAuthorization(text: string) {
@@ -261,6 +282,89 @@ function buildCurrentRoundContext(completedMessages: CompletedRoundMessage[]) {
   ].join("\n\n");
 }
 
+function normalizePersonaKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractScoreGuesses(messages: CompletedRoundMessage[]) {
+  const guesses = new Set<string>();
+
+  for (const message of messages) {
+    const normalized = message.content
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    const matches = normalized.matchAll(/\b(\d{1,2})\s*(?:x|-|a)\s*(\d{1,2})\b/g);
+    for (const match of matches) {
+      guesses.add(`${match[1]} a ${match[2]}`);
+    }
+  }
+
+  return [...guesses];
+}
+
+function buildCollectiveAntiHerdRule(participant: { personaId: string; role: "HOST" | "GUEST" }, completedMessages: CompletedRoundMessage[]) {
+  const previousScoreGuesses = extractScoreGuesses(completedMessages);
+  const lines = [
+    "Regra anti-manada desta rodada:",
+    "Nao repita tese, placar, justificativa ou fechamento ja entregue por outra persona.",
+    "Evite formulas como 'historico e desempenho recente', 'jogo cheio de surpresas', 'futebol e imprevisivel' quando outra voz ja usou esse caminho.",
+    "Se concordar com alguem, acrescente uma divergencia concreta, um risco que a outra voz ignorou ou uma decisao diferente.",
+  ];
+
+  if (previousScoreGuesses.length > 0) {
+    lines.push(
+      `Placares ja usados nesta rodada: ${previousScoreGuesses.join(", ")}.`,
+      "Se o usuario pedir palpite, nao use placar ja usado. Escolha outra leitura coerente ou declare, pela sua vocacao, por que a falsa precisao e o flanco do pedido.",
+    );
+  }
+
+  const normalizedPersona = normalizePersonaKey(participant.personaId);
+  if (normalizedPersona.includes("inimigo")) {
+    lines.push(
+      "Regra especifica do Inimigo: nao seja prestativo, conciliador ou tranquilizador.",
+      "Ataque a premissa fraca, exponha o autoengano, diga qual flanco um adversario exploraria e feche com defesa concreta.",
+      "Em palpite esportivo, nao vire comentarista neutro: ataque o consenso facil e mostre onde a previsao pode estar se enganando.",
+    );
+  } else if (normalizedPersona.includes("astronomo")) {
+    lines.push("Regra especifica do Astronomo: use padrao, ciclo, fase, tendencia e comparacao temporal; nao entregue analise esportiva generica.");
+  } else if (normalizedPersona.includes("vidente")) {
+    lines.push("Regra especifica do Vidente: ofereca cenario, pressagio e bifurcacao; nao copie o placar nem a justificativa racional das outras vozes.");
+  } else if (normalizedPersona.includes("cigana")) {
+    lines.push("Regra especifica da Cigana: responda por imagem, leitura simbolica e pressentimento situado; nao vire resumo estatistico.");
+  }
+
+  return lines.join("\n");
+}
+
+function buildCollectiveVocationalExecutionRule(personaId: string, contract: PersonaBehaviorContract) {
+  const familyMove: Record<string, string> = {
+    strategic: "estrategia significa hierarquia, risco, trade-off, corte e movimento; nao significa opiniao equilibrada.",
+    symbolic: "simbolo significa imagem, contraste, cena, pressagio, humor ou virada de sentido; nao significa enfeitar uma resposta neutra.",
+    emotional: "leitura emocional significa padrao afetivo, defesa, necessidade, limite ou gesto interno; nao significa acolhimento intercambiavel.",
+    operational: "operacao significa fluxo, gargalo, teste, procedimento ou criterio verificavel; nao significa checklist decorativo.",
+  };
+
+  return [
+    `Execucao vocacional obrigatoria para ${personaId}:`,
+    `Missao operacional: ${contract.operationalMission}`,
+    `Temperamento de voz: ${contract.positiveStyle}`,
+    `Inferencia esperada: ${contract.expectedInference}`,
+    `Forma de encerramento: ${contract.vocationalClosing}`,
+    familyMove[contract.family],
+    `A resposta precisa produzir estes efeitos sem enumera-los como checklist: ${contract.goodResponseCriteria.join(", ")}.`,
+    `Desvios que indicam perda de vocacao: ${contract.genericResponseSignals.join(", ")}.`,
+    "Antes de responder, escolha mentalmente UMA lente propria desta persona e use-a para transformar o pedido. Se a resposta ainda servir igualmente para outra persona, ela esta errada.",
+    "Perguntas factuais, palpites ou assuntos cotidianos tambem devem passar pela vocacao. Nunca entregue comentario neutro com fantasia de persona por cima.",
+  ].join("\n");
+}
+
 function safeErrorCode(error: unknown) {
   if (error instanceof Error) return error.message.split(":")[0].slice(0, 80);
   return "unknown_error";
@@ -300,6 +404,7 @@ async function runPersonaGeneration(input: {
   turnGroupId: string;
   messageId: string;
   completedRoundMessages: CompletedRoundMessage[];
+  participantCount: number;
   controller: ReadableStreamDefaultController<Uint8Array>;
 }): Promise<{ status: "COMPLETED" | "FAILED"; content: string }> {
   const startedAt = Date.now();
@@ -332,6 +437,8 @@ async function runPersonaGeneration(input: {
           buildRuntimePersonaGuard(input.participant.personaId, input.round.userText),
           INDEPENDENCE_RULE,
           buildCurrentRoundContext(input.completedRoundMessages),
+          buildCollectiveAntiHerdRule(input.participant, input.completedRoundMessages),
+          buildCollectiveVocationalExecutionRule(input.participant.personaId, promptAssembly.initiative.contract),
         ].join("\n\n"),
         timestamp: Date.now(),
       },
@@ -359,18 +466,87 @@ async function runPersonaGeneration(input: {
       debug: promptAssembly.debug,
     });
 
-    const result = await generateText({
-      model: activeChatModel.modelInstance,
-      system: [promptAssembly.systemPrompt, INDEPENDENCE_RULE].join("\n\n"),
-      messages: modelMessages,
-      temperature: DEFAULT_CHAT_TEMPERATURE,
-      maxOutputTokens: DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
-      maxRetries: 1,
-    });
-    const rawText = result.text || "";
-    const visibleText = stripLegacyActionTags(rawText);
+    const recentAssistantTexts = [
+      ...input.round.priorHistory
+        .filter((message) => message.role === "assistant")
+        .slice(-4)
+        .map((message) => message.content),
+      ...input.completedRoundMessages.map((message) => message.content),
+    ];
+    const generateCandidate = async (repairFeedback: string) => {
+      const result = await generateText({
+        model: activeChatModel.modelInstance,
+        system: [promptAssembly.systemPrompt, INDEPENDENCE_RULE, repairFeedback].filter(Boolean).join("\n\n"),
+        messages: modelMessages,
+        temperature: DEFAULT_CHAT_TEMPERATURE,
+        maxOutputTokens: DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
+        maxRetries: 1,
+      });
+      return result;
+    };
+
+    const maxAttempts = readCollectiveVocationalRepairLimit() + 1;
+    let repairFeedback = "";
+    let selectedRawText = "";
+    let visibleText = "";
+    let generationUsage: unknown;
+    let bestRejected: {
+      rawText: string;
+      visibleText: string;
+      evaluation: PersonaInitiativeQualityEvaluation;
+      usage: unknown;
+    } | null = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      const result = await generateCandidate(repairFeedback);
+      const rawCandidate = result.text || "";
+      const visibleCandidate = stripGenericAssistantClosing(stripLegacyActionTags(rawCandidate));
+      const initiativeEvaluation = evaluatePersonaInitiativeQuality({
+        responseText: visibleCandidate,
+        personaId: input.participant.personaId,
+        userText: input.round.userText,
+        richness: promptAssembly.initiative.richness,
+        snapshot: promptAssembly.initiative.snapshot,
+        contract: promptAssembly.initiative.contract,
+        brief: promptAssembly.initiative.brief,
+        privateRun: isPrivateMemorySpace(memoryScope),
+        recentAssistantTexts,
+      });
+
+      if (initiativeEvaluation.finalPass) {
+        selectedRawText = rawCandidate;
+        visibleText = visibleCandidate;
+        generationUsage = (result as any).usage;
+        break;
+      }
+
+      if (!bestRejected || initiativeEvaluation.initiativeScore > bestRejected.evaluation.initiativeScore) {
+        bestRejected = {
+          rawText: rawCandidate,
+          visibleText: visibleCandidate,
+          evaluation: initiativeEvaluation,
+          usage: (result as any).usage,
+        };
+      }
+
+      repairFeedback = renderPersonaInitiativeRepairFeedback(initiativeEvaluation);
+      console.warn("[CollectiveChat] Persona candidate rejected before delivery.", {
+        personaId: input.participant.personaId,
+        threadId: input.round.threadId,
+        attempt,
+        findingCodes: initiativeEvaluation.findings.map((finding) => finding.code),
+        initiativeScore: Number(initiativeEvaluation.initiativeScore.toFixed(3)),
+      });
+    }
+
+    if (!visibleText) {
+      selectedRawText = bestRejected?.rawText || "";
+      visibleText = bestRejected?.visibleText || "Nao consegui sustentar a voz desta persona nesta rodada.";
+      generationUsage = bestRejected?.usage;
+    }
+
     const effects = await commitPersonaLegacyEffects({
-      rawText,
+      rawText: selectedRawText,
       userId: input.round.userId,
       activeThreadId: input.round.threadId,
       memoryScope,
@@ -408,6 +584,23 @@ async function runPersonaGeneration(input: {
         errorCode: safeErrorCode(error),
       });
     });
+    await observeCognitiveFoundationResponse({
+      userId: input.round.userId,
+      threadId: input.round.threadId,
+      personaId: input.participant.personaId,
+      placeId: input.round.placeId || null,
+      memoryScope,
+      userText: input.round.userText,
+      responseText: visibleText,
+      participantCount: input.participantCount,
+      privateRun: isPrivateMemorySpace(memoryScope),
+    }).catch((error) => {
+      console.warn("[CollectiveChat] Cognitive foundation observation skipped.", {
+        threadId: input.round.threadId,
+        personaId: input.participant.personaId,
+        errorCode: safeErrorCode(error),
+      });
+    });
 
     enqueueEvent(input.controller, {
       type: "persona-delta",
@@ -436,7 +629,7 @@ async function runPersonaGeneration(input: {
         generationStatus: "COMPLETED",
         latencyMs: Date.now() - startedAt,
         model: activeChatModel.model,
-        tokens: (result as any).usage || undefined,
+        tokens: generationUsage || undefined,
         memoryWrites,
         filteredHistoryCount,
       },
@@ -572,6 +765,7 @@ export function createCollectiveChatStream(input: CollectiveChatRoundInput) {
               turnGroupId,
               messageId: message.id,
               completedRoundMessages,
+              participantCount: speakingParticipants.length,
               controller,
             });
             if (result.status === "COMPLETED" && result.content.trim()) {
