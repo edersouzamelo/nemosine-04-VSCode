@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
 import { useChat } from "@ai-sdk/react";
 import { UIMessage, DefaultChatTransport } from "ai";
 import Markdown from "react-markdown";
@@ -9,6 +10,25 @@ import { useLanguage } from "./LanguageProvider";
 import InvitePersonaButton from "./InvitePersonaButton";
 import PersonaPresenceStrip, { PersonaPresence } from "./PersonaPresenceStrip";
 import PersonaSpeakerBadge from "./PersonaSpeakerBadge";
+import PresenceAdjustmentOverlay from "./PresenceAdjustmentOverlay";
+import {
+    markContinuityPulse,
+    hasPresenceSkipped,
+    markPresenceShownThisSession,
+    markPresenceSkipped,
+    readAndUpdateLastSeen,
+    readPresenceContract,
+    resolveClientPresenceContract,
+    shouldShowContinuityPulse,
+    wasPresenceShownThisSession,
+    writePresenceContract,
+} from "@/app/lib/nemosine/presence_adjustment/client_store";
+import type {
+    ConversationPresenceContract,
+    PresenceAdjustmentMode,
+    PresenceFlowType,
+    PresenceScope,
+} from "@/app/lib/nemosine/presence_adjustment";
 
 interface MedievalChatProps {
     personaId: string;
@@ -175,6 +195,7 @@ function ThinkingIndicator() {
 
 export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat, actionMenu }: MedievalChatProps) {
     const { language, t, entityName } = useLanguage();
+    const { data: session, status: sessionStatus } = useSession();
     const displayedPersonaName = entityName(personaId);
     const placeArticle = placeId && FEMININE_PLACES_PT.has(placeId) ? "na" : "no";
     const conversationTitle = !placeId
@@ -199,9 +220,30 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [primerContext, setPrimerContext] = useState("");
     const [primerLimits, setPrimerLimits] = useState("");
     const [primerDismissed, setPrimerDismissed] = useState(false);
+    const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
+    const [presenceConfig, setPresenceConfig] = useState<{
+        mode: PresenceAdjustmentMode;
+        enabled: boolean;
+        appliesToRuntime: boolean;
+        userId: string | null;
+        staleDays: number;
+        minDaysBetweenPulses: number;
+    }>({
+        mode: "off",
+        enabled: false,
+        appliesToRuntime: false,
+        userId: null,
+        staleDays: 7,
+        minDaysBetweenPulses: 7,
+    });
+    const [presenceOverlayOpen, setPresenceOverlayOpen] = useState(false);
+    const [presenceFlowType, setPresenceFlowType] = useState<PresenceFlowType>("FIRST_AGREEMENT");
+    const [effectivePresenceContract, setEffectivePresenceContract] = useState<ConversationPresenceContract | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textInputRef = useRef<HTMLTextAreaElement>(null);
     const primerScopeRef = useRef(`${personaId}:${currentThreadId || "new"}`);
+    const presenceContractRef = useRef<ConversationPresenceContract | null>(null);
+    const presenceBootKeyRef = useRef("");
 
     useEffect(() => {
         const openMenuForTourStep = (event: Event) => {
@@ -213,6 +255,81 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         window.addEventListener("nemosine:onboarding-step", openMenuForTourStep);
         return () => window.removeEventListener("nemosine:onboarding-step", openMenuForTourStep);
     }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/presence-adjustment/config", { cache: "no-store" })
+            .then((response) => response.ok ? response.json() : null)
+            .then((data) => {
+                if (cancelled || !data) return;
+                setPresenceConfig({
+                    mode: data.mode || "off",
+                    enabled: Boolean(data.enabled),
+                    appliesToRuntime: Boolean(data.appliesToRuntime),
+                    userId: data.userId || null,
+                    staleDays: Number(data.staleDays || 7),
+                    minDaysBetweenPulses: Number(data.minDaysBetweenPulses || 7),
+                });
+            })
+            .catch(() => null);
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        presenceContractRef.current = effectivePresenceContract;
+    }, [effectivePresenceContract]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (!presenceConfig.enabled || sessionStatus !== "authenticated") return;
+        const userId = presenceConfig.userId || session?.user?.id || session?.user?.email || null;
+        if (!userId || !personaId || placeId) return;
+
+        const bootKey = `${userId}:${personaId}`;
+        const shouldBootFlow = presenceBootKeyRef.current !== bootKey;
+        const effective = resolveClientPresenceContract({
+            userId,
+            personaId,
+            conversationId: currentThreadId || undefined,
+        });
+        setEffectivePresenceContract(effective);
+
+        if (!shouldBootFlow) return;
+        presenceBootKeyRef.current = bootKey;
+        const previousSeenAt = readAndUpdateLastSeen(userId);
+        const personaContract = readPresenceContract("PERSONA", { userId, personaId });
+
+        if (
+            !personaContract
+            && !hasPresenceSkipped(userId, personaId)
+            && !wasPresenceShownThisSession(userId, personaId, "FIRST_AGREEMENT")
+        ) {
+            setPresenceFlowType("FIRST_AGREEMENT");
+            setPresenceOverlayOpen(true);
+            markPresenceShownThisSession(userId, personaId, "FIRST_AGREEMENT");
+            return;
+        }
+
+        if (
+            personaContract
+            && shouldShowContinuityPulse({
+                userId,
+                personaId,
+                contract: personaContract,
+                previousSeenAt,
+                staleDays: presenceConfig.staleDays,
+                minDaysBetweenPulses: presenceConfig.minDaysBetweenPulses,
+            })
+            && !wasPresenceShownThisSession(userId, personaId, "CONTINUITY_PULSE")
+        ) {
+            setPresenceFlowType("CONTINUITY_PULSE");
+            setPresenceOverlayOpen(true);
+            markPresenceShownThisSession(userId, personaId, "CONTINUITY_PULSE");
+            markContinuityPulse(userId, personaId);
+        }
+    }, [currentThreadId, personaId, placeId, presenceConfig, session, sessionStatus]);
 
     useEffect(() => {
         const nextScope = `${personaId}:${currentThreadId || "new"}`;
@@ -275,6 +392,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         bodyObj.placeId = placeId;
                         bodyObj.threadId = currentThreadIdRef.current || undefined;
                         bodyObj.language = language;
+                        if (presenceConfig.enabled && presenceContractRef.current) {
+                            bodyObj.presenceContract = presenceContractRef.current;
+                            bodyObj.presenceAdjustmentMode = presenceConfig.mode;
+                        }
                         init.body = JSON.stringify(bodyObj);
                     } else if (init.body instanceof FormData) {
                         init.body.append('personaId', personaId);
@@ -282,6 +403,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                             init.body.append('placeId', placeId);
                         }
                         init.body.append('language', language);
+                        if (presenceConfig.enabled && presenceContractRef.current) {
+                            init.body.append('presenceContract', JSON.stringify(presenceContractRef.current));
+                            init.body.append('presenceAdjustmentMode', presenceConfig.mode);
+                        }
                         if (currentThreadIdRef.current) {
                             init.body.append('threadId', currentThreadIdRef.current);
                         }
@@ -297,7 +422,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             }
             return res;
         }
-    }), [personaId, placeId, onThreadCreated, language]);
+    }), [personaId, placeId, onThreadCreated, language, presenceConfig.enabled, presenceConfig.mode]);
 
     const { messages, sendMessage, status, setMessages, error, clearError } = useChat({
         id: placeId ? `${personaId}@${placeId}` : personaId,
@@ -540,6 +665,8 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     language,
                     voiceTranscript: hiddenVoiceTranscript || undefined,
                     fileParts,
+                    presenceContract: presenceConfig.enabled ? presenceContractRef.current || undefined : undefined,
+                    presenceAdjustmentMode: presenceConfig.mode,
                 }),
             });
             const newThreadId = response.headers.get("x-thread-id");
@@ -576,7 +703,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             setCollectiveStatus("idle");
             fetchParticipants(currentThreadIdRef.current);
         }
-    }, [appendMessage, fetchParticipants, handleCollectiveEvent, language, onThreadCreated, personaId, placeId]);
+    }, [appendMessage, fetchParticipants, handleCollectiveEvent, language, onThreadCreated, personaId, placeId, presenceConfig.enabled, presenceConfig.mode]);
 
     const clearComposer = React.useCallback(() => {
         shouldKeepListeningRef.current = false;
@@ -630,7 +757,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     };
 
     const hasPrimerInput = Boolean(primerGoal.trim() || primerContext.trim() || primerLimits.trim());
-    const showContextPrimer = messages.length === 0 && !showThinkingIndicator && !primerDismissed;
+    const showContextPrimer = advancedSettingsOpen && !showThinkingIndicator && !primerDismissed;
 
     const buildPrimerMessage = React.useCallback(() => {
         return [
@@ -647,8 +774,72 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         if (!hasPrimerInput || isLoading) return;
 
         setPrimerDismissed(true);
+        setAdvancedSettingsOpen(false);
         await submitPreparedMessage(buildPrimerMessage(), "", null);
     };
+
+    const recordPresenceTelemetry = React.useCallback((input: {
+        outcome: "CONFIRMED" | "SKIPPED";
+        scope?: PresenceScope;
+        contractApplied?: boolean;
+    }) => {
+        fetch("/api/presence-adjustment/telemetry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                flowType: presenceFlowType,
+                personaId,
+                triggerReason: presenceFlowType === "FIRST_AGREEMENT"
+                    ? "first-persona-agreement"
+                    : presenceFlowType === "CONTINUITY_PULSE"
+                        ? "stale-presence-contract"
+                        : "manual-menu",
+                questionCount: presenceFlowType === "CONTINUITY_PULSE" ? 2 : 3,
+                skippedQuestions: input.outcome === "SKIPPED" ? 3 : 0,
+                durationMs: 0,
+                outcome: input.outcome,
+                scope: input.scope,
+                activePolicies: effectivePresenceContract ? [
+                    effectivePresenceContract.genericHelpOfferPolicy,
+                    effectivePresenceContract.genericContextRequestPolicy,
+                    effectivePresenceContract.finalQuestionPolicy,
+                    effectivePresenceContract.responseDepth,
+                ] : [],
+                contractApplied: input.contractApplied,
+            }),
+        }).catch(() => null);
+    }, [effectivePresenceContract, personaId, presenceFlowType]);
+
+    const handlePresenceComplete = React.useCallback((contract: ConversationPresenceContract | null, outcome: "CONFIRMED" | "SKIPPED", options?: { scope?: PresenceScope }) => {
+        const userId = presenceConfig.userId || session?.user?.id || session?.user?.email || "";
+        setPresenceOverlayOpen(false);
+        if (!userId) return;
+
+        if (outcome === "SKIPPED") {
+            if (presenceFlowType === "FIRST_AGREEMENT") {
+                markPresenceSkipped(userId, personaId);
+            }
+            recordPresenceTelemetry({ outcome: "SKIPPED", contractApplied: false });
+            return;
+        }
+
+        if (contract) {
+            writePresenceContract(contract);
+            const effective = resolveClientPresenceContract({
+                userId,
+                personaId,
+                conversationId: currentThreadIdRef.current || undefined,
+            });
+            setEffectivePresenceContract(effective);
+            presenceContractRef.current = effective;
+        }
+
+        recordPresenceTelemetry({
+            outcome: "CONFIRMED",
+            scope: options?.scope || contract?.scope,
+            contractApplied: presenceConfig.appliesToRuntime,
+        });
+    }, [personaId, presenceConfig.appliesToRuntime, presenceConfig.userId, presenceFlowType, recordPresenceTelemetry, session]);
 
     const toggleListening = () => {
         if (isListening) {
@@ -821,6 +1012,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     };
 
     return (
+        <>
         <div data-tour="chat-shell" className="w-full h-full flex flex-col relative overflow-hidden bg-black/20 rounded-lg border border-[#c5a059]/10 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
 
             {/* Header / Toolbar */}
@@ -906,6 +1098,42 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                     />
                                 )}
+                                {presenceConfig.enabled && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPresenceFlowType("MANUAL_RECONFIGURATION");
+                                            setPresenceOverlayOpen(true);
+                                            setActionsOpen(false);
+                                        }}
+                                        title="Ajuste de Presenca"
+                                        aria-label="Ajuste de Presenca"
+                                        className="group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 lg:w-10 lg:justify-center lg:gap-0 lg:px-0"
+                                    >
+                                        <span className="material-icons text-[18px]">tune</span>
+                                        <span className="lg:hidden">Ajuste de Presenca</span>
+                                        <span className="pointer-events-none absolute left-1/2 top-full z-[80] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-[#c5a059]/25 bg-[#07070a]/95 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-[#c5a059] opacity-0 shadow-xl transition-opacity group-hover/action:opacity-100 lg:block">
+                                            Ajuste
+                                        </span>
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setAdvancedSettingsOpen(true);
+                                        setPrimerDismissed(false);
+                                        setActionsOpen(false);
+                                    }}
+                                    title="Configuracao avancada da conversa"
+                                    aria-label="Configuracao avancada da conversa"
+                                    className="group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 lg:w-10 lg:justify-center lg:gap-0 lg:px-0"
+                                >
+                                    <span className="material-icons text-[18px]">edit_note</span>
+                                    <span className="lg:hidden">Configuracao avancada</span>
+                                    <span className="pointer-events-none absolute left-1/2 top-full z-[80] mt-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-[#c5a059]/25 bg-[#07070a]/95 px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-[#c5a059] opacity-0 shadow-xl transition-opacity group-hover/action:opacity-100 lg:block">
+                                        Avancado
+                                    </span>
+                                </button>
                                 {actionMenu}
                             </div>
                         </div>
@@ -937,7 +1165,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         <div className="rounded-lg border border-[#c5a059]/25 bg-[#050507]/85 p-4 shadow-[0_18px_42px_rgba(0,0,0,0.28)]">
                             <div className="mb-3 flex items-center gap-2">
                                 <span className="material-icons text-[20px] text-[#c5a059]">psychology_alt</span>
-                                <h3 className="font-serif text-sm font-bold uppercase tracking-[0.22em] text-[#c5a059]">Contexto de partida</h3>
+                                    <h3 className="font-serif text-sm font-bold uppercase tracking-[0.22em] text-[#c5a059]">Configuracao avancada da conversa</h3>
                             </div>
                             <div className="grid gap-3">
                                 <label className="grid gap-1.5">
@@ -974,7 +1202,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                             <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
                                 <button
                                     type="button"
-                                    onClick={() => setPrimerDismissed(true)}
+                                        onClick={() => {
+                                            setPrimerDismissed(true);
+                                            setAdvancedSettingsOpen(false);
+                                        }}
                                     className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-black/35 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/70 transition-colors hover:border-[#c5a059]/45 hover:text-[#ecd49c]"
                                 >
                                     <span className="material-icons text-[17px]">skip_next</span>
@@ -1155,5 +1386,16 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 </div>
             </form>
         </div>
+        <PresenceAdjustmentOverlay
+            open={presenceOverlayOpen}
+            flowType={presenceFlowType}
+            personaId={personaId}
+            userId={presenceConfig.userId || session?.user?.id || session?.user?.email || ""}
+            conversationId={currentThreadId || undefined}
+            currentContract={effectivePresenceContract}
+            onComplete={handlePresenceComplete}
+            onDismiss={() => setPresenceOverlayOpen(false)}
+        />
+        </>
     );
 }
