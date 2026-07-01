@@ -284,6 +284,40 @@ export function renderPresenceContractForRuntime(contract?: ConversationPresence
   ].filter(Boolean).join("\n");
 }
 
+function hasPresenceAnchor(contract?: ConversationPresenceContract | null) {
+  return Boolean(contract?.recentContext || contract?.currentGoal || contract?.importantEntities?.length);
+}
+
+export function shouldAnchorPresenceContractForTurn(input: {
+  userText: string;
+  contract?: ConversationPresenceContract | null;
+}) {
+  if (!hasPresenceAnchor(input.contract)) return false;
+  const normalized = normalizePresenceKey(input.userText || "");
+  if (!normalized) return true;
+  const lowInformationOpening = /^(oi|ola|hello|hi|bom dia|boa tarde|boa noite|e ai|salve|fala)\b/.test(normalized)
+    || /^(o que acha|qual sua leitura|o que voce ve|e entao)\??$/.test(normalized)
+    || normalized.split(" ").filter((term) => term.length > 2).length <= 4;
+  const explicitNewMatter = /\b(preciso|quero|estou|estamos|tive|tenho|aconteceu|decidir|resolver|fazer|sobre)\b/.test(normalized)
+    && normalized.split(" ").filter((term) => term.length > 3).length >= 5;
+  return lowInformationOpening && !explicitNewMatter;
+}
+
+export function renderPresenceAnchoredUserText(userText: string, contract?: ConversationPresenceContract | null) {
+  if (!contract || !shouldAnchorPresenceContractForTurn({ userText, contract })) return userText;
+  return [
+    userText,
+    "",
+    "[CONTEXTO INTERNO DO AJUSTE DE PRESENCA - NAO CITAR]",
+    "A entrada atual e vaga. Use o Ajuste de Presenca como assunto principal deste turno.",
+    contract.recentContext ? `Contexto recente: ${contract.recentContext}` : "",
+    contract.currentGoal ? `Objetivo atual: ${contract.currentGoal}` : "",
+    contract.importantEntities?.length ? `Entidades importantes: ${contract.importantEntities.join(", ")}` : "",
+    `Profundidade: ${contract.responseDepth}`,
+    "Nao substitua este tema por registros, memorias ou pendencias recentes sem relacao direta.",
+  ].filter(Boolean).join("\n");
+}
+
 function sentenceSegments(text: string) {
   return text
     .trim()

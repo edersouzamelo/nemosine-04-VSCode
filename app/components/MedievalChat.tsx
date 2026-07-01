@@ -858,7 +858,11 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             contractApplied: presenceConfig.appliesToRuntime,
         });
 
-        if (presenceFlowType === "FIRST_AGREEMENT" && effective && messagesRef.current.length === 0) {
+        if (
+            effective
+            && messagesRef.current.length === 0
+            && (presenceFlowType === "FIRST_AGREEMENT" || presenceFlowType === "MANUAL_RECONFIGURATION")
+        ) {
             window.setTimeout(() => {
                 void submitPreparedMessage(buildPresenceOpeningMessage(effective), "", null);
             }, 0);

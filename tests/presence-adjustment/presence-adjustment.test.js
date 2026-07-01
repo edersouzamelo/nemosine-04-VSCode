@@ -13,9 +13,11 @@ const {
   getPresenceQuestionForPersona,
   normalizePresenceMode,
   removeGenericClosingByContract,
+  renderPresenceAnchoredUserText,
   renderPresenceContractForRuntime,
   resolveEffectivePresenceContract,
   sanitizePresenceTelemetry,
+  shouldAnchorPresenceContractForTurn,
   shouldTriggerContinuityPulse,
   shouldTriggerFirstAgreement,
 } = require("../../app/lib/nemosine/presence_adjustment/core.ts");
@@ -115,6 +117,24 @@ test("presence runtime block is dynamic and does not replace persona identity", 
   assert.match(rendered, /Current goal: decidir publicar o artigo/);
   assert.match(rendered, /must not alter the persona identity/);
   assert.match(rendered, /greeting or shallow opening/);
+});
+
+test("presence contract anchors vague openings but yields to explicit new matter", () => {
+  const anchored = contract({
+    recentContext: "Produzi um artigo academico em um dia por atraso na chamada de artigos.",
+    currentGoal: "entender resistencia dos superiores em encaminhar a submissao",
+    responseDepth: "DEEP",
+  });
+  assert.equal(shouldAnchorPresenceContractForTurn({
+    userText: "ola astronomo",
+    contract: anchored,
+  }), true);
+  assert.match(renderPresenceAnchoredUserText("ola astronomo", anchored), /artigo academico/);
+  assert.match(renderPresenceAnchoredUserText("ola astronomo", anchored), /assunto principal/);
+  assert.equal(shouldAnchorPresenceContractForTurn({
+    userText: "preciso decidir sobre o desenvolvimento do Sovereign e o teste de notificacao",
+    contract: anchored,
+  }), false);
 });
 
 test("generic closing enforcement blocks empty continuation and final question", () => {
@@ -224,8 +244,10 @@ test("chat wiring keeps old primer manual and exposes presence overlay controls"
   assert.match(chatSource, /PresenceAdjustmentOverlay/);
   assert.match(chatSource, /NEMOSINE_PRESENCE_OPENING/);
   assert.match(chatSource, /messagesRef\.current\.length === 0/);
+  assert.match(chatSource, /MANUAL_RECONFIGURATION/);
   assert.match(chatRouteSource, /NEMOSINE_PRESENCE_OPENING/);
-  assert.match(chatRouteSource, /!isPresenceOpeningRequest && shouldRetainUserInputForContinuity/);
+  assert.match(chatRouteSource, /!presenceAnchoredRouting/);
+  assert.match(chatRouteSource, /renderPresenceAnchoredUserText/);
   assert.match(overlaySource, /Entrar sem ajuste/);
   assert.match(overlaySource, /Entendi o seguinte/);
   assert.match(overlaySource, /step \+ 1/);

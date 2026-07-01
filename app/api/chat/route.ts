@@ -47,8 +47,10 @@ import {
 import {
     detectGenericClosingViolation,
     normalizePresenceMode,
+    renderPresenceAnchoredUserText,
     removeGenericClosingByContract,
     renderPresenceContractForRuntime,
+    shouldAnchorPresenceContractForTurn,
 } from '@/app/lib/nemosine/presence_adjustment';
 import type { ConversationPresenceContract } from '@/app/lib/nemosine/presence_adjustment';
 import { retainActiveTopicsFromUserMessage } from '@/app/lib/nemosine/conversation_continuity';
@@ -576,7 +578,16 @@ export async function POST(req: NextRequest) {
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
-        const shouldRetainConversationContinuity = !isPresenceOpeningRequest && shouldRetainUserInputForContinuity(userText);
+        const presenceAnchoredRouting = shouldApplyPresenceContract && shouldAnchorPresenceContractForTurn({
+            userText,
+            contract: activePresenceContract,
+        });
+        const routedUserText = presenceAnchoredRouting
+            ? renderPresenceAnchoredUserText(userText, activePresenceContract)
+            : userText;
+        const shouldRetainConversationContinuity = !isPresenceOpeningRequest
+            && !presenceAnchoredRouting
+            && shouldRetainUserInputForContinuity(userText);
         await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
 
         const conversationNavigationAnswer = await buildConversationNavigationAnswer({
@@ -603,7 +614,7 @@ export async function POST(req: NextRequest) {
             personaId,
             placeId: normalizedPlaceId,
             language: selectedLanguage,
-            userText,
+            userText: routedUserText,
             displayUserText,
             memoryScope,
             priorHistory,
@@ -629,14 +640,16 @@ export async function POST(req: NextRequest) {
                 const deliveredPipelineAnswer = applyPresenceContractToResponse(responsePipelineResult.answer);
                 await addMessageToThread(userId, activeThreadId, 'assistant', deliveredPipelineAnswer);
                 let sideEffectsCommitted = { memory: 0, registry: 0, destiny: 0 };
-                await commitExtractedMemoryEffects({
-                    request: responsePipelineRequest,
-                    extraction: responsePipelineResult.memoryExtraction,
-                }).then((committed) => {
-                    sideEffectsCommitted = committed;
-                }).catch((error) => {
-                    console.warn("[API/Chat] Response pipeline memory extraction commit skipped.", error);
-                });
+                if (!presenceAnchoredRouting) {
+                    await commitExtractedMemoryEffects({
+                        request: responsePipelineRequest,
+                        extraction: responsePipelineResult.memoryExtraction,
+                    }).then((committed) => {
+                        sideEffectsCommitted = committed;
+                    }).catch((error) => {
+                        console.warn("[API/Chat] Response pipeline memory extraction commit skipped.", error);
+                    });
+                }
 
                 if (shouldRetainConversationContinuity) {
                     await Promise.all([
@@ -742,7 +755,7 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        const promptAssembly = await buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, userText, activeThreadId);
+        const promptAssembly = await buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, routedUserText, activeThreadId);
         const systemPrompt = promptAssembly.systemPrompt;
         const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(priorHistory);
         const recentAssistantTexts = priorHistory
@@ -755,7 +768,7 @@ export async function POST(req: NextRequest) {
                 id: 'runtime-persona-guard',
                 role: 'system' as const,
                 content: [
-                    buildRuntimePersonaGuard(personaId, userText),
+                    buildRuntimePersonaGuard(personaId, routedUserText),
                     presenceRuntimePrompt,
                 ].filter(Boolean).join("\n\n"),
                 timestamp: Date.now()
@@ -763,7 +776,7 @@ export async function POST(req: NextRequest) {
             {
                 id: 'current-user-message',
                 role: 'user' as const,
-                content: userText,
+                content: routedUserText,
                 timestamp: Date.now()
             }
         ];
@@ -828,7 +841,7 @@ export async function POST(req: NextRequest) {
             const initiativeEvaluation = evaluatePersonaInitiativeQuality({
                 responseText: visibleCandidate,
                 personaId,
-                userText,
+                userText: routedUserText,
                 richness: promptAssembly.initiative.richness,
                 snapshot: promptAssembly.initiative.snapshot,
                 contract: promptAssembly.initiative.contract,
@@ -869,7 +882,7 @@ export async function POST(req: NextRequest) {
                 promotedByFallback = true;
                 finalResponse = buildDeterministicInitiativeFallback({
                     personaId,
-                    userText,
+                    userText: routedUserText,
                     richness: promptAssembly.initiative.richness,
                     snapshot: promptAssembly.initiative.snapshot,
                     brief: promptAssembly.initiative.brief,
