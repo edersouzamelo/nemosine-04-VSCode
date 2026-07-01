@@ -241,8 +241,53 @@ test("deterministic fallback scrubs polluted episode scaffolding", () => {
     contract,
   });
 
+  assert.equal(snapshot.selectedFronts.length, 0);
   assert.doesNotMatch(fallback, /EPISODIO COM|O usuario escreveu|O sinal mais forte|centro de gravidade|frente autorizada|respondendo assim|contexto recente esta contaminado/i);
-  assert.match(fallback, /Sem bastidor|rastro recente|memoria/i);
+  assert.doesNotMatch(fallback, /rastro recente|memoria/i);
+  assert.match(fallback, /Sem bastidor|Estou te ouvindo/i);
+});
+
+test("Advogado greeting ignores response-repair noise instead of answering disconnected context", () => {
+  const personaId = "Advogado";
+  const userText = "e ai didi";
+  const richness = classifyConversationInputRichness(userText);
+  const contract = getPersonaBehaviorContract(personaId);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId,
+    userText,
+    richness,
+    contract,
+    sources: [{
+      id: "memory-response-repair",
+      type: "memory",
+      text: "EPISODIO COM Advogado | O usuario escreveu: concordo com a resposta em si, de ambos. Minha leitura pratica: o pedido atual vem antes de qualquer memoria solta.",
+      provenance: "UserMemory",
+      visibility: "internal",
+      scope: personaId,
+      recency: 1,
+    }],
+  });
+  const brief = buildPersonaInitiativeBrief({
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    contract,
+  });
+  const fallback = buildDeterministicInitiativeFallback({
+    personaId,
+    userText,
+    richness,
+    snapshot,
+    brief,
+    contract,
+  });
+
+  assert.equal(richness.openingType, "greeting");
+  assert.equal(snapshot.hasSubstantiveContext, false);
+  assert.equal(snapshot.selectedFronts.length, 0);
+  assert.doesNotMatch(fallback, /concordo com a resposta|rastro recente|hierarquizar o assunto|memoria solta/i);
+  assert.match(fallback, /Advogado|Estou te ouvindo/i);
 });
 
 test("health-check fallback talks to the user instead of narrating itself", () => {

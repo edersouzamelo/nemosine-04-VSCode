@@ -2,7 +2,10 @@ import {
   PersonaBehaviorContract,
   PersonaFunctionalFamily,
 } from "@/app/lib/nemosine/persona_behavior_contracts";
-import { normalizeInitiativeText } from "./input-richness";
+import {
+  isConversationNavigationRequest,
+  normalizeInitiativeText,
+} from "./input-richness";
 import {
   ActiveFront,
   ActiveFrontSnapshot,
@@ -66,6 +69,14 @@ const lowSalienceOperationalWords = [
   "github", "vercel",
 ];
 
+const metaContextNoisePatterns = [
+  /\b(concordo com a resposta|resposta em si|resposta de ambos|do rastro recente|sem bastidor)\b/,
+  /\b(minha leitura pratica|pedido atual vem antes de qualquer memoria|memoria so ajuda quando melhora)\b/,
+  /\b(respondendo|respondeu|falando|falou|resposta|respostas)\b.{0,90}\b(confus\w*|grogue|besta|idiota|ras[ao]s?|inuteis|inutil|ruim|deterministic\w*|igual|mesma coisa|loop|looping|repeti\w*|pessim\w*|horriv\w*|perdid\w*)\b/,
+  /\b(testando|teste local|rodando local|server error|erro de configuracao|localhost)\b/,
+  /\b(delay|convidei|convidar persona|menu do chat|memorias recentes|titulo dos chats|visualizacao)\b/,
+];
+
 const statusPatterns: Array<[ActiveFront["status"], RegExp]> = [
   ["blocked", /\b(bloquead|travado|impasse|falha|erro|bug|quebrad|colaps)/i],
   ["pending", /\b(pendente|prazo|falta|a fazer|precisa|aguard|proximo passo)/i],
@@ -109,6 +120,16 @@ function cleanTheme(text: string, fallback: string) {
 
   if (!first) return fallback;
   return first.length > 90 ? `${first.slice(0, 87).trim()}...` : first;
+}
+
+function isLowValueContextSource(source: ActiveFrontSource) {
+  if (source.type === "registry" || source.type === "agenda") return false;
+  const normalized = normalizeInitiativeText(source.text || "");
+  if (!normalized) return true;
+  const hasHumanSignal = countMatches(normalized, highSalienceHumanWords) > 0;
+  if (hasHumanSignal) return false;
+  if (isConversationNavigationRequest(normalized)) return true;
+  return metaContextNoisePatterns.some((pattern) => pattern.test(normalized));
 }
 
 function inferStatus(text: string, index: number): ActiveFront["status"] {
@@ -198,6 +219,7 @@ export function buildActiveFrontSnapshot(input: {
     const text = source.text?.trim();
     if (!text) return false;
     const privateLike = source.visibility === "private" || source.visibility === "confessor";
+    if (isLowValueContextSource(source)) return false;
     return input.allowPrivateContext || !privateLike;
   });
 
