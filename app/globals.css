@@ -1538,5 +1538,79 @@ html.sober-mode.light-theme,
   background: rgba(0, 0, 0, 0.18);
 }
 
+@keyframes nemosine-presence-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nemosine-presence-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes nemosine-presence-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes nemosine-chat-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+    filter: blur(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.nemosine-presence-overlay {
+  animation: nemosine-presence-overlay-in 650ms ease both;
+}
+
+.nemosine-presence-dialog {
+  animation: nemosine-presence-dialog-in 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.nemosine-presence-step {
+  animation: nemosine-presence-step-in 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.nemosine-chat-action-menu {
+  transform-origin: top right;
+  animation: nemosine-chat-menu-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nemosine-presence-overlay,
+  .nemosine-presence-dialog,
+  .nemosine-presence-step,
+  .nemosine-chat-action-menu {
+    animation: none;
+  }
+}
+
 
 

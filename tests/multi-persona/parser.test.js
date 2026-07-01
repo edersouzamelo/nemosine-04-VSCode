@@ -30,6 +30,14 @@ test("parses natural invite with semantic remainder", () => {
   assert.equal(parsed.semanticText, "analisem isto");
 });
 
+test("parses past-tense natural invite with semantic remainder", () => {
+  const parsed = parsePersonaPresenceCommands("chamei a Espelho porque quero saber de voces dois o que isso diz a meu respeito");
+  assert.equal(parsed.commands.length, 1);
+  assert.equal(parsed.commands[0].action, "invite");
+  assert.deepEqual(parsed.commands[0].personaIds, ["Espelho"]);
+  assert.equal(parsed.semanticText, "porque quero saber de voces dois o que isso diz a meu respeito");
+});
+
 test("parses multiple invite names", () => {
   const parsed = parsePersonaPresenceCommands("convide Cientista e Vidente");
   assert.equal(parsed.commands.length, 1);

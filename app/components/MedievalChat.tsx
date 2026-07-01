@@ -55,9 +55,20 @@ function getMessageText(message: UIMessage): string {
 }
 
 const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
+const PERSONA_FEEDBACK_STORAGE_PREFIX = "nemosine-persona-feedback-v1";
+
+type PersonaFeedbackRating = "up" | "down";
 
 function normalizeSpeechSegment(value: string): string {
     return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function stripHiddenResponseTags(text: string) {
+    return text
+        .replace(/\[MEMORY:\s*.*?\]/ig, '')
+        .replace(/\[REGISTRY:\s*.*?\]/ig, '')
+        .replace(/\[DESTINY:\s*.*?\]/ig, '')
+        .trim();
 }
 
 function AttachmentChip({ icon, label }: { icon: string; label: string }) {
@@ -149,6 +160,37 @@ function RichAssistantMessage({ content }: { content: string }) {
     );
 }
 
+function PersonaMessageFeedback({
+    rating,
+    onRate,
+}: {
+    rating?: PersonaFeedbackRating;
+    onRate: (rating: PersonaFeedbackRating) => void;
+}) {
+    return (
+        <div className="mt-2 flex justify-end gap-1 border-t border-[#c5a059]/10 pt-2">
+            <button
+                type="button"
+                onClick={() => onRate("up")}
+                aria-label="Aprovar comportamento da persona nesta resposta"
+                aria-pressed={rating === "up"}
+                className={`grid h-6 w-6 place-items-center rounded-full border text-[13px] transition-colors ${rating === "up" ? "border-[#c5a059]/70 bg-[#c5a059]/20" : "border-[#c5a059]/15 bg-black/20 opacity-70 hover:border-[#c5a059]/45 hover:opacity-100"}`}
+            >
+                <span aria-hidden="true">&#128077;</span>
+            </button>
+            <button
+                type="button"
+                onClick={() => onRate("down")}
+                aria-label="Reprovar comportamento da persona nesta resposta"
+                aria-pressed={rating === "down"}
+                className={`grid h-6 w-6 place-items-center rounded-full border text-[13px] transition-colors ${rating === "down" ? "border-[#c5a059]/70 bg-[#c5a059]/20" : "border-[#c5a059]/15 bg-black/20 opacity-70 hover:border-[#c5a059]/45 hover:opacity-100"}`}
+            >
+                <span aria-hidden="true">&#128078;</span>
+            </button>
+        </div>
+    );
+}
+
 type CollectiveMessage = UIMessage & {
     content?: string;
     speakerPersonaId?: string | null;
@@ -162,7 +204,7 @@ function hasLocalPresenceCommand(text: string) {
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase();
-    return /(^|\s)\/?(convidar|convide|chame|chama|traga|desconvidar|dispense|retire|expulse|remova|silenciar|silencie|silencia|reativar|dessilenciar|dessilencie)\b/.test(normalized)
+    return /(^|\s)\/?(convidar|convide|chamei|chame|chama|traga|desconvidar|dispense|retire|expulse|remova|silenciar|silencie|silencia|reativar|dessilenciar|dessilencie)\b/.test(normalized)
         || /\bquero\s+chamar\b/.test(normalized)
         || /\bpode\s+sair\b/.test(normalized)
         || /\bpode\s+falar\b/.test(normalized)
@@ -377,11 +419,16 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [pendingParticipantIds, setPendingParticipantIds] = useState<string[]>([]);
     const [collectiveStatus, setCollectiveStatus] = useState<"idle" | "submitted" | "streaming">("idle");
     const [collectiveError, setCollectiveError] = useState<string | null>(null);
+    const [personaFeedback, setPersonaFeedback] = useState<Record<string, PersonaFeedbackRating>>({});
 
     const currentThreadIdRef = useRef(currentThreadId);
     useEffect(() => {
         currentThreadIdRef.current = currentThreadId;
     }, [currentThreadId]);
+
+    const buildPersonaFeedbackKey = React.useCallback((messageId: string, speakerPersonaId?: string | null) => {
+        return `${currentThreadId || currentThreadIdRef.current || "local"}:${speakerPersonaId || personaId}:${messageId}`;
+    }, [currentThreadId, personaId]);
 
     const transport = React.useMemo(() => new DefaultChatTransport({
         api: '/api/chat',
@@ -435,6 +482,47 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const storedRatings: Record<string, PersonaFeedbackRating> = {};
+        for (const rawMessage of messages) {
+            const message = rawMessage as CollectiveMessage;
+            if (message.role !== "assistant") continue;
+            const key = buildPersonaFeedbackKey(message.id, message.speakerPersonaId || personaId);
+            const stored = window.localStorage.getItem(`${PERSONA_FEEDBACK_STORAGE_PREFIX}:${key}`);
+            if (stored === "up" || stored === "down") {
+                storedRatings[key] = stored;
+            }
+        }
+        if (Object.keys(storedRatings).length === 0) return;
+        setPersonaFeedback((current) => ({ ...storedRatings, ...current }));
+    }, [buildPersonaFeedbackKey, messages, personaId]);
+
+    const handlePersonaFeedback = React.useCallback((message: CollectiveMessage, rating: PersonaFeedbackRating) => {
+        const speakerPersonaId = message.speakerPersonaId || personaId;
+        const key = buildPersonaFeedbackKey(message.id, speakerPersonaId);
+        const messageText = stripHiddenResponseTags(getMessageText(message));
+        setPersonaFeedback((current) => ({ ...current, [key]: rating }));
+        try {
+            window.localStorage.setItem(`${PERSONA_FEEDBACK_STORAGE_PREFIX}:${key}`, rating);
+        } catch {
+            // local storage is best-effort only
+        }
+        void fetch("/api/persona-feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                rating,
+                personaId: speakerPersonaId,
+                hostPersonaId: personaId,
+                threadId: currentThreadIdRef.current || currentThreadId || null,
+                messageId: message.id,
+                turnGroupId: message.turnGroupId || null,
+                messageLength: messageText.length,
+            }),
+        }).catch(() => null);
+    }, [buildPersonaFeedbackKey, currentThreadId, personaId]);
 
     const replaceMessages = React.useCallback((nextMessages: UIMessage[]) => {
         messagesRef.current = nextMessages;
@@ -1027,11 +1115,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
     // Helper to clean up response text from hidden tags
     const cleanContent = (text: string) => {
-        return text
-            .replace(/\[MEMORY:\s*.*?\]/ig, '')
-            .replace(/\[REGISTRY:\s*.*?\]/ig, '')
-            .replace(/\[DESTINY:\s*.*?\]/ig, '')
-            .trim();
+        return stripHiddenResponseTags(text);
     };
 
     const restartGuide = () => {
@@ -1083,7 +1167,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     {actionsOpen && (
                         <div
                             data-tour="chat-actions"
-                            className="absolute right-0 top-full z-[70] mt-3 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-[#c5a059]/25 bg-[#050507]/95 p-3 shadow-2xl backdrop-blur-md lg:w-48"
+                            className="nemosine-chat-action-menu absolute right-0 top-full z-[70] mt-3 w-[min(18rem,calc(100vw-2rem))] rounded-xl border border-[#c5a059]/25 bg-[#050507]/95 p-3 shadow-2xl backdrop-blur-md lg:w-48"
                         >
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:justify-items-center">
                                 <button
@@ -1279,6 +1363,11 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     const speakerRole = speakerPersonaId
                         ? (optimisticParticipants.find((participant) => participant.personaId === speakerPersonaId && participant.active)?.role || (speakerPersonaId === personaId ? "HOST" : "GUEST"))
                         : undefined;
+                    const cleanedMessageText = cleanContent(messageText);
+                    const feedbackKey = msg.role === "assistant" && speakerPersonaId
+                        ? buildPersonaFeedbackKey(msg.id, speakerPersonaId)
+                        : "";
+                    const feedbackRating = feedbackKey ? personaFeedback[feedbackKey] : undefined;
 
                     return (
                         <div
@@ -1298,10 +1387,18 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                     />
                                 )}
                                 {msg.role === "assistant"
-                                    ? (cleanContent(messageText)
-                                        ? <RichAssistantMessage content={cleanContent(messageText)} />
+                                    ? (cleanedMessageText
+                                        ? (
+                                            <>
+                                                <RichAssistantMessage content={cleanedMessageText} />
+                                                <PersonaMessageFeedback
+                                                    rating={feedbackRating}
+                                                    onRate={(nextRating) => handlePersonaFeedback(msg, nextRating)}
+                                                />
+                                            </>
+                                        )
                                         : <ThinkingIndicator />)
-                                    : <UserMessageContent content={cleanContent(messageText)} />}
+                                    : <UserMessageContent content={cleanedMessageText} />}
                             </div>
                         </div>
                     );

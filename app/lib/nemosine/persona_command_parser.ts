@@ -21,6 +21,7 @@ type NormalizedText = {
 const INVITE_TRIGGERS = [
   "/convidar",
   "convide",
+  "chamei",
   "chame",
   "chama",
   "traga",
@@ -115,10 +116,14 @@ function findTriggeredCommand(text: string, action: PersonaPresenceCommandAction
   const normalized = normalizeWithIndexMap(text);
   const normalizedText = normalized.text;
   const trigger = triggers
-    .map((triggerText) => ({
-      triggerText,
-      index: normalizedText.indexOf(normalizeWithIndexMap(triggerText).text),
-    }))
+    .map((triggerText) => {
+      const normalizedTrigger = normalizeWithIndexMap(triggerText).text;
+      const match = wordBoundaryPattern(normalizedTrigger).exec(normalizedText);
+      return {
+        triggerText,
+        index: match ? match.index + (match[1]?.length || 0) : -1,
+      };
+    })
     .filter((item) => item.index >= 0 && !hasNegationBeforeTrigger(normalizedText, item.index))
     .sort((a, b) => a.index - b.index)[0];
 

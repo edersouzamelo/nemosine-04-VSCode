@@ -396,13 +396,13 @@ export default function PresenceAdjustmentOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/92 px-4 py-6 text-[#f5ead4] backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none"
+      className="nemosine-presence-overlay fixed inset-0 z-[120] flex items-center justify-center bg-black/92 px-4 py-6 text-[#f5ead4] backdrop-blur-sm transition-opacity duration-700 motion-reduce:transition-none"
       role="dialog"
       aria-modal="true"
       aria-label="Ajuste de Presenca"
     >
       <div className="pointer-events-none absolute inset-0 border border-[#c5a059]/10" />
-      <div className="relative w-full max-w-[680px] rounded-lg border border-[#c5a059]/25 bg-[#050507]/95 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.55)] sm:p-6">
+      <div className="nemosine-presence-dialog relative w-full max-w-[680px] rounded-lg border border-[#c5a059]/25 bg-[#050507]/95 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.55)] sm:p-6">
         <div className="mb-5 flex items-center justify-between gap-3">
           <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#c5a059]/65">{stepLabel}</span>
           <button type="button" onClick={enterWithoutAdjustment} className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/70 hover:text-[#f1ddb0]">
@@ -410,7 +410,7 @@ export default function PresenceAdjustmentOverlay({
           </button>
         </div>
 
-        <div className="transition-opacity duration-200 motion-reduce:transition-none">
+        <div key={`${flowType}-${step}-${inReview ? "review" : "step"}`} className="nemosine-presence-step transition-opacity duration-700 motion-reduce:transition-none">
           {renderStep()}
         </div>
 
