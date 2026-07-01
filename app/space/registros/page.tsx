@@ -266,9 +266,18 @@ export default function RegistrosPage() {
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef(1);
   const tableZoomRef = useRef(1);
+  const tableScrollContainerRef = useRef<HTMLDivElement | null>(null);
   const tableZoomContentRef = useRef<HTMLDivElement | null>(null);
+  const registryViewportScrollbarRef = useRef<HTMLDivElement | null>(null);
   const pendingTableZoomRef = useRef(1);
   const tableZoomFrameRef = useRef<number | null>(null);
+  const registryScrollMeasureFrameRef = useRef<number | null>(null);
+  const [registryScrollMetrics, setRegistryScrollMetrics] = useState({
+    visible: false,
+    scrollWidth: 0,
+    clientWidth: 0,
+    left: 0,
+  });
   const currentUserStorageKey = session?.user?.id || session?.user?.email || null;
   const draftStorageKey = getScopedStorageKey(LEGACY_DRAFTS_STORAGE_KEY, currentUserStorageKey);
   const registryOrderStorageKey = getScopedStorageKey("nemosine-registros-order", currentUserStorageKey);
@@ -378,10 +387,82 @@ export default function RegistrosPage() {
     }
   }, [tableZoom]);
 
+  const measureRegistryViewportScrollbar = () => {
+    if (typeof window === "undefined") return;
+
+    const tableScroll = tableScrollContainerRef.current;
+    if (!tableScroll || activeTab !== "registros") {
+      setRegistryScrollMetrics((current) => (
+        current.visible ? { ...current, visible: false } : current
+      ));
+      return;
+    }
+
+    const rect = tableScroll.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const left = Math.max(0, Math.min(Math.round(rect.left), viewportWidth));
+    const clientWidth = Math.max(0, Math.min(Math.round(rect.width), viewportWidth - left));
+    const scrollWidth = Math.ceil(tableScroll.scrollWidth);
+    const visible = scrollWidth > tableScroll.clientWidth + 2 && clientWidth > 0;
+
+    setRegistryScrollMetrics((current) => {
+      const next = { visible, scrollWidth, clientWidth, left };
+      return current.visible === next.visible
+        && current.scrollWidth === next.scrollWidth
+        && current.clientWidth === next.clientWidth
+        && current.left === next.left
+        ? current
+        : next;
+    });
+
+    const viewportScrollbar = registryViewportScrollbarRef.current;
+    if (viewportScrollbar && Math.abs(viewportScrollbar.scrollLeft - tableScroll.scrollLeft) > 1) {
+      viewportScrollbar.scrollLeft = tableScroll.scrollLeft;
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const scheduleMeasure = () => {
+      if (registryScrollMeasureFrameRef.current !== null) {
+        window.cancelAnimationFrame(registryScrollMeasureFrameRef.current);
+      }
+
+      registryScrollMeasureFrameRef.current = window.requestAnimationFrame(() => {
+        registryScrollMeasureFrameRef.current = null;
+        measureRegistryViewportScrollbar();
+      });
+    };
+
+    scheduleMeasure();
+    window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("scroll", scheduleMeasure, { passive: true });
+
+    const resizeObserver = "ResizeObserver" in window ? new window.ResizeObserver(scheduleMeasure) : null;
+    if (resizeObserver) {
+      if (tableScrollContainerRef.current) resizeObserver.observe(tableScrollContainerRef.current);
+      if (tableZoomContentRef.current) resizeObserver.observe(tableZoomContentRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("scroll", scheduleMeasure);
+      resizeObserver?.disconnect();
+      if (registryScrollMeasureFrameRef.current !== null) {
+        window.cancelAnimationFrame(registryScrollMeasureFrameRef.current);
+        registryScrollMeasureFrameRef.current = null;
+      }
+    };
+  }, [activeTab, rows.length, customColumns.length, tableZoom, registryTextSize, registryFont, registryToolbarTheme, searchQuery, selectedStatuses.length, filterDeadline, showMenu]);
+
   useEffect(() => {
     return () => {
       if (tableZoomFrameRef.current !== null) {
         window.cancelAnimationFrame(tableZoomFrameRef.current);
+      }
+      if (registryScrollMeasureFrameRef.current !== null) {
+        window.cancelAnimationFrame(registryScrollMeasureFrameRef.current);
       }
     };
   }, []);
@@ -1288,6 +1369,26 @@ export default function RegistrosPage() {
     setTableZoom(tableZoomRef.current);
   };
 
+  const handleRegistryTableScroll = () => {
+    const tableScroll = tableScrollContainerRef.current;
+    const viewportScrollbar = registryViewportScrollbarRef.current;
+    if (!tableScroll || !viewportScrollbar) return;
+
+    if (Math.abs(viewportScrollbar.scrollLeft - tableScroll.scrollLeft) > 1) {
+      viewportScrollbar.scrollLeft = tableScroll.scrollLeft;
+    }
+  };
+
+  const handleRegistryViewportScrollbarScroll = () => {
+    const tableScroll = tableScrollContainerRef.current;
+    const viewportScrollbar = registryViewportScrollbarRef.current;
+    if (!tableScroll || !viewportScrollbar) return;
+
+    if (Math.abs(tableScroll.scrollLeft - viewportScrollbar.scrollLeft) > 1) {
+      tableScroll.scrollLeft = viewportScrollbar.scrollLeft;
+    }
+  };
+
   // Date Calculators
   const handleDone = (rowId: string) => {
     const today = new Date().toISOString().split("T")[0];
@@ -2021,8 +2122,10 @@ export default function RegistrosPage() {
 
         {/* Notion Table container */}
         <div
+          ref={tableScrollContainerRef}
           data-tour="registros-table"
-          className={`rounded-xl border backdrop-blur-md overflow-x-auto relative w-full scrollbar-thin ${registrySurfaceClasses}`}
+          className={`rounded-xl border backdrop-blur-md overflow-x-auto relative w-full [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${registrySurfaceClasses}`}
+          onScroll={handleRegistryTableScroll}
           onTouchStart={handleTableTouchStart}
           onTouchMove={handleTableTouchMove}
           onTouchEnd={handleTableTouchEnd}
@@ -2405,6 +2508,27 @@ export default function RegistrosPage() {
         {activeTab === "rastros" && renderRastros()}
         {activeTab === "rascunhos" && renderRascunhos()}
       </section>
+
+      {activeTab === "registros" && registryScrollMetrics.visible && (
+        <div
+          ref={registryViewportScrollbarRef}
+          aria-label="Rolagem horizontal da planilha de registros"
+          tabIndex={0}
+          onScroll={handleRegistryViewportScrollbarScroll}
+          className={`fixed z-[120] h-7 cursor-ew-resize overflow-x-auto overflow-y-hidden rounded-t-lg border-x border-t backdrop-blur-md scrollbar-thin scrollbar-track-transparent ${
+            registryToolbarTheme === "light"
+              ? "border-[#c5a059]/35 bg-[#f8f2e6]/95 scrollbar-thumb-[#9a7333]/55"
+              : "border-[#c5a059]/30 bg-[#050506]/88 scrollbar-thumb-[#c5a059]/55"
+          }`}
+          style={{
+            left: registryScrollMetrics.left,
+            width: registryScrollMetrics.clientWidth,
+            bottom: "max(env(safe-area-inset-bottom), 0px)",
+          }}
+        >
+          <div aria-hidden="true" className="h-1" style={{ width: registryScrollMetrics.scrollWidth }} />
+        </div>
+      )}
 
       {/* STUNNING "MEU DASHBOARD" MODAL OVERLAY */}
       {showDashboard && (
