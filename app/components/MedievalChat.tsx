@@ -746,6 +746,23 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         replaceMessages([...messagesRef.current, message as UIMessage]);
     }, [replaceMessages]);
 
+    const appendPresenceOpeningCard = React.useCallback((messageText: string) => {
+        const alreadyVisible = messagesRef.current.some((message) => (
+            message.role === "user"
+            && getMessageText(message).startsWith(PRESENCE_OPENING_MARKER)
+            && getMessageText(message) === messageText
+        ));
+        if (alreadyVisible) return;
+
+        appendMessage({
+            id: `presence-opening-${Date.now()}`,
+            role: "user",
+            content: messageText,
+            parts: [{ type: "text", text: messageText }],
+            messageKind: "USER",
+        } as CollectiveMessage);
+    }, [appendMessage]);
+
     const updateMessageById = React.useCallback((messageId: string, updater: (message: CollectiveMessage) => CollectiveMessage) => {
         replaceMessages(messagesRef.current.map((message) => (
             message.id === messageId ? updater(message as CollectiveMessage) as UIMessage : message
@@ -1070,11 +1087,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         );
 
         if (shouldSendPresenceOpening && effective) {
+            const openingMessage = buildPresenceOpeningMessage(effective);
+            appendPresenceOpeningCard(openingMessage);
             window.setTimeout(() => {
-                void submitPreparedMessage(buildPresenceOpeningMessage(effective), "", null);
+                void submitPreparedMessage(openingMessage, "", null);
             }, 0);
         }
-    }, [buildPresenceOpeningMessage, personaId, presenceConfig.appliesToRuntime, presenceConfig.userId, presenceFlowType, recordPresenceTelemetry, session, submitPreparedMessage]);
+    }, [appendPresenceOpeningCard, buildPresenceOpeningMessage, personaId, presenceConfig.appliesToRuntime, presenceConfig.userId, presenceFlowType, recordPresenceTelemetry, session, submitPreparedMessage]);
 
     const toggleListening = () => {
         if (isListening) {
@@ -1247,6 +1266,8 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         window.dispatchEvent(new Event("nemosine:restart-onboarding-tour", { cancelable: true }));
         setActionsOpen(false);
     };
+
+    const renderedPresenceOpeningTexts = new Set<string>();
 
     return (
         <>
@@ -1469,6 +1490,9 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     const msg = rawMsg as CollectiveMessage;
                     const messageText = getMessageText(msg);
                     if (msg.role === "user" && messageText.startsWith(PRESENCE_OPENING_MARKER)) {
+                        const presenceOpeningKey = messageText.replace(/\s+/g, " ").trim();
+                        if (renderedPresenceOpeningTexts.has(presenceOpeningKey)) return null;
+                        renderedPresenceOpeningTexts.add(presenceOpeningKey);
                         return (
                             <PresenceAdjustmentEventCard
                                 key={msg.id}
