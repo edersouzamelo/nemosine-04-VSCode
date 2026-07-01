@@ -10,6 +10,8 @@ import {
   ProposedMemoryAction,
   ProposedRegistryAction,
 } from "./types";
+import { extractionProviderSchemaId } from "./provider-schemas";
+import { classifyStructuredStageFailure } from "./structured-output";
 
 function normalizeDestinyDate(value?: string) {
   const raw = value?.trim();
@@ -141,12 +143,17 @@ export async function extractClaimsAndActions(input: {
 
     return mergeExtractionResults(legacy.extraction, extractionResultSchema.parse(structuredExtraction));
   } catch (error) {
+    const structuredFailure = classifyStructuredStageFailure(error, {
+      stage: "extractor",
+      schemaIdentifier: extractionProviderSchemaId,
+    });
     throw new CognitiveRuntimeError(
       "MALFORMED_STRUCTURED_OUTPUT",
       `Claim/action extraction failed: ${error instanceof Error ? error.message : String(error)}`,
       {
-        retryable: true,
+        retryable: structuredFailure.retryable,
         safeMessage: "A extracao estruturada da resposta falhou.",
+        structuredFailure,
       },
     );
   }

@@ -5,6 +5,8 @@ import {
   CognitiveRequest,
   RedactedCognitiveAudit,
   StateTransitionRecord,
+  StructuredStage,
+  structuredStages,
 } from "./types";
 
 export function hashText(value: string) {
@@ -25,6 +27,14 @@ export function redactFindings(iterations: CognitiveIteration[]) {
     ...(iteration.promotion?.findings || []),
     ...iteration.repairFindings,
   ].map((finding) => finding.code))));
+}
+
+function deriveFailureStage(events: CognitiveAuditEvent[]): StructuredStage | undefined {
+  const stage = [...events]
+    .reverse()
+    .find((event) => event.code === "STRUCTURED_STAGE_FAILED")
+    ?.detail.stage;
+  return structuredStages.includes(stage as StructuredStage) ? stage as StructuredStage : undefined;
 }
 
 export function buildRedactedAudit(input: {
@@ -78,6 +88,7 @@ export function buildRedactedAudit(input: {
     findingCodes: redactFindings(input.iterations),
     promotionDecision: input.promotionDecision,
     failureReason: input.failureReason,
+    failureStage: deriveFailureStage(input.auditEvents),
     latencyPerStageMs: input.transitions.reduce<Record<string, number>>((acc, transition) => {
       const key = `${transition.from}->${transition.to}`;
       acc[key] = (acc[key] || 0) + (transition.latencyMs || 0);

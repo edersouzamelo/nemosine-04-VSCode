@@ -8,12 +8,18 @@ import webpush from 'web-push';
 import { auth } from '@/auth';
 import { getPushSubscriptions, getAllPushSubscriptions, deletePushSubscription } from '@/app/lib/sovereignStore';
 
-// Configurar VAPID uma vez
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+let vapidConfigured = false;
+
+function configureVapidDetails() {
+  if (vapidConfigured) return true;
+  const subject = process.env.VAPID_SUBJECT?.trim();
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  if (!subject || !publicKey || !privateKey) return false;
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  vapidConfigured = true;
+  return true;
+}
 
 export interface PushPayload {
   title: string;
@@ -29,6 +35,10 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+
+    if (!configureVapidDetails()) {
+      return NextResponse.json({ error: 'Push notifications are not configured.' }, { status: 503 });
     }
 
     const body = await req.json() as {

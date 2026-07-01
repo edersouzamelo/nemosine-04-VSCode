@@ -19,6 +19,8 @@ const {
   promotionLabel,
   sideEffectLabel,
   statusClass,
+  structuredFailureLabel,
+  structuredFailureSummary,
   thresholdTooltip,
 } = require("../../app/lib/admin/cognitiveRunsUi.ts");
 const {
@@ -88,6 +90,25 @@ test("contextual badges identify governed, rejected and failed-safe runs", () =>
   })[0].label, "RUNTIME GOVERNOU A RESPOSTA");
   assert.equal(contextualBadges({ promotionDecision: "rejected" })[0].label, "CANDIDATA REJEITADA PELO RUNTIME");
   assert.equal(contextualBadges({ promotionDecision: "failed_safe" })[0].label, "EXECUCAO ENCERRADA SEM ENTREGA DE CANDIDATA NAO VALIDADA");
+});
+
+test("structured-stage failures render a truthful badge instead of no-finding silence", () => {
+  const row = {
+    promotionDecision: "shadow_only",
+    failureStage: "scientist",
+    structuredFailure: {
+      stage: "scientist",
+      safeErrorCode: "INVALID_PROVIDER_SCHEMA",
+      providerRequestRejected: true,
+      retryAttempted: false,
+      retryFailed: false,
+    },
+  };
+
+  assert.equal(structuredFailureLabel(row), "FALHA ESTRUTURADA - SCIENTIST");
+  assert.match(structuredFailureSummary(row.structuredFailure), /INVALID_PROVIDER_SCHEMA/);
+  assert.match(structuredFailureSummary(row.structuredFailure), /rejeitada antes da inferencia/);
+  assert.equal(contextualBadges(row)[0].value, "structured_failure");
 });
 
 test("Double Vigilance helper does not claim completion without telemetry", () => {

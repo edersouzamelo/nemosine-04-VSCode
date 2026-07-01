@@ -311,6 +311,29 @@ function sanitizeFindingCodes(value: unknown) {
     .map((item) => item.slice(0, 80))));
 }
 
+function structuredFailureFromEvents(value: unknown) {
+  const event = [...sanitizeAuditEvents(value)]
+    .reverse()
+    .find((item: any) => item.code === "STRUCTURED_STAGE_FAILED") as any;
+  if (!event) return null;
+  const detail = asObject(event.detail);
+  const stage = safeString(detail.stage, 40);
+  if (!stage || !["extractor", "scientist", "philosopher"].includes(stage)) return null;
+  return {
+    stage,
+    safeErrorCode: safeString(detail.safeErrorCode, 80) || "UNKNOWN_STRUCTURED_ERROR",
+    errorClass: safeString(detail.errorClass, 120) || null,
+    httpStatus: safeNumber(detail.httpStatus) ?? null,
+    sdkErrorName: safeString(detail.sdkErrorName, 120) || null,
+    schemaIdentifier: safeString(detail.schemaIdentifier, 120) || null,
+    retryable: safeBoolean(detail.retryable) ?? false,
+    timestamp: safeString(detail.timestamp, 80) || event.at || null,
+    providerRequestRejected: safeBoolean(detail.providerRequestRejected) ?? false,
+    retryAttempted: safeBoolean(detail.retryAttempted) ?? false,
+    retryFailed: safeBoolean(detail.retryFailed) ?? false,
+  };
+}
+
 function totalLatencyMs(row: any) {
   const created = row.createdAt instanceof Date ? row.createdAt.getTime() : new Date(row.createdAt).getTime();
   const completed = row.completedAt instanceof Date ? row.completedAt.getTime() : new Date(row.completedAt).getTime();
@@ -420,6 +443,7 @@ function summarizeRowsForJsonMetrics(rows: any[]) {
 
 function safeRow(row: any) {
   const latency = latencyBreakdown(row);
+  const structuredFailure = structuredFailureFromEvents(row.auditEvents);
   return {
     runId: row.id,
     createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
@@ -437,6 +461,9 @@ function safeRow(row: any) {
     privateRun: Boolean(row.privateRun),
     metadataOnly: Boolean(row.metadataOnly),
     finalStatus: row.finalStatus,
+    failureReason: row.failureReason || null,
+    failureStage: structuredFailure?.stage || null,
+    structuredFailure,
     latencyMs: latency.totalMs,
     latency,
     retryRequested: retryRequested(row),
@@ -608,6 +635,7 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
     createdAt: true,
     completedAt: true,
     finalStatus: true,
+    failureReason: true,
   };
 
   const [total, rows, aggregate, coherenceValidCount, promotionGroups, runtimeGroups, profileGroups, deliveryGroups, sideEffectGroups, privateRunCount, jsonMetricRows] = await Promise.all([
@@ -768,6 +796,7 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
   }
 
   const auditEvents = sanitizeAuditEvents(row.auditEvents);
+  const structuredFailure = structuredFailureFromEvents(row.auditEvents);
   const findingCodes = sanitizeFindingCodes(row.findingCodes);
   const privacyFindingCodes = findingCodes.filter((code) => /PRIVACY|PRIVATE|SCOPE|CONTEXT/i.test(code));
   const scientistFindingCodes = findingCodes.filter((code) => /^SCIENTIST_/i.test(code));
@@ -802,7 +831,9 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
       promotionDecision: row.promotionDecision,
       deliveryStatus: row.deliveryStatus || "not_attempted",
       failureReason: row.failureReason || null,
+      failureStage: structuredFailure?.stage || null,
     },
+    structuredFailure,
     timeline: sanitizeTransitions(row.stateTransitions),
     iterations,
     vigia: {

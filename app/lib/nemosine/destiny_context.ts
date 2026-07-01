@@ -1,6 +1,7 @@
 import {
   DestinyEvent,
   getDestinyEvents,
+  safePrismaErrorCode,
 } from "@/app/lib/sovereignStore";
 import { PersonaBehaviorContract } from "./persona_behavior_contracts";
 import { ActiveTopicRecord } from "./conversation_continuity";
@@ -286,7 +287,7 @@ export async function loadDestinyContextSource(input: {
   try {
     events = await (input.getEvents || getDestinyEvents)(input.userId);
   } catch (error) {
-    const errorCode = error instanceof Error ? error.name : "DESTINY_QUERY_ERROR";
+    const errorCode = safePrismaErrorCode(error);
     return {
       status: {
         destinySourceStatus: "ERROR",

@@ -12,6 +12,7 @@ import { buildRedactedAudit } from "./audit-redaction";
 import { storeCognitiveAudit } from "./audit-store";
 import { extractClaimsAndActions } from "./claim-extractor";
 import { deterministicPhilosopherEvaluation, mergePhilosopherEvaluations } from "./philosopher-validator";
+import { philosopherProviderSchemaId, scientistProviderSchemaId } from "./provider-schemas";
 import { createAiSdkCognitiveModelProvider } from "./persona-generator";
 import { evaluatePromotion } from "./promotion-gate";
 import { evaluatePrivacy } from "./privacy-policy";
@@ -29,6 +30,7 @@ import { CognitiveStateMachine } from "./state-machine";
 import { calculateVigiaCoherence } from "./vigia-coherence";
 import { buildProfileAuditEvent, classifyRequestRisk, selectExecutionProfile, selectRuntimeModules } from "./module-registry";
 import { evaluateVocationalPolicy } from "./vocational-policy";
+import { classifyStructuredStageFailure, structuredFailureDetail } from "./structured-output";
 import {
   CandidateResponse,
   CognitiveAuditEvent,
@@ -43,6 +45,7 @@ import {
   RedactedCognitiveAudit,
   SideEffectCounts,
   SideEffectStatus,
+  StructuredStageFailureDiagnostic,
   philosopherEvaluationSchema,
   scientistEvaluationSchema,
 } from "./types";
@@ -127,6 +130,23 @@ function auditEvent(
     at: new Date().toISOString(),
     detail,
   };
+}
+
+function structuredStageFailureEvent(diagnostic: StructuredStageFailureDiagnostic): CognitiveAuditEvent {
+  return auditEvent("STRUCTURED_STAGE_FAILED", structuredFailureDetail(diagnostic));
+}
+
+function recordStructuredStageFailure(
+  auditEvents: CognitiveAuditEvent[],
+  diagnostic?: StructuredStageFailureDiagnostic,
+) {
+  if (!diagnostic) return;
+  const alreadyRecorded = auditEvents.some((event) =>
+    event.code === "STRUCTURED_STAGE_FAILED"
+    && event.detail.stage === diagnostic.stage
+    && event.detail.timestamp === diagnostic.timestamp
+  );
+  if (!alreadyRecorded) auditEvents.push(structuredStageFailureEvent(diagnostic));
 }
 
 function evaluateRuntimePersonaInitiative(input: {
@@ -634,12 +654,17 @@ export async function runCognitiveRuntime(
             extraction,
           }));
         } catch (error) {
+          const structuredFailure = classifyStructuredStageFailure(error, {
+            stage: "scientist",
+            schemaIdentifier: scientistProviderSchemaId,
+          });
           throw new CognitiveRuntimeError(
             "MALFORMED_STRUCTURED_OUTPUT",
             `Scientist structured evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
             {
-              retryable: true,
+              retryable: structuredFailure.retryable,
               safeMessage: "A avaliacao estruturada do Scientist falhou.",
+              structuredFailure,
             },
           );
         }
@@ -761,12 +786,17 @@ export async function runCognitiveRuntime(
             vigia,
           }));
         } catch (error) {
+          const structuredFailure = classifyStructuredStageFailure(error, {
+            stage: "philosopher",
+            schemaIdentifier: philosopherProviderSchemaId,
+          });
           throw new CognitiveRuntimeError(
             "MALFORMED_STRUCTURED_OUTPUT",
             `Philosopher structured evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
             {
-              retryable: true,
+              retryable: structuredFailure.retryable,
               safeMessage: "A avaliacao estruturada do Philosopher falhou.",
+              structuredFailure,
             },
           );
         }
@@ -863,6 +893,10 @@ export async function runCognitiveRuntime(
       { safeMessage: SAFE_REJECTION },
     );
   } catch (error) {
+    if (error instanceof CognitiveRuntimeError) {
+      recordStructuredStageFailure(auditEvents, error.structuredFailure);
+    }
+
     if (stateMachine.current !== "DELIVERED") {
       try {
         const safeTransitionNote = error instanceof CognitiveRuntimeError

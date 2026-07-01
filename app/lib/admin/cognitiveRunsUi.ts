@@ -3,6 +3,8 @@ type RunLike = {
   promotionDecision?: string | null;
   deliveryStatus?: string | null;
   sideEffectStatus?: string | null;
+  failureStage?: string | null;
+  structuredFailure?: StructuredFailureLike | null;
   iterationCount?: number | null;
   coherence?: number | null;
   coherenceThreshold?: number | null;
@@ -17,7 +19,9 @@ type DetailLike = {
     promotionDecision?: string | null;
     deliveryStatus?: string | null;
     executionProfile?: string | null;
+    failureStage?: string | null;
   };
+  structuredFailure?: StructuredFailureLike | null;
   iterations?: Array<{
     coherence?: number | null;
     retryRequested?: boolean | null;
@@ -32,6 +36,14 @@ type DetailLike = {
     finalCoherence?: number | null;
   };
   findingCodes?: string[] | null;
+};
+
+type StructuredFailureLike = {
+  stage?: string | null;
+  safeErrorCode?: string | null;
+  providerRequestRejected?: boolean | null;
+  retryAttempted?: boolean | null;
+  retryFailed?: boolean | null;
 };
 
 export type FindingDictionaryEntry = {
@@ -417,7 +429,7 @@ export function statusTone(value: string | null | undefined) {
   if (value === "promoted" || value === "persisted" || value === "committed" || value === "runtime_governed") {
     return "success";
   }
-  if (value === "rejected" || value === "candidate_rejected" || value === "failed_safe") {
+  if (value === "rejected" || value === "candidate_rejected" || value === "failed_safe" || value === "structured_failure") {
     return "danger";
   }
   if (value === "blocked" || value === "failed_rolled_back" || value === "legacy_shadow" || value === "shadow_only" || value === "shadow_external") {
@@ -475,8 +487,41 @@ export function isLegacyShadowObservation(run: RunLike) {
     && run.coherence == null;
 }
 
+function stageDisplay(stage: string | null | undefined) {
+  const labels: Record<string, string> = {
+    extractor: "EXTRATOR",
+    scientist: "SCIENTIST",
+    philosopher: "PHILOSOPHER",
+  };
+  return labels[stage || ""] || "ESTRUTURADA";
+}
+
+export function structuredFailureLabel(run: RunLike) {
+  const stage = run.structuredFailure?.stage || run.failureStage || null;
+  return stage ? `FALHA ESTRUTURADA - ${stageDisplay(stage)}` : null;
+}
+
+export function structuredFailureSummary(failure: StructuredFailureLike | null | undefined) {
+  if (!failure) return null;
+  const rejected = failure.providerRequestRejected ? "rejeitada antes da inferencia" : "falhou durante ou apos a inferencia";
+  const retry = failure.retryAttempted
+    ? failure.retryFailed
+      ? "retry tentado e tambem falhou"
+      : "retry tentado"
+    : "retry nao tentado";
+  return `${failure.safeErrorCode || "UNKNOWN_STRUCTURED_ERROR"}; ${rejected}; ${retry}.`;
+}
+
 export function contextualBadges(run: RunLike) {
   const badges: Array<{ value: string; label: string; explanation: string }> = [];
+  const structuredLabel = structuredFailureLabel(run);
+  if (structuredLabel) {
+    badges.push({
+      value: "structured_failure",
+      label: structuredLabel,
+      explanation: structuredFailureSummary(run.structuredFailure) || "Falha estruturada preservada com diagnostico seguro.",
+    });
+  }
   if (isLegacyShadowObservation(run)) {
     badges.push({
       value: "legacy_shadow",
@@ -555,6 +600,15 @@ export function buildRunNarrative(detail: DetailLike) {
     iterationCount: iterations.length,
     coherence: detail.vigia?.finalCoherence ?? iterations.at(-1)?.coherence ?? null,
   };
+
+  if (detail.structuredFailure || identity.failureStage) {
+    const label = structuredFailureLabel({
+      failureStage: identity.failureStage,
+      structuredFailure: detail.structuredFailure,
+    });
+    const summary = structuredFailureSummary(detail.structuredFailure);
+    return `${label || "Falha estruturada"} impediu a conclusao do ciclo O-C-V. ${summary || "O diagnostico seguro esta preservado nos eventos de auditoria."}`;
+  }
 
   if (isLegacyShadowObservation(run)) {
     return "Esta foi uma observacao em shadow da rota legada. Nenhuma iteracao O-C-V foi executada e nenhum indice de coerencia foi calculado.";

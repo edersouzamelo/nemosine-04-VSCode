@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/app/lib/nemosine/session_store";
 
 // Dynamic table initializations (CREATE TABLE IF NOT EXISTS)
 async function ensureAgendaTable() {
@@ -373,6 +371,68 @@ function mapDestinyRow(row: any): DestinyEvent {
   };
 }
 
+export function mapDestinyRowForTest(row: any): DestinyEvent {
+  return mapDestinyRow(row);
+}
+
+export function safePrismaErrorCode(error: unknown, fallback = "DESTINY_QUERY_ERROR") {
+  if (typeof error === "object" && error !== null) {
+    const code = "code" in error ? String((error as { code?: unknown }).code || "") : "";
+    if (code) return code.slice(0, 80);
+    const name = "name" in error ? String((error as { name?: unknown }).name || "") : "";
+    if (name) return name.slice(0, 80);
+  }
+  return fallback;
+}
+
+function shouldFallbackToLegacyDestinyRead(error: unknown) {
+  const code = safePrismaErrorCode(error, "");
+  const meta = typeof error === "object" && error !== null && "meta" in error
+    ? JSON.stringify((error as { meta?: unknown }).meta || {})
+    : "";
+  const message = error instanceof Error ? error.message : String(error || "");
+  return code === "P2022"
+    || code === "P2010"
+    || /external_visibility|cognitive_visibility|cognitive_personas|sovereign_destiny_events_cognitive_visibility_idx/i.test(`${message}\n${meta}`);
+}
+
+async function queryDestinyRows(userId: string): Promise<any[]> {
+  return prisma.$queryRaw<Array<any>>`
+    SELECT *
+    FROM sovereign_destiny_events
+    WHERE user_id = ${userId}
+    ORDER BY event_date ASC NULLS LAST, created_at ASC
+  `;
+}
+
+async function queryLegacyDestinyRows(userId: string): Promise<any[]> {
+  return prisma.$queryRaw<Array<any>>`
+    SELECT
+      id,
+      user_id,
+      title,
+      event_date,
+      event_date_label,
+      category,
+      short_description,
+      long_description,
+      dominant_emotion,
+      symbolic_intensity,
+      associated_persona,
+      associated_place,
+      life_phase,
+      visibility,
+      source,
+      tags,
+      image_url,
+      created_at,
+      updated_at
+    FROM sovereign_destiny_events
+    WHERE user_id = ${userId}
+    ORDER BY event_date ASC NULLS LAST, created_at ASC
+  `;
+}
+
 function destinySearchableText(event: DestinyEvent) {
   return [
     event.title,
@@ -451,13 +511,14 @@ export async function removeDestinyContextIndex(eventId: string): Promise<void> 
 }
 
 export async function getDestinyEvents(userId: string): Promise<DestinyEvent[]> {
-  await ensureDestinyLineTable();
-  const rows = await prisma.$queryRaw<Array<any>>`
-    SELECT *
-    FROM sovereign_destiny_events
-    WHERE user_id = ${userId}
-    ORDER BY event_date ASC NULLS LAST, created_at ASC
-  `;
+  let rows: any[];
+  try {
+    await ensureDestinyLineTable();
+    rows = await queryDestinyRows(userId);
+  } catch (error) {
+    if (!shouldFallbackToLegacyDestinyRead(error)) throw error;
+    rows = await queryLegacyDestinyRows(userId);
+  }
   return rows.map(mapDestinyRow);
 }
 

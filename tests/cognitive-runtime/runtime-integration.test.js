@@ -383,6 +383,10 @@ test("malformed structured Scientist output fails safe", async () => {
   assert.equal(result.deliveryPersisted, true);
   assert.equal(delivery.threadReload(req.runId).content, result.answer);
   assert.equal(result.audit.failureReason, "MALFORMED_STRUCTURED_OUTPUT");
+  const structuredEvent = result.audit.auditEvents.find((event) => event.code === "STRUCTURED_STAGE_FAILED");
+  assert.equal(structuredEvent.detail.stage, "scientist");
+  assert.equal(structuredEvent.detail.safeErrorCode, "LOCAL_SCHEMA_VALIDATION_ERROR");
+  assert.equal(result.audit.failureStage, "scientist");
 });
 
 test("extractor and Scientist receive actual user and authorized context evidence", async () => {
@@ -484,6 +488,8 @@ test("private run discards registry and Destiny actions, but allows exact-scope 
   assert.equal(commits[0].discardedActions.length, 2);
   assert.equal(result.audit.contentHashes.userText.length, 64);
   assert.equal(JSON.stringify(result.audit).includes("tema privado"), false);
+  assert.equal(result.audit.privateRun, true);
+  assert.equal(result.audit.metadataOnly, true);
 });
 
 test("audit persistence failure delivers promoted text but blocks side effects", async () => {
@@ -642,7 +648,8 @@ test("shadow mode audits observed answer without duplicating assistant history",
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
     contextEnvelope: context(req),
-    modelProvider: provider({ candidates: ["Resposta legada observada."] }),
+    candidateOverride: "Resposta legada observada.",
+    modelProvider: provider({ candidates: ["Candidata que nao deveria ser gerada."] }),
     persistAssistantMessage: delivery.persistAssistantMessage,
     commitOptionalEffects: async () => {
       optionalCallCount += 1;
@@ -657,6 +664,13 @@ test("shadow mode audits observed answer without duplicating assistant history",
   assert.equal(result.sideEffectStatus, "skipped");
   assert.equal(delivery.deliveryCalls.length, 0);
   assert.equal(optionalCallCount, 0);
+  assert.equal(result.audit.promotionDecision, "shadow_only");
+  assert.equal(typeof result.audit.coherence, "number");
+  assert.ok(result.audit.stateTransitions.some((transition) => transition.to === "CLAIMS_EXTRACTED"));
+  assert.ok(result.audit.stateTransitions.some((transition) => transition.to === "SCIENTIST_EVALUATED"));
+  assert.ok(result.audit.stateTransitions.some((transition) => transition.to === "VIGIA_SCORED"));
+  assert.ok(result.audit.stateTransitions.some((transition) => transition.to === "PHILOSOPHER_EVALUATED"));
+  assert.ok(result.audit.stateTransitions.some((transition) => transition.to === "PROMOTION_EVALUATED"));
 });
 
 test("runtime off remains legacy-disabled at configuration boundary", () => {

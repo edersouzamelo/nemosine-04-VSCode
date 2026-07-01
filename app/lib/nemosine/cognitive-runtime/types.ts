@@ -36,6 +36,33 @@ export type CognitiveState = typeof cognitiveStates[number];
 export const findingSeverities = ["info", "warning", "error", "critical"] as const;
 export type FindingSeverity = typeof findingSeverities[number];
 
+export const structuredStages = ["extractor", "scientist", "philosopher"] as const;
+export type StructuredStage = typeof structuredStages[number];
+
+export type StructuredProviderSafeErrorCode =
+  | "INVALID_PROVIDER_SCHEMA"
+  | "STRUCTURED_OUTPUT_PARSE_ERROR"
+  | "LOCAL_SCHEMA_VALIDATION_ERROR"
+  | "PROVIDER_REFUSAL"
+  | "PROVIDER_TIMEOUT"
+  | "PROVIDER_HTTP_ERROR"
+  | "SDK_ERROR"
+  | "UNKNOWN_STRUCTURED_ERROR";
+
+export type StructuredStageFailureDiagnostic = {
+  stage: StructuredStage;
+  errorClass: string;
+  safeErrorCode: StructuredProviderSafeErrorCode;
+  httpStatus: number | null;
+  sdkErrorName: string | null;
+  schemaIdentifier: string;
+  retryable: boolean;
+  timestamp: string;
+  providerRequestRejected: boolean;
+  retryAttempted: boolean;
+  retryFailed: boolean;
+};
+
 export const findingSchema = z.object({
   code: z.string().min(1).max(80),
   severity: z.enum(findingSeverities),
@@ -64,13 +91,23 @@ export class CognitiveRuntimeError extends Error {
   code: RuntimeErrorCode;
   retryable: boolean;
   safeMessage: string;
+  structuredFailure?: StructuredStageFailureDiagnostic;
 
-  constructor(code: RuntimeErrorCode, message: string, options?: { retryable?: boolean; safeMessage?: string }) {
+  constructor(
+    code: RuntimeErrorCode,
+    message: string,
+    options?: {
+      retryable?: boolean;
+      safeMessage?: string;
+      structuredFailure?: StructuredStageFailureDiagnostic;
+    },
+  ) {
     super(message);
     this.name = "CognitiveRuntimeError";
     this.code = code;
     this.retryable = options?.retryable ?? false;
     this.safeMessage = options?.safeMessage ?? "A resposta nao passou pelos controles internos desta execucao.";
+    this.structuredFailure = options?.structuredFailure;
   }
 }
 
@@ -316,6 +353,7 @@ export type SideEffectAuthorization = {
 
 export type CognitiveAuditEvent = {
   code:
+    | "STRUCTURED_STAGE_FAILED"
     | "REBALANCING_APPLIED"
     | "CONTINUITY_CONTEXT_ASSEMBLED"
     | "AUDIT_PERSISTENCE_FAILURE"
@@ -404,6 +442,7 @@ export type RedactedCognitiveAudit = {
   findingCodes: string[];
   promotionDecision: "promoted" | "rejected" | "failed_safe" | "shadow_only";
   failureReason?: string;
+  failureStage?: StructuredStage;
   latencyPerStageMs: Record<string, number>;
   modelIdentifiers: string[];
   promptHashes: Record<string, string>;

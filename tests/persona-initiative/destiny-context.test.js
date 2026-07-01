@@ -7,6 +7,10 @@ const {
   loadDestinyContextSource,
   selectDestinyContextFromEvents,
 } = require("../../app/lib/nemosine/destiny_context.ts");
+const {
+  mapDestinyRowForTest,
+  safePrismaErrorCode,
+} = require("../../app/lib/sovereignStore.ts");
 const { getPersonaBehaviorContract } = require("../../app/lib/nemosine/persona_behavior_contracts.ts");
 
 const now = new Date("2026-06-26T12:00:00.000Z");
@@ -156,4 +160,57 @@ test("Destiny loader reports query failure explicitly instead of silently return
   assert.equal(result.status.destinyEventsSelected, 0);
   assert.equal(result.status.errorCode, "FixtureDestinyError");
   assert.match(result.retrievalExplanation.join("\n"), /destinySourceStatus=ERROR/);
+});
+
+test("Destiny errors preserve safe Prisma codes", async () => {
+  const contract = getPersonaBehaviorContract("Astronomo");
+  const prismaError = Object.assign(new Error("column cognitive_visibility does not exist"), {
+    name: "PrismaClientKnownRequestError",
+    code: "P2022",
+  });
+  const result = await loadDestinyContextSource({
+    userId: "user-1",
+    personaId: "Astronomo",
+    userText: "Bom dia.",
+    contract,
+    getEvents: async () => {
+      throw prismaError;
+    },
+  });
+
+  assert.equal(safePrismaErrorCode(prismaError), "P2022");
+  assert.equal(result.status.destinySourceStatus, "ERROR");
+  assert.equal(result.status.errorCode, "P2022");
+});
+
+test("legacy Destiny table rows without cognitive columns map to safe cognitive visibility defaults", () => {
+  const row = {
+    id: "legacy-1",
+    user_id: "user-1",
+    title: "Marco legado",
+    event_date: new Date("2026-01-01T00:00:00.000Z"),
+    event_date_label: null,
+    category: "Carreira",
+    short_description: "Evento da tabela legada.",
+    long_description: null,
+    dominant_emotion: null,
+    symbolic_intensity: 3,
+    associated_persona: null,
+    associated_place: null,
+    life_phase: null,
+    visibility: "private",
+    source: "legacy",
+    tags: "[]",
+    image_url: null,
+    created_at: new Date("2026-01-01T00:00:00.000Z"),
+    updated_at: new Date("2026-01-02T00:00:00.000Z"),
+  };
+
+  const event = mapDestinyRowForTest(row);
+  assert.equal(event.cognitiveVisibility, "all-public-personas");
+  assert.equal(event.externalVisibility, "private");
+  assert.deepEqual(event.cognitivePersonas, []);
+
+  const sensitive = mapDestinyRowForTest({ ...row, id: "legacy-sensitive", visibility: "sensitive" });
+  assert.equal(sensitive.cognitiveVisibility, "excluded-from-personas");
 });

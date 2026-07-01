@@ -26,6 +26,8 @@ import {
   rowDetailUrl,
   sideEffectLabel,
   statusClass,
+  structuredFailureLabel,
+  structuredFailureSummary,
   tableColumnGuide,
   thresholdTooltip,
 } from "@/app/lib/admin/cognitiveRunsUi";
@@ -87,6 +89,21 @@ type RunRow = {
   promotionDecision: string;
   deliveryStatus: string;
   sideEffectStatus: string;
+  failureReason?: string | null;
+  failureStage?: string | null;
+  structuredFailure?: {
+    stage: string;
+    safeErrorCode: string;
+    errorClass: string | null;
+    httpStatus: number | null;
+    sdkErrorName: string | null;
+    schemaIdentifier: string | null;
+    retryable: boolean;
+    timestamp: string | null;
+    providerRequestRejected: boolean;
+    retryAttempted: boolean;
+    retryFailed: boolean;
+  } | null;
   privateRun: boolean;
   metadataOnly: boolean;
   latencyMs: number | null;
@@ -232,6 +249,19 @@ function ContextBadges({ run }: { run: RunRow | any }) {
   );
 }
 
+function FindingsCell({ row }: { row: RunRow }) {
+  const label = structuredFailureLabel(row);
+  if (label) {
+    return (
+      <div className="space-y-1">
+        <StatusPill value="structured_failure" label={label} title={structuredFailureSummary(row.structuredFailure) || undefined} />
+        <p className="text-[10px] leading-relaxed text-white/45">{structuredFailureSummary(row.structuredFailure)}</p>
+      </div>
+    );
+  }
+  return <>{row.findingCodes.length > 0 ? row.findingCodes.slice(0, 3).join(", ") : "Sem finding registrado"}</>;
+}
+
 function CognitiveFoundationPanel({ data, loading }: { data: CognitiveFoundationAdminResponse | null; loading: boolean }) {
   const flags = data ? [
     ["User Graph", data.config.userGraphMode],
@@ -245,6 +275,32 @@ function CognitiveFoundationPanel({ data, loading }: { data: CognitiveFoundation
   const attentionEvents = data?.summary.rows
     .filter((row) => row.status !== "ok")
     .reduce((sum, row) => sum + row.count, 0) ?? 0;
+  const everyFeatureOff = Boolean(data && flags.every(([, value]) => String(value || "").toLowerCase() === "off"));
+
+  if (!loading && data && everyFeatureOff) {
+    return (
+      <details className="mb-6 rounded-lg border border-white/10 bg-black/25 p-4 text-sm text-white/55" aria-label="Fundacao cognitiva experimental desativada">
+        <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
+          Fundação Cognitiva Experimental — desativada
+        </summary>
+        <div className="mt-3 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {flags.map(([label, value]) => (
+              <div key={label} className="rounded border border-white/10 bg-white/[0.03] p-3">
+                <dt className="text-[10px] uppercase tracking-widest text-white/30">{label}</dt>
+                <dd className="mt-1 font-mono text-sm text-white/55">{value}</dd>
+              </div>
+            ))}
+          </div>
+          <div className="rounded border border-white/10 bg-white/[0.03] p-3 text-xs leading-relaxed text-white/45">
+            {!data.summary.migrationReady
+              ? "Migração ainda não aplicada; não necessária para o Moriarty Probe enquanto os módulos permanecem desligados."
+              : "Módulos experimentais desligados; sem ação necessária para este release candidate."}
+          </div>
+        </div>
+      </details>
+    );
+  }
 
   return (
     <section className="mb-6 rounded-lg border border-[#c5a059]/20 bg-black/45 p-5 backdrop-blur-md" aria-label="Fundacao cognitiva">
@@ -656,7 +712,7 @@ export default function SalaDeMaquinasClient() {
                               <td className="p-2 text-xs text-white/65">{row.privateRun ? "privada" : "publica"}</td>
                               <td className="p-2 font-mono text-xs text-white/65" title={`runtime: ${formatDuration(row.latency?.runtimeMs)}; legada: ${formatDuration(row.latency?.legacyRouteMs)}`}>{formatDuration(row.latencyMs)}</td>
                               <td className="p-2 text-[10px] text-white/55">
-                                {row.findingCodes.length > 0 ? row.findingCodes.slice(0, 3).join(", ") : "Sem finding registrado"}
+                                <FindingsCell row={row} />
                               </td>
                               <td className="p-2 text-right">
                                 <button
@@ -697,7 +753,7 @@ export default function SalaDeMaquinasClient() {
                           <div><dt className="text-white/35">Iteracoes</dt><dd>{row.iterationCount}</dd></div>
                           <div><dt className="text-white/35">Modo</dt><dd>{row.runtimeMode}</dd></div>
                           <div><dt className="text-white/35">Latencia</dt><dd>{formatDuration(row.latencyMs)}</dd></div>
-                          <div><dt className="text-white/35">Findings</dt><dd>{row.findingCodes.join(", ") || "Sem finding registrado"}</dd></div>
+                          <div><dt className="text-white/35">Findings</dt><dd><FindingsCell row={row} /></dd></div>
                         </dl>
                         <button
                           type="button"
@@ -961,6 +1017,8 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
     runtimeMode: detail.identity?.runtimeMode,
     promotionDecision: detail.identity?.promotionDecision,
     deliveryStatus: detail.persistence?.deliveryStatus,
+    failureStage: detail.identity?.failureStage,
+    structuredFailure: detail.structuredFailure,
     iterationCount: detail.iterations?.length || 0,
     coherence: detail.vigia?.finalCoherence ?? null,
   } : null;
@@ -1007,6 +1065,31 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
                 <KeyValue label="Privada" value={detail.identity.privateRun ? "sim" : "nao"} />
               </dl>
             </DetailSection>
+
+            {detail.structuredFailure && (
+              <DetailSection title="Falha estruturada">
+                <div className="mb-3">
+                  <StatusPill
+                    value="structured_failure"
+                    label={structuredFailureLabel({
+                      failureStage: detail.identity.failureStage,
+                      structuredFailure: detail.structuredFailure,
+                    }) || "FALHA ESTRUTURADA"}
+                    title={structuredFailureSummary(detail.structuredFailure) || undefined}
+                  />
+                </div>
+                <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                  <KeyValue label="Etapa" value={String(detail.structuredFailure.stage || "nao registrada")} />
+                  <KeyValue label="Codigo seguro" value={String(detail.structuredFailure.safeErrorCode || "UNKNOWN_STRUCTURED_ERROR")} />
+                  <KeyValue label="Classe" value={String(detail.structuredFailure.errorClass || "nao registrada")} />
+                  <KeyValue label="SDK" value={String(detail.structuredFailure.sdkErrorName || "nao registrado")} />
+                  <KeyValue label="HTTP" value={detail.structuredFailure.httpStatus == null ? "nao registrado" : String(detail.structuredFailure.httpStatus)} />
+                  <KeyValue label="Schema" value={String(detail.structuredFailure.schemaIdentifier || "nao registrado")} />
+                  <KeyValue label="Antes da inferencia" value={detail.structuredFailure.providerRequestRejected ? "sim" : "nao"} />
+                  <KeyValue label="Retry" value={detail.structuredFailure.retryAttempted ? detail.structuredFailure.retryFailed ? "tentado e falhou" : "tentado" : "nao tentado"} />
+                </dl>
+              </DetailSection>
+            )}
 
             <DetailSection title="Continuidade e destino">
               <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
@@ -1115,7 +1198,20 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
 
             <DetailSection title="Finding Codes">
               <div className="grid gap-3">
-                {(detail.findingCodes || []).length === 0 && (
+                {(detail.findingCodes || []).length === 0 && detail.structuredFailure && (
+                  <div>
+                    <StatusPill
+                      value="structured_failure"
+                      label={structuredFailureLabel({
+                        failureStage: detail.identity.failureStage,
+                        structuredFailure: detail.structuredFailure,
+                      }) || "FALHA ESTRUTURADA"}
+                      title={structuredFailureSummary(detail.structuredFailure) || undefined}
+                    />
+                    <p className="mt-2 text-sm text-white/55">{structuredFailureSummary(detail.structuredFailure)}</p>
+                  </div>
+                )}
+                {(detail.findingCodes || []).length === 0 && !detail.structuredFailure && (
                   <p className="text-sm text-white/55">Sem finding registrado. Isto nao e sinonimo automatico de avaliado e aprovado.</p>
                 )}
                 {(detail.findingCodes || []).map((code: string) => (

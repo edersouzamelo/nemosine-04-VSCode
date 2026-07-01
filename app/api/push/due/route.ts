@@ -17,11 +17,18 @@ export const dynamic = "force-dynamic";
 const LOCAL_TIME_ZONE = "America/Cuiaba";
 const DUE_WINDOW_MS = 10 * 60 * 1000;
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+let vapidConfigured = false;
+
+function configureVapidDetails() {
+  if (vapidConfigured) return true;
+  const subject = process.env.VAPID_SUBJECT?.trim();
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
+  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
+  if (!subject || !publicKey || !privateKey) return false;
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  vapidConfigured = true;
+  return true;
+}
 
 function localParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -189,6 +196,9 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!configureVapidDetails()) {
+    return NextResponse.json({ error: "Push notifications are not configured." }, { status: 503 });
+  }
 
   const userId = session.user.id;
   const events = await getAgendaEvents(userId);
@@ -208,11 +218,17 @@ export async function GET(req: NextRequest) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (!configureVapidDetails()) {
+      return NextResponse.json({ error: "Push notifications are not configured." }, { status: 503 });
+    }
     const userId = session.user.id;
     const events = await getAgendaEvents(userId);
     return NextResponse.json(await processDueEvents(events.map((event) => ({ ...event, userId }))));
   }
 
+  if (!configureVapidDetails()) {
+    return NextResponse.json({ error: "Push notifications are not configured." }, { status: 503 });
+  }
   const candidates = await getAgendaNotificationCandidates();
   return NextResponse.json(await processDueEvents(candidates));
 }

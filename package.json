@@ -18,7 +18,8 @@
     "test:persona-initiative": "node --test tests/persona-initiative/*.test.js",
     "eval:personas": "node scripts/eval-personas.js",
     "eval:persona-initiative": "node scripts/eval-persona-initiative.js",
-    "audit:cognitive-runtime": "node scripts/audit-cognitive-runtime.js"
+    "audit:cognitive-runtime": "node scripts/audit-cognitive-runtime.js",
+    "smoke:cognitive-runtime-live": "node scripts/smoke-cognitive-runtime-live.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.36",
