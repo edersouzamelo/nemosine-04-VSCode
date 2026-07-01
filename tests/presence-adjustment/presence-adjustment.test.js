@@ -114,6 +114,7 @@ test("presence runtime block is dynamic and does not replace persona identity", 
   assert.match(rendered, /PRESENCE CONTRACT/);
   assert.match(rendered, /Current goal: decidir publicar o artigo/);
   assert.match(rendered, /must not alter the persona identity/);
+  assert.match(rendered, /greeting or shallow opening/);
 });
 
 test("generic closing enforcement blocks empty continuation and final question", () => {
@@ -216,10 +217,15 @@ test("telemetry sanitizer keeps metadata only", () => {
 test("chat wiring keeps old primer manual and exposes presence overlay controls", () => {
   const root = path.resolve(__dirname, "..", "..");
   const chatSource = fs.readFileSync(path.join(root, "app", "components", "MedievalChat.tsx"), "utf8");
+  const chatRouteSource = fs.readFileSync(path.join(root, "app", "api", "chat", "route.ts"), "utf8");
   const overlaySource = fs.readFileSync(path.join(root, "app", "components", "PresenceAdjustmentOverlay.tsx"), "utf8");
   assert.match(chatSource, /advancedSettingsOpen && !showThinkingIndicator && !primerDismissed/);
   assert.match(chatSource, /Configuracao avancada da conversa/);
   assert.match(chatSource, /PresenceAdjustmentOverlay/);
+  assert.match(chatSource, /NEMOSINE_PRESENCE_OPENING/);
+  assert.match(chatSource, /messagesRef\.current\.length === 0/);
+  assert.match(chatRouteSource, /NEMOSINE_PRESENCE_OPENING/);
+  assert.match(chatRouteSource, /!isPresenceOpeningRequest && shouldRetainUserInputForContinuity/);
   assert.match(overlaySource, /Entrar sem ajuste/);
   assert.match(overlaySource, /Entendi o seguinte/);
   assert.match(overlaySource, /step \+ 1/);

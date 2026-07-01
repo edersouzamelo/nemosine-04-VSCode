@@ -68,6 +68,7 @@ const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_EXTRACTED_PDF_TEXT_LENGTH = 100_000;
 const MAX_TEXT_FILE_SIZE_BYTES = 1 * 1024 * 1024;
 const MAX_MESSAGE_TEXT_LENGTH = 120_000;
+const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
 
 function hasExplicitDestinyAuthorization(text: string) {
     const normalized = text
@@ -413,6 +414,7 @@ async function buildConversationNavigationAnswer(input: {
 }
 
 function shouldRetainUserInputForContinuity(userText: string) {
+    if (userText.startsWith(PRESENCE_OPENING_MARKER)) return false;
     const richness = classifyConversationInputRichness(userText);
     return richness.richness === "high"
         && !richness.requiresContextExpansion
@@ -487,7 +489,12 @@ export async function POST(req: NextRequest) {
         if (typeof userText !== 'string') {
             return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
         }
-        const displayUserText = userText;
+        const rawDisplayUserText = userText;
+        const isPresenceOpeningRequest = userText.startsWith(PRESENCE_OPENING_MARKER);
+        if (isPresenceOpeningRequest) {
+            userText = userText.slice(PRESENCE_OPENING_MARKER.length).trim();
+        }
+        const displayUserText = isPresenceOpeningRequest ? rawDisplayUserText : userText;
         if (userText.length > MAX_MESSAGE_TEXT_LENGTH) {
             return NextResponse.json({ error: 'Message content exceeds the allowed limit' }, { status: 413 });
         }
@@ -551,7 +558,7 @@ export async function POST(req: NextRequest) {
         }> = [];
 
         if (typeof threadId !== 'string' || !threadId) {
-            const titleBase = displayUserText.trim() || 'Anexo';
+            const titleBase = isPresenceOpeningRequest ? "Ajuste de Presenca" : displayUserText.trim() || 'Anexo';
             const newTitle = titleBase.length > 30 ? `${titleBase.substring(0, 30).trim()}...` : titleBase;
             const thread = await createThread(userId, conversationScope, newTitle);
             activeThreadId = thread.id;
@@ -569,7 +576,7 @@ export async function POST(req: NextRequest) {
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
-        const shouldRetainConversationContinuity = shouldRetainUserInputForContinuity(userText);
+        const shouldRetainConversationContinuity = !isPresenceOpeningRequest && shouldRetainUserInputForContinuity(userText);
         await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
 
         const conversationNavigationAnswer = await buildConversationNavigationAnswer({

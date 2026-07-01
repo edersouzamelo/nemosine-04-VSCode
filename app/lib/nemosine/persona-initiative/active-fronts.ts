@@ -59,7 +59,9 @@ const highSalienceHumanWords = [
   "divorcio", "separacao", "casamento", "conjuge", "partilha", "guarda",
   "pensao", "filho", "filha", "familia", "relacao", "relacionamento",
   "juridico", "processo", "audiencia", "saude", "crise", "ansiedade",
-  "moradia", "trabalho", "demissao", "financeiro", "divida",
+  "moradia", "trabalho", "demissao", "financeiro", "divida", "artigo",
+  "academico", "chamada", "prazo", "superiores", "superior", "chefia",
+  "publicacao", "submissao",
 ];
 
 const lowSalienceOperationalWords = [
@@ -75,6 +77,7 @@ const metaContextNoisePatterns = [
   /\b(respondendo|respondeu|falando|falou|resposta|respostas)\b.{0,90}\b(confus\w*|grogue|besta|idiota|ras[ao]s?|inuteis|inutil|ruim|deterministic\w*|igual|mesma coisa|loop|looping|repeti\w*|pessim\w*|horriv\w*|perdid\w*)\b/,
   /\b(testando|teste local|rodando local|server error|erro de configuracao|localhost)\b/,
   /\b(delay|convidei|convidar persona|menu do chat|memorias recentes|titulo dos chats|visualizacao)\b/,
+  /\b(brasil|japao|japão|placar|palpite|futebol|jogo)\b.{0,90}\b(brasil|japao|japão|placar|palpite|futebol|jogo)\b/,
 ];
 
 const statusPatterns: Array<[ActiveFront["status"], RegExp]> = [

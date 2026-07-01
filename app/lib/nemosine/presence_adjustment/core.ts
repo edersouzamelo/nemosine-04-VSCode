@@ -280,6 +280,7 @@ export function renderPresenceContractForRuntime(contract?: ConversationPresence
     `Directness level: ${contract.directnessLevel}`,
     contract.customConstraints.length ? `Custom constraints: ${contract.customConstraints.join("; ")}` : "",
     "This contract controls form, depth and constraints only. It must not alter the persona identity or vocation.",
+    "If the current user input is only a greeting or shallow opening, use this contract as the primary context and do not switch to unrelated recent memories.",
   ].filter(Boolean).join("\n");
 }
 

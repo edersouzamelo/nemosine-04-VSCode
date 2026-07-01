@@ -54,6 +54,8 @@ function getMessageText(message: UIMessage): string {
         : (message as UIMessage & { content?: string }).content || "";
 }
 
+const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
+
 function normalizeSpeechSegment(value: string): string {
     return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
@@ -778,6 +780,21 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         await submitPreparedMessage(buildPrimerMessage(), "", null);
     };
 
+    const buildPresenceOpeningMessage = React.useCallback((contract: ConversationPresenceContract) => {
+        return [
+            PRESENCE_OPENING_MARKER,
+            "Ajuste de Presenca confirmado. Produza agora a primeira leitura da persona com base neste ajuste.",
+            `Persona ativa: ${displayedPersonaName}.`,
+            contract.recentContext ? `Contexto recente autorizado: ${contract.recentContext}` : "",
+            contract.currentGoal ? `Objetivo atual: ${contract.currentGoal}` : "",
+            contract.importantEntities?.length ? `Entidades importantes: ${contract.importantEntities.join(", ")}` : "",
+            `Profundidade solicitada: ${contract.responseDepth}.`,
+            "Nao mencione contrato, formulario, ajuste, configuracao ou bastidor.",
+            "Nao puxe memoria recente que nao seja diretamente relevante para esse contexto.",
+            "Abra pela vocacao propria da persona e entregue uma leitura substantiva do caso informado.",
+        ].filter(Boolean).join("\n");
+    }, [displayedPersonaName]);
+
     const recordPresenceTelemetry = React.useCallback((input: {
         outcome: "CONFIRMED" | "SKIPPED";
         scope?: PresenceScope;
@@ -823,9 +840,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             return;
         }
 
+        let effective: ConversationPresenceContract | null = null;
         if (contract) {
             writePresenceContract(contract);
-            const effective = resolveClientPresenceContract({
+            effective = resolveClientPresenceContract({
                 userId,
                 personaId,
                 conversationId: currentThreadIdRef.current || undefined,
@@ -839,7 +857,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             scope: options?.scope || contract?.scope,
             contractApplied: presenceConfig.appliesToRuntime,
         });
-    }, [personaId, presenceConfig.appliesToRuntime, presenceConfig.userId, presenceFlowType, recordPresenceTelemetry, session]);
+
+        if (presenceFlowType === "FIRST_AGREEMENT" && effective && messagesRef.current.length === 0) {
+            window.setTimeout(() => {
+                void submitPreparedMessage(buildPresenceOpeningMessage(effective), "", null);
+            }, 0);
+        }
+    }, [buildPresenceOpeningMessage, personaId, presenceConfig.appliesToRuntime, presenceConfig.userId, presenceFlowType, recordPresenceTelemetry, session, submitPreparedMessage]);
 
     const toggleListening = () => {
         if (isListening) {
@@ -1234,11 +1258,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
                 {messages.map((rawMsg: UIMessage) => {
                     const msg = rawMsg as CollectiveMessage;
+                    const messageText = getMessageText(msg);
+                    if (msg.role === "user" && messageText.startsWith(PRESENCE_OPENING_MARKER)) {
+                        return null;
+                    }
                     if (msg.role === "system" || msg.messageKind === "SYSTEM_EVENT") {
                         return (
                             <div key={msg.id} className="flex justify-center">
                                 <div className="max-w-[92%] rounded-full border border-[#c5a059]/15 bg-black/35 px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">
-                                    {cleanContent(getMessageText(msg))}
+                                    {cleanContent(messageText)}
                                 </div>
                             </div>
                         );
@@ -1266,10 +1294,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                     />
                                 )}
                                 {msg.role === "assistant"
-                                    ? (cleanContent(getMessageText(msg))
-                                        ? <RichAssistantMessage content={cleanContent(getMessageText(msg))} />
+                                    ? (cleanContent(messageText)
+                                        ? <RichAssistantMessage content={cleanContent(messageText)} />
                                         : <ThinkingIndicator />)
-                                    : <UserMessageContent content={cleanContent(getMessageText(msg))} />}
+                                    : <UserMessageContent content={cleanContent(messageText)} />}
                             </div>
                         </div>
                     );

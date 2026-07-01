@@ -290,6 +290,44 @@ test("Advogado greeting ignores response-repair noise instead of answering disco
   assert.match(fallback, /Advogado|Estou te ouvindo/i);
 });
 
+test("Astronomo greeting ignores ephemeral football topic and keeps academic deadline context", () => {
+  const personaId = "Astronomo";
+  const userText = "ola astronomo";
+  const richness = classifyConversationInputRichness(userText);
+  const contract = getPersonaBehaviorContract(personaId);
+  const snapshot = buildActiveFrontSnapshot({
+    personaId,
+    userText,
+    richness,
+    contract,
+    sources: [
+      {
+        id: "memory-football",
+        type: "memory",
+        text: "Conversa recente sobre Brasil e Japao, palpite de placar, jogo de futebol e previsoes esportivas.",
+        provenance: "UserMemory",
+        visibility: "internal",
+        scope: "Cigana",
+        recency: 1,
+      },
+      {
+        id: "presence-academic-deadline",
+        type: "memory",
+        text: "Usuario produziu um artigo academico em um dia por atraso na chamada de artigos no trabalho; sente resistencia dos superiores em encaminhar a submissao.",
+        provenance: "PresenceAdjustment",
+        visibility: "internal",
+        scope: personaId,
+        recency: 0.95,
+      },
+    ],
+  });
+
+  assert.equal(richness.openingType, "greeting");
+  assert.equal(snapshot.selectedFronts.length, 1);
+  assert.match(snapshot.selectedFronts[0].summary, /artigo academico|chamada de artigos|superiores/i);
+  assert.doesNotMatch(snapshot.selectedFronts[0].summary, /Brasil|Japao|placar|futebol/i);
+});
+
 test("health-check fallback talks to the user instead of narrating itself", () => {
   const personaId = "Estrategista";
   const userText = "Bom dia voce esta falando bem? Estou testando";
