@@ -248,6 +248,11 @@ test("chat wiring keeps old primer manual and exposes presence overlay controls"
   assert.match(chatSource, /nemosine-chat-action-menu/);
   assert.match(chatSource, /PersonaMessageFeedback/);
   assert.match(chatSource, /\/api\/persona-feedback/);
+  assert.match(chatSource, /PresenceAdjustmentEventCard/);
+  assert.match(chatSource, /Presenca ajustada/);
+  assert.match(chatSource, /Reajustar presenca/);
+  assert.match(chatSource, /Restricoes aplicadas/);
+  assert.match(chatSource, /presenceFlowType === "MANUAL_RECONFIGURATION"/);
   assert.match(chatRouteSource, /NEMOSINE_PRESENCE_OPENING/);
   assert.match(chatRouteSource, /!presenceAnchoredRouting/);
   assert.match(chatRouteSource, /renderPresenceAnchoredUserText/);

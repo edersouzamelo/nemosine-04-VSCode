@@ -58,6 +58,18 @@ const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
 const PERSONA_FEEDBACK_STORAGE_PREFIX = "nemosine-persona-feedback-v1";
 
 type PersonaFeedbackRating = "up" | "down";
+type PresenceAdjustmentSnapshot = {
+    recentContext?: string;
+    currentGoal?: string;
+    importantEntities?: string;
+    responseDepth?: string;
+    customConstraints?: string;
+    scope?: string;
+    genericHelpOfferPolicy?: string;
+    genericContextRequestPolicy?: string;
+    finalQuestionPolicy?: string;
+    validUntil?: string;
+};
 
 function normalizeSpeechSegment(value: string): string {
     return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -69,6 +81,103 @@ function stripHiddenResponseTags(text: string) {
         .replace(/\[REGISTRY:\s*.*?\]/ig, '')
         .replace(/\[DESTINY:\s*.*?\]/ig, '')
         .trim();
+}
+
+function readPresenceOpeningLine(text: string, label: string) {
+    const line = text.split(/\r?\n/).find((item) => item.startsWith(label));
+    if (!line) return undefined;
+    return line.slice(label.length).trim().replace(/\.$/, "");
+}
+
+function parsePresenceOpeningSnapshot(text: string): PresenceAdjustmentSnapshot {
+    return {
+        recentContext: readPresenceOpeningLine(text, "Contexto recente autorizado:"),
+        currentGoal: readPresenceOpeningLine(text, "Objetivo atual:"),
+        importantEntities: readPresenceOpeningLine(text, "Entidades importantes:"),
+        responseDepth: readPresenceOpeningLine(text, "Profundidade solicitada:"),
+        customConstraints: readPresenceOpeningLine(text, "Restricoes aplicadas:"),
+        scope: readPresenceOpeningLine(text, "Escopo do ajuste:"),
+        genericHelpOfferPolicy: readPresenceOpeningLine(text, "Politica de oferta generica:"),
+        genericContextRequestPolicy: readPresenceOpeningLine(text, "Politica de pedido de contexto:"),
+        finalQuestionPolicy: readPresenceOpeningLine(text, "Politica de pergunta final:"),
+        validUntil: readPresenceOpeningLine(text, "Validade do ajuste:"),
+    };
+}
+
+function presenceDepthLabel(value?: string) {
+    if (value === "SHORT") return "curta";
+    if (value === "BALANCED") return "equilibrada";
+    if (value === "DEEP") return "profunda";
+    if (value === "PERSONA_DECIDES") return "a persona decide";
+    return value || "nao informado";
+}
+
+function presenceScopeLabel(value?: string) {
+    if (value === "SESSION") return "somente agora";
+    if (value === "CONVERSATION") return "esta conversa";
+    if (value === "PERSONA") return "esta persona";
+    if (value === "GLOBAL") return "global";
+    return value || "nao informado";
+}
+
+function PresenceAdjustmentEventCard({
+    messageText,
+    onReconfigure,
+}: {
+    messageText: string;
+    onReconfigure: () => void;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const snapshot = React.useMemo(() => parsePresenceOpeningSnapshot(messageText), [messageText]);
+    const rows = [
+        ["Contexto", snapshot.recentContext],
+        ["Objetivo", snapshot.currentGoal],
+        ["Entidades", snapshot.importantEntities],
+        ["Profundidade", presenceDepthLabel(snapshot.responseDepth)],
+        ["Restricoes", snapshot.customConstraints],
+        ["Escopo", presenceScopeLabel(snapshot.scope)],
+        ["Oferta generica", snapshot.genericHelpOfferPolicy],
+        ["Pedido de contexto", snapshot.genericContextRequestPolicy],
+        ["Pergunta final", snapshot.finalQuestionPolicy],
+        ["Validade", snapshot.validUntil],
+    ].filter(([, value]) => Boolean(value && String(value).trim()));
+
+    return (
+        <div className="flex justify-center">
+            <div className="max-w-[92%] rounded-2xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-2 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+                <button
+                    type="button"
+                    onClick={() => setExpanded((current) => !current)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#c5a059]/20 bg-[#c5a059]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15"
+                    aria-expanded={expanded}
+                >
+                    <span className="material-icons text-[16px]" aria-hidden="true">tune</span>
+                    Presenca ajustada
+                    <span className="material-icons text-[16px]" aria-hidden="true">{expanded ? "expand_less" : "expand_more"}</span>
+                </button>
+                {expanded && (
+                    <div className="mt-3 space-y-3 px-2 pb-2">
+                        <div className="grid gap-2">
+                            {rows.map(([label, value]) => (
+                                <div key={label} className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
+                                    <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">{label}</div>
+                                    <div className="whitespace-pre-wrap text-xs leading-relaxed text-[#efe7d7]">{value}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onReconfigure}
+                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#c5a059]/25 bg-black/35 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059] transition-colors hover:border-[#c5a059]/55 hover:bg-[#c5a059]/10"
+                        >
+                            <span className="material-icons text-[16px]" aria-hidden="true">restart_alt</span>
+                            Reajustar presenca
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
 
 function AttachmentChip({ icon, label }: { icon: string; label: string }) {
@@ -877,6 +986,12 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             contract.currentGoal ? `Objetivo atual: ${contract.currentGoal}` : "",
             contract.importantEntities?.length ? `Entidades importantes: ${contract.importantEntities.join(", ")}` : "",
             `Profundidade solicitada: ${contract.responseDepth}.`,
+            contract.customConstraints?.length ? `Restricoes aplicadas: ${contract.customConstraints.join("; ")}` : "",
+            `Escopo do ajuste: ${contract.scope}.`,
+            `Politica de oferta generica: ${contract.genericHelpOfferPolicy}.`,
+            `Politica de pedido de contexto: ${contract.genericContextRequestPolicy}.`,
+            `Politica de pergunta final: ${contract.finalQuestionPolicy}.`,
+            `Validade do ajuste: ${contract.validUntil || "sem vencimento automatico"}.`,
             "Nao mencione contrato, formulario, ajuste, configuracao ou bastidor.",
             "Nao puxe memoria recente que nao seja diretamente relevante para esse contexto.",
             "Abra pela vocacao propria da persona e entregue uma leitura substantiva do caso informado.",
@@ -946,11 +1061,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             contractApplied: presenceConfig.appliesToRuntime,
         });
 
-        if (
+        const shouldSendPresenceOpening = Boolean(
             effective
-            && messagesRef.current.length === 0
-            && (presenceFlowType === "FIRST_AGREEMENT" || presenceFlowType === "MANUAL_RECONFIGURATION")
-        ) {
+            && (
+                (presenceFlowType === "FIRST_AGREEMENT" && messagesRef.current.length === 0)
+                || presenceFlowType === "MANUAL_RECONFIGURATION"
+            )
+        );
+
+        if (shouldSendPresenceOpening && effective) {
             window.setTimeout(() => {
                 void submitPreparedMessage(buildPresenceOpeningMessage(effective), "", null);
             }, 0);
@@ -1118,6 +1237,12 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         return stripHiddenResponseTags(text);
     };
 
+    const openPresenceReconfiguration = React.useCallback(() => {
+        setPresenceFlowType("MANUAL_RECONFIGURATION");
+        setPresenceOverlayOpen(true);
+        setActionsOpen(false);
+    }, []);
+
     const restartGuide = () => {
         window.dispatchEvent(new Event("nemosine:restart-onboarding-tour", { cancelable: true }));
         setActionsOpen(false);
@@ -1213,11 +1338,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                 {presenceConfig.enabled && (
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            setPresenceFlowType("MANUAL_RECONFIGURATION");
-                                            setPresenceOverlayOpen(true);
-                                            setActionsOpen(false);
-                                        }}
+                                        onClick={openPresenceReconfiguration}
                                         title="Ajuste de Presenca"
                                         aria-label="Ajuste de Presenca"
                                         className="group/action relative flex h-10 w-full items-center gap-3 rounded-lg border border-[#c5a059]/25 bg-black/45 px-3 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 lg:w-10 lg:justify-center lg:gap-0 lg:px-0"
@@ -1348,7 +1469,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     const msg = rawMsg as CollectiveMessage;
                     const messageText = getMessageText(msg);
                     if (msg.role === "user" && messageText.startsWith(PRESENCE_OPENING_MARKER)) {
-                        return null;
+                        return (
+                            <PresenceAdjustmentEventCard
+                                key={msg.id}
+                                messageText={messageText}
+                                onReconfigure={openPresenceReconfiguration}
+                            />
+                        );
                     }
                     if (msg.role === "system" || msg.messageKind === "SYSTEM_EVENT") {
                         return (
