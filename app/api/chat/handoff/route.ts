@@ -1,5 +1,7 @@
 import { auth } from "@/auth";
 import { hashText } from "@/app/lib/nemosine/cognitive-runtime/audit-redaction";
+import { updateHandoffEventState } from "@/app/lib/nemosine/session_store";
+import type { HandoffState } from "@/app/lib/nemosine/handoff";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +11,7 @@ function clean(value: unknown, max = 80) {
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user?.email) {
+  if (!session?.user?.email || !session.user.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -18,13 +20,34 @@ export async function POST(request: Request) {
   const targetPersona = clean(body.targetPersona);
   const targetSlug = clean(body.targetSlug);
   const threadId = clean(body.threadId, 120);
+  const messageId = clean(body.messageId, 120);
+  const originMessageId = clean(body.originMessageId, 120);
+  const action = clean(body.action, 30);
 
   if (!sourcePersona || !targetPersona || !targetSlug) {
     return Response.json({ error: "Invalid handoff metadata" }, { status: 400 });
   }
 
+  const state: HandoffState = action === "invited"
+    ? "invited"
+    : action === "declined"
+      ? "declined"
+      : action === "unavailable"
+        ? "unavailable"
+        : "opened";
+
+  await updateHandoffEventState(session.user.id, {
+    messageId,
+    threadId,
+    originMessageId,
+    targetPersona,
+    state,
+  }).catch((error) => {
+    console.warn("[NemosineHandoffAudit] State update skipped.", error);
+  });
+
   console.info("[NemosineHandoffAudit]", {
-    event: "HANDOFF_SELECTED",
+    event: state === "invited" ? "HANDOFF_INVITED" : state === "opened" ? "HANDOFF_OPENED" : "HANDOFF_STATUS_UPDATED",
     at: new Date().toISOString(),
     userEmailHash: hashText(session.user.email),
     sourcePersona,

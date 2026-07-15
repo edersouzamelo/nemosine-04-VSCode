@@ -10,9 +10,16 @@ export type PersonaHandoffOffer = {
   summary: string;
   draft: string;
   requiresConfirmation: boolean;
+  state?: HandoffState;
+  eventMessageId?: string | null;
+  originMessageId?: string | null;
+  offeredAt?: string | null;
+  updatedAt?: string | null;
 };
 
 const HANDOFF_MARKER_PATTERN = /\[\[NEMOSINE_HANDOFF:([^\]]+)\]\]/g;
+
+export type HandoffState = "offered" | "opened" | "invited" | "declined" | "unavailable";
 
 function normalize(value: string) {
   return value
@@ -124,7 +131,7 @@ export function buildHandoffUrl(offer: PersonaHandoffOffer) {
   params.set("handoffFrom", offer.sourcePersona);
   params.set("handoffDraft", offer.draft);
   params.set("handoffSummary", offer.summary);
-  return `/agents/${encodeURIComponent(offer.targetSlug)}?${params.toString()}`;
+  return `/agents/${encodeURIComponent(personaSlug(offer.targetPersona) || offer.targetSlug)}?${params.toString()}`;
 }
 
 export function encodeHandoffMarker(offer: PersonaHandoffOffer) {
@@ -140,7 +147,12 @@ export function extractHandoffOffers(text: string): PersonaHandoffOffer[] {
   for (const match of text.matchAll(HANDOFF_MARKER_PATTERN)) {
     try {
       const parsed = JSON.parse(decodeURIComponent(match[1])) as PersonaHandoffOffer;
-      if (parsed?.targetPersona && parsed?.targetSlug) offers.push(parsed);
+      if (parsed?.targetPersona && (parsed?.targetSlug || personaSlug(parsed.targetPersona))) {
+        offers.push({
+          ...parsed,
+          targetSlug: parsed.targetSlug || personaSlug(parsed.targetPersona),
+        });
+      }
     } catch {
       // Ignore malformed client-only metadata.
     }

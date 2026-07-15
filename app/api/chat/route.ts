@@ -9,7 +9,8 @@ import {
     updateThreadTitle,
     deleteThread,
     addUserMemory,
-    retainConversationEpisode
+    retainConversationEpisode,
+    upsertHandoffEventMessage
 } from '@/app/lib/nemosine/session_store';
 import { auth } from '@/auth';
 import { generateText } from 'ai';
@@ -647,8 +648,30 @@ export async function POST(req: NextRequest) {
                 userText,
                 privateRun: cognitiveRequest.privateRun,
             });
-            const streamedRuntimeAnswer = handoffOffer
-                ? `${deliveredRuntimeAnswer}\n\n${encodeHandoffMarker(handoffOffer)}`
+            let persistedHandoffOffer: PersonaHandoffOffer | null = null;
+            if (handoffOffer && runtimeResult.assistantMessageId) {
+                try {
+                    const handoffMessage = await upsertHandoffEventMessage(userId, activeThreadId, {
+                        originMessageId: runtimeResult.assistantMessageId,
+                        offer: handoffOffer,
+                        state: 'offered',
+                    });
+                    persistedHandoffOffer = {
+                        ...handoffOffer,
+                        eventMessageId: handoffMessage.id,
+                        originMessageId: runtimeResult.assistantMessageId,
+                        state: 'offered',
+                        offeredAt: new Date(handoffMessage.timestamp).toISOString(),
+                        updatedAt: new Date(handoffMessage.timestamp).toISOString(),
+                    };
+                } catch (error) {
+                    console.warn("[API/Chat] Handoff event persistence skipped.", error);
+                    persistedHandoffOffer = handoffOffer;
+                }
+            }
+            const handoffOfferForStream = persistedHandoffOffer || handoffOffer;
+            const streamedRuntimeAnswer = handoffOfferForStream
+                ? `${deliveredRuntimeAnswer}\n\n${encodeHandoffMarker(handoffOfferForStream)}`
                 : deliveredRuntimeAnswer;
             if (shouldRetainConversationContinuity) {
                 await Promise.all([
@@ -686,9 +709,9 @@ export async function POST(req: NextRequest) {
                     'x-cognitive-run-id': runtimeResult.runId,
                     'x-cognitive-promoted': String(runtimeResult.promoted),
                     'x-cognitive-promotion-decision': runtimeResult.audit.promotionDecision,
-                    ...(handoffOffer ? {
-                        'x-nemosine-handoff-target': handoffOffer.targetPersona,
-                        'x-nemosine-handoff-slug': handoffOffer.targetSlug,
+                    ...(handoffOfferForStream ? {
+                        'x-nemosine-handoff-target': handoffOfferForStream.targetPersona,
+                        'x-nemosine-handoff-slug': handoffOfferForStream.targetSlug,
                     } : {}),
                     ...(input.headers || {}),
                 },

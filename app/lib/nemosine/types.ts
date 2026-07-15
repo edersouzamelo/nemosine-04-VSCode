@@ -62,6 +62,7 @@ export interface ChatThreadMessage {
     turnGroupId?: string | null;
     messageKind?: 'USER' | 'PERSONA' | 'SYSTEM_EVENT' | null;
     generationStatus?: 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | null;
+    metadata?: unknown | null;
 }
 
 // Logic helper to determine visibility

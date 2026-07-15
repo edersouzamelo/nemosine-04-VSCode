@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 import { isPrivateMemorySpace, PRIVATE_MEMORY_SPACES } from './privacy';
 import { getPersonaLexicalHints } from './persona_behavior_contracts';
+import type { HandoffState, PersonaHandoffOffer } from './handoff';
 import {
     classifyConversationInputRichness,
     isConversationNavigationRequest,
@@ -22,7 +23,7 @@ const chatMessageSelect = {
     speakerPersonaId: true,
     turnGroupId: true,
     messageKind: true,
-    generationStatus: true
+    generationStatus: true,
 } as const;
 
 const legacyChatMessageSelect = {
@@ -53,6 +54,22 @@ type SelectedMessage = {
     generationStatus?: string | null;
 };
 
+const HANDOFF_EVENT_CONTENT_PREFIX = '[[NEMOSINE_EVENT:HANDOFF:';
+
+function encodeHandoffEventContent(metadata: HandoffEventMetadata) {
+    return `${HANDOFF_EVENT_CONTENT_PREFIX}${encodeURIComponent(JSON.stringify(metadata))}]]`;
+}
+
+function decodeHandoffEventContent(content: string): HandoffEventMetadata | null {
+    if (!content.startsWith(HANDOFF_EVENT_CONTENT_PREFIX) || !content.endsWith(']]')) return null;
+    const encoded = content.slice(HANDOFF_EVENT_CONTENT_PREFIX.length, -2);
+    try {
+        return parseHandoffMetadata(JSON.parse(decodeURIComponent(encoded)));
+    } catch {
+        return null;
+    }
+}
+
 type SelectedParticipant = {
     id: string;
     personaId: string;
@@ -71,6 +88,7 @@ const mapChatMessage = (m: SelectedMessage) => ({
     turnGroupId: m.turnGroupId ?? null,
     messageKind: (m.messageKind ?? null) as 'USER' | 'PERSONA' | 'SYSTEM_EVENT' | null,
     generationStatus: (m.generationStatus ?? null) as 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | null,
+    metadata: decodeHandoffEventContent(m.content),
 });
 
 const mapChatParticipant = (participant: SelectedParticipant) => ({
@@ -407,6 +425,194 @@ export const addMessageToThread = async (
         select: { id: true },
     });
 
+    return mapChatMessage(message);
+};
+
+export type HandoffEventMetadata = {
+    eventType: 'HANDOFF_OFFERED';
+    state: HandoffState;
+    originMessageId: string | null;
+    sourcePersona: string;
+    targetPersona: string;
+    targetSlug: string;
+    title: string;
+    reason: string;
+    summary: string;
+    draft: string;
+    requiresConfirmation: boolean;
+    actions: {
+        open: boolean;
+        invite: boolean;
+    };
+    offeredAt: string;
+    updatedAt: string;
+    openedAt?: string | null;
+    invitedAt?: string | null;
+    declinedAt?: string | null;
+    unavailableAt?: string | null;
+};
+
+function handoffMetadataFromOffer(input: {
+    offer: PersonaHandoffOffer;
+    originMessageId?: string | null;
+    existing?: Partial<HandoffEventMetadata> | null;
+    state?: HandoffState;
+}): HandoffEventMetadata {
+    const now = new Date().toISOString();
+    const existing = input.existing || {};
+    const state = input.state || existing.state || input.offer.state || 'offered';
+    return {
+        eventType: 'HANDOFF_OFFERED',
+        state,
+        originMessageId: input.originMessageId ?? existing.originMessageId ?? input.offer.originMessageId ?? null,
+        sourcePersona: input.offer.sourcePersona,
+        targetPersona: input.offer.targetPersona,
+        targetSlug: input.offer.targetSlug,
+        title: input.offer.title,
+        reason: input.offer.reason,
+        summary: input.offer.summary,
+        draft: input.offer.draft,
+        requiresConfirmation: Boolean(input.offer.requiresConfirmation),
+        actions: {
+            open: true,
+            invite: true,
+        },
+        offeredAt: existing.offeredAt || input.offer.offeredAt || now,
+        updatedAt: now,
+        openedAt: existing.openedAt ?? (state === 'opened' ? now : null),
+        invitedAt: existing.invitedAt ?? (state === 'invited' ? now : null),
+        declinedAt: existing.declinedAt ?? (state === 'declined' ? now : null),
+        unavailableAt: existing.unavailableAt ?? (state === 'unavailable' ? now : null),
+    };
+}
+
+function parseHandoffMetadata(value: unknown): HandoffEventMetadata | null {
+    if (!value || typeof value !== 'object') return null;
+    const item = value as Partial<HandoffEventMetadata>;
+    if (item.eventType !== 'HANDOFF_OFFERED' || !item.sourcePersona || !item.targetPersona) return null;
+    return item as HandoffEventMetadata;
+}
+
+export const upsertHandoffEventMessage = async (
+    userId: string,
+    threadId: string,
+    input: {
+        originMessageId?: string | null;
+        offer: PersonaHandoffOffer;
+        state?: HandoffState;
+    },
+) => {
+    const thread = await prisma.thread.findFirst({ where: { id: threadId, userId }, select: { id: true } });
+    if (!thread) throw new Error("Thread not found or unauthorized");
+
+    const originMessageId = input.originMessageId || null;
+    const existingRows = await prisma.message.findMany({
+        where: {
+            threadId,
+            messageKind: 'SYSTEM_EVENT',
+            content: { startsWith: HANDOFF_EVENT_CONTENT_PREFIX },
+        },
+        orderBy: { timestamp: 'asc' },
+        select: chatMessageSelect,
+    });
+    const existing = existingRows.find((row) => {
+        const metadata = decodeHandoffEventContent(row.content);
+        return metadata?.originMessageId === originMessageId && metadata.targetPersona === input.offer.targetPersona;
+    }) || null;
+    const metadata = handoffMetadataFromOffer({
+        offer: input.offer,
+        originMessageId,
+        existing: decodeHandoffEventContent(existing?.content || ''),
+        state: input.state,
+    });
+
+    const message = existing
+        ? await prisma.message.update({
+            where: { id: existing.id },
+            data: {
+                content: encodeHandoffEventContent(metadata),
+            },
+            select: chatMessageSelect,
+        })
+        : await prisma.message.create({
+            data: {
+                threadId,
+                role: 'system',
+                content: encodeHandoffEventContent(metadata),
+                messageKind: 'SYSTEM_EVENT',
+            },
+            select: chatMessageSelect,
+        });
+
+    await prisma.thread.update({
+        where: { id: threadId },
+        data: { updatedAt: new Date() },
+        select: { id: true },
+    });
+
+    return mapChatMessage(message);
+};
+
+export const updateHandoffEventState = async (
+    userId: string,
+    input: {
+        messageId?: string | null;
+        threadId?: string | null;
+        originMessageId?: string | null;
+        targetPersona?: string | null;
+        state: HandoffState;
+    },
+) => {
+    const now = new Date().toISOString();
+    const rows = input.messageId
+        ? await prisma.message.findMany({
+            where: {
+                id: input.messageId,
+                thread: { userId },
+                messageKind: 'SYSTEM_EVENT',
+                content: { startsWith: HANDOFF_EVENT_CONTENT_PREFIX },
+            },
+            take: 1,
+            select: chatMessageSelect,
+        })
+        : await prisma.message.findMany({
+            where: {
+                threadId: input.threadId || '',
+                thread: { userId },
+                messageKind: 'SYSTEM_EVENT',
+                content: { startsWith: HANDOFF_EVENT_CONTENT_PREFIX },
+            },
+            orderBy: { timestamp: 'asc' },
+            select: chatMessageSelect,
+        });
+    const row = rows.find((item) => {
+        if (input.messageId) return true;
+        const metadata = decodeHandoffEventContent(item.content);
+        return metadata?.originMessageId === (input.originMessageId || null)
+            && metadata.targetPersona === input.targetPersona;
+    });
+    if (!row) return null;
+    const metadata = decodeHandoffEventContent(row.content);
+    if (!metadata) return null;
+    const nextMetadata: HandoffEventMetadata = {
+        ...metadata,
+        state: input.state,
+        updatedAt: now,
+        openedAt: input.state === 'opened' ? now : metadata.openedAt ?? null,
+        invitedAt: input.state === 'invited' ? now : metadata.invitedAt ?? null,
+        declinedAt: input.state === 'declined' ? now : metadata.declinedAt ?? null,
+        unavailableAt: input.state === 'unavailable' ? now : metadata.unavailableAt ?? null,
+    };
+    const message = await prisma.message.update({
+        where: { id: row.id },
+        data: { content: encodeHandoffEventContent(nextMetadata) },
+        select: chatMessageSelect,
+    });
+    await prisma.thread.update({
+        where: { id: row.threadId },
+        data: { updatedAt: new Date() },
+        select: { id: true },
+    });
     return mapChatMessage(message);
 };
 

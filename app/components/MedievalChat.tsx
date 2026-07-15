@@ -34,6 +34,7 @@ import {
     extractHandoffOffers,
     stripHandoffMarkers,
     PersonaHandoffOffer,
+    HandoffState,
 } from "@/app/lib/nemosine/handoff";
 
 interface MedievalChatProps {
@@ -312,15 +313,52 @@ function HandoffOfferCard({
     threadId,
     canInvite,
     onInvite,
+    messageId,
+    originMessageId,
+    initialExpanded = false,
 }: {
     offer: PersonaHandoffOffer;
     threadId?: string | null;
     canInvite: boolean;
-    onInvite: (personaId: string) => void;
+    onInvite: (personaId: string) => void | Promise<void>;
+    messageId?: string | null;
+    originMessageId?: string | null;
+    initialExpanded?: boolean;
 }) {
     const href = buildHandoffUrl(offer);
-    const recordSelection = () => {
+    const [state, setState] = useState<HandoffState>(offer.state || "offered");
+    const storageKey = `nemosine-handoff-card-open:${messageId || originMessageId || offer.targetPersona}`;
+    const [expanded, setExpanded] = useState(() => {
+        if (typeof window === "undefined") return initialExpanded;
+        const stored = window.sessionStorage.getItem(storageKey);
+        return stored == null ? initialExpanded : stored === "true";
+    });
+    const statusText = state === "opened"
+        ? `Conversa aberta com ${offer.targetPersona}`
+        : state === "invited"
+            ? `${offer.targetPersona} convidado para esta conversa`
+            : state === "declined"
+                ? "Encaminhamento recusado"
+                : state === "unavailable"
+                    ? "Encaminhamento indisponivel"
+                    : "Encaminhamento oferecido";
+    const toggleExpanded = React.useCallback(() => {
+        setExpanded((current) => {
+            const next = !current;
+            try {
+                window.sessionStorage.setItem(storageKey, String(next));
+            } catch {
+                // Session storage is best-effort only.
+            }
+            return next;
+        });
+    }, [storageKey]);
+    const recordSelection = (nextState: HandoffState) => {
+        setState(nextState);
         const payload = JSON.stringify({
+            action: nextState,
+            messageId: messageId || offer.eventMessageId || null,
+            originMessageId: originMessageId || offer.originMessageId || null,
             sourcePersona: offer.sourcePersona,
             targetPersona: offer.targetPersona,
             targetSlug: offer.targetSlug,
@@ -342,41 +380,60 @@ function HandoffOfferCard({
         }).catch(() => undefined);
     };
     return (
-        <div className="mt-4 rounded-xl border border-[#c5a059]/25 bg-[#c5a059]/10 p-3">
-            <div className="mb-2 flex items-start gap-2">
-                <span className="material-icons mt-0.5 text-[18px] text-[#c5a059]" aria-hidden="true">swap_horiz</span>
-                <div>
-                    <h3 className="text-sm font-bold text-[#fde68a]">{offer.title}</h3>
-                    <p className="mt-1 text-xs leading-relaxed text-white/60">{offer.reason}</p>
-                    <p className="mt-2 text-[11px] leading-relaxed text-white/45">
-                        O contexto levado sera apenas este resumo para revisao: {offer.summary}
-                    </p>
-                    {offer.requiresConfirmation && (
-                        <p className="mt-2 rounded border border-amber-400/25 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">
-                            Revise antes de enviar. Conteudo privado, anexos e historico nao serao levados automaticamente.
-                        </p>
-                    )}
+        <div className="mt-4 rounded-2xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-2 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+            <button
+                type="button"
+                onClick={toggleExpanded}
+                className="flex w-full flex-col gap-2 rounded-xl border border-[#c5a059]/20 bg-[#c5a059]/10 px-3 py-3 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                aria-expanded={expanded}
+            >
+                <span className="flex w-full items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059]">
+                    <span className="material-icons text-[16px]" aria-hidden="true">swap_horiz</span>
+                    {statusText}
+                    <span className={`material-icons text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
+                </span>
+                <span className="block w-full rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
+                    <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">{offer.title}</span>
+                    <span className="block text-sm leading-relaxed text-[#efe7d7]">{offer.reason}</span>
+                </span>
+            </button>
+            <div className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}>
+                <div className="min-h-0 overflow-hidden">
+                    <div className="mt-3 space-y-3 px-2 pb-2">
+                        <div className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
+                            <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">Resumo autorizado</div>
+                            <div className="text-xs leading-relaxed text-[#efe7d7]">{offer.summary}</div>
+                        </div>
+                        {offer.requiresConfirmation && (
+                            <p className="rounded border border-amber-400/25 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">
+                                Revise antes de enviar. Conteudo privado, anexos e historico nao serao levados automaticamente.
+                            </p>
+                        )}
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <a
+                                href={href}
+                                onClick={() => recordSelection("opened")}
+                                className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c5a059] px-3 text-center text-[10px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
+                            >
+                                <span className="material-icons text-[16px]" aria-hidden="true">open_in_new</span>
+                                Abrir conversa com {offer.targetPersona}
+                            </a>
+                            {canInvite && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        recordSelection("invited");
+                                        void onInvite(offer.targetPersona);
+                                    }}
+                                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/35 bg-black/35 px-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
+                                >
+                                    <span className="material-icons text-[16px]" aria-hidden="true">group_add</span>
+                                    Convidar {offer.targetPersona} para esta conversa
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-                <a
-                    href={href}
-                    onClick={recordSelection}
-                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c5a059] px-3 text-center text-[10px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
-                >
-                    <span className="material-icons text-[16px]" aria-hidden="true">open_in_new</span>
-                    Abrir conversa com {offer.targetPersona}
-                </a>
-                {canInvite && (
-                    <button
-                        type="button"
-                        onClick={() => onInvite(offer.targetPersona)}
-                        className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/35 bg-black/35 px-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
-                    >
-                        <span className="material-icons text-[16px]" aria-hidden="true">group_add</span>
-                        Convidar {offer.targetPersona} para esta conversa
-                    </button>
-                )}
             </div>
         </div>
     );
@@ -419,7 +476,33 @@ type CollectiveMessage = UIMessage & {
     turnGroupId?: string | null;
     messageKind?: "USER" | "PERSONA" | "SYSTEM_EVENT" | null;
     generationStatus?: "PENDING" | "STREAMING" | "COMPLETED" | "FAILED" | null;
+    metadata?: unknown | null;
 };
+
+function handoffOfferFromMessage(message: CollectiveMessage): PersonaHandoffOffer | null {
+    if (!message.metadata || typeof message.metadata !== "object") return null;
+    const metadata = message.metadata as Partial<PersonaHandoffOffer> & {
+        eventType?: string;
+        state?: HandoffState;
+        actions?: { open?: boolean; invite?: boolean };
+    };
+    if (metadata.eventType !== "HANDOFF_OFFERED" || !metadata.sourcePersona || !metadata.targetPersona) return null;
+    return {
+        sourcePersona: metadata.sourcePersona,
+        targetPersona: metadata.targetPersona,
+        targetSlug: metadata.targetSlug || "",
+        title: metadata.title || `Continuar com ${metadata.targetPersona}`,
+        reason: metadata.reason || "Encaminhamento vocacional registrado.",
+        summary: metadata.summary || "Resumo minimo nao registrado.",
+        draft: metadata.draft || "",
+        requiresConfirmation: Boolean(metadata.requiresConfirmation),
+        state: metadata.state || "offered",
+        eventMessageId: message.id,
+        originMessageId: metadata.originMessageId || null,
+        offeredAt: metadata.offeredAt || null,
+        updatedAt: metadata.updatedAt || null,
+    };
+}
 
 function hasLocalPresenceCommand(text: string) {
     const normalized = text
@@ -1345,7 +1428,8 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         speakerPersonaId: m.speakerPersonaId,
                         turnGroupId: m.turnGroupId,
                         messageKind: m.messageKind,
-                        generationStatus: m.generationStatus
+                        generationStatus: m.generationStatus,
+                        metadata: m.metadata ?? null,
                     })));
                     setThreadTitle(data.thread.title);
                     setLastLoadedThreadId(currentThreadId);
@@ -1621,6 +1705,24 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                             />
                         );
                     }
+                    if (msg.role === "system" && handoffOfferFromMessage(msg)) {
+                        const persistedOffer = handoffOfferFromMessage(msg);
+                        if (!persistedOffer) return null;
+                        return (
+                            <div key={msg.id} className="flex justify-start">
+                                <div className="max-w-[92%]">
+                                    <HandoffOfferCard
+                                        offer={persistedOffer}
+                                        messageId={msg.id}
+                                        originMessageId={persistedOffer.originMessageId || null}
+                                        threadId={currentThreadIdRef.current}
+                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                        onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
+                                    />
+                                </div>
+                            </div>
+                        );
+                    }
                     if (msg.role === "system" || msg.messageKind === "SYSTEM_EVENT") {
                         return (
                             <div key={msg.id} className="flex justify-center">
@@ -1671,6 +1773,9 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                                     <HandoffOfferCard
                                                         key={`${msg.id}:${offer.targetPersona}:${offer.targetSlug}`}
                                                         offer={offer}
+                                                        messageId={offer.eventMessageId || null}
+                                                        originMessageId={offer.originMessageId || msg.id}
+                                                        initialExpanded
                                                         threadId={currentThreadIdRef.current}
                                                         canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
                                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
