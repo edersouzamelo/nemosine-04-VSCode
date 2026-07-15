@@ -12,24 +12,35 @@ import RelicPhrase from "./RelicPhrase";
 interface NavbarProps {
     mobileCollapsible?: boolean;
     defaultMobileCollapsed?: boolean;
+    collapsed?: boolean;
+    onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false }: NavbarProps) {
+export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false, collapsed, onCollapsedChange }: NavbarProps) {
     const pathname = usePathname();
     const { data: session, status } = useSession();
     const { language, setLanguage, theme, setTheme, cardOrderMode, setCardOrderMode, level, setLevel, clearRandomCardOrders, t, singularity, setSingularity, fontSize, setFontSize, cognitiveMode, setCognitiveMode, isAdmin } = useLanguage();
     const [menuOpen, setMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [menuVisible, setMenuVisible] = useState(false);
+    const [settingsVisible, setSettingsVisible] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
     const [globalFullscreen, setGlobalFullscreen] = useState(false);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
+    const effectiveNavbarHidden = collapsed ?? navbarHidden;
+    const setNavbarCollapsed = useCallback((next: boolean | ((current: boolean) => boolean)) => {
+        const nextValue = typeof next === "function" ? next(effectiveNavbarHidden) : next;
+        if (collapsed === undefined) {
+            setNavbarHidden(nextValue);
+        }
+        onCollapsedChange?.(nextValue);
+    }, [collapsed, effectiveNavbarHidden, onCollapsedChange]);
 
     useEffect(() => {
         if (localStorage.getItem("nemosine-global-fullscreen") === "true") {
-            setNavbarHidden(true);
             setGlobalFullscreen(true);
         }
     }, []);
@@ -92,6 +103,26 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     }, [isAdmin]);
 
     useEffect(() => {
+        if (settingsOpen) {
+            setSettingsVisible(true);
+            return;
+        }
+
+        const timeout = window.setTimeout(() => setSettingsVisible(false), 160);
+        return () => window.clearTimeout(timeout);
+    }, [settingsOpen]);
+
+    useEffect(() => {
+        if (menuOpen) {
+            setMenuVisible(true);
+            return;
+        }
+
+        const timeout = window.setTimeout(() => setMenuVisible(false), 160);
+        return () => window.clearTimeout(timeout);
+    }, [menuOpen]);
+
+    useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (
                 menuRef.current
@@ -122,13 +153,18 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const toggleMobileCollapse = () => {
         setMenuOpen(false);
         setSettingsOpen(false);
-        setNavbarHidden((hidden) => !hidden);
+        setNavbarCollapsed((hidden) => !hidden);
+    };
+
+    const collapseNavbar = () => {
+        setMenuOpen(false);
+        setSettingsOpen(false);
+        setNavbarCollapsed(true);
     };
 
     const enterGlobalFullscreen = useCallback(async () => {
         setMenuOpen(false);
         setSettingsOpen(false);
-        setNavbarHidden(true);
         setGlobalFullscreen(true);
 
         try {
@@ -144,7 +180,7 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const exitGlobalFullscreen = useCallback(async () => {
         setMenuOpen(false);
         setSettingsOpen(false);
-        setNavbarHidden(defaultMobileCollapsed);
+        setNavbarCollapsed(defaultMobileCollapsed);
         setGlobalFullscreen(false);
         document.body.style.overflow = "";
 
@@ -171,37 +207,39 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const fullscreenLabel = globalFullscreen
         ? language.startsWith("pt") ? "Reduzir programa" : "Reduce program"
         : language.startsWith("pt") ? "Ampliar programa" : "Expand program";
+    const collapseMenuLabel = language.startsWith("pt") ? "Recolher menu" : "Collapse menu";
 
     const isAuthenticated = status === "authenticated" && Boolean(session?.user);
     return (
         <>
             <div
-                data-fullscreen-menu-open={globalFullscreen && !navbarHidden ? "true" : "false"}
-                className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${navbarHidden ? 'max-h-0 lg:max-h-[220px]' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}
+                data-fullscreen-menu-open={globalFullscreen && !effectiveNavbarHidden ? "true" : "false"}
+                className={`site-navbar-wrapper relative isolate z-[100] overflow-visible transition-[max-height] duration-300 ${effectiveNavbarHidden ? 'max-h-0' : mobileCollapsible ? 'max-h-[320px]' : 'max-h-[220px]'}`}
             >
-                <header className={`site-navbar relative z-[101] flex flex-col items-center justify-between gap-4 border-b border-[#c5a059]/20 bg-black/40 px-4 py-4 backdrop-blur-md transition-all duration-300 sm:px-8 md:flex-row md:flex-wrap xl:flex-nowrap ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${navbarHidden ? '-translate-y-full opacity-0 lg:translate-y-0 lg:opacity-100' : 'translate-y-0 opacity-100'}`}>
+                <header className={`site-navbar relative z-[101] flex flex-col items-center justify-between gap-4 border-b border-[#c5a059]/20 bg-black/40 px-4 py-4 backdrop-blur-md transition-all duration-300 sm:px-8 md:flex-row md:flex-wrap xl:flex-nowrap ${mobileCollapsible ? 'pb-10 lg:pb-4' : ''} ${effectiveNavbarHidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
                     <div className="flex w-full items-center justify-between md:contents">
                         <Link href="/agents" className="order-1 flex shrink-0 items-center hover:opacity-80 transition-opacity">
                             <img src="/assets/nemosine-logo.png" alt="Nemosine" className="h-10 w-auto object-contain" />
                         </Link>
 
                         <div className="order-3 flex shrink-0 items-center gap-4 md:order-2 md:ml-auto xl:order-3 xl:ml-0">
-                            <div className="relative" ref={settingsRef}>
+                            <div className="relative order-3" ref={settingsRef}>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setSettingsOpen((open) => !open);
                                         setMenuOpen(false);
                                     }}
-                                    className="settings-trigger flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] font-bold text-[#c5a059]/70 hover:text-[#c5a059] transition-colors"
+                                    title={t("settings")}
+                                    aria-label={t("settings")}
+                                    className="settings-trigger flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c5a059]/25 bg-black/25 text-[#c5a059]/70 transition-all hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059]"
                                     aria-expanded={settingsOpen}
                                 >
-                                    <span className="material-icons text-base">tune</span>
-                                    <span className="hidden md:inline">{t("settings")}</span>
+                                    <span className="material-icons text-lg">tune</span>
                                 </button>
 
-                                {settingsOpen && (
-                                    <div className="site-dropdown absolute right-0 top-10 z-[110] w-72 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl p-4">
+                                {settingsVisible && (
+                                    <div className={`site-dropdown absolute right-0 top-10 z-[110] w-72 bg-[#0a0a0c]/95 border border-[#c5a059]/30 rounded-lg shadow-2xl backdrop-blur-xl p-4 ${settingsOpen ? "menu-surface-enter" : "menu-surface-exit"}`}>
                                         <label className="block text-[10px] uppercase tracking-widest text-[#c5a059]/70">
                                             {t("language")}
                                             <select
@@ -360,14 +398,24 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                 title={fullscreenLabel}
                                 aria-label={fullscreenLabel}
                                 aria-pressed={globalFullscreen}
-                                className="global-fullscreen-trigger flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c5a059]/25 bg-black/25 text-[#c5a059]/70 transition-all hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059]"
+                                className="global-fullscreen-trigger order-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c5a059]/25 bg-black/25 text-[#c5a059]/70 transition-all hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059]"
                             >
                                 <span className="material-icons text-lg">
                                     {globalFullscreen ? "close_fullscreen" : "open_in_full"}
                                 </span>
                             </button>
 
-                            <div className="relative shrink-0" ref={menuRef}>
+                            <button
+                                type="button"
+                                onClick={collapseNavbar}
+                                title={collapseMenuLabel}
+                                aria-label={collapseMenuLabel}
+                                className="order-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c5a059]/25 bg-black/25 text-[#c5a059]/70 transition-all hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059]"
+                            >
+                                <span className="material-icons text-lg">keyboard_arrow_up</span>
+                            </button>
+
+                            <div className="relative order-4 shrink-0" ref={menuRef}>
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -393,12 +441,12 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                     )}
                                 </button>
 
-                                {menuOpen && isAuthenticated && (
+                                {menuVisible && isAuthenticated && (
                                     <div
                                         ref={userDropdownRef}
                                         onMouseDown={(event) => event.stopPropagation()}
                                         onPointerDown={(event) => event.stopPropagation()}
-                                        className="site-dropdown absolute right-0 top-10 z-[110] w-[min(16rem,calc(100vw-2rem))] sm:w-64 overflow-hidden rounded-lg border border-stone-200 dark:border-[#c5a059]/30 bg-[#0a0a0c]/95 shadow-2xl backdrop-blur-xl p-0"
+                                        className={`site-dropdown absolute right-0 top-10 z-[110] w-[min(16rem,calc(100vw-2rem))] sm:w-64 overflow-hidden rounded-lg border border-stone-200 dark:border-[#c5a059]/30 bg-[#0a0a0c]/95 shadow-2xl backdrop-blur-xl p-0 ${menuOpen ? "menu-surface-enter" : "menu-surface-exit"}`}
                                     >
                                         <div className="px-4 py-3.5 border-b border-stone-200 dark:border-[#c5a059]/10">
                                             <p className="text-[10px] uppercase tracking-widest font-bold text-[#c5a059]">{session?.user?.name || "Usuario"}</p>
@@ -413,22 +461,22 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                                 Fale com o desenvolvedor
                                             </Link>
                                             {isAdmin && (
-                                                <Link href="/admin" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
+                                                <Link href="/admin" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-[#4169e1]/80 hover:text-[#4169e1] hover:bg-[#4169e1]/5 transition-colors">
                                                     👑 {t("adminPanel")}
                                                 </Link>
                                             )}
                                             {isAdmin && (
-                                                <Link href="/admin/sala-de-maquinas" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#4169e1] hover:bg-[#4169e1]/5 transition-colors">
+                                                <Link href="/admin/sala-de-maquinas" className="devonly-admin-link block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-[#4169e1]/80 hover:text-[#4169e1] hover:bg-[#4169e1]/5 transition-colors">
                                                     Sala de Máquinas
                                                 </Link>
                                             )}
                                             {isAdmin && (
-                                                <Link href="/admin/observatorio-do-criador" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-emerald-300 hover:bg-emerald-500/5 transition-colors">
+                                                <Link href="/admin/observatorio-do-criador" className="devonly-admin-link block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-[#4169e1]/80 hover:text-[#4169e1] hover:bg-[#4169e1]/5 transition-colors">
                                                     Observatório do Criador
                                                 </Link>
                                             )}
                                             {isAdmin && (
-                                                <Link href="/developer/messages" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-stone-700 dark:text-white/70 hover:text-[#c5a059] hover:bg-[#c5a059]/5 transition-colors">
+                                                <Link href="/developer/messages" className="block w-full px-4 py-3.5 text-left text-[10px] uppercase tracking-widest font-semibold text-[#4169e1]/80 hover:text-[#4169e1] hover:bg-[#4169e1]/5 transition-colors">
                                                     👑 Mensagens ao desenvolvedor
                                                 </Link>
                                             )}
@@ -490,12 +538,12 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                     </nav>
                 </header>
             </div>
-            {(mobileCollapsible || globalFullscreen) && navbarHidden && (
+            {effectiveNavbarHidden && (
                 <button
                     type="button"
                     onClick={toggleMobileCollapse}
                     aria-label={t("expandMenu")}
-                    className={`${globalFullscreen ? "fixed z-[9998]" : "absolute z-[110] lg:hidden"} top-0 left-1/2 -translate-x-1/2 flex items-center justify-center h-8 w-16 rounded-b-xl border border-t-0 border-[#c5a059]/40 bg-[#0a0a0c]/95 text-[#c5a059] shadow-lg`}
+                    className="fixed right-6 top-0 z-[9998] flex h-8 w-12 items-center justify-center rounded-b-xl border border-t-0 border-[#c5a059]/40 bg-[#0a0a0c]/95 text-[#c5a059] shadow-lg"
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

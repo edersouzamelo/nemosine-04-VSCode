@@ -37,7 +37,7 @@ export default function ExposicoesPage() {
               Enquadramento por Persona em LLMs
             </h2>
             <p className="mt-3 font-serif text-sm uppercase tracking-[0.18em] text-[#c5a059]/70">
-              XII Colóquio Internacional de Filosofia da Mente, CIFM26
+              XII Colóquio Internacional de Filosofia da Mente, CIFM26 (UNESP/Marília)
             </p>
           </div>
 

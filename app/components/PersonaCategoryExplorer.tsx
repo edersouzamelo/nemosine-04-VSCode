@@ -57,7 +57,7 @@ const categories: Array<{
 export default function PersonaCategoryExplorer({
     items,
     showCategories = true,
-    initialCategory = "strategic"
+    initialCategory = "all"
 }: {
     items: PersonaItem[];
     showCategories?: boolean;
@@ -67,6 +67,10 @@ export default function PersonaCategoryExplorer({
     const [favoriteNames, setFavoriteNames] = useState<string[]>([]);
     const itemMap = useMemo(() => new Map(items.map((item) => [item.name, item])), [items]);
     const allNames = useMemo(() => items.map((item) => item.name), [items]);
+    const orderedCategories = useMemo(
+        () => [...categories].sort((left, right) => Number(right.id === "all") - Number(left.id === "all")),
+        []
+    );
     const category = categories.find((option) => option.id === activeCategory) || categories[0];
 
     useEffect(() => {
@@ -97,12 +101,12 @@ export default function PersonaCategoryExplorer({
             {showCategories && (
                 <>
                     <div data-tour="personas-categories" className="mb-8 grid grid-cols-2 gap-2 md:grid-cols-6">
-                        {categories.map((option) => (
+                        {orderedCategories.map((option) => (
                             <button
                                 key={option.id}
                                 type="button"
                                 onClick={() => setActiveCategory(option.id)}
-                                className={`rounded-xl border p-3 text-left transition-colors ${option.id === activeCategory ? "border-[#c5a059]/55 bg-[#c5a059]/10 text-[#d9bb78]" : "border-[#c5a059]/12 bg-black/15 text-[#c5a059]/55 hover:border-[#c5a059]/32"}`}
+                                className={`rounded-xl border p-3 text-center transition-colors ${option.id === activeCategory ? "border-[#c5a059]/55 bg-[#c5a059]/10 text-[#d9bb78]" : "border-[#c5a059]/12 bg-black/15 text-[#c5a059]/55 hover:border-[#c5a059]/32"}`}
                             >
                                 <span className="block text-[10px] font-bold uppercase tracking-[0.14em]">{option.label}</span>
                             </button>

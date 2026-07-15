@@ -252,6 +252,25 @@ function buildSeal(userId: string, bosses: TravessiaBoss[], relics: TravessiaRel
   };
 }
 
+function buildEmptyTravessiaSnapshot(userId: string): TravessiaSnapshot {
+  const bosses = buildBosses([]);
+  const reliquias = buildRelics(bosses);
+  const metas = buildMetas([]);
+  const activeBoss = bosses.find((boss) => boss.status === "bloqueado") || null;
+
+  return {
+    progressoGeral: 0,
+    bossAtivo: activeBoss,
+    proximaEvidenciaRecomendada: activeBoss?.categoria || null,
+    bosses,
+    reliquias,
+    metas,
+    rastros: [],
+    evidencias: [],
+    selo: buildSeal(userId, bosses, reliquias),
+  };
+}
+
 export async function updateTravessiaFromRastros(userId: string): Promise<TravessiaSnapshot> {
   await ensureTravessiaAuditTables();
   await syncRastrosFromExistingActivity(userId);
@@ -289,5 +308,10 @@ export async function updateTravessiaFromRastros(userId: string): Promise<Traves
 }
 
 export async function getTravessiaSnapshot(userId: string): Promise<TravessiaSnapshot> {
-  return updateTravessiaFromRastros(userId);
+  try {
+    return await updateTravessiaFromRastros(userId);
+  } catch (error) {
+    console.warn("Travessia devonly unavailable; using empty snapshot.", error);
+    return buildEmptyTravessiaSnapshot(userId);
+  }
 }

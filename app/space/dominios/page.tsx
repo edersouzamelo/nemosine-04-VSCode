@@ -80,7 +80,7 @@ export default function DominiosHubPage() {
     const [loadingTextIndex, setLoadingTextIndex] = useState(0);
     const [simulatedTime, setSimulatedTime] = useState("20:00");
     const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-    const [showMenu, setShowMenu] = useState<boolean>(false);
+    const [showMenu, setShowMenu] = useState<boolean>(true);
     const [deviceType, setDeviceType] = useState<"phone" | "tablet" | "desktop">("desktop");
 
     const triggerPwaInstall = async () => {
@@ -3071,7 +3071,7 @@ export default function DominiosHubPage() {
             <div className={`fixed top-0 inset-x-0 z-50 transition-transform duration-500 ease-in-out transform 
                 ${showMenu ? "translate-y-0" : "-translate-y-full"}`}
             >
-                <Navbar />
+                <Navbar collapsed={!showMenu} onCollapsedChange={(collapsed) => setShowMenu(!collapsed)} />
                 
                 {/* Pull-down notch tab handle (tirinha) */}
                 <div 
@@ -3085,7 +3085,7 @@ export default function DominiosHubPage() {
                 </div>
             </div>
 
-            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-8 py-10 md:py-16 min-h-[calc(100vh-220px)] flex flex-col justify-center items-center">
+            <div className={`relative z-10 max-w-7xl mx-auto px-4 sm:px-8 pb-10 md:pb-16 min-h-[calc(100vh-220px)] flex flex-col justify-center items-center transition-[padding-top] duration-500 ${showMenu ? "pt-36 md:pt-44" : "pt-10 md:pt-16"}`}>
                 
                 {/* PAGE HEADER (Hidden completely in fullscreen F11-style mode) */}
                 {!isFullscreen && (

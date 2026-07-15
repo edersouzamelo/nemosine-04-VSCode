@@ -1,10 +1,6 @@
 import Navbar from "../components/Navbar";
 import InstitutionalFooter from "../components/InstitutionalFooter";
-
-const MANIFESTO_DOC_URL =
-  "https://docs.google.com/document/d/1K0pVB97_Cxrzr2bwlLMvKdH4gH9243bF9ULr8iQu9yQ/preview";
-const MANIFESTO_EDIT_URL =
-  "https://docs.google.com/document/d/1K0pVB97_Cxrzr2bwlLMvKdH4gH9243bF9ULr8iQu9yQ/edit?usp=sharing";
+import ManifestoReader from "../components/ManifestoReader";
 
 export default function ManifestoPage() {
   return (
@@ -25,40 +21,11 @@ export default function ManifestoPage() {
             O Manifesto
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-[#eee8dc]/62">
-            Uma pagina de leitura para o documento fundador: centralizado como livro, preservado no Drive e apresentado na estetica do aplicativo.
+            Uma introdução para o usuário. Leitura opcional.
           </p>
         </header>
 
-        <div className="manifesto-book-shell mx-auto w-full max-w-5xl">
-          <div className="manifesto-book-spine" aria-hidden="true" />
-          <div className="manifesto-book-pages">
-            <div className="manifesto-book-toolbar">
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-[#c5a059]/55">
-                  Documento vivo
-                </p>
-                <p className="mt-1 font-serif text-lg text-[#f4e6c8]">Manifesto Nemosine Nous</p>
-              </div>
-              <a
-                href={MANIFESTO_EDIT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded border border-[#c5a059]/30 bg-[#c5a059]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#f3dfb4] transition-colors hover:border-[#c5a059]/65 hover:bg-[#c5a059]/16"
-              >
-                Abrir no Drive
-              </a>
-            </div>
-
-            <div className="manifesto-document-frame">
-              <iframe
-                title="Manifesto Nemosine Nous"
-                src={MANIFESTO_DOC_URL}
-                className="h-full w-full bg-[#fbf8f2]"
-                loading="lazy"
-              />
-            </div>
-          </div>
-        </div>
+        <ManifestoReader />
       </section>
 
       <InstitutionalFooter />

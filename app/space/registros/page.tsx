@@ -261,7 +261,7 @@ export default function RegistrosPage() {
   const [newCustomStatus, setNewCustomStatus] = useState("");
 
   // Collapsible menu slide-up
-  const [showMenu, setShowMenu] = useState<boolean>(false);
+  const [showMenu, setShowMenu] = useState<boolean>(true);
   const draftImportHandledRef = useRef(false);
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef(1);
@@ -1790,7 +1790,7 @@ export default function RegistrosPage() {
       <div className={`fixed top-0 inset-x-0 z-[150] transition-transform duration-500 ease-in-out transform 
           ${showMenu ? "translate-y-0" : "-translate-y-full"}`}
       >
-        <Navbar />
+        <Navbar collapsed={!showMenu} onCollapsedChange={(collapsed) => setShowMenu(!collapsed)} />
         
         {/* Pull-down notch tab handle (tirinha) */}
         <div 
@@ -1804,7 +1804,7 @@ export default function RegistrosPage() {
         </div>
       </div>
 
-      <section className="relative z-10 flex-1 p-4 pt-12 md:p-8 md:pt-16 lg:p-12 lg:pt-20 max-w-[1550px] mx-auto w-full">
+      <section className={`relative z-10 flex-1 px-4 pb-4 md:px-8 md:pb-8 lg:px-12 lg:pb-12 max-w-[1550px] mx-auto w-full transition-[padding-top] duration-500 ${showMenu ? "pt-36 md:pt-44 lg:pt-48" : "pt-12 md:pt-16 lg:pt-20"}`}>
         <header data-tour="memorias-header" className="mb-10 text-center flex flex-col items-center">
           <h1 className="font-display text-4xl uppercase tracking-widest text-[#c5a059] mb-2 drop-shadow-[0_2px_10px_rgba(197,160,89,0.2)]">
             Memórias

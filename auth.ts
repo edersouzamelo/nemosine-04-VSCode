@@ -23,6 +23,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: {
     signIn: "/access",
+    error: "/access",
   },
   secret: process.env.AUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
@@ -92,14 +93,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         const email = user.email?.trim().toLowerCase();
-        if (!email) return false;
+        if (!email) return "/access?mode=register&reason=google-unregistered";
 
         const existingUser = await prisma.user.findUnique({
           where: { email },
           select: { id: true },
         });
 
-        return Boolean(existingUser);
+        return existingUser ? true : "/access?mode=register&reason=google-unregistered";
       }
 
       return true;

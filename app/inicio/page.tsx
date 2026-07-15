@@ -32,6 +32,10 @@ const introductoryVideos = [
   }
 ];
 
+const systemVersion = process.env.NEXT_PUBLIC_APP_VERSION || "Nemosine Nous v0.4";
+const systemUpdatedAt = process.env.NEXT_PUBLIC_BUILD_DATE || "14/07/2026";
+const systemBuild = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || "local";
+
 export default function InicioPage() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -78,7 +82,7 @@ export default function InicioPage() {
   };
 
   return (
-    <main className="onboarding-page relative min-h-[100dvh] overflow-hidden bg-[#06070a] text-[#eee8dc]">
+    <main className="onboarding-page relative flex min-h-[100dvh] flex-col overflow-hidden bg-[#06070a] text-[#eee8dc]">
       <div className="onboarding-ambient absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(197,160,89,0.12),transparent_34%),linear-gradient(180deg,#0c0e13_0%,#06070a_58%,#030407_100%)]" />
       <div className="onboarding-ambient absolute inset-x-0 bottom-0 h-[42vh] opacity-25 bg-[radial-gradient(ellipse_at_bottom,rgba(70,64,59,0.42),transparent_65%)]" />
       <div className="onboarding-image nemosine-mental-castle-bg absolute inset-0 bg-[url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600')] bg-cover bg-center" />
@@ -333,6 +337,21 @@ export default function InicioPage() {
           }
         `}} />
       </section>
+
+      <div className="relative z-10 mx-auto mb-8 flex w-full max-w-5xl flex-wrap items-center justify-center gap-3 px-5 text-center font-display text-[10px] uppercase tracking-[0.22em] text-[#c5a059]/70">
+        <span className="rounded-full border border-[#c5a059]/20 bg-black/35 px-4 py-2">
+          {systemVersion}
+        </span>
+        <span className="rounded-full border border-[#c5a059]/20 bg-black/35 px-4 py-2">
+          Atualizado em {systemUpdatedAt}
+        </span>
+        <span className="rounded-full border border-[#c5a059]/20 bg-black/35 px-4 py-2">
+          Status: {process.env.NEXT_PUBLIC_VERCEL_ENV || "Local"}
+        </span>
+        <span className="rounded-full border border-[#c5a059]/20 bg-black/35 px-4 py-2 text-[#c8bfaf]/55">
+          Build {systemBuild}
+        </span>
+      </div>
 
       {sensitiveRoute && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm">

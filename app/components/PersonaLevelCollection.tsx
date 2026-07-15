@@ -177,7 +177,7 @@ export default function PersonaLevelCollection({ items }: { items: PersonaItem[]
                 <PersonaCategoryExplorer
                     key={level}
                     showCategories={showCategories}
-                    initialCategory={level === "Regente" ? "all" : "strategic"}
+                    initialCategory={level === "Regente" || level === "Soberano" ? "all" : "strategic"}
                     items={filteredItems}
                 />
             )}

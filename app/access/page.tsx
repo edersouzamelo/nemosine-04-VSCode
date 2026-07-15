@@ -19,6 +19,28 @@ function pickLoginBackground() {
   return LOGIN_BACKGROUNDS[Math.floor(Math.random() * LOGIN_BACKGROUNDS.length)];
 }
 
+const AUTH_CALLBACK_STORAGE_KEY = "nemosine-auth-callback";
+const GOOGLE_REGISTRATION_NOTICE =
+  "Este e-mail do Google ainda não tem uma conta Nemosine. Registre-se primeiro com o mesmo e-mail para liberar a entrada pelo Google.";
+const AUTH_FALLBACK_NOTICE =
+  "Não foi possível concluir o acesso com Google agora. Entre com e-mail e senha ou registre uma nova conta.";
+
+function isSafeRelativePath(value: string | null): value is string {
+  return Boolean(value && value.startsWith("/") && !value.startsWith("//"));
+}
+
+function getAuthNotice(errorCode: string | null, reason: string | null) {
+  if (reason === "google-unregistered" || errorCode === "AccessDenied") {
+    return GOOGLE_REGISTRATION_NOTICE;
+  }
+
+  if (errorCode) {
+    return AUTH_FALLBACK_NOTICE;
+  }
+
+  return "";
+}
+
 export default function AccessPage() {
   const router = useRouter();
   const { t, theme, setTheme } = useLanguage();
@@ -32,6 +54,7 @@ export default function AccessPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [vortexReady, setVortexReady] = useState(false);
   const [activeVortex, setActiveVortex] = useState(0);
   const vortexARef = useRef<HTMLVideoElement>(null);
@@ -41,9 +64,32 @@ export default function AccessPage() {
   const vortexStartedRef = useRef(false);
 
   useEffect(() => {
-    const target = new URLSearchParams(window.location.search).get("callbackUrl");
-    if (target?.startsWith("/") && !target.startsWith("//")) {
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("callbackUrl");
+    const mode = params.get("mode");
+    const errorCode = params.get("error");
+    const reason = params.get("reason");
+    const authNotice = getAuthNotice(errorCode, reason);
+    const storedCallback = window.sessionStorage.getItem(AUTH_CALLBACK_STORAGE_KEY);
+    const shouldRegister = mode === "register" || reason === "google-unregistered" || errorCode === "AccessDenied";
+
+    if (isSafeRelativePath(target)) {
       setCallbackUrl(target);
+    } else if (authNotice && isSafeRelativePath(storedCallback)) {
+      setCallbackUrl(storedCallback);
+    }
+
+    if (mode === "register" || authNotice) {
+      setLoginBackground(pickLoginBackground());
+      setShowGrimoire(true);
+    }
+
+    if (shouldRegister) {
+      setIsRegistering(true);
+    }
+
+    if (authNotice) {
+      setNotice(authNotice);
     }
   }, []);
 
@@ -107,8 +153,10 @@ export default function AccessPage() {
     if (isLoading) return;
     setIsLoading(true);
     setError("");
+    setNotice("");
 
     try {
+      window.sessionStorage.setItem(AUTH_CALLBACK_STORAGE_KEY, callbackUrl);
       await signIn("google", { redirectTo: callbackUrl });
     } catch {
       setError("Não foi possível iniciar o acesso com Google.");
@@ -234,8 +282,8 @@ export default function AccessPage() {
           <div className="login-form-shell relative z-10 w-full max-w-[22rem] py-5 sm:max-w-[23rem] md:max-w-[21.5rem] lg:max-w-[22.5rem]">
             <div className="grimoire-border access-grimoire-frame overflow-hidden rounded-md bg-[#c5a059]/20 p-1">
               <div className="access-grimoire-card relative flex flex-col justify-between rounded-md bg-[#fbf7ee]/95 px-5 py-6 shadow-2xl backdrop-blur-sm dark:bg-[#08090d]/92 sm:px-6 sm:py-7">
-                <span className="material-icons absolute left-2 top-2 text-3xl text-primary opacity-60">auto_awesome</span>
-                <span className="material-icons absolute right-2 top-2 scale-x-[-1] text-3xl text-primary opacity-60">auto_awesome</span>
+                <SparkleGlyph className="absolute left-2 top-2 h-8 w-8 text-primary opacity-60" />
+                <SparkleGlyph className="absolute right-2 top-2 h-8 w-8 scale-x-[-1] text-primary opacity-60" />
 
                 <div className="space-y-4 text-center">
                   <header>
@@ -260,6 +308,15 @@ export default function AccessPage() {
                     {error && (
                       <div className="border border-red-500/50 bg-red-900/30 p-3 text-sm text-red-200">
                         {error}
+                      </div>
+                    )}
+
+                    {notice && (
+                      <div className="rounded-sm border border-[#8f2a19]/45 bg-[#7c1f12]/10 p-3 text-left text-[12px] leading-5 text-[#6f2a18] shadow-[inset_0_0_18px_rgba(124,31,18,0.06)] dark:border-[#c5a059]/35 dark:bg-[#7c1f12]/25 dark:text-[#f5d79a]">
+                        <div className="flex items-start gap-2">
+                          <AuthGlyph type="personAdd" className="mt-0.5 h-4 w-4 shrink-0 text-[#8f2a19] dark:text-[#ffd36b]" />
+                          <span>{notice}</span>
+                        </div>
                       </div>
                     )}
 
@@ -327,10 +384,16 @@ export default function AccessPage() {
                             return next;
                           });
                           setError("");
+                          setNotice("");
                         }}
-                        className="font-display w-full cursor-pointer overflow-hidden border border-[#c5a059]/40 bg-transparent px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-[#72552c] transition-all duration-300 hover:bg-[#c5a059]/10 disabled:cursor-wait disabled:opacity-50 dark:text-[#c5a059]"
+                        className={`font-display flex min-h-[3rem] w-full cursor-pointer items-center justify-center gap-2 overflow-hidden border px-5 py-3 text-center text-[10px] font-bold uppercase leading-4 tracking-[0.16em] transition-all duration-300 disabled:cursor-wait disabled:opacity-50 sm:text-[11px] sm:tracking-widest ${
+                          isRegistering
+                            ? "border-[#c5a059]/40 bg-transparent text-[#72552c] hover:bg-[#c5a059]/10 dark:text-[#c5a059]"
+                            : "border-[#7c1f12]/70 bg-stone-900 text-[#ffd36b] shadow-[0_10px_24px_rgba(0,0,0,0.24),0_0_18px_rgba(124,31,18,0.18)] hover:border-[#a23518] hover:bg-[#7c1f12] hover:text-[#fff7d7] dark:bg-[#120c09] dark:hover:bg-[#7c1f12]"
+                        }`}
                       >
-                        {isRegistering ? t("haveAccess") : t("register")}
+                        <AuthGlyph type={isRegistering ? "login" : "personAdd"} className="h-4 w-4 shrink-0" />
+                        <span>{isRegistering ? t("haveAccess") : t("register")}</span>
                       </button>
                     </div>
                   </form>
@@ -367,12 +430,97 @@ export default function AccessPage() {
               }}
               aria-label="Alternar tema"
             >
-              <span className="material-icons">settings_brightness</span>
+              <ThemeGlyph className="h-6 w-6" />
             </button>
           </div>
         </div>
       )}
     </main>
+  );
+}
+
+function SparkleGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+      viewBox="0 0 32 32"
+    >
+      <path d="M13.8 3.5 16.2 11l7.4 2.4-7.4 2.4-2.4 7.4-2.4-7.4L4 13.4 11.4 11l2.4-7.5Z" />
+      <path d="m24.4 4.8 1.1 3.2 3.2 1.1-3.2 1.1-1.1 3.2-1.1-3.2-3.2-1.1 3.2-1.1 1.1-3.2Z" />
+      <path d="m24.4 19.3 1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1 1-2.8Z" />
+    </svg>
+  );
+}
+
+function ThemeGlyph({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 3v2" />
+      <path d="M12 19v2" />
+      <path d="M3 12h2" />
+      <path d="M19 12h2" />
+      <path d="m5.6 5.6 1.4 1.4" />
+      <path d="m17 17 1.4 1.4" />
+      <path d="m18.4 5.6-1.4 1.4" />
+      <path d="m7 17-1.4 1.4" />
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+  );
+}
+
+function AuthGlyph({
+  type,
+  className = ""
+}: {
+  type: "personAdd" | "login";
+  className?: string;
+}) {
+  if (type === "login") {
+    return (
+      <svg
+        aria-hidden="true"
+        className={className}
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+      >
+        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+        <path d="m10 17 5-5-5-5" />
+        <path d="M15 12H3" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <circle cx="9" cy="7" r="3" />
+      <path d="M3.5 19c.7-3.2 2.8-5 5.5-5s4.8 1.8 5.5 5" />
+      <path d="M18 8v6" />
+      <path d="M15 11h6" />
+    </svg>
   );
 }
 
