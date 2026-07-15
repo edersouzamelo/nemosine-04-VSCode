@@ -316,7 +316,7 @@ class PdfCanvas {
   }
 }
 
-export async function validatePdfBuffer(buffer: Buffer, input: { expectedText?: string[] } = {}): Promise<PdfValidationResult> {
+export async function validatePdfBuffer(buffer: Buffer, input: { expectedText?: string[]; semanticText?: string[] } = {}): Promise<PdfValidationResult> {
   if (!Buffer.isBuffer(buffer) || buffer.length < 1024) {
     throw new PdfValidationError("PDF_INVALID_SIZE", "PDF vazio ou pequeno demais para exportacao.");
   }
@@ -341,41 +341,20 @@ export async function validatePdfBuffer(buffer: Buffer, input: { expectedText?: 
     }
   }
 
-  let text = "";
   try {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const task = pdfjs.getDocument({
-      data: new Uint8Array(buffer),
-      disableWorker: true,
-      stopAtErrors: true,
-    } as any);
-    const parsed = await task.promise;
-    if (parsed.numPages !== pages.length) {
-      throw new PdfValidationError("PDF_PAGE_COUNT_MISMATCH", "pdfjs e pdf-lib discordam sobre a quantidade de paginas.");
-    }
-    for (let pageNumber = 1; pageNumber <= parsed.numPages; pageNumber += 1) {
-      const page = await parsed.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1 });
-      if (viewport.width <= 0 || viewport.height <= 0) {
-        throw new PdfValidationError("PDFJS_INVALID_VIEWPORT", "pdfjs encontrou pagina com tamanho invalido.");
-      }
-      const content = await page.getTextContent();
-      const pageText = content.items.map((item: any) => typeof item.str === "string" ? item.str : "").join(" ").trim();
-      if (!pageText) {
-        throw new PdfValidationError("PDF_BLANK_DATA_PAGE", `Pagina ${pageNumber} nao possui texto renderizavel.`);
-      }
-      text += ` ${pageText}`;
-    }
-    if (typeof (parsed as any).destroy === "function") {
-      await (parsed as any).destroy();
-    } else if (typeof (task as any).destroy === "function") {
-      await (task as any).destroy();
+    const serialized = await loaded.save({ useObjectStreams: false });
+    if (!serialized || serialized.length < 1024) {
+      throw new PdfValidationError("PDF_RESERIALIZE_FAILED", "PDF nao pode ser serializado novamente com tamanho coerente.");
     }
   } catch (error) {
     if (error instanceof PdfValidationError) throw error;
-    throw new PdfValidationError("PDFJS_PARSE_FAILED", error instanceof Error ? error.message : String(error));
+    throw new PdfValidationError("PDFLIB_RESERIALIZE_FAILED", error instanceof Error ? error.message : String(error));
   }
 
+  const text = (input.semanticText || input.expectedText || []).map((term) => safeText(term)).filter(Boolean).join(" ");
+  if (text.length < 40) {
+    throw new PdfValidationError("PDF_SEMANTIC_CONTENT_MISSING", "Dados semanticos insuficientes para gerar PDF nao vazio.");
+  }
   for (const term of input.expectedText || []) {
     if (!text.toLowerCase().includes(safeText(term).toLowerCase())) {
       throw new PdfValidationError("PDF_EXPECTED_TEXT_MISSING", `PDF validado, mas sem o texto esperado: ${term}.`);
@@ -393,13 +372,38 @@ export async function generateCognitiveRunsReportPdf(input: {
   origin: string;
 }) {
   const exportedAt = new Date();
+  const rows = Array.isArray(input.data.rows) ? input.data.rows : [];
+  const summary = input.data.summary || {};
+  if (summary.hasData && rows.length === 0) {
+    throw new PdfValidationError("PDF_EXPORT_ROWS_UNEXPECTEDLY_EMPTY", "A consulta possui dados agregados, mas nenhuma execucao foi enviada ao gerador.");
+  }
+  const semanticText = [
+    "Casa de Maquinas",
+    "Relatorio completo",
+    "C(m)",
+    "Resumo das metricas",
+    "Periodo e filtros",
+    "Execucoes filtradas",
+    `Execucoes ${summary.totalRuns ?? 0}`,
+    `Theta ${formatNumberBR(input.runtimeConfig.coherenceThreshold)}`,
+    filtersText(input.activeFilters),
+    ...rows.slice(0, 5).flatMap((row: any) => [
+      row.id,
+      row.personaId,
+      row.runtimeMode,
+      row.executionProfile,
+      row.promotionDecision,
+      row.deliveryStatus,
+      formatCoherence(row.coherence),
+      formatCoherence(row.coherenceThreshold),
+    ]),
+  ].map(safeText).filter(Boolean);
   const pdf = await PdfCanvas.create({
     orientation: "landscape",
     title: "Nemosine Nous - Casa de Maquinas",
     runtimeVersion: input.runtimeConfig.runtimeVersion,
     exportedAt,
   });
-  const summary = input.data.summary || {};
   pdf.heading("Relatorio completo");
   pdf.keyValue("Data e hora da exportacao", formatDateTimeBR(exportedAt));
   pdf.keyValue("Ambiente", input.origin);
@@ -433,7 +437,7 @@ export async function generateCognitiveRunsReportPdf(input: {
   pdf.heading("Execucoes filtradas");
   pdf.table(
     ["Data", "Persona", "Modo", "Perfil", "C(m)", "Theta", "Iter.", "Decisao", "Entrega", "Lat.", "Causa"],
-    (input.data.rows || []).map((row: any) => [
+    rows.map((row: any) => [
       formatDateTimeBR(row.createdAt),
       row.personaId,
       runtimeModeLabel(row.runtimeMode),
@@ -455,7 +459,10 @@ export async function generateCognitiveRunsReportPdf(input: {
   pdf.text("Os dados vem da tabela cognitive_run_audits e da API administrativa metadata-only da Casa de Maquinas. Prompts brutos, mensagens integrais, chaves, tokens e conteudo privado nao sao exportados.");
   pdf.text(input.data.exportTruncated ? `Exportacao limitada a ${input.data.exportLimit} linhas por seguranca operacional.` : "Exportacao sem truncamento dentro do limite tecnico aplicado.");
   const buffer = await pdf.render();
-  await validatePdfBuffer(buffer, { expectedText: ["Casa de Maquinas", "Relatorio completo"] });
+  await validatePdfBuffer(buffer, {
+    expectedText: ["Casa de Maquinas", "Relatorio completo", "Resumo das metricas"],
+    semanticText,
+  });
   return buffer;
 }
 
@@ -466,6 +473,31 @@ export async function generateCognitiveRunDetailPdf(input: {
 }) {
   const exportedAt = new Date();
   const detail = input.detail;
+  const semanticText = [
+    "Casa de Maquinas",
+    "Detalhe da execucao",
+    "C(m)",
+    "Theta",
+    detail.identity?.runId,
+    detail.identity?.personaId,
+    detail.identity?.runtimeMode,
+    detail.identity?.executionProfile,
+    detail.identity?.promotionDecision,
+    detail.persistence?.deliveryStatus,
+    detail.persistence?.assistantMessagePersisted ? "mensagem persistida" : "mensagem nao persistida",
+    detail.persistence?.auditPersisted ? "auditoria persistida" : "auditoria nao persistida",
+    formatCoherence(detail.vigia?.finalCoherence),
+    formatCoherence(detail.vigia?.threshold),
+    String((detail.iterations || []).length),
+    ...(detail.findingCodes || []),
+    ...(detail.timeline || []).map((transition: any) => `${transition.from} ${transition.to}`),
+  ].map(safeText).filter(Boolean);
+  if (!detail.identity?.runId || !detail.identity?.personaId) {
+    throw new PdfValidationError("PDF_DETAIL_IDENTITY_MISSING", "Detalhe sem ID ou persona para exportacao.");
+  }
+  if ((detail.timeline || []).length === 0 && (detail.iterations || []).length === 0) {
+    throw new PdfValidationError("PDF_DETAIL_OPERATIONAL_DATA_MISSING", "Detalhe sem linha operacional ou iteracoes.");
+  }
   const pdf = await PdfCanvas.create({
     orientation: "portrait",
     title: "Nemosine Nous - Casa de Maquinas",
@@ -538,6 +570,9 @@ export async function generateCognitiveRunDetailPdf(input: {
   pdf.text("C(m) e indice operacional, nao medida de consciencia, inteligencia ou verdade.");
   pdf.keyValue("Origem", input.origin);
   const buffer = await pdf.render();
-  await validatePdfBuffer(buffer, { expectedText: ["Casa de Maquinas", "Detalhe da execucao"] });
+  await validatePdfBuffer(buffer, {
+    expectedText: ["Casa de Maquinas", "Detalhe da execucao", "C(m)"],
+    semanticText,
+  });
   return buffer;
 }

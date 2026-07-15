@@ -51,6 +51,7 @@ export async function GET(
       headers: {
         "content-type": "application/pdf",
         "content-disposition": `attachment; filename="casa-de-maquinas-${encodeURIComponent(runId)}.pdf"`,
+        "content-length": String(pdf.length),
         "cache-control": "no-store",
       },
     });

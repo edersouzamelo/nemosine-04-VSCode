@@ -167,6 +167,49 @@ type CognitiveFoundationAdminResponse = {
   };
 };
 
+type PdfDownloadState = {
+  status: "idle" | "loading" | "success" | "error";
+  message: string;
+  code?: string;
+};
+
+const initialPdfDownloadState: PdfDownloadState = { status: "idle", message: "" };
+
+function filenameFromDisposition(disposition: string | null, fallback: string) {
+  const match = disposition?.match(/filename="?([^";]+)"?/i);
+  return match?.[1] ? decodeURIComponent(match[1]) : fallback;
+}
+
+async function downloadPdfFromApi(url: string, fallbackFilename: string) {
+  const response = await fetch(url, { method: "GET", cache: "no-store" });
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok || !contentType.toLowerCase().includes("application/pdf")) {
+    let body: any = null;
+    if (contentType.toLowerCase().includes("application/json")) {
+      body = await response.json().catch(() => null);
+    }
+    const error = new Error(body?.error || "Nao foi possivel gerar o PDF. A falha foi registrada e nenhum arquivo corrompido foi baixado.") as Error & { code?: string };
+    error.code = body?.code || `HTTP_${response.status}`;
+    throw error;
+  }
+  const blob = await response.blob();
+  if (blob.size <= 0) {
+    const error = new Error("Nao foi possivel gerar o PDF. A falha foi registrada e nenhum arquivo corrompido foi baixado.") as Error & { code?: string };
+    error.code = "PDF_EMPTY_BLOB";
+    throw error;
+  }
+  const filename = filenameFromDisposition(response.headers.get("content-disposition"), fallbackFilename);
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  return { filename, size: blob.size };
+}
+
 const modeOptions = ["", "shadow", "enforce"];
 const profileOptions = ["", "light", "standard", "full"];
 const decisionOptions = ["", "promoted", "rejected", "failed_safe", "recovery_delivered", "shadow_only"];
@@ -392,6 +435,8 @@ export default function SalaDeMaquinasClient() {
   const [detailError, setDetailError] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTab, setGuideTab] = useState<"creator" | "technical">("creator");
+  const [pagePdfState, setPagePdfState] = useState<PdfDownloadState>(initialPdfDownloadState);
+  const [allPdfState, setAllPdfState] = useState<PdfDownloadState>(initialPdfDownloadState);
   const topTableScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScrollRef = useRef(false);
@@ -431,6 +476,22 @@ export default function SalaDeMaquinasClient() {
     params.delete("runId");
     params.set("scope", scope);
     return `/api/admin/cognitive-runs/export?${params.toString()}`;
+  }
+
+  async function handlePdfExport(scope: "page" | "all") {
+    const setState = scope === "page" ? setPagePdfState : setAllPdfState;
+    setState({ status: "loading", message: "Gerando PDF..." });
+    try {
+      const result = await downloadPdfFromApi(exportUrl(scope), `casa-de-maquinas-${scope}.pdf`);
+      setState({ status: "success", message: `PDF gerado (${Math.max(1, Math.round(result.size / 1024))} KB).` });
+    } catch (caught) {
+      const error = caught as Error & { code?: string };
+      setState({
+        status: "error",
+        message: "Nao foi possivel gerar o PDF. A falha foi registrada e nenhum arquivo corrompido foi baixado.",
+        code: error.code || error.message,
+      });
+    }
   }
 
   function syncTableScroll(source: "top" | "body") {
@@ -558,20 +619,24 @@ export default function SalaDeMaquinasClient() {
                   <span className="material-icons text-sm" aria-hidden="true">menu_book</span>
                   Como ler este painel
                 </button>
-                <a
-                  href={exportUrl("page")}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/40 bg-[#c5a059]/10 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                <button
+                  type="button"
+                  onClick={() => handlePdfExport("page")}
+                  disabled={pagePdfState.status === "loading"}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/40 bg-[#c5a059]/10 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/15 disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                 >
                   <span className="material-icons text-sm" aria-hidden="true">picture_as_pdf</span>
-                  Exportar relatorio completo em PDF
-                </a>
-                <a
-                  href={exportUrl("all")}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/30 bg-black/35 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                  {pagePdfState.status === "loading" ? "Gerando PDF..." : pagePdfState.status === "success" ? "PDF gerado" : "Exportar relatorio completo em PDF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handlePdfExport("all")}
+                  disabled={allPdfState.status === "loading"}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/30 bg-black/35 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/10 disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                 >
                   <span className="material-icons text-sm" aria-hidden="true">dataset</span>
-                  Exportar todas as execucoes
-                </a>
+                  {allPdfState.status === "loading" ? "Gerando PDF..." : allPdfState.status === "success" ? "PDF gerado" : "Exportar todas as execucoes"}
+                </button>
                 <button
                   type="button"
                   onClick={() => router.push("/admin/observatorio-do-criador")}
@@ -581,6 +646,22 @@ export default function SalaDeMaquinasClient() {
                   Observatorio do Criador
                 </button>
               </div>
+              {[pagePdfState, allPdfState].some((state) => state.status !== "idle") && (
+                <div className="grid gap-2">
+                  {([
+                    ["page", pagePdfState],
+                    ["all", allPdfState],
+                  ] as Array<[string, PdfDownloadState]>).map(([key, state]) => state.status === "idle" ? null : (
+                    <div
+                      key={key}
+                      className={`rounded-lg border px-3 py-2 text-xs ${state.status === "error" ? "border-red-400/35 bg-red-500/10 text-red-100" : "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"}`}
+                    >
+                      {state.message}
+                      {state.code && <span className="ml-2 font-mono text-[10px] opacity-70">{state.code}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -1060,6 +1141,7 @@ function ReadingGuideDrawer({
 }
 
 function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loading: boolean; error: string; onClose: () => void }) {
+  const [detailPdfState, setDetailPdfState] = useState<PdfDownloadState>(initialPdfDownloadState);
   const auditEvents = detail?.auditEvents || [];
   const continuityEvent = auditEvents.find((event: any) => event.code === "CONTINUITY_CONTEXT_ASSEMBLED");
   const initiativeEvent = auditEvents.filter((event: any) => event.code === "PERSONA_INITIATIVE_EVALUATED").slice(-1)[0];
@@ -1077,6 +1159,22 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
     infrastructureDegraded: detail.recovery?.infrastructureDegraded,
   } : null;
   const narrative = detail?.narrative || (detail ? buildRunNarrative(detail) : "");
+  async function handleDetailPdfExport() {
+    if (!detail?.identity?.runId) return;
+    setDetailPdfState({ status: "loading", message: "Gerando PDF..." });
+    try {
+      const runId = String(detail.identity.runId);
+      const result = await downloadPdfFromApi(`/api/admin/cognitive-runs/${encodeURIComponent(runId)}/export`, `casa-de-maquinas-${runId}.pdf`);
+      setDetailPdfState({ status: "success", message: `PDF gerado (${Math.max(1, Math.round(result.size / 1024))} KB).` });
+    } catch (caught) {
+      const exportError = caught as Error & { code?: string };
+      setDetailPdfState({
+        status: "error",
+        message: "Nao foi possivel gerar o PDF. A falha foi registrada e nenhum arquivo corrompido foi baixado.",
+        code: exportError.code || exportError.message,
+      });
+    }
+  }
 
   return (
     <aside className="fixed inset-y-0 right-0 z-[200] flex w-full max-w-3xl flex-col border-l border-[#c5a059]/25 bg-[#060608]/98 shadow-2xl backdrop-blur-xl" role="dialog" aria-modal="true" aria-label="Detalhe da execucao cognitiva">
@@ -1087,13 +1185,15 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
         </div>
         <div className="flex items-center gap-2">
           {detail?.identity?.runId && (
-            <a
-              href={`/api/admin/cognitive-runs/${encodeURIComponent(detail.identity.runId)}/export`}
-              className="inline-flex items-center gap-2 rounded border border-[#c5a059]/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/10"
+            <button
+              type="button"
+              onClick={handleDetailPdfExport}
+              disabled={detailPdfState.status === "loading"}
+              className="inline-flex items-center gap-2 rounded border border-[#c5a059]/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/10 disabled:cursor-wait disabled:opacity-60"
             >
               <span className="material-icons text-sm" aria-hidden="true">picture_as_pdf</span>
-              Exportar esta execucao em PDF
-            </a>
+              {detailPdfState.status === "loading" ? "Gerando PDF..." : detailPdfState.status === "success" ? "PDF gerado" : "Exportar esta execucao em PDF"}
+            </button>
           )}
           <button type="button" onClick={onClose} className="rounded border border-[#c5a059]/30 p-2 text-[#fde68a]" aria-label="Fechar detalhe">
             <span className="material-icons" aria-hidden="true">close</span>
@@ -1104,6 +1204,12 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
       <div className="overflow-y-auto p-5">
         {loading && <p className="text-sm text-[#c5a059]">Carregando detalhe...</p>}
         {error && <p className="rounded border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">{error}</p>}
+        {detailPdfState.status !== "idle" && (
+          <p className={`mb-4 rounded border p-3 text-xs ${detailPdfState.status === "error" ? "border-red-400/35 bg-red-500/10 text-red-100" : "border-emerald-400/25 bg-emerald-500/10 text-emerald-100"}`}>
+            {detailPdfState.message}
+            {detailPdfState.code && <span className="ml-2 font-mono text-[10px] opacity-70">{detailPdfState.code}</span>}
+          </p>
+        )}
         {!loading && !error && detail && (
           <div className="space-y-5">
             {detailRun && isLegacyShadowObservation(detailRun) && <WarningBanner>{legacyShadowWarning}</WarningBanner>}

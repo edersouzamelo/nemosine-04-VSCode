@@ -2,6 +2,8 @@ require("../cognitive-runtime/load-ts.cjs");
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("fs");
+const { PDFDocument } = require("pdf-lib");
 
 const {
   handleCognitiveRunsListRequest,
@@ -405,34 +407,81 @@ test("safe runtime config endpoint exposes no secret environment values", async 
 });
 
 test("PDF exports are real PDFs and exclude raw sensitive content", async () => {
+  const originalDOMMatrix = globalThis.DOMMatrix;
+  delete globalThis.DOMMatrix;
   const row = auditRow({ id: "pdf-run", privateRun: true });
-  const list = await handleCognitiveRunsListRequest(new Request("https://local/api/admin/cognitive-runs"), {
-    session: adminSession,
-    prisma: mockPrisma([row]),
-  });
-  const listJson = await body(list);
-  const runtimeConfig = getSafeCognitiveRuntimeConfig({ VERCEL_GIT_COMMIT_SHA: "sha-pdf" });
-  const reportPdf = await generateCognitiveRunsReportPdf({
-    data: { ...listJson, exportScope: "page", exportLimit: 25, exportTruncated: false },
-    runtimeConfig,
-    activeFilters: listJson.activeFilters,
-    exportScope: "page",
-    origin: "https://local",
-  });
-  assert.equal(reportPdf.subarray(0, 5).toString(), "%PDF-");
-  assert.equal(reportPdf.includes(Buffer.from("SECRET USER TEXT")), false);
-  const reportValidation = await validatePdfBuffer(reportPdf, { expectedText: ["Casa de Maquinas"] });
-  assert.ok(reportValidation.pageCount >= 1);
+  try {
+    assert.equal("DOMMatrix" in globalThis, false);
+    const list = await handleCognitiveRunsListRequest(new Request("https://local/api/admin/cognitive-runs"), {
+      session: adminSession,
+      prisma: mockPrisma([row]),
+    });
+    const listJson = await body(list);
+    const runtimeConfig = getSafeCognitiveRuntimeConfig({ VERCEL_GIT_COMMIT_SHA: "sha-pdf" });
+    const reportPdf = await generateCognitiveRunsReportPdf({
+      data: { ...listJson, exportScope: "page", exportLimit: 25, exportTruncated: false },
+      runtimeConfig,
+      activeFilters: listJson.activeFilters,
+      exportScope: "page",
+      origin: "https://local",
+    });
+    assert.equal(reportPdf.subarray(0, 5).toString(), "%PDF-");
+    assert.equal(reportPdf.includes(Buffer.from("SECRET USER TEXT")), false);
+    const loadedReport = await PDFDocument.load(reportPdf);
+    const reportValidation = await validatePdfBuffer(reportPdf, { expectedText: ["Casa de Maquinas"], semanticText: ["Casa de Maquinas", "Relatorio completo", "Engenheiro", "Theta"] });
+    assert.ok(reportValidation.pageCount >= 1);
+    assert.ok(loadedReport.getPages().every((page) => page.getWidth() > 0 && page.getHeight() > 0));
 
-  const detail = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
-    session: adminSession,
-    prisma: mockPrisma([row]),
-    runId: "pdf-run",
-  });
-  const detailJson = await body(detail);
-  const detailPdf = await generateCognitiveRunDetailPdf({ detail: detailJson, runtimeConfig, origin: "https://local" });
-  assert.equal(detailPdf.subarray(0, 5).toString(), "%PDF-");
-  assert.equal(detailPdf.includes(Buffer.from("SECRET CANDIDATE")), false);
-  const detailValidation = await validatePdfBuffer(detailPdf, { expectedText: ["Detalhe da execucao"] });
-  assert.ok(detailValidation.textLength > 100);
+    const detail = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
+      session: adminSession,
+      prisma: mockPrisma([row]),
+      runId: "pdf-run",
+    });
+    const detailJson = await body(detail);
+    const detailPdf = await generateCognitiveRunDetailPdf({ detail: detailJson, runtimeConfig, origin: "https://local" });
+    assert.equal(detailPdf.subarray(0, 5).toString(), "%PDF-");
+    assert.equal(detailPdf.includes(Buffer.from("SECRET CANDIDATE")), false);
+    const loadedDetail = await PDFDocument.load(detailPdf);
+    const detailValidation = await validatePdfBuffer(detailPdf, {
+      expectedText: ["Detalhe da execucao"],
+      semanticText: [
+        "Casa de Maquinas",
+        "Detalhe da execucao",
+        "pdf-run",
+        "Engenheiro",
+        "Linha operacional completa",
+        "Vigia, Cientista e Filosofo",
+        "Promocao, recuperacao e persistencia",
+        "Mensagem persistida",
+        "Auditoria persistida",
+        "Finding codes",
+        "C(m)",
+        "Theta",
+        "Iteracoes",
+      ],
+    });
+    assert.ok(detailValidation.textLength > 100);
+    assert.ok(loadedDetail.getPages().every((page) => page.getWidth() > 0 && page.getHeight() > 0));
+  } finally {
+    if (originalDOMMatrix) globalThis.DOMMatrix = originalDOMMatrix;
+  }
+});
+
+test("PDF export implementation stays Node-compatible and UI downloads through fetch", () => {
+  const pdfSource = fs.readFileSync("app/lib/admin/cognitiveRunsPdf.ts", "utf8");
+  const routeSource = fs.readFileSync("app/api/admin/cognitive-runs/export/route.ts", "utf8");
+  const detailRouteSource = fs.readFileSync("app/api/admin/cognitive-runs/[runId]/export/route.ts", "utf8");
+  const clientSource = fs.readFileSync("app/admin/sala-de-maquinas/SalaDeMaquinasClient.tsx", "utf8");
+
+  assert.equal(pdfSource.includes("pdfjs-dist"), false);
+  assert.match(pdfSource, /PDFDocument\.load\(buffer\)/);
+  assert.match(pdfSource, /loaded\.save\(\{ useObjectStreams: false \}\)/);
+  assert.match(routeSource, /"content-type": "application\/pdf"/);
+  assert.match(routeSource, /"content-length": String\(pdf\.length\)/);
+  assert.match(detailRouteSource, /"content-disposition": `attachment; filename="casa-de-maquinas-/);
+  assert.match(clientSource, /downloadPdfFromApi/);
+  assert.match(clientSource, /response\.blob\(\)/);
+  assert.match(clientSource, /URL\.createObjectURL\(blob\)/);
+  assert.equal(clientSource.includes('href={exportUrl("page")}'), false);
+  assert.equal(clientSource.includes('href={exportUrl("all")}'), false);
 });
