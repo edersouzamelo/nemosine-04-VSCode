@@ -228,6 +228,7 @@ export const extractionResultSchema = z.object({
   proposedMemoryActions: z.array(proposedMemoryActionSchema).default([]),
   proposedRegistryActions: z.array(proposedRegistryActionSchema).default([]),
   proposedDestinyActions: z.array(proposedDestinyActionSchema).default([]),
+  extractorFindings: z.array(findingSchema).default([]),
   possibleVocationConflicts: z.array(z.string().max(300)).default([]),
   possiblePrivacyConcerns: z.array(z.string().max(300)).default([]),
   legacyTagsRemoved: z.number().int().min(0).default(0),

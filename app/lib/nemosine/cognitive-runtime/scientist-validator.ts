@@ -33,6 +33,8 @@ export function deterministicScientistEvaluation(input: {
   const findings: CognitiveFinding[] = [];
   const text = input.candidate.visibleText;
 
+  findings.push(...input.extraction.extractorFindings);
+
   if (simulatedAccessPatterns.some((pattern) => pattern.test(text))) {
     findings.push(finding(
       "SCIENTIST_SIMULATED_ACCESS",

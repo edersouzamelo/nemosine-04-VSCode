@@ -1,9 +1,9 @@
 import {
   CandidateResponse,
+  CognitiveFinding,
   CognitiveContextEnvelope,
   CognitiveModelProvider,
   CognitiveRequest,
-  CognitiveRuntimeError,
   ExtractionResult,
   extractionResultSchema,
   ProposedDestinyAction,
@@ -30,6 +30,17 @@ function memoryTypeFromContent(content: string): ProposedMemoryAction["memoryTyp
   if (normalized.startsWith("episodio") || normalized.startsWith("episodio")) return "episode";
   if (normalized.startsWith("tema ativo")) return "active_theme";
   return "other";
+}
+
+function structuredExtractionFailureFinding(error: unknown): CognitiveFinding {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    code: "CLAIM_EXTRACTOR_STRUCTURED_DEGRADED",
+    severity: "warning",
+    category: "claim-extractor",
+    explanation: `Structured claim extraction failed and deterministic extraction was used instead: ${message.slice(0, 500)}`,
+    repairInstruction: "Proceed with deterministic claim/action extraction and let Scientist/Vigia evaluate the reduced evidence surface.",
+  };
 }
 
 export function extractLegacyActionTags(text: string, request: CognitiveRequest) {
@@ -101,6 +112,7 @@ export function extractLegacyActionTags(text: string, request: CognitiveRequest)
       proposedDestinyActions,
       possibleVocationConflicts: [],
       possiblePrivacyConcerns: [],
+      extractorFindings: [],
       legacyTagsRemoved: memoryMatches.length + registryMatches.length + destinyMatches.length,
     }),
   };
@@ -112,6 +124,7 @@ export function mergeExtractionResults(primary: ExtractionResult, secondary: Ext
     proposedMemoryActions: [...primary.proposedMemoryActions, ...secondary.proposedMemoryActions],
     proposedRegistryActions: [...primary.proposedRegistryActions, ...secondary.proposedRegistryActions],
     proposedDestinyActions: [...primary.proposedDestinyActions, ...secondary.proposedDestinyActions],
+    extractorFindings: [...primary.extractorFindings, ...secondary.extractorFindings],
     possibleVocationConflicts: [...primary.possibleVocationConflicts, ...secondary.possibleVocationConflicts],
     possiblePrivacyConcerns: [...primary.possiblePrivacyConcerns, ...secondary.possiblePrivacyConcerns],
     legacyTagsRemoved: primary.legacyTagsRemoved + secondary.legacyTagsRemoved,
@@ -141,13 +154,11 @@ export async function extractClaimsAndActions(input: {
 
     return mergeExtractionResults(legacy.extraction, extractionResultSchema.parse(structuredExtraction));
   } catch (error) {
-    throw new CognitiveRuntimeError(
-      "MALFORMED_STRUCTURED_OUTPUT",
-      `Claim/action extraction failed: ${error instanceof Error ? error.message : String(error)}`,
-      {
-        retryable: true,
-        safeMessage: "A extracao estruturada da resposta falhou.",
-      },
+    return mergeExtractionResults(
+      legacy.extraction,
+      extractionResultSchema.parse({
+        extractorFindings: [structuredExtractionFailureFinding(error)],
+      }),
     );
   }
 }

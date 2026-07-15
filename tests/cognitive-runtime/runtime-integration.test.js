@@ -88,7 +88,7 @@ function philosopher(overrides = {}) {
   };
 }
 
-function provider({ candidates, scientists = [scientist()], philosophers = [philosopher()], extraction, capture }) {
+function provider({ candidates, scientists = [scientist()], philosophers = [philosopher()], extraction, extractionError, capture }) {
   let candidateIndex = 0;
   let scientistIndex = 0;
   let philosopherIndex = 0;
@@ -110,6 +110,7 @@ function provider({ candidates, scientists = [scientist()], philosophers = [phil
     },
     async extractCandidate(input) {
       capture?.extract?.(input);
+      if (extractionError) throw extractionError;
       return extractionResultSchema.parse(extraction || {});
     },
     async evaluateScientist(input) {
@@ -383,6 +384,31 @@ test("malformed structured Scientist output fails safe", async () => {
   assert.equal(result.deliveryPersisted, true);
   assert.equal(delivery.threadReload(req.runId).content, result.answer);
   assert.equal(result.audit.failureReason, "MALFORMED_STRUCTURED_OUTPUT");
+});
+
+test("structured extractor failure degrades to deterministic OCV without approving by silence", async () => {
+  const req = request();
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({
+      candidates: ["Resposta tecnica curta e verificavel para o build."],
+      extractionError: new Error("schema parse failed"),
+      scientists: [scientist()],
+      philosophers: [philosopher()],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.promoted, true);
+  assert.equal(result.audit.coherence >= result.audit.coherenceThreshold, true);
+  assert.equal(result.audit.promotionDecision, "promoted");
+  assert.ok(result.iterations[0].extraction.extractorFindings.some((finding) => finding.code === "CLAIM_EXTRACTOR_STRUCTURED_DEGRADED"));
+  assert.ok(result.iterations[0].scientist.findings.some((finding) => finding.code === "CLAIM_EXTRACTOR_STRUCTURED_DEGRADED"));
+  assert.equal(delivery.threadReload(req.runId).content, result.answer);
 });
 
 test("extractor and Scientist receive actual user and authorized context evidence", async () => {
