@@ -21,6 +21,7 @@ export async function storeCognitiveAudit(audit: RedactedCognitiveAudit) {
       auditPersisted: audit.auditPersisted,
       iterationCount: audit.iterationCount,
       coherence: audit.coherence ?? null,
+      coherenceThreshold: audit.coherenceThreshold ?? null,
       dimensionScores: audit.dimensionScores,
       findingCodes: audit.findingCodes,
       promotionDecision: audit.promotionDecision,

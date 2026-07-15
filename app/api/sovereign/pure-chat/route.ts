@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
-import { streamText } from "ai";
+import { generateText } from "ai";
 import { openai as vercelOpenai } from "@ai-sdk/openai";
 import { auth } from "@/auth";
+import { createPromotedUIMessageStreamResponse } from "@/app/lib/nemosine/cognitive-runtime/runtime";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -11,6 +12,32 @@ const MAX_MESSAGES = 40;
 const MAX_CONTENT_LENGTH = 120_000;
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_FILE_TEXT_LENGTH = 80_000;
+const SAFE_PURE_CHAT_FAILURE = "Nao posso entregar esta resposta com seguranca agora. Vou manter o chat fora das personas e sem executar efeitos colaterais.";
+
+function evaluateBasalPureChatSafety(text: string) {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const reasons: string[] = [];
+
+  if (/\[(memory|registry|destiny)\s*:/i.test(text)) {
+    reasons.push("side_effect_tag_detected");
+  }
+
+  if (/\b(eu sou|sou|aqui e|aqui eh)\s+(o|a)?\s*(mentor|juiz|cientista|filosofo|filosof|vigia|orquestrador|persona)\b/.test(normalized)) {
+    reasons.push("persona_impersonation_detected");
+  }
+
+  if (/\bnemosine_(cognitive|runtime|promotion|audit)\b/.test(normalized)) {
+    reasons.push("internal_control_leak_detected");
+  }
+
+  return {
+    promoted: reasons.length === 0,
+    reasons,
+  };
+}
 
 function cleanMessages(messages: any[]) {
   return messages
@@ -116,7 +143,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Conversation exceeds the allowed limit" }, { status: 413 });
     }
 
-    const result = await streamText({
+    const result = await generateText({
       model: vercelOpenai("gpt-4o"),
       system: [
         "Voce e um assistente conversacional generalista, claro, util e conversacional.",
@@ -130,9 +157,24 @@ export async function POST(req: NextRequest) {
       ].join("\n"),
       messages: cleanedMessages,
       temperature: 0.7,
+      maxRetries: 1,
     });
 
-    return result.toUIMessageStreamResponse();
+    const safety = evaluateBasalPureChatSafety(result.text || "");
+    const deliveredText = safety.promoted ? result.text : SAFE_PURE_CHAT_FAILURE;
+    if (!safety.promoted) {
+      console.warn("[Sovereign Pure Chat] Basal safety gate replaced candidate.", {
+        reasons: safety.reasons,
+      });
+    }
+
+    return createPromotedUIMessageStreamResponse({
+      text: deliveredText,
+      headers: {
+        "x-sovereign-pure-chat-safety": safety.promoted ? "promoted" : "failed-safe",
+        "x-sovereign-pure-chat-reasons": safety.reasons.join(","),
+      },
+    });
   } catch (error) {
     console.error("[Sovereign Pure Chat] Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

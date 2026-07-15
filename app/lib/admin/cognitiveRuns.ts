@@ -429,7 +429,7 @@ function safeRow(row: any) {
     runtimeMode: row.runtimeMode,
     executionProfile: row.executionProfile,
     coherence: safeNumber(row.coherence) ?? null,
-    coherenceThreshold: null,
+    coherenceThreshold: safeNumber(row.coherenceThreshold) ?? null,
     iterationCount: row.iterationCount,
     promotionDecision: row.promotionDecision,
     deliveryStatus: row.deliveryStatus || "not_attempted",
@@ -600,6 +600,7 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
     auditPersisted: true,
     iterationCount: true,
     coherence: true,
+    coherenceThreshold: true,
     findingCodes: true,
     promotionDecision: true,
     latencyPerStageMs: true,
@@ -635,6 +636,7 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
       take: 5000,
       select: {
         coherence: true,
+        coherenceThreshold: true,
         iterationCount: true,
         promotionDecision: true,
         runtimeMode: true,
@@ -747,6 +749,7 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
       auditPersisted: true,
       iterationCount: true,
       coherence: true,
+      coherenceThreshold: true,
       dimensionScores: true,
       findingCodes: true,
       promotionDecision: true,
@@ -807,11 +810,11 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
     iterations,
     vigia: {
       finalCoherence: safeNumber(row.coherence) ?? null,
-      threshold: null,
+      threshold: safeNumber(row.coherenceThreshold) ?? null,
       dimensions,
       weights: {},
       hardFailures: findingCodes.filter((code) => /HARD|VIOLATION|PRIVACY|VOCATION/i.test(code)),
-      formula: "C(m) e o indice operacional de coerencia armazenado na auditoria redigida. O schema V1 nao retém theta nem pesos por execucao.",
+      formula: "C(m) e o indice operacional de coerencia armazenado na auditoria redigida. Theta e preservado por execucao quando registrado.",
       profile: row.executionProfile,
     },
     doubleVigilance: {
@@ -861,7 +864,6 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
     provenance: {
       redaction: "Somente metadados, hashes, comprimentos, estados e codigos seguros sao retornados.",
       missingSchemaFields: [
-        "coherence_threshold por execucao",
         "coherence_weights por execucao",
         "temperatura por chamada",
         "avaliacoes completas por iteracao",

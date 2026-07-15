@@ -400,6 +400,7 @@ export type RedactedCognitiveAudit = {
   auditPersisted: boolean;
   iterationCount: number;
   coherence?: number;
+  coherenceThreshold?: number;
   dimensionScores: Record<string, number>;
   findingCodes: string[];
   promotionDecision: "promoted" | "rejected" | "failed_safe" | "shadow_only";

@@ -40,6 +40,7 @@ function auditRow(overrides = {}) {
     auditPersisted: overrides.auditPersisted ?? true,
     iterationCount: "iterationCount" in overrides ? overrides.iterationCount : 1,
     coherence: "coherence" in overrides ? overrides.coherence : 0.91,
+    coherenceThreshold: "coherenceThreshold" in overrides ? overrides.coherenceThreshold : 0.8,
     dimensionScores: overrides.dimensionScores || { factualSupport: 0.9, userSovereignty: 0.88 },
     findingCodes: overrides.findingCodes || ["SIDE_EFFECTS_BLOCKED"],
     promotionDecision: overrides.promotionDecision || "promoted",
@@ -248,6 +249,7 @@ test("shadow_only legacy observation is not counted as promotion or rejection", 
       deliveryStatus: "shadow_external",
       iterationCount: 0,
       coherence: null,
+      coherenceThreshold: null,
       dimensionScores: {},
       findingCodes: [],
       stateTransitions: [],
@@ -276,6 +278,7 @@ test("null coherence and null theta are represented as absence, not zero", async
         deliveryStatus: "shadow_external",
         iterationCount: 0,
         coherence: null,
+        coherenceThreshold: null,
         dimensionScores: {},
         findingCodes: [],
         stateTransitions: [],
@@ -289,6 +292,25 @@ test("null coherence and null theta are represented as absence, not zero", async
   assert.equal(json.summary.averageCoherenceValidCount, 0);
 });
 
+test("stored theta is returned for OCV runs", async () => {
+  const row = auditRow({ id: "theta-run", coherence: 0.86, coherenceThreshold: 0.82 });
+  const list = await handleCognitiveRunsListRequest(new Request("https://local/api/admin/cognitive-runs"), {
+    session: adminSession,
+    prisma: mockPrisma([row]),
+  });
+  const listJson = await body(list);
+  assert.equal(listJson.rows[0].coherenceThreshold, 0.82);
+
+  const detail = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
+    session: adminSession,
+    prisma: mockPrisma([row]),
+    runId: "theta-run",
+  });
+  const detailJson = await body(detail);
+  assert.equal(detailJson.vigia.threshold, 0.82);
+  assert.match(detailJson.vigia.formula, /Theta e preservado/);
+});
+
 test("detail does not claim complete Double Vigilance without telemetry", async () => {
   const response = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
     session: adminSession,
@@ -300,6 +322,7 @@ test("detail does not claim complete Double Vigilance without telemetry", async 
         deliveryStatus: "shadow_external",
         iterationCount: 0,
         coherence: null,
+        coherenceThreshold: null,
         dimensionScores: {},
         findingCodes: [],
         stateTransitions: [],

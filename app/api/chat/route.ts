@@ -590,24 +590,6 @@ export async function POST(req: NextRequest) {
             && shouldRetainUserInputForContinuity(userText);
         await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
 
-        const conversationNavigationAnswer = await buildConversationNavigationAnswer({
-            userId,
-            activeThreadId,
-            personaId: conversationScope,
-            memoryScope,
-            userText,
-        });
-        if (conversationNavigationAnswer) {
-            await addMessageToThread(userId, activeThreadId, 'assistant', conversationNavigationAnswer);
-            return createPromotedUIMessageStreamResponse({
-                text: conversationNavigationAnswer,
-                headers: {
-                    'x-thread-id': activeThreadId,
-                    'x-conversation-navigation-answer': 'true',
-                },
-            });
-        }
-
         const cognitiveRequest = createCognitiveRequest({
             userId,
             threadId: activeThreadId,
@@ -622,6 +604,88 @@ export async function POST(req: NextRequest) {
         const runtimeConfig = readCognitiveRuntimeConfig();
         const responsePipelineConfig = readResponsePipelineConfig();
         let activeChatModel = getConfiguredPrimaryChatModel();
+
+        const deliverEnforcedCognitiveRuntime = async (input: {
+            candidateOverride?: string;
+            headers?: Record<string, string>;
+        } = {}) => {
+            const runtimeResult = input.candidateOverride
+                ? await runCognitiveRuntime(cognitiveRequest, {
+                    config: runtimeConfig,
+                    candidateOverride: input.candidateOverride,
+                })
+                : await executeCognitiveRuntime(cognitiveRequest);
+            const deliveredRuntimeAnswer = runtimeResult.answer;
+            if (shouldRetainConversationContinuity) {
+                await Promise.all([
+                    retainConversationEpisode(userId, memoryScope, userText),
+                    retainActiveTopicsFromUserMessage({
+                        userId,
+                        threadId: activeThreadId,
+                        personaId,
+                        memoryScope,
+                        userText,
+                    }),
+                ]).catch((error) => {
+                    console.warn("[API/Chat] Conversation continuity retention skipped after enforced runtime.", error);
+                });
+            }
+            await observeCognitiveFoundationResponse({
+                userId,
+                threadId: activeThreadId,
+                personaId,
+                placeId: normalizedPlaceId,
+                memoryScope,
+                userText,
+                responseText: deliveredRuntimeAnswer,
+                participantCount: 1,
+                privateRun: cognitiveRequest.privateRun,
+            }).catch((error) => {
+                console.warn("[API/Chat] Cognitive foundation observation skipped after enforced runtime.", error);
+            });
+            return createPromotedUIMessageStreamResponse({
+                text: deliveredRuntimeAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-cognitive-runtime': runtimeResult.runtimeMode,
+                    'x-cognitive-delivery-contract': 'ocv-promotion-gate',
+                    'x-cognitive-run-id': runtimeResult.runId,
+                    'x-cognitive-promoted': String(runtimeResult.promoted),
+                    'x-cognitive-promotion-decision': runtimeResult.audit.promotionDecision,
+                    ...(input.headers || {}),
+                },
+            });
+        };
+
+        const conversationNavigationAnswer = await buildConversationNavigationAnswer({
+            userId,
+            activeThreadId,
+            personaId: conversationScope,
+            memoryScope,
+            userText,
+        });
+        if (conversationNavigationAnswer) {
+            if (runtimeConfig.mode === "enforce") {
+                return deliverEnforcedCognitiveRuntime({
+                    candidateOverride: conversationNavigationAnswer,
+                    headers: {
+                        'x-conversation-navigation-answer': 'true',
+                    },
+                });
+            }
+            await addMessageToThread(userId, activeThreadId, 'assistant', conversationNavigationAnswer);
+            return createPromotedUIMessageStreamResponse({
+                text: conversationNavigationAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-conversation-navigation-answer': 'true',
+                },
+            });
+        }
+
+        if (runtimeConfig.mode === "enforce") {
+            return deliverEnforcedCognitiveRuntime();
+        }
 
         if (responsePipelineConfig.mode === "enforce") {
             const responsePipelineRequest = createResponsePipelineRequest({ cognitiveRequest });
@@ -712,47 +776,6 @@ export async function POST(req: NextRequest) {
             } catch (error) {
                 console.error("[API/Chat] Response pipeline v2 enforce failed; falling back to legacy path.", error);
             }
-        }
-
-        if (runtimeConfig.mode === "enforce") {
-            const runtimeResult = await executeCognitiveRuntime(cognitiveRequest);
-            const deliveredRuntimeAnswer = applyPresenceContractToResponse(runtimeResult.answer);
-            if (shouldRetainConversationContinuity) {
-                await Promise.all([
-                    retainConversationEpisode(userId, memoryScope, userText),
-                    retainActiveTopicsFromUserMessage({
-                        userId,
-                        threadId: activeThreadId,
-                        personaId,
-                        memoryScope,
-                        userText,
-                    }),
-                ]).catch((error) => {
-                    console.warn("[API/Chat] Conversation continuity retention skipped after enforced runtime.", error);
-                });
-            }
-            await observeCognitiveFoundationResponse({
-                userId,
-                threadId: activeThreadId,
-                personaId,
-                placeId: normalizedPlaceId,
-                memoryScope,
-                userText,
-                responseText: deliveredRuntimeAnswer,
-                participantCount: 1,
-                privateRun: cognitiveRequest.privateRun,
-            }).catch((error) => {
-                console.warn("[API/Chat] Cognitive foundation observation skipped after enforced runtime.", error);
-            });
-            return createPromotedUIMessageStreamResponse({
-                text: deliveredRuntimeAnswer,
-                headers: {
-                    'x-thread-id': activeThreadId,
-                    'x-cognitive-runtime': runtimeResult.runtimeMode,
-                    'x-cognitive-run-id': runtimeResult.runId,
-                    'x-cognitive-promoted': String(runtimeResult.promoted),
-                },
-            });
         }
 
         const promptAssembly = await buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, routedUserText, activeThreadId);

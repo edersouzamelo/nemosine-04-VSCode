@@ -74,6 +74,7 @@ export function buildRedactedAudit(input: {
     auditPersisted: input.auditPersisted,
     iterationCount: input.iterations.length,
     coherence: lastIteration?.vigia?.totalCoherence,
+    coherenceThreshold: lastIteration?.vigia?.threshold,
     dimensionScores,
     findingCodes: redactFindings(input.iterations),
     promotionDecision: input.promotionDecision,

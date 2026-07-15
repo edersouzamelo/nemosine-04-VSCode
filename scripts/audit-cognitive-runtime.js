@@ -24,6 +24,9 @@ const requiredFiles = [
   "docs/cognitive-runtime-v1-patent-traceability.md",
   "docs/cognitive-runtime-v1-scm-fidelity.md",
   "docs/cognitive-runtime-v1-coherence-formalization.md",
+  "prisma/migrations/202607150001_ocv_baseline_current_state/migration.sql",
+  "prisma/migrations/202607150002_ocv_foundation_additive/migration.sql",
+  "prisma/migrations/202607150003_ocv_audit_theta/migration.sql",
   "prisma/manual_migrations/20260622_add_cognitive_run_audits.sql",
   "app/data/nativePersonaPromptManifest.json",
 ];
@@ -67,11 +70,40 @@ const runtimePatternHits = runtimeFiles.flatMap((file) => {
     .filter((pattern) => source.includes(pattern))
     .map((pattern) => ({ file, pattern }));
 });
+const chatRouteSource = exists("app/api/chat/route.ts") ? fs.readFileSync("app/api/chat/route.ts", "utf8") : "";
+const collectiveSource = exists("app/lib/nemosine/collective_chat_orchestrator.ts")
+  ? fs.readFileSync("app/lib/nemosine/collective_chat_orchestrator.ts", "utf8")
+  : "";
+const pureChatSource = exists("app/api/sovereign/pure-chat/route.ts")
+  ? fs.readFileSync("app/api/sovereign/pure-chat/route.ts", "utf8")
+  : "";
+const chatRuntimeEnforce = chatRouteSource.indexOf('if (runtimeConfig.mode === "enforce")');
+const chatPipelineEnforce = chatRouteSource.indexOf('if (responsePipelineConfig.mode === "enforce")');
+const collectiveRuntimeEnforce = collectiveSource.indexOf('if (runtimeConfig.mode === "enforce")');
+const collectiveLegacyEffectsAfterRuntime = collectiveSource.indexOf("commitPersonaLegacyEffects({", collectiveRuntimeEnforce);
+const routeContract = {
+  chatRuntimeEnforceBeforeResponsePipeline: chatRuntimeEnforce > 0
+    && chatPipelineEnforce > 0
+    && chatRuntimeEnforce < chatPipelineEnforce,
+  chatNavigationUsesRuntimeOverride: /conversationNavigationAnswer[\s\S]+deliverEnforcedCognitiveRuntime/.test(chatRouteSource),
+  chatDeliveryContractHeader: /x-cognitive-delivery-contract['"]:\s*['"]ocv-promotion-gate/.test(chatRouteSource),
+  collectiveRuntimeEnforceBeforeLegacyEffects: collectiveRuntimeEnforce > 0
+    && collectiveLegacyEffectsAfterRuntime > collectiveRuntimeEnforce,
+  collectiveRuntimePersistsPersonaMessage: /persistAssistantMessage:\s*async \(\{ answer \}\)/.test(collectiveSource)
+    && /updatePersonaMessageGeneration\(input\.round\.userId, input\.messageId, answer, "COMPLETED"\)/.test(collectiveSource),
+  pureChatBufferedBeforeBasalSafety: !pureChatSource.includes("streamText")
+    && /generateText/.test(pureChatSource)
+    && /evaluateBasalPureChatSafety\(result\.text \|\| ""\)/.test(pureChatSource),
+};
+const failedRouteContracts = Object.entries(routeContract)
+  .filter(([, passed]) => !passed)
+  .map(([name]) => name);
 const report = {
   ok: missingFiles.length === 0
     && promptMismatches.length === 0
     && presentForbiddenPaths.length === 0
-    && runtimePatternHits.length === 0,
+    && runtimePatternHits.length === 0
+    && failedRouteContracts.length === 0,
   checkedAt: new Date().toISOString(),
   requiredFiles,
   missingFiles,
@@ -84,6 +116,10 @@ const report = {
     promptCount: manifest.promptCount,
     actualPromptCount: Object.keys(prompts).length,
     mismatches: promptMismatches,
+  },
+  routeContract: {
+    checks: routeContract,
+    failed: failedRouteContracts,
   },
 };
 

@@ -67,8 +67,8 @@ export function getSafeCognitiveRuntimeConfig(env: NodeJS.ProcessEnv = process.e
       deployVersion: "provider deploy metadata when available",
     },
     limitations: [
-      "Theta, pesos e temperaturas atuais explicam a configuracao vigente, nao valores historicos por execucao.",
-      "O schema V1 de CognitiveRunAudit nao preserva theta, pesos, temperaturas nem avaliacoes completas por iteracao.",
+      "Theta atual explica a configuracao vigente; runs OCV novos preservam theta por execucao quando auditados.",
+      "O schema V1 de CognitiveRunAudit ainda nao preserva pesos, temperaturas nem avaliacoes completas por iteracao.",
       "Nenhuma chave, token, prompt bruto, conteudo de usuario ou candidata e retornado.",
     ],
   };

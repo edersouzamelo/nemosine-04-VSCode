@@ -32,7 +32,7 @@ const allowedTransitions: Record<CognitiveState, CognitiveState[]> = {
 export class CognitiveStateMachine {
   private currentState: CognitiveState;
   private readonly trace: StateTransitionRecord[] = [];
-  private lastTransitionAt = Date.now();
+  private lastTransitionAt = performance.now();
 
   constructor(initialState: CognitiveState = "RECEIVED") {
     this.currentState = initialState;
@@ -51,14 +51,14 @@ export class CognitiveStateMachine {
   }
 
   transition(to: CognitiveState, note?: string) {
-    const now = Date.now();
+    const now = performance.now();
     const allowed = this.canTransition(to);
     const record: StateTransitionRecord = {
       from: this.currentState,
       to,
-      at: new Date(now).toISOString(),
+      at: new Date().toISOString(),
       allowed,
-      latencyMs: now - this.lastTransitionAt,
+      latencyMs: Number(Math.max(0, now - this.lastTransitionAt).toFixed(3)),
       note,
     };
     this.trace.push(record);

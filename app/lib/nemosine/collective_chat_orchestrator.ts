@@ -32,6 +32,9 @@ import {
 } from "./payload_hygiene";
 import { retainActiveTopicsFromUserMessage } from "./conversation_continuity";
 import { observeCognitiveFoundationResponse } from "./cognitive-foundation";
+import { readCognitiveRuntimeConfig } from "./cognitive-runtime/config";
+import { runCognitiveRuntime } from "./cognitive-runtime/orchestrator";
+import { createCognitiveRequest } from "./cognitive-runtime/runtime";
 import {
   evaluatePersonaInitiativeQuality,
   renderPersonaInitiativeRepairFeedback,
@@ -422,6 +425,12 @@ async function runPersonaGeneration(input: {
   let memoryWrites = 0;
   let status: "COMPLETED" | "FAILED" = "COMPLETED";
   let errorCode: string | null = null;
+  let cognitiveRuntimeMetadata: {
+    runId: string;
+    promoted: boolean;
+    promotionDecision: string;
+    sideEffectStatus: string;
+  } | null = null;
 
   try {
     const promptAssembly = await buildSystemPromptAssembly(
@@ -570,17 +579,99 @@ async function runPersonaGeneration(input: {
       generationUsage = bestRejected?.usage;
     }
 
-    const effects = await commitPersonaLegacyEffects({
-      rawText: selectedRawText,
-      userId: input.round.userId,
-      activeThreadId: input.round.threadId,
-      memoryScope,
-      personaId: input.participant.personaId,
-      userText: input.round.userText,
-    });
-    memoryWrites = effects.memoryWrites;
+    const runtimeConfig = readCognitiveRuntimeConfig();
+    if (runtimeConfig.mode === "enforce") {
+      const cognitiveRequest = createCognitiveRequest({
+        userId: input.round.userId,
+        threadId: input.round.threadId,
+        personaId: input.participant.personaId,
+        placeId: input.round.placeId || null,
+        language: input.round.language,
+        userText: input.round.userText,
+        displayUserText: input.round.displayUserText,
+        memoryScope,
+        priorHistory: input.round.priorHistory.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          timestamp: message.timestamp,
+        })),
+      });
+      const runtimeResult = await runCognitiveRuntime(cognitiveRequest, {
+        config: runtimeConfig,
+        candidateOverride: visibleText,
+        persistAssistantMessage: async ({ answer }) => {
+          await updatePersonaMessageGeneration(input.round.userId, input.messageId, answer, "COMPLETED");
+          return {
+            persisted: true,
+            messageId: input.messageId,
+          };
+        },
+      });
+      if (!runtimeResult.deliveryPersisted) {
+        throw new Error(`cognitive_delivery_failed:${runtimeResult.audit.failureReason || runtimeResult.deliveryStatus}`);
+      }
+      visibleText = runtimeResult.answer;
+      selectedRawText = runtimeResult.answer;
+      memoryWrites = runtimeResult.sideEffectCounts.memory;
+      cognitiveRuntimeMetadata = {
+        runId: runtimeResult.runId,
+        promoted: runtimeResult.promoted,
+        promotionDecision: runtimeResult.audit.promotionDecision,
+        sideEffectStatus: runtimeResult.sideEffectStatus,
+      };
+      generationUsage = {
+        llm: generationUsage || null,
+        cognitiveRuntime: {
+          runId: runtimeResult.runId,
+          promoted: runtimeResult.promoted,
+          promotionDecision: runtimeResult.audit.promotionDecision,
+          sideEffectStatus: runtimeResult.sideEffectStatus,
+          sideEffectCounts: runtimeResult.sideEffectCounts,
+        },
+      };
+    } else {
+      const effects = await commitPersonaLegacyEffects({
+        rawText: selectedRawText,
+        userId: input.round.userId,
+        activeThreadId: input.round.threadId,
+        memoryScope,
+        personaId: input.participant.personaId,
+        userText: input.round.userText,
+      });
+      memoryWrites = effects.memoryWrites;
 
-    await updatePersonaMessageGeneration(input.round.userId, input.messageId, visibleText, "COMPLETED");
+      await updatePersonaMessageGeneration(input.round.userId, input.messageId, visibleText, "COMPLETED");
+
+      if (runtimeConfig.mode === "shadow") {
+        const cognitiveRequest = createCognitiveRequest({
+          userId: input.round.userId,
+          threadId: input.round.threadId,
+          personaId: input.participant.personaId,
+          placeId: input.round.placeId || null,
+          language: input.round.language,
+          userText: input.round.userText,
+          displayUserText: input.round.displayUserText,
+          memoryScope,
+          priorHistory: input.round.priorHistory.map((message) => ({
+            id: message.id,
+            role: message.role,
+            content: message.content,
+            timestamp: message.timestamp,
+          })),
+        });
+        await runCognitiveRuntime(cognitiveRequest, {
+          config: runtimeConfig,
+          candidateOverride: visibleText,
+        }).catch((error) => {
+          console.error("[CollectiveChat] Cognitive runtime shadow audit failed:", {
+            threadId: input.round.threadId,
+            personaId: input.participant.personaId,
+            errorCode: safeErrorCode(error),
+          });
+        });
+      }
+    }
     await retainPersonaConversationEpisode({
       userId: input.round.userId,
       personaId: input.participant.personaId,
@@ -634,6 +725,10 @@ async function runPersonaGeneration(input: {
       messageId: input.messageId,
       delta: visibleText,
       status: "STREAMING",
+      cognitiveRuntime: cognitiveRuntimeMetadata ? "enforce" : undefined,
+      cognitiveRunId: cognitiveRuntimeMetadata?.runId,
+      cognitivePromoted: cognitiveRuntimeMetadata?.promoted,
+      cognitivePromotionDecision: cognitiveRuntimeMetadata?.promotionDecision,
     });
     enqueueEvent(input.controller, {
       type: "persona-finish",
@@ -642,6 +737,10 @@ async function runPersonaGeneration(input: {
       messageId: input.messageId,
       content: visibleText,
       status: "COMPLETED",
+      cognitiveRuntime: cognitiveRuntimeMetadata ? "enforce" : undefined,
+      cognitiveRunId: cognitiveRuntimeMetadata?.runId,
+      cognitivePromoted: cognitiveRuntimeMetadata?.promoted,
+      cognitivePromotionDecision: cognitiveRuntimeMetadata?.promotionDecision,
     });
 
     await prisma.collectiveGenerationAudit.create({

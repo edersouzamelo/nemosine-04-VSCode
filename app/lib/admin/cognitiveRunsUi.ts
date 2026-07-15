@@ -73,7 +73,7 @@ export const metricExplanations = {
   theta: {
     label: "THETA",
     tooltip: "Limite minimo necessario para aprovacao pelo Vigia quando esse limite foi armazenado.",
-    expanded: "A auditoria V1 nao persiste theta por run; quando ausente, exibimos Nao armazenado.",
+    expanded: "Runs OCV novos persistem theta por execucao; quando ausente, exibimos Nao armazenado.",
   },
   averageIterations: {
     label: "ITERACOES MEDIAS",
@@ -519,7 +519,7 @@ export function coherenceTooltip(run: RunLike) {
 
 export function thresholdTooltip(run: RunLike) {
   if (run.coherenceThreshold == null) {
-    return "Theta nao foi preservado no schema atual da auditoria; nao presumir 0,80.";
+    return "Theta nao foi preservado nesta auditoria; nao presumir 0,80.";
   }
   return "Theta armazenado para esta execucao.";
 }
