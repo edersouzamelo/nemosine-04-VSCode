@@ -16,6 +16,9 @@ interface NavbarProps {
     onCollapsedChange?: (collapsed: boolean) => void;
 }
 
+type NavbarVisibilityMode = "visible" | "auto" | "immersive";
+const NAVBAR_VISIBILITY_STORAGE_KEY = "nemosine-navbar-visibility-mode";
+
 export default function Navbar({ mobileCollapsible = false, defaultMobileCollapsed = false, collapsed, onCollapsedChange }: NavbarProps) {
     const pathname = usePathname();
     const { data: session, status } = useSession();
@@ -25,25 +28,53 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const [menuVisible, setMenuVisible] = useState(false);
     const [settingsVisible, setSettingsVisible] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
+    const [navbarMode, setNavbarMode] = useState<NavbarVisibilityMode>("visible");
     const [globalFullscreen, setGlobalFullscreen] = useState(false);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
-    const effectiveNavbarHidden = collapsed ?? navbarHidden;
+    const effectiveNavbarHidden = navbarMode === "visible"
+        ? false
+        : navbarMode === "immersive"
+            ? true
+            : collapsed ?? navbarHidden;
     const setNavbarCollapsed = useCallback((next: boolean | ((current: boolean) => boolean)) => {
         const nextValue = typeof next === "function" ? next(effectiveNavbarHidden) : next;
+        if (navbarMode === "visible" && nextValue) {
+            setNavbarMode("immersive");
+            return;
+        }
+        if (navbarMode === "immersive" && !nextValue) {
+            setNavbarMode("visible");
+            return;
+        }
         if (collapsed === undefined) {
             setNavbarHidden(nextValue);
         }
         onCollapsedChange?.(nextValue);
-    }, [collapsed, effectiveNavbarHidden, onCollapsedChange]);
+    }, [collapsed, effectiveNavbarHidden, navbarMode, onCollapsedChange]);
 
     useEffect(() => {
         if (localStorage.getItem("nemosine-global-fullscreen") === "true") {
             setGlobalFullscreen(true);
         }
+        const storedMode = localStorage.getItem(NAVBAR_VISIBILITY_STORAGE_KEY) as NavbarVisibilityMode | null;
+        if (storedMode === "visible" || storedMode === "auto" || storedMode === "immersive") {
+            setNavbarMode(storedMode);
+        } else {
+            setNavbarMode("visible");
+        }
     }, []);
+
+    useEffect(() => {
+        localStorage.setItem(NAVBAR_VISIBILITY_STORAGE_KEY, navbarMode);
+        if (navbarMode === "visible") {
+            onCollapsedChange?.(false);
+        } else if (navbarMode === "immersive") {
+            onCollapsedChange?.(true);
+        }
+    }, [navbarMode, onCollapsedChange]);
 
     useEffect(() => {
         document.documentElement.classList.toggle("nemosine-global-fullscreen", globalFullscreen);
@@ -153,13 +184,23 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const toggleMobileCollapse = () => {
         setMenuOpen(false);
         setSettingsOpen(false);
-        setNavbarCollapsed((hidden) => !hidden);
+        if (navbarMode === "immersive") {
+            setNavbarMode("visible");
+        } else {
+            setNavbarCollapsed((hidden) => !hidden);
+        }
     };
 
     const collapseNavbar = () => {
         setMenuOpen(false);
         setSettingsOpen(false);
-        setNavbarCollapsed(true);
+        setNavbarMode("immersive");
+    };
+
+    const cycleNavbarMode = () => {
+        setMenuOpen(false);
+        setSettingsOpen(false);
+        setNavbarMode((mode) => mode === "visible" ? "auto" : mode === "auto" ? "immersive" : "visible");
     };
 
     const enterGlobalFullscreen = useCallback(async () => {
@@ -208,6 +249,11 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         ? language.startsWith("pt") ? "Reduzir programa" : "Reduce program"
         : language.startsWith("pt") ? "Ampliar programa" : "Expand program";
     const collapseMenuLabel = language.startsWith("pt") ? "Recolher menu" : "Collapse menu";
+    const navbarModeLabel = navbarMode === "visible"
+        ? language.startsWith("pt") ? "Manter menu visivel" : "Keep menu visible"
+        : navbarMode === "auto"
+            ? language.startsWith("pt") ? "Menu automatico" : "Automatic menu"
+            : language.startsWith("pt") ? "Fixar modo imersivo" : "Pin immersive mode";
 
     const isAuthenticated = status === "authenticated" && Boolean(session?.user);
     return (
@@ -413,6 +459,20 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
                                 className="order-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c5a059]/25 bg-black/25 text-[#c5a059]/70 transition-all hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059]"
                             >
                                 <span className="material-icons text-lg">keyboard_arrow_up</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={cycleNavbarMode}
+                                title={navbarModeLabel}
+                                aria-label={navbarModeLabel}
+                                aria-pressed={navbarMode !== "auto"}
+                                data-navbar-visibility-mode={navbarMode}
+                                className="order-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c5a059]/25 bg-black/25 text-[#c5a059]/70 transition-all hover:border-[#c5a059]/60 hover:bg-[#c5a059]/10 hover:text-[#c5a059]"
+                            >
+                                <span className="material-icons text-lg">
+                                    {navbarMode === "visible" ? "lock_open" : navbarMode === "auto" ? "sync_alt" : "lock"}
+                                </span>
                             </button>
 
                             <div className="relative order-4 shrink-0" ref={menuRef}>

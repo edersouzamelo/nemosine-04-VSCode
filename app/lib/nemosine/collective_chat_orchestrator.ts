@@ -320,6 +320,71 @@ function extractScoreGuesses(messages: CompletedRoundMessage[]) {
   return [...guesses];
 }
 
+function normalizeCollectiveText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\b(o|a|os|as|um|uma|uns|umas|de|do|da|dos|das|em|no|na|nos|nas|para|por|com|que|e|eu|voce|agora)\b/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenSet(value: string) {
+  return new Set(normalizeCollectiveText(value).split(" ").filter((token) => token.length > 3));
+}
+
+function jaccardSimilarity(left: Set<string>, right: Set<string>) {
+  if (left.size === 0 || right.size === 0) return 0;
+  let intersection = 0;
+  for (const token of left) {
+    if (right.has(token)) intersection += 1;
+  }
+  return intersection / (left.size + right.size - intersection);
+}
+
+export function detectCollectiveDuplicateResponse(candidate: string, completedMessages: CompletedRoundMessage[]) {
+  const normalizedCandidate = normalizeCollectiveText(candidate);
+  const candidateTokens = tokenSet(candidate);
+  for (const completed of completedMessages) {
+    const normalizedCompleted = normalizeCollectiveText(completed.content);
+    const exactStructure = normalizedCandidate.length > 40 && (
+      normalizedCandidate.includes(normalizedCompleted.slice(0, 80))
+      || normalizedCompleted.includes(normalizedCandidate.slice(0, 80))
+    );
+    const similarity = jaccardSimilarity(candidateTokens, tokenSet(completed.content));
+    if (exactStructure || similarity >= 0.72) {
+      return {
+        duplicate: true,
+        matchedPersonaId: completed.personaId,
+        similarity,
+      };
+    }
+  }
+  return { duplicate: false, matchedPersonaId: null, similarity: 0 };
+}
+
+function buildComplementaryCollectiveFallback(input: {
+  personaId: string;
+  role: "HOST" | "GUEST";
+  userText: string;
+  completedMessages: CompletedRoundMessage[];
+  duplicateOf: string;
+  contract: PersonaBehaviorContract;
+}) {
+  const first = input.completedMessages.find((message) => message.personaId === input.duplicateOf);
+  const roleLine = input.role === "HOST"
+    ? "Eu mantenho a passagem do anfitriao, mas nao vou repetir a mesma fala."
+    : "Eu entro como convidado, entao minha obrigacao e acrescentar angulo, nao eco.";
+  return [
+    roleLine,
+    `${first?.personaId || "A voz anterior"} ja ocupou esse caminho. Pela minha funcao, eu acrescento isto: ${input.contract.expectedInference.replace(/\.$/, "").toLowerCase()}.`,
+    `Neste caso, o ponto que eu isolaria e: ${input.userText.slice(0, 220)}.`,
+    "Se essa leitura nao acrescentar nada ao que ja foi dito, mantenha apenas a fala anterior como resposta principal deste turno.",
+  ].join("\n\n");
+}
+
 function buildCollectiveAntiHerdRule(participant: { personaId: string; role: "HOST" | "GUEST" }, completedMessages: CompletedRoundMessage[]) {
   const previousScoreGuesses = extractScoreGuesses(completedMessages);
   const lines = [
@@ -579,6 +644,33 @@ async function runPersonaGeneration(input: {
       generationUsage = bestRejected?.usage;
     }
 
+    let duplicateReplacement = false;
+    const preRuntimeDuplicate = detectCollectiveDuplicateResponse(visibleText, input.completedRoundMessages);
+    if (preRuntimeDuplicate.duplicate) {
+      duplicateReplacement = true;
+      visibleText = buildComplementaryCollectiveFallback({
+        personaId: input.participant.personaId,
+        role: input.participant.role,
+        userText: input.round.displayUserText || input.round.userText,
+        completedMessages: input.completedRoundMessages,
+        duplicateOf: preRuntimeDuplicate.matchedPersonaId || "persona anterior",
+        contract: promptAssembly.initiative.contract,
+      });
+      selectedRawText = visibleText;
+      console.warn("[CollectiveChat] COLLECTIVE_DUPLICATE_DETECTED", {
+        threadId: input.round.threadId,
+        turnGroupId: input.turnGroupId,
+        personaId: input.participant.personaId,
+        matchedPersonaId: preRuntimeDuplicate.matchedPersonaId,
+        similarity: Number(preRuntimeDuplicate.similarity.toFixed(3)),
+      });
+      console.info("[CollectiveChat] COLLECTIVE_RESPONSE_REGENERATED", {
+        threadId: input.round.threadId,
+        turnGroupId: input.turnGroupId,
+        personaId: input.participant.personaId,
+      });
+    }
+
     const runtimeConfig = readCognitiveRuntimeConfig();
     if (runtimeConfig.mode === "enforce") {
       const cognitiveRequest = createCognitiveRequest({
@@ -597,22 +689,60 @@ async function runPersonaGeneration(input: {
           timestamp: message.timestamp,
         })),
       });
-      const runtimeResult = await runCognitiveRuntime(cognitiveRequest, {
+      const persistPromotedPersonaMessage = async ({ answer }: { answer: string }) => {
+        await updatePersonaMessageGeneration(input.round.userId, input.messageId, answer, "COMPLETED");
+        return {
+          persisted: true,
+          messageId: input.messageId,
+        };
+      };
+      let runtimeResult = await runCognitiveRuntime(cognitiveRequest, {
         config: runtimeConfig,
         candidateOverride: visibleText,
-        persistAssistantMessage: async ({ answer }) => {
-          await updatePersonaMessageGeneration(input.round.userId, input.messageId, answer, "COMPLETED");
-          return {
-            persisted: true,
-            messageId: input.messageId,
-          };
-        },
+        persistAssistantMessage: persistPromotedPersonaMessage,
       });
       if (!runtimeResult.deliveryPersisted) {
         throw new Error(`cognitive_delivery_failed:${runtimeResult.audit.failureReason || runtimeResult.deliveryStatus}`);
       }
       visibleText = runtimeResult.answer;
       selectedRawText = runtimeResult.answer;
+      const postRuntimeDuplicate = detectCollectiveDuplicateResponse(visibleText, input.completedRoundMessages);
+      if (postRuntimeDuplicate.duplicate) {
+        duplicateReplacement = true;
+        visibleText = buildComplementaryCollectiveFallback({
+          personaId: input.participant.personaId,
+          role: input.participant.role,
+          userText: input.round.displayUserText || input.round.userText,
+          completedMessages: input.completedRoundMessages,
+          duplicateOf: postRuntimeDuplicate.matchedPersonaId || "persona anterior",
+          contract: promptAssembly.initiative.contract,
+        });
+        selectedRawText = visibleText;
+        console.warn("[CollectiveChat] COLLECTIVE_DUPLICATE_DETECTED", {
+          threadId: input.round.threadId,
+          turnGroupId: input.turnGroupId,
+          personaId: input.participant.personaId,
+          matchedPersonaId: postRuntimeDuplicate.matchedPersonaId,
+          similarity: Number(postRuntimeDuplicate.similarity.toFixed(3)),
+          phase: "post-runtime",
+        });
+        console.info("[CollectiveChat] COLLECTIVE_RESPONSE_REGENERATED", {
+          threadId: input.round.threadId,
+          turnGroupId: input.turnGroupId,
+          personaId: input.participant.personaId,
+          phase: "post-runtime",
+        });
+        runtimeResult = await runCognitiveRuntime(cognitiveRequest, {
+          config: runtimeConfig,
+          candidateOverride: visibleText,
+          persistAssistantMessage: persistPromotedPersonaMessage,
+        });
+        if (!runtimeResult.deliveryPersisted) {
+          throw new Error(`cognitive_delivery_failed:${runtimeResult.audit.failureReason || runtimeResult.deliveryStatus}`);
+        }
+        visibleText = runtimeResult.answer;
+        selectedRawText = runtimeResult.answer;
+      }
       memoryWrites = runtimeResult.sideEffectCounts.memory;
       cognitiveRuntimeMetadata = {
         runId: runtimeResult.runId,
@@ -753,7 +883,9 @@ async function runPersonaGeneration(input: {
         generationStatus: "COMPLETED",
         latencyMs: Date.now() - startedAt,
         model: activeChatModel.model,
-        tokens: generationUsage || undefined,
+        tokens: duplicateReplacement
+          ? { llm: generationUsage || null, collectiveDuplicateReplacement: true }
+          : generationUsage || undefined,
         memoryWrites,
         filteredHistoryCount,
       },

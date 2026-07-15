@@ -5,6 +5,7 @@ require("./load-ts.cjs");
 const {
   resolveVocationalTargets,
   buildPersonaHandoffOffer,
+  buildHostStyledHandoffAnswer,
 } = require("../../app/lib/nemosine/handoff.ts");
 
 function source(path) {
@@ -89,6 +90,31 @@ test("handoff answer names a concrete target and never exposes vocational placeh
   assert.doesNotMatch(offer.answer, /uma persona mais adequada|aplicar essa missao|preservando diferenca de voz/i);
 });
 
+test("host styled handoff keeps persona voice instead of bureaucratic template", () => {
+  const inimigo = buildHostStyledHandoffAnswer({
+    sourcePersona: "Inimigo",
+    targetPersona: "Autor",
+    reason: "Para transformar o material vivido em forma narrativa.",
+  });
+  const mentor = buildHostStyledHandoffAnswer({
+    sourcePersona: "Mentor",
+    targetPersona: "Estrategista",
+    reason: "Para organizar prioridade e plano.",
+  });
+  const cientista = buildHostStyledHandoffAnswer({
+    sourcePersona: "Cientista",
+    targetPersona: "Estrategista",
+    reason: "Para organizar prioridade e plano.",
+  });
+
+  assert.match(inimigo, /mordendo|flanco|faca|corte/i);
+  assert.match(mentor, /eixo|sentido|companhia/i);
+  assert.match(cientista, /fatos|hipoteses|criterios observaveis/i);
+  assert.doesNotMatch(inimigo + mentor + cientista, /rota vocacional mais direta|texto burocratico/i);
+  assert.notEqual(inimigo, mentor);
+  assert.notEqual(mentor, cientista);
+});
+
 test("chat route reuses persisted handoff options and blocks duplicate fallback loops", () => {
   const chatRoute = source("app/api/chat/route.ts");
   const orchestrator = source("app/lib/nemosine/cognitive-runtime/orchestrator.ts");
@@ -96,6 +122,7 @@ test("chat route reuses persisted handoff options and blocks duplicate fallback 
   assert.match(chatRoute, /HANDOFF_REUSED_FROM_HISTORY/);
   assert.match(chatRoute, /persistHandoffEvents:\s*false/);
   assert.match(chatRoute, /VOCATIONAL_TARGET_RESOLVED/);
+  assert.match(chatRoute, /HOST_STYLED_HANDOFF_COMPOSED/);
   assert.match(chatRoute, /HANDOFF_OPTIONS_PRESENTED/);
   assert.match(chatRoute, /buildHandoffOffersFromResolution/);
   assert.doesNotMatch(orchestrator, /uma persona mais adequada/);

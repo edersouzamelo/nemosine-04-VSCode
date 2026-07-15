@@ -66,6 +66,7 @@ import {
 import type { ResponsePipelineRequest } from '@/app/lib/nemosine/response';
 import { observeCognitiveFoundationResponse } from '@/app/lib/nemosine/cognitive-foundation';
 import {
+    buildHostStyledHandoffAnswer,
     buildPersonaHandoffOffer,
     encodeHandoffMarker,
     inferHandoffTarget,
@@ -172,22 +173,14 @@ function buildVocationalAnswer(input: {
     offers: PersonaHandoffOffer[];
     reused?: boolean;
 }) {
-    const names = input.offers.map((offer) => offer.targetPersona);
     const first = input.offers[0];
-    const secondary = input.offers.slice(1, 3);
-    const scientistPrefix = input.sourcePersona === "Cientista"
-        ? "Consigo ajuda-lo a separar fatos, hipoteses, padroes e criterios observaveis nessa situacao."
-        : `Consigo continuar pelo meu campo, mas vejo uma rota vocacional mais direta.`;
-    const alternatives = secondary.length
-        ? ` Tambem faz sentido considerar ${secondary.map((offer) => `${offer.targetPersona}, ${offer.reason.toLowerCase()}`).join("; ")}.`
-        : "";
-    return [
-        scientistPrefix,
-        `${first.targetPersona} e a opcao mais direta agora: ${first.reason.toLowerCase()}.${alternatives}`,
-        input.reused
-            ? `Eu ja deixei essas opcoes registradas no cartao de encaminhamento: ${names.join(", ")}.`
-            : `Deixei um cartao com ${names.join(", ")} para voce abrir uma conversa ou convidar alguem para esta conversa.`,
-    ].join("\n\n");
+    return buildHostStyledHandoffAnswer({
+        sourcePersona: input.sourcePersona,
+        targetPersona: first.targetPersona,
+        reason: first.reason,
+        alternatives: input.offers,
+        reused: input.reused,
+    });
 }
 
 function buildHandoffOffersFromResolution(input: {
@@ -927,6 +920,12 @@ export async function POST(req: NextRequest) {
                 event: "HANDOFF_OPTIONS_PRESENTED",
                 threadId: activeThreadId,
                 targetCount: offers.length,
+            });
+            console.info("[VocationalTargetResolver]", {
+                event: "HOST_STYLED_HANDOFF_COMPOSED",
+                threadId: activeThreadId,
+                sourcePersona: personaId,
+                targetPersona: offers[0]?.targetPersona,
             });
             return deliverEnforcedCognitiveRuntime({
                 candidateOverride: buildVocationalAnswer({

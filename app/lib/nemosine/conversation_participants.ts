@@ -439,7 +439,8 @@ export function detectAddressedParticipantIds(text: string, participants: Array<
       const startsWithName = new RegExp(`^@?${namePattern}(?:\\s|,|:|;|$)`, "u").test(normalizedText);
       const sentenceVocative = new RegExp(`(?:^|[.!?;]\\s+)@?${namePattern}\\s*(?:,|:|;)`, "u").test(normalizedText);
       const explicitTarget = new RegExp(`\\b(?:para|pra|pro|ao|a)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText)
-        || new RegExp(`\\b(?:pergunta|duvida|questao)\\s+(?:e\\s+)?(?:para|pra|pro|ao|a)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText);
+        || new RegExp(`\\b(?:pergunta|duvida|questao)\\s+(?:e\\s+)?(?:para|pra|pro|ao|a)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText)
+        || new RegExp(`\\b(?:chamei|convidei|trouxe|chama|convide)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText);
       return startsWithName || sentenceVocative || explicitTarget ? participant.personaId : null;
     })
     .filter((personaId): personaId is string => Boolean(personaId));

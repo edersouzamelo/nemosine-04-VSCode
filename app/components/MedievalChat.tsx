@@ -922,6 +922,17 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             setMultiPersonaEnabled(Boolean(data.enabled || data.migrationRequired));
             setParticipants(Array.isArray(data.participants) ? data.participants : []);
             setParticipantGuestCount(Number(data.guestCount || 0));
+            if (action === "invite") {
+                const joinedMessage = {
+                    id: `presence-participant-joined-${targetPersonaId}-${Date.now()}`,
+                    role: "system",
+                    content: `${targetPersonaId} entrou na conversa.`,
+                    parts: [{ type: "text", text: `${targetPersonaId} entrou na conversa.` }],
+                    messageKind: "SYSTEM_EVENT",
+                    speakerPersonaId: targetPersonaId,
+                } as CollectiveMessage;
+                replaceMessages([...messagesRef.current, joinedMessage as UIMessage]);
+            }
         } catch (mutationError) {
             setCollectiveError(mutationError instanceof Error ? mutationError.message : "Nao foi possivel atualizar participantes.");
         } finally {
@@ -929,7 +940,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 setPendingParticipantIds((current) => current.filter((personaId) => personaId !== targetPersonaId));
             }
         }
-    }, [onThreadCreated, participants, pendingParticipantIds, personaId, placeId]);
+    }, [onThreadCreated, participants, pendingParticipantIds, personaId, placeId, replaceMessages]);
 
     const isLoading = status === 'submitted' || status === 'streaming' || collectiveStatus !== "idle" || pendingParticipantIds.length > 0;
     const showThinkingIndicator = status === 'submitted'
@@ -1145,13 +1156,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         clearError();
         clearComposer();
         const shouldUseCollective = multiPersonaEnabled
-            && (participantGuestCount > 0 || hasLocalPresenceCommand(`${messageText}\n${hiddenVoiceTranscript}`));
+            && (optimisticGuestCount > 0 || participantGuestCount > 0 || hasLocalPresenceCommand(`${messageText}\n${hiddenVoiceTranscript}`));
         if (shouldUseCollective) {
             await sendCollectiveMessage(messageText, hiddenVoiceTranscript, fileForSend);
         } else {
             await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
         }
-    }, [clearComposer, clearError, multiPersonaEnabled, participantGuestCount, sendCollectiveMessage, sendMessage]);
+    }, [clearComposer, clearError, multiPersonaEnabled, optimisticGuestCount, participantGuestCount, sendCollectiveMessage, sendMessage]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();

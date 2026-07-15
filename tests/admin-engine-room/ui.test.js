@@ -28,6 +28,7 @@ const {
   getAdminDashboardCards,
   getAdminDropdownLinks,
 } = require("../../app/lib/admin/navigation.ts");
+const fs = require("fs");
 
 test("no-audit empty state renders dignified copy", () => {
   const copy = emptyStateCopy("no-audits");
@@ -132,4 +133,34 @@ test("metric tooltips and finding dictionary are readable in Portuguese", () => 
   const degraded = describeFindingCode("SCIENTIST_STRUCTURED_DEGRADED");
   assert.equal(degraded.category, "Degradacao de infraestrutura");
   assert.match(degraded.effect, /Nao bloqueia isoladamente/);
+});
+
+test("cognitive foundation panel explains off modules without activating them", () => {
+  const source = fs.readFileSync("app/admin/sala-de-maquinas/SalaDeMaquinasClient.tsx", "utf8");
+
+  assert.match(source, /Desativado por configuracao/);
+  assert.match(source, /independentes do ciclo O-C-V/);
+  assert.match(source, /COGNITIVE_USER_GRAPH_MODE/);
+  assert.match(source, /Matriz|Recomendacao|manter desligado ate teste especifico/i);
+  assert.doesNotMatch(source, /set.*userGraphMode.*enforce/i);
+});
+
+test("navbar keeps menu visible by default and persists optional immersive mode", () => {
+  const source = fs.readFileSync("app/components/Navbar.tsx", "utf8");
+
+  assert.match(source, /nemosine-navbar-visibility-mode/);
+  assert.match(source, /NavbarVisibilityMode = "visible" \| "auto" \| "immersive"/);
+  assert.match(source, /useState<NavbarVisibilityMode>\("visible"\)/);
+  assert.match(source, /Manter menu visivel/);
+  assert.match(source, /Fixar modo imersivo/);
+});
+
+test("route transition uses isolated portal and exclusive animation classes", () => {
+  const source = fs.readFileSync("app/components/RouteTransition.tsx", "utf8");
+
+  assert.match(source, /createPortal/);
+  assert.match(source, /nemosine-route-transition-root/);
+  assert.match(source, /nemosine-route-transition-ring/);
+  assert.match(source, /prefers-reduced-motion/);
+  assert.doesNotMatch(source, /\.animate-spin/);
 });

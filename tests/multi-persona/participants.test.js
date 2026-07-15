@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("fs");
 require("../cognitive-runtime/load-ts.cjs");
 
 const {
@@ -10,6 +11,9 @@ const {
   getThreadHostAndPlace,
   selectSpeakingParticipantsForRound,
 } = require("../../app/lib/nemosine/conversation_participants.ts");
+const {
+  detectCollectiveDuplicateResponse,
+} = require("../../app/lib/nemosine/collective_chat_orchestrator.ts");
 
 test("validates persona entities", () => {
   assert.equal(assertPersonaCanParticipate("Cientista").name, "Cientista");
@@ -53,4 +57,42 @@ test("selects only addressed unmuted participants for directed turns", () => {
     selectSpeakingParticipantsForRound(participants, "Vigia, responda isso").map((participant) => participant.personaId),
     [],
   );
+});
+
+test("recognizes first turn after invitation as addressed to the invited persona", () => {
+  const participants = [
+    { personaId: "Inimigo", role: "HOST", active: true, muted: false },
+    { personaId: "Autor", role: "GUEST", active: true, muted: false },
+  ];
+
+  assert.deepEqual(detectAddressedParticipantIds("chamei o Autor, e agora?", participants), ["Autor"]);
+  assert.deepEqual(
+    selectSpeakingParticipantsForRound(participants, "chamei o Autor, e agora?").map((participant) => participant.personaId),
+    ["Autor"],
+  );
+});
+
+test("collective duplicate detector catches near-identical persona answers", () => {
+  const duplicate = detectCollectiveDuplicateResponse(
+    "O sistema esta instavel. Esta persona nao conseguiu concluir a resposta agora.",
+    [{ personaId: "Inimigo", role: "HOST", content: "O sistema esta instavel. Esta persona nao conseguiu concluir a resposta agora." }],
+  );
+  const distinct = detectCollectiveDuplicateResponse(
+    "Eu entro como Autor: dou forma narrativa ao que ainda aparece como confusao.",
+    [{ personaId: "Inimigo", role: "HOST", content: "Eu ja apontei a ferida e o flanco vulneravel." }],
+  );
+
+  assert.equal(duplicate.duplicate, true);
+  assert.equal(duplicate.matchedPersonaId, "Inimigo");
+  assert.equal(distinct.duplicate, false);
+});
+
+test("chat UI sends first post-invite message through collective route", () => {
+  const source = fs.readFileSync("app/components/MedievalChat.tsx", "utf8");
+  const collective = fs.readFileSync("app/lib/nemosine/collective_chat_orchestrator.ts", "utf8");
+
+  assert.match(source, /optimisticGuestCount > 0/);
+  assert.match(source, /entrou na conversa/);
+  assert.match(collective, /COLLECTIVE_DUPLICATE_DETECTED/);
+  assert.match(collective, /COLLECTIVE_RESPONSE_REGENERATED/);
 });

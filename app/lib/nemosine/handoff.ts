@@ -222,9 +222,53 @@ export function inferHandoffTarget(input: {
   }).primaryTargetPersonaId;
 }
 
-function sourceCapability(sourcePersona: string) {
-  const contract = getPersonaBehaviorContract(sourcePersona);
-  return contract.operationalMission.replace(/\.$/, "").toLowerCase();
+export function buildHostStyledHandoffAnswer(input: {
+  sourcePersona: string;
+  targetPersona: string;
+  reason: string;
+  alternatives?: PersonaHandoffOffer[];
+  reused?: boolean;
+}) {
+  const sourceContract = getPersonaBehaviorContract(input.sourcePersona);
+  const targetReason = input.reason.replace(/\.$/, "").toLowerCase();
+  const alternatives = (input.alternatives || [])
+    .filter((offer) => offer.targetPersona !== input.targetPersona)
+    .slice(0, 2);
+  const alternativeLine = alternatives.length
+    ? ` Tambem ha ${alternatives.map((offer) => `${offer.targetPersona}, ${offer.reason.replace(/\.$/, "").toLowerCase()}`).join("; ")}.`
+    : "";
+  const reusedLine = input.reused
+    ? "Eu ja deixei esse caminho registrado no cartao de encaminhamento; escolha ali se quer abrir outra sala ou trazer essa voz para ca."
+    : "Deixei o cartao de encaminhamento pronto para voce abrir a conversa ou convidar essa voz para ca.";
+
+  const key = normalize(input.sourcePersona);
+  if (key === "inimigo") {
+    return [
+      `Posso continuar mordendo o flanco fraco do seu relato; isso ainda e meu terreno.`,
+      `${input.targetPersona}, porem, entra melhor agora porque ${targetReason}.${alternativeLine} Nao e uma fuga elegante: e escolher a faca certa para o corte certo.`,
+      reusedLine,
+    ].join("\n\n");
+  }
+  if (key === "mentor") {
+    return [
+      "Eu posso sustentar o eixo e o sentido do caminho, sem pressa de empurrar voce para outra porta.",
+      `${input.targetPersona} parece a companhia mais justa para este trecho porque ${targetReason}.${alternativeLine}`,
+      reusedLine,
+    ].join("\n\n");
+  }
+  if (key === "cientista") {
+    return [
+      "Consigo separar fatos, hipoteses, padroes e criterios observaveis antes de qualquer decisao.",
+      `${input.targetPersona} e a rota mais precisa para continuar porque ${targetReason}.${alternativeLine}`,
+      reusedLine,
+    ].join("\n\n");
+  }
+
+  return [
+    `Pelo meu campo, eu continuo a partir desta funcao: ${sourceContract.operationalMission.replace(/\.$/, "").toLowerCase()}.`,
+    `${input.targetPersona} e a melhor continuidade agora porque ${targetReason}.${alternativeLine}`,
+    reusedLine,
+  ].join("\n\n");
 }
 
 export function buildPersonaHandoffOffer(input: {
@@ -240,7 +284,6 @@ export function buildPersonaHandoffOffer(input: {
     ? "um tema sensivel que deve ser revisado antes de qualquer compartilhamento"
     : sanitizeHandoffSummary(input.userText);
   const reason = input.reasonOverride || targetContract.operationalMission.replace(/\.$/, "");
-  const sourceWork = sourceCapability(input.sourcePersona);
   const draft = sensitive
     ? `Vim encaminhado pelo ${input.sourcePersona}. Quero decidir com cuidado o que compartilhar sobre este tema.`
     : `Vim encaminhado pelo ${input.sourcePersona} para conversar sobre: ${summary}`;
@@ -254,11 +297,11 @@ export function buildPersonaHandoffOffer(input: {
     summary,
     draft,
     requiresConfirmation: sensitive,
-    answer: [
-      `Posso olhar para isso dentro do meu campo: ${sourceWork}.`,
-      `${input.targetPersona} e uma opcao concreta para continuar porque ${reason.toLowerCase()}.`,
-      `Para continuar, abra a conversa com ${input.targetPersona}. Eu levo apenas um resumo minimo para voce revisar antes de enviar.`,
-    ].join("\n\n"),
+    answer: buildHostStyledHandoffAnswer({
+      sourcePersona: input.sourcePersona,
+      targetPersona: input.targetPersona,
+      reason: input.reasonOverride || reason,
+    }),
   };
 }
 
