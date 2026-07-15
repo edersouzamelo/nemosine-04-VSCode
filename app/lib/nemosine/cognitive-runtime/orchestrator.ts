@@ -129,6 +129,32 @@ function auditEvent(
   };
 }
 
+function structuredValidatorDegradedFinding(module: "scientist" | "philosopher", error: unknown): CognitiveFinding {
+  const message = error instanceof Error ? error.message : String(error);
+  const label = module === "scientist" ? "Scientist" : "Philosopher";
+  return {
+    code: `${label.toUpperCase()}_STRUCTURED_DEGRADED`,
+    severity: "warning",
+    category: module,
+    explanation: `${label} structured LLM evaluation failed and deterministic ${label} evaluation was used instead: ${message.slice(0, 500)}`,
+    repairInstruction: "Keep the deterministic module output visible in the audit and do not bypass Vigia or the promotion gate.",
+  };
+}
+
+function recordStructuredValidatorDegraded(input: {
+  auditEvents: CognitiveAuditEvent[];
+  module: "scientist" | "philosopher";
+  iteration: number;
+  error: unknown;
+}) {
+  input.auditEvents.push(auditEvent("STRUCTURED_VALIDATOR_DEGRADED", {
+    module: input.module,
+    iteration: input.iteration,
+    errorType: input.error instanceof Error ? input.error.name : "unknown",
+  }));
+  return structuredValidatorDegradedFinding(input.module, input.error);
+}
+
 function evaluateRuntimePersonaInitiative(input: {
   request: CognitiveRequest;
   context: CognitiveContextEnvelope;
@@ -625,6 +651,7 @@ export async function runCognitiveRuntime(
 
       const deterministicScientist = deterministicScientistEvaluation({ candidate, extraction });
       let structuredScientist;
+      let scientistDegradedFinding: CognitiveFinding | undefined;
       if (structuredValidators) {
         try {
           structuredScientist = scientistEvaluationSchema.parse(await provider.evaluateScientist({
@@ -634,15 +661,16 @@ export async function runCognitiveRuntime(
             extraction,
           }));
         } catch (error) {
-          throw new CognitiveRuntimeError(
-            "MALFORMED_STRUCTURED_OUTPUT",
-            `Scientist structured evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
-            {
-              retryable: true,
-              safeMessage: "A avaliacao estruturada do Scientist falhou.",
-            },
-          );
+          scientistDegradedFinding = recordStructuredValidatorDegraded({
+            auditEvents,
+            module: "scientist",
+            iteration: index,
+            error,
+          });
         }
+      }
+      if (scientistDegradedFinding) {
+        deterministicScientist.findings.push(scientistDegradedFinding);
       }
       const scientist = mergeScientistEvaluations(deterministicScientist, structuredScientist);
       iteration.scientist = scientist;
@@ -750,6 +778,7 @@ export async function runCognitiveRuntime(
 
       const deterministicPhilosopher = deterministicPhilosopherEvaluation({ candidate });
       let structuredPhilosopher;
+      let philosopherDegradedFinding: CognitiveFinding | undefined;
       if (config.doubleVigilance && structuredValidators) {
         try {
           structuredPhilosopher = philosopherEvaluationSchema.parse(await provider.evaluatePhilosopher({
@@ -761,15 +790,16 @@ export async function runCognitiveRuntime(
             vigia,
           }));
         } catch (error) {
-          throw new CognitiveRuntimeError(
-            "MALFORMED_STRUCTURED_OUTPUT",
-            `Philosopher structured evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
-            {
-              retryable: true,
-              safeMessage: "A avaliacao estruturada do Philosopher falhou.",
-            },
-          );
+          philosopherDegradedFinding = recordStructuredValidatorDegraded({
+            auditEvents,
+            module: "philosopher",
+            iteration: index,
+            error,
+          });
         }
+      }
+      if (philosopherDegradedFinding) {
+        deterministicPhilosopher.findings.push(philosopherDegradedFinding);
       }
       const philosopher = mergePhilosopherEvaluations(deterministicPhilosopher, structuredPhilosopher);
       iteration.philosopher = philosopher;

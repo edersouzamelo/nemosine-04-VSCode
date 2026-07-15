@@ -364,11 +364,11 @@ test("permissive LLM Philosopher cannot erase deterministic dependency failure",
   assert.equal(result.answer.includes("indispensavel"), false);
 });
 
-test("malformed structured Scientist output fails safe", async () => {
+test("malformed structured Scientist output blocks full-profile promotion", async () => {
   const req = request();
   const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
-    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    config: config({ maxRetries: 0, maxTotalCandidates: 1, defaultProfile: "full" }),
     contextEnvelope: context(req),
     modelProvider: provider({
       candidates: ["Resposta que dependeria de validacao malformada."],
@@ -383,7 +383,34 @@ test("malformed structured Scientist output fails safe", async () => {
   assert.equal(result.finalStatus, "DELIVERED");
   assert.equal(result.deliveryPersisted, true);
   assert.equal(delivery.threadReload(req.runId).content, result.answer);
-  assert.equal(result.audit.failureReason, "MALFORMED_STRUCTURED_OUTPUT");
+  assert.equal(result.answer.includes("Resposta que dependeria"), false);
+  assert.equal(result.audit.promotionDecision, "rejected");
+  assert.equal(result.audit.findingCodes.includes("SCIENTIST_STRUCTURED_DEGRADED"), true);
+  assert.equal(result.audit.auditEvents.some((event) => event.code === "STRUCTURED_VALIDATOR_DEGRADED"), true);
+  assert.equal(result.audit.coherence >= result.audit.coherenceThreshold, true);
+});
+
+test("standard profile can promote with deterministic Scientist when structured Scientist degrades", async () => {
+  const req = request();
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({
+      candidates: ["Resposta tecnica curta e verificavel para o build."],
+      scientists: [{ logicalConsistency: 2 }],
+      philosophers: [philosopher()],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.promoted, true);
+  assert.equal(result.audit.promotionDecision, "promoted");
+  assert.equal(result.audit.findingCodes.includes("SCIENTIST_STRUCTURED_DEGRADED"), true);
+  assert.equal(result.audit.auditEvents.some((event) => event.code === "STRUCTURED_VALIDATOR_DEGRADED"), true);
+  assert.equal(delivery.threadReload(req.runId).content, result.answer);
 });
 
 test("structured extractor failure degrades to deterministic OCV without approving by silence", async () => {
