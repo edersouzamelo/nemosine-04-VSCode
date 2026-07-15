@@ -259,14 +259,18 @@ const softInitiativeCodes = new Set([
   "NO_CONTEXT_USE_WHEN_AVAILABLE",
 ]);
 
-const personaInitiativeCodes = new Set([
-  ...softInitiativeCodes,
-  "FALSE_CONTEXT_DENIAL",
+const basalConversationSoftInitiativeCodes = new Set([
   "GENERIC_INTERVIEW_MODE",
   "INTERROGATIVE_ELICITATION",
+  "EMPTY_FINAL_QUESTION",
+]);
+
+const personaInitiativeCodes = new Set([
+  ...softInitiativeCodes,
+  ...basalConversationSoftInitiativeCodes,
+  "FALSE_CONTEXT_DENIAL",
   "PASSIVE_CONTEXT_WITHHOLDING",
   "SELF_DESCRIPTION_INSTEAD_OF_ACTION",
-  "EMPTY_FINAL_QUESTION",
   "UNSUPPORTED_BIOGRAPHICAL_ASSERTION",
   "PRIVATE_CONTEXT_LEAK",
   "REPETITIVE_LOOP",
@@ -286,10 +290,17 @@ function normalizeInitiativeFindingsForRuntime(input: {
     || input.initiative.richness.openingType === "return"
     || input.request.userText.trim().length <= 80
     || isRecoveryQuestion(input.request.userText);
+  const basalConversationContext = isRecoveryQuestion(input.request.userText)
+    || (
+      softContext
+      && !input.initiative.snapshot.hasSubstantiveContext
+      && input.initiative.snapshot.selectedFronts.length === 0
+    );
 
   let softenedCount = 0;
   const findings = input.initiative.findings.map((finding) => {
-    const shouldSoften = softContext && softInitiativeCodes.has(finding.code);
+    const shouldSoften = (softContext && softInitiativeCodes.has(finding.code))
+      || (basalConversationContext && basalConversationSoftInitiativeCodes.has(finding.code));
     if (shouldSoften) softenedCount += 1;
     return {
       ...finding,
@@ -310,6 +321,7 @@ function normalizeInitiativeFindingsForRuntime(input: {
     blockingFindings,
     softenedCount,
     softContext,
+    basalConversationContext,
   };
 }
 
@@ -972,6 +984,7 @@ export async function runCognitiveRuntime(
         blockingFindingCount: runtimeInitiative.blockingFindings.length,
         softenedFindingCount: runtimeInitiative.softenedCount,
         softContext: runtimeInitiative.softContext,
+        basalConversationContext: runtimeInitiative.basalConversationContext,
         falseContextDenialDetected: runtimeInitiative.findings.some((finding) => finding.code === "FALSE_CONTEXT_DENIAL"),
         genericAssistantLeakDetected: runtimeInitiative.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE" || finding.code === "GENERIC_INTERVIEW_MODE"),
         finalPass: initiative.evaluation.finalPass,

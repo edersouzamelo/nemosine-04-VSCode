@@ -251,6 +251,44 @@ test("casual Mentor greeting uses light profile and promotes without factualSupp
   assert.equal(delivery.threadReload(req.runId).content, result.answer);
 });
 
+test("basal Mentor greeting audits generic interview findings without blocking delivery", async () => {
+  const req = request({
+    personaId: "Mentor",
+    memoryScope: "Mentor",
+    userText: "Ola Mentor.",
+    displayUserText: "Ola Mentor.",
+  });
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req, {
+      functionalContract: {
+        id: "mentor",
+        label: "Contrato especifico: Mentor",
+        family: "strategic",
+        text: "Contrato funcional do Mentor.",
+      },
+      promptHashes: { Mentor: "prompt-hash", personaInitiative: "initiative-hash" },
+    }),
+    modelProvider: provider({ candidates: ["Ola. O que voce gostaria de conversar hoje?"] }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
+    storeAudit: async () => {},
+  });
+
+  const initiativeEvent = result.audit.auditEvents.find((event) => event.code === "PERSONA_INITIATIVE_EVALUATED");
+
+  assert.equal(result.promoted, true);
+  assert.equal(result.audit.promotionDecision, "promoted");
+  assert.equal(result.iterations.length, 1);
+  assert.equal(result.iterations[0].vocation.hardPass, true);
+  assert.ok(result.iterations[0].vocation.findings.some((finding) => finding.code === "GENERIC_INTERVIEW_MODE" || finding.code === "EMPTY_FINAL_QUESTION"));
+  assert.ok((initiativeEvent?.detail?.softenedFindingCount || 0) > 0);
+  assert.equal(initiativeEvent?.detail?.basalConversationContext, true);
+  assert.equal(initiativeEvent?.detail?.blockingFindingCount, 0);
+  assert.equal(delivery.threadReload(req.runId).content, result.answer);
+});
+
 test("candidate fails Scientist gate and succeeds after revision without persisting rejected answer", async () => {
   const req = request();
   const delivery = persistenceHarness();
