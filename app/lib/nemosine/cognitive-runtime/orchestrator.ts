@@ -12,6 +12,7 @@ import { buildRedactedAudit } from "./audit-redaction";
 import { storeCognitiveAudit } from "./audit-store";
 import { extractClaimsAndActions } from "./claim-extractor";
 import { classifyFinding, isInfrastructureDegradationFinding } from "./finding-classification";
+import { buildPersonaHandoffOffer } from "@/app/lib/nemosine/handoff";
 import { deterministicPhilosopherEvaluation, mergePhilosopherEvaluations } from "./philosopher-validator";
 import { createAiSdkCognitiveModelProvider } from "./persona-generator";
 import { evaluatePromotion } from "./promotion-gate";
@@ -59,8 +60,8 @@ type RuntimeDependencies = {
   storeAudit?: (audit: RedactedCognitiveAudit) => Promise<void>;
 };
 
-const SAFE_REJECTION = "Nao posso entregar a resposta gerada nesta execucao, porque ela nao passou pelos controles de coerencia e vigilancia do runtime.";
-const SAFE_FAILURE = "Nao posso concluir esta resposta com seguranca agora. A execucao cognitiva falhou fechada, sem entregar candidato nao validado.";
+const SAFE_REJECTION = "Nao posso entregar essa resposta, porque ela nao ficou confiavel o bastante. Posso seguir com uma alternativa mais simples e segura.";
+const SAFE_FAILURE = "Nao consegui concluir uma resposta segura agora. Para proteger a conversa, vou parar aqui sem inventar uma resposta.";
 const zeroSideEffectCounts: SideEffectCounts = { memory: 0, registry: 0, destiny: 0 };
 
 function makeCandidateFromOverride(text: string, iteration: number): CandidateResponse {
@@ -360,21 +361,31 @@ function buildRecoveryAnswer(input: {
   dominantCause: string;
 }) {
   const personaTarget = recoveryHandoffTarget(input.iteration);
+  const handoff = input.dominantCause === "vocation"
+    ? buildPersonaHandoffOffer({
+      sourcePersona: input.request.personaId,
+      targetPersona: personaTarget,
+      userText: input.request.userText,
+      privateRun: input.request.privateRun,
+    })
+    : null;
   const templates: Record<string, string> = {
-    infrastructure: "Encontrei uma falha interna ao validar minha resposta. Sua mensagem nao causou o bloqueio. Vou seguir em modo seguro: posso tentar novamente com uma resposta mais simples e verificavel.",
-    safety: "Nao posso entregar a resposta candidata desse jeito. Para manter seguranca, preciso reformular o pedido em termos mais seguros antes de continuar.",
-    privacy: "Nao posso seguir com uma resposta que arrisque expor conteudo privado. Posso continuar se trabalharmos apenas com informacoes que voce autorizar claramente neste turno.",
-    vocation: `Este pedido pertence melhor a ${personaTarget}. Posso encaminhar a conversa para essa persona ou responder apenas no limite seguro da persona atual.`,
-    coherence: "Consigo continuar, mas preciso de uma informacao indispensavel para nao inventar uma resposta: qual e o ponto principal que voce quer que eu trate agora?",
-    persistence: "A resposta foi bloqueada por uma falha de persistencia. Nenhuma acao opcional foi executada; posso tentar novamente em modo seguro.",
+    infrastructure: "A resposta que eu tinha em maos nao ficou firme o bastante para chegar ate voce. Posso retomar por um caminho mais simples, verificavel e sem prometer mais do que consigo sustentar.",
+    safety: "Nao posso seguir por esse caminho do jeito como ele apareceu. Posso ajudar a reformular a pergunta em termos mais seguros e ainda uteis para voce.",
+    privacy: "Nao vou atravessar uma fronteira que possa expor algo privado. Posso continuar apenas com o que voce autorizar claramente nesta conversa.",
+    vocation: handoff?.answer || `Posso olhar para isso dentro do meu campo, mas ${personaTarget} tem mais precisao para conduzir essa parte. Abra essa conversa e revise o resumo minimo antes de enviar.`,
+    coherence: "Consigo continuar daqui, mas preciso escolher um ponto claro para nao inventar uma direcao. Diga o ponto central que voce quer retomar.",
+    persistence: "A resposta nao ficou registrada com confianca. Posso tentar de novo por uma via simples, sem acionar nenhuma acao adicional.",
   };
   let answer = templates[input.dominantCause] || templates.coherence;
   const lastAssistant = (input.request.priorHistory || []).filter((item) => item.role === "assistant").at(-1)?.content?.trim();
   if (lastAssistant && lastAssistant === answer) {
-    answer = "Ainda estou no modo de recuperacao desta conversa. Nao vou repetir a mesma falha: diga apenas o ponto minimo que voce quer retomar agora, e eu sigo em modo seguro.";
+    answer = input.dominantCause === "vocation" && handoff
+      ? `${handoff.answer}\n\nPara nao girarmos em circulo: escolha abrir ${handoff.targetPersona}, ou seguimos aqui pelo meu angulo.`
+      : "Consigo continuar com voce daqui. Para evitar repetir o mesmo impasse, escolha apenas o ponto central que devo retomar agora.";
   }
   if (isRecoveryQuestion(input.request.userText) && input.dominantCause !== "vocation") {
-    answer = "Eu nao entreguei a resposta anterior porque ela nao passou pelos controles de validacao. Sua pergunta nao causou o bloqueio. Posso retomar agora em modo seguro, com uma resposta mais simples e sem acionar efeitos opcionais.";
+    answer = "Eu nao entreguei antes porque a resposta nao estava confiavel o bastante para te servir. Posso retomar agora com uma resposta mais direta, simples e sem acionar nada alem desta conversa.";
   }
   return answer;
 }
@@ -399,7 +410,7 @@ function evaluateRecoveryBasalGate(answer: string) {
       repairInstruction: "Remove all side-effect tags from recovery responses.",
     });
   }
-  if (/\b(prompt|token|api key|stack trace|schema engine|promotion gate|runtime id|hash)\b/i.test(answer)) {
+  if (/\b(prompt|token|api key|stack trace|schema engine|promotion gate|runtime id|hash|modo de recuperacao|candidata|retry|runtime|finding|OCV|dupla vigilancia|classificacao operacional|limite seguro da persona atual)\b/i.test(answer)) {
     findings.push({
       code: "RECOVERY_TECHNICAL_LEAK_BLOCKED",
       severity: "error",
@@ -948,6 +959,15 @@ export async function runCognitiveRuntime(
       iteration.privacy = privacy;
 
       const vocation = evaluateVocationalPolicy({ request, extraction });
+      if (vocation.handoffTargets.length > 0) {
+        auditEvents.push(auditEvent("HANDOFF_OFFERED", {
+          sourcePersona: request.personaId,
+          targetPersona: vocation.handoffTargets[0],
+          targetCount: vocation.handoffTargets.length,
+          decision: vocation.decision,
+          reason: vocation.findings.map((finding) => finding.code).join(","),
+        }));
+      }
       const initiative = evaluateRuntimePersonaInitiative({
         request,
         context: contextResult.envelope,

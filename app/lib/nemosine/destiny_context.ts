@@ -6,7 +6,7 @@ import { PersonaBehaviorContract } from "./persona_behavior_contracts";
 import { ActiveTopicRecord } from "./conversation_continuity";
 import { normalizeInitiativeText } from "./persona-initiative";
 
-export type DestinySourceStatus = "OK" | "EMPTY" | "ERROR";
+export type DestinySourceStatus = "OK" | "EMPTY" | "ERROR" | "NOT_TRIGGERED";
 
 export type DestinyContextStatus = {
   destinySourceStatus: DestinySourceStatus;
@@ -194,6 +194,25 @@ function pickMixed(items: SelectedDestinyContext[], limit: number) {
   return selected.slice(0, limit);
 }
 
+function shouldLoadDestinyContext(input: {
+  userText: string;
+  activeTopics?: ActiveTopicRecord[];
+  contract: PersonaBehaviorContract;
+}) {
+  const activeTopicText = (input.activeTopics || []).map((topic) => `${topic.title} ${topic.summary} ${topic.keywords.join(" ")}`).join(" ");
+  const text = normalizeInitiativeText(`${input.userText} ${activeTopicText}`);
+  if (/\b(destino|linha do destino|biografia|biografico|trajetoria|vida|marco|virada|travessia|historia pessoal|historia de vida|origem|passado|familia|carreira|saude|relacoes)\b/.test(text)) {
+    return true;
+  }
+  const contractText = normalizeInitiativeText([
+    input.contract.operationalMission,
+    ...input.contract.contextToSeek,
+    ...input.contract.lexicalHints,
+  ].join(" "));
+  return /\b(biografia|trajetoria|vida|marco|travessia)\b/.test(contractText)
+    && /\b(analise|entenda|leia|interprete|situacao|momento|decisao|historia)\b/.test(text);
+}
+
 export function selectDestinyContextFromEvents(input: {
   events: DestinyEvent[];
   personaId: string;
@@ -282,6 +301,22 @@ export async function loadDestinyContextSource(input: {
   now?: Date;
   getEvents?: (userId: string) => Promise<DestinyEvent[]>;
 }): Promise<DestinyContextLoadResult> {
+  if (!shouldLoadDestinyContext(input)) {
+    return {
+      status: {
+        destinySourceStatus: "NOT_TRIGGERED",
+        destinyEventsFound: 0,
+        destinyEventsSelected: 0,
+        errorCode: null,
+        userIdMatched: true,
+      },
+      selected: [],
+      allVisibleCount: 0,
+      blockedByCognitiveVisibility: 0,
+      retrievalExplanation: ["destinySourceStatus=NOT_TRIGGERED"],
+    };
+  }
+
   let events: DestinyEvent[];
   try {
     events = await (input.getEvents || getDestinyEvents)(input.userId);

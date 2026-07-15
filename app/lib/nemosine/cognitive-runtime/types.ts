@@ -136,7 +136,7 @@ export type CognitiveContextEnvelope = {
   privateRun: boolean;
   promptHashes: Record<string, string>;
   diagnostics?: {
-    destinySourceStatus?: "OK" | "EMPTY" | "ERROR";
+    destinySourceStatus?: "OK" | "EMPTY" | "ERROR" | "NOT_TRIGGERED";
     destinyEventsFound?: number;
     destinyEventsSelected?: number;
     destinyErrorCode?: string | null;
@@ -333,6 +333,7 @@ export type CognitiveAuditEvent = {
     | "SIDE_EFFECTS_SKIPPED"
     | "SIDE_EFFECTS_BLOCKED"
     | "SIDE_EFFECTS_ROLLED_BACK"
+    | "HANDOFF_OFFERED"
     | "PERSONA_INITIATIVE_EVALUATED"
     | "PERSONA_INITIATIVE_REPAIR_REQUESTED"
     | "STRUCTURED_VALIDATOR_DEGRADED"

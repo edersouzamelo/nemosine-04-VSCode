@@ -648,8 +648,12 @@ export function doubleVigilanceMessage(input: {
   const hasScientistTrace = (input.scientistFindingCodes || []).length > 0 || models.includes("scientist");
   const hasPhilosopherTrace = (input.philosopherFindingCodes || []).length > 0 || models.includes("philosopher");
 
-  if (!hasIterations || !hasDimensions || !hasScientistTrace || !hasPhilosopherTrace) {
+  if (!hasIterations || !hasDimensions) {
     return insufficientDoubleVigilanceTelemetry;
+  }
+
+  if (!hasScientistTrace && !hasPhilosopherTrace) {
+    return "Avaliacao deterministica registrada para Cientista, Vigia e Filosofo; validadores estruturados podem estar indisponiveis neste registro.";
   }
 
   return "Ha telemetria tecnica parcial para Cientista, Vigia e Filosofo; confira os codigos e scores abaixo.";

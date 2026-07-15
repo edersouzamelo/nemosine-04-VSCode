@@ -29,6 +29,12 @@ import type {
     PresenceFlowType,
     PresenceScope,
 } from "@/app/lib/nemosine/presence_adjustment";
+import {
+    buildHandoffUrl,
+    extractHandoffOffers,
+    stripHandoffMarkers,
+    PersonaHandoffOffer,
+} from "@/app/lib/nemosine/handoff";
 
 interface MedievalChatProps {
     personaId: string;
@@ -37,6 +43,7 @@ interface MedievalChatProps {
     onThreadCreated: (threadId: string) => void;
     onNewChat: () => void;
     actionMenu?: React.ReactNode;
+    initialDraft?: string;
 }
 
 const FEMININE_PLACES_PT = new Set([
@@ -76,7 +83,7 @@ function normalizeSpeechSegment(value: string): string {
 }
 
 function stripHiddenResponseTags(text: string) {
-    return text
+    return stripHandoffMarkers(text)
         .replace(/\[MEMORY:\s*.*?\]/ig, '')
         .replace(/\[REGISTRY:\s*.*?\]/ig, '')
         .replace(/\[DESTINY:\s*.*?\]/ig, '')
@@ -121,14 +128,24 @@ function presenceScopeLabel(value?: string) {
 }
 
 function PresenceAdjustmentEventCard({
+    messageId,
     messageText,
     onReconfigure,
+    initialExpanded = false,
 }: {
+    messageId: string;
     messageText: string;
     onReconfigure: () => void;
+    initialExpanded?: boolean;
 }) {
-    const [expanded, setExpanded] = useState(false);
+    const storageKey = `nemosine-presence-card-open:${messageId}`;
+    const [expanded, setExpanded] = useState(() => {
+        if (typeof window === "undefined") return initialExpanded;
+        const stored = window.sessionStorage.getItem(storageKey);
+        return stored == null ? initialExpanded : stored === "true";
+    });
     const snapshot = React.useMemo(() => parsePresenceOpeningSnapshot(messageText), [messageText]);
+    const principalQuestion = snapshot.currentGoal || snapshot.recentContext || "Pergunta principal nao registrada.";
     const rows = [
         ["Contexto", snapshot.recentContext],
         ["Objetivo", snapshot.currentGoal],
@@ -141,21 +158,41 @@ function PresenceAdjustmentEventCard({
         ["Pergunta final", snapshot.finalQuestionPolicy],
         ["Validade", snapshot.validUntil],
     ].filter(([, value]) => Boolean(value && String(value).trim()));
+    const toggleExpanded = React.useCallback(() => {
+        setExpanded((current) => {
+            const next = !current;
+            try {
+                window.sessionStorage.setItem(storageKey, String(next));
+            } catch {
+                // Session storage is best-effort only.
+            }
+            return next;
+        });
+    }, [storageKey]);
 
     return (
         <div className="flex justify-center">
             <div className="max-w-[92%] rounded-2xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-2 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
                 <button
                     type="button"
-                    onClick={() => setExpanded((current) => !current)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#c5a059]/20 bg-[#c5a059]/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059] transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15"
+                    onClick={toggleExpanded}
+                    className="flex w-full flex-col gap-2 rounded-xl border border-[#c5a059]/20 bg-[#c5a059]/10 px-3 py-3 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                     aria-expanded={expanded}
                 >
-                    <span className="material-icons text-[16px]" aria-hidden="true">tune</span>
-                    Presenca ajustada
-                    <span className="material-icons text-[16px]" aria-hidden="true">{expanded ? "expand_less" : "expand_more"}</span>
+                    <span className="flex w-full items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059]">
+                        <span className="material-icons text-[16px]" aria-hidden="true">tune</span>
+                        Presenca ajustada
+                        <span className={`material-icons text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
+                    </span>
+                    <span className="block w-full rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
+                        <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">Pergunta principal</span>
+                        <span className="block whitespace-pre-wrap text-sm leading-relaxed text-[#efe7d7]">{principalQuestion}</span>
+                    </span>
                 </button>
-                {expanded && (
+                <div
+                    className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}
+                >
+                    <div className="min-h-0 overflow-hidden">
                     <div className="mt-3 space-y-3 px-2 pb-2">
                         <div className="grid gap-2">
                             {rows.map(([label, value]) => (
@@ -174,7 +211,8 @@ function PresenceAdjustmentEventCard({
                             Reajustar presenca
                         </button>
                     </div>
-                )}
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -269,6 +307,81 @@ function RichAssistantMessage({ content }: { content: string }) {
     );
 }
 
+function HandoffOfferCard({
+    offer,
+    threadId,
+    canInvite,
+    onInvite,
+}: {
+    offer: PersonaHandoffOffer;
+    threadId?: string | null;
+    canInvite: boolean;
+    onInvite: (personaId: string) => void;
+}) {
+    const href = buildHandoffUrl(offer);
+    const recordSelection = () => {
+        const payload = JSON.stringify({
+            sourcePersona: offer.sourcePersona,
+            targetPersona: offer.targetPersona,
+            targetSlug: offer.targetSlug,
+            threadId: threadId || null,
+        });
+        try {
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon("/api/chat/handoff", new Blob([payload], { type: "application/json" }));
+                return;
+            }
+        } catch {
+            // Do not block navigation when metadata auditing is unavailable.
+        }
+        fetch("/api/chat/handoff", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+            keepalive: true,
+        }).catch(() => undefined);
+    };
+    return (
+        <div className="mt-4 rounded-xl border border-[#c5a059]/25 bg-[#c5a059]/10 p-3">
+            <div className="mb-2 flex items-start gap-2">
+                <span className="material-icons mt-0.5 text-[18px] text-[#c5a059]" aria-hidden="true">swap_horiz</span>
+                <div>
+                    <h3 className="text-sm font-bold text-[#fde68a]">{offer.title}</h3>
+                    <p className="mt-1 text-xs leading-relaxed text-white/60">{offer.reason}</p>
+                    <p className="mt-2 text-[11px] leading-relaxed text-white/45">
+                        O contexto levado sera apenas este resumo para revisao: {offer.summary}
+                    </p>
+                    {offer.requiresConfirmation && (
+                        <p className="mt-2 rounded border border-amber-400/25 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">
+                            Revise antes de enviar. Conteudo privado, anexos e historico nao serao levados automaticamente.
+                        </p>
+                    )}
+                </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+                <a
+                    href={href}
+                    onClick={recordSelection}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c5a059] px-3 text-center text-[10px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
+                >
+                    <span className="material-icons text-[16px]" aria-hidden="true">open_in_new</span>
+                    Abrir conversa com {offer.targetPersona}
+                </a>
+                {canInvite && (
+                    <button
+                        type="button"
+                        onClick={() => onInvite(offer.targetPersona)}
+                        className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/35 bg-black/35 px-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
+                    >
+                        <span className="material-icons text-[16px]" aria-hidden="true">group_add</span>
+                        Convidar {offer.targetPersona} para esta conversa
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function PersonaMessageFeedback({
     rating,
     onRate,
@@ -346,7 +459,7 @@ function ThinkingIndicator() {
     );
 }
 
-export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat, actionMenu }: MedievalChatProps) {
+export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat, actionMenu, initialDraft }: MedievalChatProps) {
     const { language, t, entityName } = useLanguage();
     const { data: session, status: sessionStatus } = useSession();
     const displayedPersonaName = entityName(personaId);
@@ -369,6 +482,11 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [input, setInput] = useState("");
     const [actionsOpen, setActionsOpen] = useState(false);
+
+    useEffect(() => {
+        if (!initialDraft || input.trim()) return;
+        setInput(initialDraft);
+    }, [initialDraft, input]);
     const [primerGoal, setPrimerGoal] = useState("");
     const [primerContext, setPrimerContext] = useState("");
     const [primerLimits, setPrimerLimits] = useState("");
@@ -1496,8 +1614,10 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         return (
                             <PresenceAdjustmentEventCard
                                 key={msg.id}
+                                messageId={msg.id}
                                 messageText={messageText}
                                 onReconfigure={openPresenceReconfiguration}
+                                initialExpanded={String(msg.id).startsWith("presence-opening-")}
                             />
                         );
                     }
@@ -1514,6 +1634,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     const speakerRole = speakerPersonaId
                         ? (optimisticParticipants.find((participant) => participant.personaId === speakerPersonaId && participant.active)?.role || (speakerPersonaId === personaId ? "HOST" : "GUEST"))
                         : undefined;
+                    const handoffOffers = msg.role === "assistant" ? extractHandoffOffers(messageText) : [];
                     const cleanedMessageText = cleanContent(messageText);
                     const feedbackKey = msg.role === "assistant" && speakerPersonaId
                         ? buildPersonaFeedbackKey(msg.id, speakerPersonaId)
@@ -1546,6 +1667,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                                     rating={feedbackRating}
                                                     onRate={(nextRating) => handlePersonaFeedback(msg, nextRating)}
                                                 />
+                                                {handoffOffers.map((offer) => (
+                                                    <HandoffOfferCard
+                                                        key={`${msg.id}:${offer.targetPersona}:${offer.targetSlug}`}
+                                                        offer={offer}
+                                                        threadId={currentThreadIdRef.current}
+                                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                                        onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
+                                                    />
+                                                ))}
                                             </>
                                         )
                                         : <ThinkingIndicator />)

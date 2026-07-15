@@ -315,15 +315,14 @@ function sanitizeFindingCodes(value: unknown) {
 function totalLatencyMs(row: any) {
   const created = row.createdAt instanceof Date ? row.createdAt.getTime() : new Date(row.createdAt).getTime();
   const completed = row.completedAt instanceof Date ? row.completedAt.getTime() : new Date(row.completedAt).getTime();
-  if (Number.isFinite(created) && Number.isFinite(completed) && completed >= created) {
-    return completed - created;
-  }
-
+  const wallClockTotal = Number.isFinite(created) && Number.isFinite(completed) && completed >= created
+    ? completed - created
+    : null;
   const latencyMap = asObject(row.latencyPerStageMs);
-  const total = Object.values(latencyMap).reduce((sum, value) => {
+  const stageTotal = Object.values(latencyMap).reduce((sum, value) => {
     return sum + (typeof value === "number" && Number.isFinite(value) ? value : 0);
   }, 0);
-  return total || null;
+  return Math.max(wallClockTotal || 0, stageTotal || 0) || null;
 }
 
 function latencyBreakdown(row: any) {
@@ -780,10 +779,12 @@ function deriveIterations(row: any) {
   const findingCodes = sanitizeFindingCodes(row.findingCodes);
   return Array.from({ length: Math.max(0, Number(row.iterationCount) || 0) }).map((_, index) => {
     const iterationTransitions = transitions.filter((transition: any) => String(transition.note || "").includes(`iteration:${index}`));
+    const isFinalIteration = index === Math.max(0, Number(row.iterationCount) || 0) - 1;
     return {
       index,
-      coherence: index === Math.max(0, Number(row.iterationCount) || 0) - 1 ? safeNumber(row.coherence) ?? null : null,
-      passed: index === Math.max(0, Number(row.iterationCount) || 0) - 1 ? row.promotionDecision === "promoted" : false,
+      coherence: isFinalIteration ? safeNumber(row.coherence) ?? null : null,
+      coherenceUnavailableReason: isFinalIteration ? null : "C(m) final armazenado somente na ultima iteracao deste registro.",
+      passed: isFinalIteration ? row.promotionDecision === "promoted" : false,
       findingCodes,
       retryRequested: iterationTransitions.some((transition: any) => transition.to === "OCV_RETRY_REQUESTED"),
       rebalancingEvents: sanitizeAuditEvents(row.auditEvents).filter((event: any) => event.code === "REBALANCING_APPLIED"),

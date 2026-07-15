@@ -90,6 +90,7 @@ export default function AgentDetailPage() {
     const entity = ENTITIES[id];
     const hostSummonedPersona = summonedPersonas[0] || "";
     const activePersonaName = entity?.type === "place" ? hostSummonedPersona : entity?.name || "";
+    const handoffDraft = searchParams.get("handoffDraft") || "";
 
     React.useEffect(() => {
         if (entity) {
@@ -530,6 +531,7 @@ export default function AgentDetailPage() {
                                 }}
                                 onNewChat={() => setCurrentThreadId(null)}
                                 actionMenu={actionButtons}
+                                initialDraft={handoffDraft}
                             />
                         </>
                     ) : (

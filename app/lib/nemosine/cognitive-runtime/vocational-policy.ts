@@ -117,6 +117,13 @@ export function classifyTaskFamilies(text: string) {
   return Array.from(new Set(families.length > 0 ? families : ["general"]));
 }
 
+function preferredNarrativeHandoff(input: CognitiveRequest) {
+  const persona = normalize(input.personaId);
+  const text = normalize(input.userText);
+  return persona === "vidente"
+    && /\b(reconstru|acontec|sequencia|o que aconteceu|relato|historia|narrar|narrativa)\b/.test(text);
+}
+
 export function evaluateVocationalPolicy(input: {
   request: CognitiveRequest;
   extraction: ExtractionResult;
@@ -134,6 +141,7 @@ export function evaluateVocationalPolicy(input: {
 
   const forbidden = classifiedTaskFamilies.filter((family) => metadata.forbiddenTaskFamilies.includes(family));
   const allowed = classifiedTaskFamilies.some((family) => metadata.allowedTaskFamilies.includes(family));
+  const narrativeHandoff = preferredNarrativeHandoff(input.request);
 
   if (forbidden.length > 0) {
     findings.push({
@@ -142,6 +150,14 @@ export function evaluateVocationalPolicy(input: {
       category: "vocation",
       explanation: `Task family is outside this persona vocation: ${forbidden.join(", ")}.`,
       repairInstruction: "The active persona must refuse elegantly in its own voice or recommend a better persona.",
+    });
+  } else if (narrativeHandoff) {
+    findings.push({
+      code: "VOCATION_NARRATOR_BETTER_FIT",
+      severity: "warning",
+      category: "vocation",
+      explanation: "The request asks for reconstruction of events, sequence or narrative form; Narrador is the higher-confidence persona.",
+      repairInstruction: "Offer a first-person handoff to Narrador while preserving the active persona voice.",
     });
   } else if (!allowed && classifiedTaskFamilies[0] !== "general") {
     findings.push({
@@ -156,17 +172,20 @@ export function evaluateVocationalPolicy(input: {
   const hardPass = !findings.some((finding) => finding.severity === "error" || finding.severity === "critical");
   const decision: VocationalEvaluation["decision"] = forbidden.length > 0
     ? "refusal_required"
-    : !allowed && classifiedTaskFamilies[0] !== "general"
+    : narrativeHandoff || (!allowed && classifiedTaskFamilies[0] !== "general")
       ? "handoff_recommended"
       : findings.length > 0
         ? "warning"
         : "allowed";
+  const handoffTargets = narrativeHandoff
+    ? ["Narrador", ...metadata.highConfidenceHandoffTargets.filter((target) => target !== "Narrador")]
+    : metadata.highConfidenceHandoffTargets;
 
   return {
     decision,
     personaId: input.request.personaId,
     classifiedTaskFamilies,
-    handoffTargets: decision === "allowed" ? [] : metadata.highConfidenceHandoffTargets,
+    handoffTargets: decision === "allowed" ? [] : handoffTargets,
     hardPass,
     findings,
   };

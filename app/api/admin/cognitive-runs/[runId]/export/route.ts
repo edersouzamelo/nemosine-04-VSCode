@@ -3,7 +3,7 @@ import { isAdminEmail } from "@/app/lib/accessControl";
 import { prisma } from "@/app/lib/nemosine/session_store";
 import { getSafeCognitiveRuntimeConfig } from "@/app/lib/admin/cognitiveRuntimeConfig";
 import { getCognitiveRunDetail } from "@/app/lib/admin/cognitiveRuns";
-import { generateCognitiveRunDetailPdf } from "@/app/lib/admin/cognitiveRunsPdf";
+import { PdfValidationError, generateCognitiveRunDetailPdf } from "@/app/lib/admin/cognitiveRunsPdf";
 import { recordCasaDeMaquinasPdfExport } from "@/app/lib/admin/cognitiveExportAudit";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export async function GET(
       return jsonResponse({ error: "Cognitive run audit not found." }, 404);
     }
     const runtimeConfig = getSafeCognitiveRuntimeConfig();
-    const pdf = generateCognitiveRunDetailPdf({
+    const pdf = await generateCognitiveRunDetailPdf({
       detail,
       runtimeConfig,
       origin: new URL(request.url).origin,
@@ -44,6 +44,7 @@ export async function GET(
       scope: "detail",
       runId,
       rowCount: 1,
+      status: "success",
     });
     return new Response(pdf, {
       status: 200,
@@ -54,8 +55,17 @@ export async function GET(
       },
     });
   } catch (error) {
+    recordCasaDeMaquinasPdfExport({
+      adminEmail: session?.user?.email,
+      scope: "detail",
+      runId,
+      rowCount: 1,
+      status: "failed",
+      failureCode: error instanceof PdfValidationError ? error.code : "PDF_EXPORT_ERROR",
+    });
     return jsonResponse({
-      error: "Falha ao exportar PDF da execucao.",
+      error: "Nao foi possivel gerar um PDF valido desta execucao. Nenhum arquivo foi baixado.",
+      code: error instanceof PdfValidationError ? error.code : "PDF_EXPORT_ERROR",
       diagnostic: error instanceof Error ? error.message : String(error),
     }, 500);
   }

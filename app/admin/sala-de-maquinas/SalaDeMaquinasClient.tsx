@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Navbar from "@/app/components/Navbar";
@@ -190,6 +190,14 @@ function formatBoolean(value: boolean | null | undefined) {
   if (value === true) return "ativada";
   if (value === false) return "desativada";
   return "nao informado";
+}
+
+function destinyStatusLabel(value: unknown) {
+  if (value === "NOT_TRIGGERED") return "Nao acionado";
+  if (value === "OK") return "OK";
+  if (value === "EMPTY") return "Sem eventos";
+  if (value === "ERROR") return "Erro";
+  return "nao registrado";
 }
 
 function DistributionBars({ title, values }: { title: string; values: Record<string, number> }) {
@@ -384,6 +392,9 @@ export default function SalaDeMaquinasClient() {
   const [detailError, setDetailError] = useState("");
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTab, setGuideTab] = useState<"creator" | "technical">("creator");
+  const topTableScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingScrollRef = useRef(false);
 
   const filters = useMemo(() => {
     return {
@@ -420,6 +431,17 @@ export default function SalaDeMaquinasClient() {
     params.delete("runId");
     params.set("scope", scope);
     return `/api/admin/cognitive-runs/export?${params.toString()}`;
+  }
+
+  function syncTableScroll(source: "top" | "body") {
+    const from = source === "top" ? topTableScrollRef.current : tableScrollRef.current;
+    const to = source === "top" ? tableScrollRef.current : topTableScrollRef.current;
+    if (!from || !to || syncingScrollRef.current) return;
+    syncingScrollRef.current = true;
+    to.scrollLeft = from.scrollLeft;
+    window.requestAnimationFrame(() => {
+      syncingScrollRef.current = false;
+    });
   }
 
   useEffect(() => {
@@ -653,10 +675,39 @@ export default function SalaDeMaquinasClient() {
                 <EmptyState kind="no-results" />
               ) : (
                 <>
-                  <div className="hidden overflow-x-auto lg:block">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="border-b border-[#c5a059]/15 text-[9px] uppercase tracking-widest text-[#c5a059]/65">
+                  <div className="hidden lg:block">
+                    <div
+                      ref={topTableScrollRef}
+                      onScroll={() => syncTableScroll("top")}
+                      className="mb-2 overflow-x-auto rounded border border-[#c5a059]/10 bg-black/35"
+                      aria-hidden="true"
+                    >
+                      <div className="h-3 min-w-[1320px]" />
+                    </div>
+                    <div
+                      ref={tableScrollRef}
+                      onScroll={() => syncTableScroll("body")}
+                      className="max-h-[70vh] overflow-auto rounded border border-[#c5a059]/10"
+                    >
+                    <table className="min-w-[1320px] table-fixed text-left">
+                      <colgroup>
+                        <col className="w-[108px]" />
+                        <col className="w-[160px]" />
+                        <col className="w-[80px]" />
+                        <col className="w-[80px]" />
+                        <col className="w-[70px]" />
+                        <col className="w-[70px]" />
+                        <col className="w-[66px]" />
+                        <col className="w-[116px]" />
+                        <col className="w-[112px]" />
+                        <col className="w-[112px]" />
+                        <col className="w-[68px]" />
+                        <col className="w-[92px]" />
+                        <col className="w-[180px]" />
+                        <col className="w-[86px]" />
+                      </colgroup>
+                      <thead className="sticky top-0 z-20 bg-[#060608] shadow-[0_1px_0_rgba(197,160,89,0.2)]">
+                        <tr className="border-b border-[#c5a059]/15 text-[8px] uppercase tracking-[0.16em] text-[#c5a059]/65">
                           <th className="p-2">Data</th>
                           <th className="p-2">Persona / Place</th>
                           <th className="p-2">Modo</th>
@@ -670,7 +721,7 @@ export default function SalaDeMaquinasClient() {
                           <th className="p-2">Priv.</th>
                           <th className="p-2">Latencia</th>
                           <th className="p-2">Findings</th>
-                          <th className="p-2 text-right">Detalhe</th>
+                          <th className="sticky right-0 z-30 bg-[#060608] p-2 text-right">Abrir</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#c5a059]/8">
@@ -699,11 +750,22 @@ export default function SalaDeMaquinasClient() {
                               <td className="p-2"><StatusPill value={row.deliveryStatus} label={deliveryLabel(row.deliveryStatus)} /></td>
                               <td className="p-2"><StatusPill value={row.sideEffectStatus} label={sideEffectLabel(row.sideEffectStatus)} /></td>
                               <td className="p-2 text-xs text-white/65">{row.privateRun ? "privada" : "publica"}</td>
-                              <td className="p-2 font-mono text-xs text-white/65" title={`runtime: ${formatDuration(row.latency?.runtimeMs)}; legada: ${formatDuration(row.latency?.legacyRouteMs)}`}>{formatDuration(row.latencyMs)}</td>
+                              <td className="p-2 font-mono text-xs text-white/65" title={`total: ${formatDuration(row.latency?.totalMs ?? row.latencyMs)}; runtime: ${formatDuration(row.latency?.runtimeMs)}; persistencia: ${formatDuration(row.latency?.stageLatencyMs?.["FINAL_ANSWER_SELECTED->DELIVERY_PERSISTED"])}; legada: ${formatDuration(row.latency?.legacyRouteMs)}`}>{formatDuration(row.latency?.totalMs ?? row.latencyMs)}</td>
                               <td className="p-2 text-[10px] text-white/55">
-                                {row.findingCodes.length > 0 ? row.findingCodes.slice(0, 3).join(", ") : "Sem finding registrado"}
+                                <span
+                                  className="block truncate"
+                                  title={row.findingCodes.join(", ") || "Sem finding registrado"}
+                                >
+                                  {row.findingCodes.length > 0 ? `${row.findingCodes.slice(0, 3).join(", ")}${row.findingCodes.length > 3 ? ` +${row.findingCodes.length - 3}` : ""}` : "Sem finding registrado"}
+                                </span>
+                                {row.findingCodes.length > 0 && (
+                                  <details className="mt-1 text-[9px] text-white/40">
+                                    <summary className="cursor-pointer text-[#c5a059]/70">ver</summary>
+                                    <p className="mt-1 break-words">{row.findingCodes.join(", ")}</p>
+                                  </details>
+                                )}
                               </td>
-                              <td className="p-2 text-right">
+                              <td className="sticky right-0 bg-[#09090b] p-2 text-right">
                                 <button
                                   type="button"
                                   onClick={() => router.push(rowDetailUrl(row.runId))}
@@ -717,6 +779,7 @@ export default function SalaDeMaquinasClient() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 lg:hidden">
@@ -1081,7 +1144,7 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
 
             <DetailSection title="Continuidade e destino">
               <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-                <KeyValue label="Status Destiny" value={String(continuity.destinySourceStatus || "nao registrado")} />
+                <KeyValue label="Status Destiny" value={destinyStatusLabel(continuity.destinySourceStatus)} />
                 <KeyValue label="Eventos encontrados" value={String(continuity.destinyEventsFound ?? "nao registrado")} />
                 <KeyValue label="Eventos selecionados" value={String(continuity.destinyEventsSelected ?? "nao registrado")} />
                 <KeyValue label="Erro Destiny" value={String(continuity.destinyErrorCode || "nenhum")} />
@@ -1119,7 +1182,10 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
                       <span className="font-bold text-[#fde68a]">Iteracao {iteration.index + 1}</span>
                       <span>{iteration.retryRequested ? "retry solicitado" : "sem retry registrado"}</span>
                     </div>
-                    <p className="mt-2 text-white/50">C(m): <span title={coherenceTooltip(iteration)}>{formatCoherence(iteration.coherence)}</span> - modelo: {iteration.candidateModelIdentifier || "nao registrado"} - latencia: {formatDuration(iteration.stageLatencyMs)}</p>
+                    <p className="mt-2 text-white/50">C(m): <span title={iteration.coherenceUnavailableReason || coherenceTooltip(iteration)}>{formatCoherence(iteration.coherence)}</span> - modelo: {iteration.candidateModelIdentifier || "nao registrado"} - latencia: {formatDuration(iteration.stageLatencyMs)}</p>
+                    {iteration.coherenceUnavailableReason && (
+                      <p className="mt-1 text-[11px] text-white/35">{iteration.coherenceUnavailableReason}</p>
+                    )}
                     <p className="mt-2 text-white/40">Findings: {(iteration.findingCodes || []).join(", ") || "Sem finding registrado"}</p>
                   </div>
                 ))}

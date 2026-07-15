@@ -144,7 +144,7 @@ test("Destiny loader reports query failure explicitly instead of silently return
   const result = await loadDestinyContextSource({
     userId: "user-1",
     personaId: "Astronomo",
-    userText: "Bom dia.",
+    userText: "Leia minha linha do destino para esta travessia.",
     contract,
     getEvents: async () => {
       throw Object.assign(new Error("boom"), { name: "FixtureDestinyError" });
@@ -156,4 +156,22 @@ test("Destiny loader reports query failure explicitly instead of silently return
   assert.equal(result.status.destinyEventsSelected, 0);
   assert.equal(result.status.errorCode, "FixtureDestinyError");
   assert.match(result.retrievalExplanation.join("\n"), /destinySourceStatus=ERROR/);
+});
+
+test("Destiny loader is not triggered for unrelated messages", async () => {
+  const contract = getPersonaBehaviorContract("Astronomo");
+  const result = await loadDestinyContextSource({
+    userId: "user-1",
+    personaId: "Astronomo",
+    userText: "Bom dia.",
+    contract,
+    getEvents: async () => {
+      throw new Error("should not query destiny");
+    },
+  });
+
+  assert.equal(result.status.destinySourceStatus, "NOT_TRIGGERED");
+  assert.equal(result.status.destinyEventsFound, 0);
+  assert.equal(result.status.destinyEventsSelected, 0);
+  assert.match(result.retrievalExplanation.join("\n"), /destinySourceStatus=NOT_TRIGGERED/);
 });

@@ -14,6 +14,7 @@ const {
 const {
   generateCognitiveRunDetailPdf,
   generateCognitiveRunsReportPdf,
+  validatePdfBuffer,
 } = require("../../app/lib/admin/cognitiveRunsPdf.ts");
 
 const adminSession = { user: { email: "edersouzamelo@gmail.com" } };
@@ -411,7 +412,7 @@ test("PDF exports are real PDFs and exclude raw sensitive content", async () => 
   });
   const listJson = await body(list);
   const runtimeConfig = getSafeCognitiveRuntimeConfig({ VERCEL_GIT_COMMIT_SHA: "sha-pdf" });
-  const reportPdf = generateCognitiveRunsReportPdf({
+  const reportPdf = await generateCognitiveRunsReportPdf({
     data: { ...listJson, exportScope: "page", exportLimit: 25, exportTruncated: false },
     runtimeConfig,
     activeFilters: listJson.activeFilters,
@@ -420,7 +421,8 @@ test("PDF exports are real PDFs and exclude raw sensitive content", async () => 
   });
   assert.equal(reportPdf.subarray(0, 5).toString(), "%PDF-");
   assert.equal(reportPdf.includes(Buffer.from("SECRET USER TEXT")), false);
-  assert.ok(reportPdf.includes(Buffer.from("Casa de Maquinas")));
+  const reportValidation = await validatePdfBuffer(reportPdf, { expectedText: ["Casa de Maquinas"] });
+  assert.ok(reportValidation.pageCount >= 1);
 
   const detail = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
     session: adminSession,
@@ -428,7 +430,9 @@ test("PDF exports are real PDFs and exclude raw sensitive content", async () => 
     runId: "pdf-run",
   });
   const detailJson = await body(detail);
-  const detailPdf = generateCognitiveRunDetailPdf({ detail: detailJson, runtimeConfig, origin: "https://local" });
+  const detailPdf = await generateCognitiveRunDetailPdf({ detail: detailJson, runtimeConfig, origin: "https://local" });
   assert.equal(detailPdf.subarray(0, 5).toString(), "%PDF-");
   assert.equal(detailPdf.includes(Buffer.from("SECRET CANDIDATE")), false);
+  const detailValidation = await validatePdfBuffer(detailPdf, { expectedText: ["Detalhe da execucao"] });
+  assert.ok(detailValidation.textLength > 100);
 });

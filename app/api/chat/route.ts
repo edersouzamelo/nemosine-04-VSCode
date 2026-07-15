@@ -62,6 +62,13 @@ import {
 } from '@/app/lib/nemosine/response';
 import type { ResponsePipelineRequest } from '@/app/lib/nemosine/response';
 import { observeCognitiveFoundationResponse } from '@/app/lib/nemosine/cognitive-foundation';
+import {
+    buildPersonaHandoffOffer,
+    encodeHandoffMarker,
+    inferHandoffTarget,
+    isHandoffSelectionRequest,
+    PersonaHandoffOffer,
+} from '@/app/lib/nemosine/handoff';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -253,6 +260,23 @@ function createResponsePipelineRequest(input: {
 function buildBufferedLlmFailureMessage(error: unknown) {
     console.error("[API/Chat] LLM generation failed before buffered delivery:", error);
     return "O sistema esta instavel. Nao consigo concluir esta resposta agora.";
+}
+
+function extractHandoffOfferFromAudit(input: {
+    auditEvents: Array<{ code?: string; detail?: Record<string, unknown> }>;
+    personaId: string;
+    userText: string;
+    privateRun: boolean;
+}): PersonaHandoffOffer | null {
+    const event = [...input.auditEvents].reverse().find((item) => item.code === "HANDOFF_OFFERED");
+    const targetPersona = typeof event?.detail?.targetPersona === "string" ? event.detail.targetPersona : null;
+    if (!targetPersona || targetPersona === input.personaId) return null;
+    return buildPersonaHandoffOffer({
+        sourcePersona: input.personaId,
+        targetPersona,
+        userText: input.userText,
+        privateRun: input.privateRun,
+    });
 }
 
 function splitConversationScope(scope: string) {
@@ -608,6 +632,7 @@ export async function POST(req: NextRequest) {
         const deliverEnforcedCognitiveRuntime = async (input: {
             candidateOverride?: string;
             headers?: Record<string, string>;
+            handoffOffer?: PersonaHandoffOffer | null;
         } = {}) => {
             const runtimeResult = input.candidateOverride
                 ? await runCognitiveRuntime(cognitiveRequest, {
@@ -616,6 +641,15 @@ export async function POST(req: NextRequest) {
                 })
                 : await executeCognitiveRuntime(cognitiveRequest);
             const deliveredRuntimeAnswer = runtimeResult.answer;
+            const handoffOffer = input.handoffOffer || extractHandoffOfferFromAudit({
+                auditEvents: runtimeResult.audit.auditEvents,
+                personaId,
+                userText,
+                privateRun: cognitiveRequest.privateRun,
+            });
+            const streamedRuntimeAnswer = handoffOffer
+                ? `${deliveredRuntimeAnswer}\n\n${encodeHandoffMarker(handoffOffer)}`
+                : deliveredRuntimeAnswer;
             if (shouldRetainConversationContinuity) {
                 await Promise.all([
                     retainConversationEpisode(userId, memoryScope, userText),
@@ -644,7 +678,7 @@ export async function POST(req: NextRequest) {
                 console.warn("[API/Chat] Cognitive foundation observation skipped after enforced runtime.", error);
             });
             return createPromotedUIMessageStreamResponse({
-                text: deliveredRuntimeAnswer,
+                text: streamedRuntimeAnswer,
                 headers: {
                     'x-thread-id': activeThreadId,
                     'x-cognitive-runtime': runtimeResult.runtimeMode,
@@ -652,10 +686,34 @@ export async function POST(req: NextRequest) {
                     'x-cognitive-run-id': runtimeResult.runId,
                     'x-cognitive-promoted': String(runtimeResult.promoted),
                     'x-cognitive-promotion-decision': runtimeResult.audit.promotionDecision,
+                    ...(handoffOffer ? {
+                        'x-nemosine-handoff-target': handoffOffer.targetPersona,
+                        'x-nemosine-handoff-slug': handoffOffer.targetSlug,
+                    } : {}),
                     ...(input.headers || {}),
                 },
             });
         };
+
+        const latestAssistantText = priorHistory.filter((message) => message.role === "assistant").at(-1)?.content || "";
+        const requestedHandoffTarget = isHandoffSelectionRequest(userText)
+            ? inferHandoffTarget({ sourcePersona: personaId, userText, priorAssistantText: latestAssistantText })
+            : null;
+        if (requestedHandoffTarget && runtimeConfig.mode === "enforce") {
+            const handoff = buildPersonaHandoffOffer({
+                sourcePersona: personaId,
+                targetPersona: requestedHandoffTarget,
+                userText,
+                privateRun: cognitiveRequest.privateRun,
+            });
+            return deliverEnforcedCognitiveRuntime({
+                candidateOverride: handoff.answer,
+                handoffOffer: handoff,
+                headers: {
+                    'x-nemosine-handoff-offered': 'true',
+                },
+            });
+        }
 
         const conversationNavigationAnswer = await buildConversationNavigationAnswer({
             userId,

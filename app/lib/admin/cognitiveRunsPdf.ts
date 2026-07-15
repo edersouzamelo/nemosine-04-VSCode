@@ -1,3 +1,4 @@
+import { PDFDocument, PDFPage, PDFFont, StandardFonts, rgb } from "pdf-lib";
 import {
   deliveryLabel,
   executionProfileLabel,
@@ -11,10 +12,20 @@ import {
 
 type PdfRow = Array<string | number | null | undefined>;
 
-const pageWidth = 595.28;
-const pageHeight = 841.89;
-const margin = 40;
-const bodyWidth = pageWidth - margin * 2;
+type PdfValidationResult = {
+  pageCount: number;
+  textLength: number;
+};
+
+export class PdfValidationError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "PdfValidationError";
+  }
+}
 
 function formatDateTimeBR(value: string | Date | null | undefined) {
   if (!value) return "nao informado";
@@ -35,193 +46,19 @@ function formatPercentBR(value: number | null | undefined) {
 
 function short(value: unknown, max = 120) {
   const text = value == null ? "" : String(value);
-  return text.length > max ? `${text.slice(0, max - 3)}...` : text;
+  return text.length > max ? `${text.slice(0, max - 3).trim()}...` : text;
 }
 
-function winAnsi(input: string) {
-  const map: Record<string, number> = {
-    "€": 0x80,
-    "‘": 0x91,
-    "’": 0x92,
-    "“": 0x93,
-    "”": 0x94,
-    "–": 0x96,
-    "—": 0x97,
-    "…": 0x85,
-  };
-  let output = "";
-  for (const char of input) {
-    const mapped = map[char];
-    if (mapped) {
-      output += String.fromCharCode(mapped);
-      continue;
-    }
-    const code = char.charCodeAt(0);
-    output += code <= 255 ? char : "?";
-  }
-  return output;
-}
-
-function escapePdfText(value: string) {
-  return winAnsi(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)")
-    .replace(/\r?\n/g, " ");
-}
-
-function wrapText(value: string, width: number, size: number) {
-  const words = value.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-  const maxChars = Math.max(8, Math.floor(width / (size * 0.52)));
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-    } else if (word.length > maxChars) {
-      if (current) lines.push(current);
-      for (let index = 0; index < word.length; index += maxChars) lines.push(word.slice(index, index + maxChars));
-      current = "";
-    } else {
-      current = next;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [""];
-}
-
-class PdfBuilder {
-  private pages: string[][] = [];
-  private ops: string[] = [];
-  private y = pageHeight - margin;
-
-  constructor(private readonly exportedAt: Date, private readonly runtimeVersion: string) {
-    this.newPage();
-  }
-
-  private newPage() {
-    if (this.ops.length > 0) this.pages.push(this.ops);
-    this.ops = [];
-    this.y = pageHeight - margin;
-    this.text("Nemosine Nous — Casa de Maquinas", 12, "bold");
-    this.rule();
-  }
-
-  private ensure(height: number) {
-    if (this.y - height < margin + 36) this.newPage();
-  }
-
-  private emit(text: string) {
-    this.ops.push(text);
-  }
-
-  text(value: string, size = 10, weight: "regular" | "bold" = "regular", indent = 0) {
-    const lines = wrapText(value, bodyWidth - indent, size);
-    const lineHeight = size * 1.35;
-    this.ensure(lines.length * lineHeight + 4);
-    for (const line of lines) {
-      this.emit(`BT /${weight === "bold" ? "F2" : "F1"} ${size} Tf ${margin + indent} ${this.y.toFixed(2)} Td (${escapePdfText(line)}) Tj ET`);
-      this.y -= lineHeight;
-    }
-    this.y -= 3;
-  }
-
-  heading(value: string) {
-    this.y -= 8;
-    this.text(value, 13, "bold");
-  }
-
-  keyValue(label: string, value: string | number | null | undefined) {
-    this.text(`${label}: ${value == null || value === "" ? "nao informado" : String(value)}`, 9);
-  }
-
-  rule() {
-    this.ensure(12);
-    this.emit(`${margin} ${this.y.toFixed(2)} m ${pageWidth - margin} ${this.y.toFixed(2)} l S`);
-    this.y -= 12;
-  }
-
-  table(headers: string[], rows: PdfRow[], widths?: number[]) {
-    const columnWidths = widths || headers.map(() => bodyWidth / headers.length);
-    const drawHeader = () => {
-      this.ensure(28);
-      let x = margin;
-      for (let index = 0; index < headers.length; index += 1) {
-        this.emit(`BT /F2 7 Tf ${x} ${this.y.toFixed(2)} Td (${escapePdfText(headers[index])}) Tj ET`);
-        x += columnWidths[index];
-      }
-      this.y -= 13;
-      this.rule();
-    };
-    drawHeader();
-    for (const row of rows) {
-      const cells = row.map((cell, index) => wrapText(short(cell, 180), columnWidths[index] - 4, 7));
-      const rowLines = Math.max(...cells.map((cell) => cell.length));
-      const rowHeight = rowLines * 9 + 8;
-      if (this.y - rowHeight < margin + 36) {
-        this.newPage();
-        drawHeader();
-      }
-      const rowTop = this.y;
-      let x = margin;
-      for (let column = 0; column < cells.length; column += 1) {
-        cells[column].forEach((line, lineIndex) => {
-          this.emit(`BT /F1 7 Tf ${x} ${(rowTop - lineIndex * 9).toFixed(2)} Td (${escapePdfText(line)}) Tj ET`);
-        });
-        x += columnWidths[column];
-      }
-      this.y -= rowHeight;
-    }
-  }
-
-  render() {
-    if (this.ops.length > 0) this.pages.push(this.ops);
-    const totalPages = this.pages.length;
-    const pageObjects: string[] = [];
-    const contentObjects: string[] = [];
-    const firstPageObjectId = 5;
-    const firstContentObjectId = firstPageObjectId + totalPages;
-
-    this.pages.forEach((ops, index) => {
-      const footer = [
-        `BT /F1 7 Tf ${margin} 24 Td (${escapePdfText(`Runtime ${this.runtimeVersion} - exportado em ${formatDateTimeBR(this.exportedAt)}`)}) Tj ET`,
-        `BT /F1 7 Tf ${pageWidth - margin - 60} 24 Td (${escapePdfText(`Pagina ${index + 1}/${totalPages}`)}) Tj ET`,
-      ];
-      const content = [...ops, ...footer].join("\n");
-      const contentId = firstContentObjectId + index;
-      contentObjects.push(`<< /Length ${Buffer.byteLength(content, "binary")} >>\nstream\n${content}\nendstream`);
-      pageObjects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`);
-    });
-
-    const objects = [
-      `<< /Type /Catalog /Pages 2 0 R >>`,
-      `<< /Type /Pages /Count ${totalPages} /Kids ${pageObjects.map((_, index) => `${firstPageObjectId + index} 0 R`).join(" ")} >>`,
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-      ...pageObjects,
-      ...contentObjects,
-    ];
-
-    let output = "%PDF-1.4\n";
-    const offsets = [0];
-    objects.forEach((object, index) => {
-      offsets.push(Buffer.byteLength(output, "binary"));
-      output += `${index + 1} 0 obj\n${object}\nendobj\n`;
-    });
-    const xrefOffset = Buffer.byteLength(output, "binary");
-    output += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-    offsets.slice(1).forEach((offset) => {
-      output += `${String(offset).padStart(10, "0")} 00000 n \n`;
-    });
-    output += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-    return Buffer.from(output, "binary");
-  }
-}
-
-function distributionRows(values: Record<string, number>, labeler: (value: string) => string) {
-  return Object.entries(values || {}).map(([key, value]) => [labeler(key), key, value]);
+function safeText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[–—]/g, "-")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "?")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function filtersText(activeFilters: Record<string, string | number | boolean>) {
@@ -229,7 +66,326 @@ function filtersText(activeFilters: Record<string, string | number | boolean>) {
   return entries.length === 0 ? "sem filtros ativos" : entries.map(([key, value]) => `${key}=${String(value)}`).join("; ");
 }
 
-export function generateCognitiveRunsReportPdf(input: {
+function distributionRows(values: Record<string, number>, labeler: (value: string) => string) {
+  return Object.entries(values || {}).map(([key, value]) => [labeler(key), key, value]);
+}
+
+class PdfCanvas {
+  private readonly document: PDFDocument;
+  private readonly regular: PDFFont;
+  private readonly bold: PDFFont;
+  private readonly width: number;
+  private readonly height: number;
+  private readonly margin = 36;
+  private readonly title: string;
+  private readonly runtimeVersion: string;
+  private readonly exportedAt: Date;
+  private page: PDFPage;
+  private y: number;
+
+  private constructor(input: {
+    document: PDFDocument;
+    regular: PDFFont;
+    bold: PDFFont;
+    orientation: "portrait" | "landscape";
+    title: string;
+    runtimeVersion: string;
+    exportedAt: Date;
+  }) {
+    this.document = input.document;
+    this.regular = input.regular;
+    this.bold = input.bold;
+    this.width = input.orientation === "landscape" ? 841.89 : 595.28;
+    this.height = input.orientation === "landscape" ? 595.28 : 841.89;
+    this.title = input.title;
+    this.runtimeVersion = input.runtimeVersion;
+    this.exportedAt = input.exportedAt;
+    this.page = this.document.addPage([this.width, this.height]);
+    this.y = this.height - this.margin;
+    this.drawPageHeader();
+  }
+
+  static async create(input: {
+    orientation: "portrait" | "landscape";
+    title: string;
+    runtimeVersion: string;
+    exportedAt: Date;
+  }) {
+    const document = await PDFDocument.create();
+    document.setTitle(input.title);
+    document.setAuthor("Nemosine Nous");
+    document.setSubject("Casa de Maquinas metadata-only export");
+    document.setCreator("Nemosine Casa de Maquinas");
+    document.setProducer("pdf-lib");
+    document.setCreationDate(input.exportedAt);
+    document.setModificationDate(input.exportedAt);
+    const regular = await document.embedFont(StandardFonts.Helvetica);
+    const bold = await document.embedFont(StandardFonts.HelveticaBold);
+    return new PdfCanvas({ document, regular, bold, ...input });
+  }
+
+  private get bodyWidth() {
+    return this.width - this.margin * 2;
+  }
+
+  private drawPageHeader() {
+    this.page.drawText(safeText(this.title), {
+      x: this.margin,
+      y: this.y,
+      size: 12,
+      font: this.bold,
+      color: rgb(0.78, 0.58, 0.22),
+    });
+    this.y -= 18;
+    this.page.drawLine({
+      start: { x: this.margin, y: this.y },
+      end: { x: this.width - this.margin, y: this.y },
+      thickness: 0.6,
+      color: rgb(0.78, 0.58, 0.22),
+      opacity: 0.55,
+    });
+    this.y -= 18;
+  }
+
+  private newPage() {
+    this.page = this.document.addPage([this.width, this.height]);
+    this.y = this.height - this.margin;
+    this.drawPageHeader();
+  }
+
+  private ensure(height: number) {
+    if (this.y - height < this.margin + 32) this.newPage();
+  }
+
+  private wrap(value: unknown, font: PDFFont, size: number, maxWidth: number, maxLines?: number) {
+    const words = safeText(value).split(" ").filter(Boolean);
+    const lines: string[] = [];
+    let current = "";
+    const pushCurrent = () => {
+      if (current) lines.push(current);
+      current = "";
+    };
+
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(next, size) <= maxWidth) {
+        current = next;
+        continue;
+      }
+      pushCurrent();
+      if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+        current = word;
+        continue;
+      }
+      let fragment = "";
+      for (const char of word) {
+        const nextFragment = `${fragment}${char}`;
+        if (font.widthOfTextAtSize(nextFragment, size) > maxWidth && fragment) {
+          lines.push(fragment);
+          fragment = char;
+        } else {
+          fragment = nextFragment;
+        }
+      }
+      current = fragment;
+    }
+    pushCurrent();
+    const output = lines.length > 0 ? lines : [""];
+    if (!maxLines || output.length <= maxLines) return output;
+    const limited = output.slice(0, maxLines);
+    limited[maxLines - 1] = short(limited[maxLines - 1], Math.max(8, limited[maxLines - 1].length - 3));
+    return limited;
+  }
+
+  text(value: unknown, size = 9, weight: "regular" | "bold" = "regular", indent = 0) {
+    const font = weight === "bold" ? this.bold : this.regular;
+    const lines = this.wrap(value, font, size, this.bodyWidth - indent);
+    const lineHeight = size * 1.35;
+    this.ensure(lines.length * lineHeight + 4);
+    for (const line of lines) {
+      this.page.drawText(line || " ", {
+        x: this.margin + indent,
+        y: this.y,
+        size,
+        font,
+        color: weight === "bold" ? rgb(0.95, 0.82, 0.45) : rgb(0.1, 0.1, 0.1),
+      });
+      this.y -= lineHeight;
+    }
+    this.y -= 4;
+  }
+
+  heading(value: string) {
+    this.ensure(28);
+    this.y -= 6;
+    this.text(value, 13, "bold");
+  }
+
+  keyValue(label: string, value: unknown) {
+    this.text(`${label}: ${value == null || value === "" ? "nao informado" : String(value)}`, 8.5);
+  }
+
+  table(headers: string[], rows: PdfRow[], widths?: number[], options: { maxCellLines?: number } = {}) {
+    const columnWidths = widths || headers.map(() => this.bodyWidth / headers.length);
+    const maxCellLines = options.maxCellLines || 3;
+    const drawHeader = () => {
+      this.ensure(26);
+      this.page.drawRectangle({
+        x: this.margin - 2,
+        y: this.y - 3,
+        width: this.bodyWidth + 4,
+        height: 15,
+        color: rgb(0.95, 0.9, 0.78),
+        opacity: 0.75,
+      });
+      let x = this.margin;
+      headers.forEach((header, index) => {
+        this.page.drawText(safeText(header), {
+          x,
+          y: this.y,
+          size: 7,
+          font: this.bold,
+          color: rgb(0.16, 0.12, 0.04),
+        });
+        x += columnWidths[index];
+      });
+      this.y -= 18;
+    };
+
+    drawHeader();
+    for (const row of rows) {
+      const cells = row.map((cell, index) => this.wrap(short(cell, 220), this.regular, 7, columnWidths[index] - 5, maxCellLines));
+      const rowLines = Math.max(...cells.map((cell) => cell.length), 1);
+      const rowHeight = rowLines * 9 + 7;
+      if (this.y - rowHeight < this.margin + 32) {
+        this.newPage();
+        drawHeader();
+      }
+      const rowTop = this.y;
+      let x = this.margin;
+      cells.forEach((cell, column) => {
+        cell.forEach((line, lineIndex) => {
+          this.page.drawText(line || " ", {
+            x,
+            y: rowTop - lineIndex * 9,
+            size: 7,
+            font: this.regular,
+            color: rgb(0.08, 0.08, 0.08),
+          });
+        });
+        x += columnWidths[column];
+      });
+      this.y -= rowHeight;
+      this.page.drawLine({
+        start: { x: this.margin, y: this.y + 3 },
+        end: { x: this.width - this.margin, y: this.y + 3 },
+        thickness: 0.25,
+        color: rgb(0.72, 0.72, 0.72),
+        opacity: 0.7,
+      });
+    }
+  }
+
+  async render() {
+    const pages = this.document.getPages();
+    pages.forEach((page, index) => {
+      page.drawLine({
+        start: { x: this.margin, y: 30 },
+        end: { x: this.width - this.margin, y: 30 },
+        thickness: 0.35,
+        color: rgb(0.78, 0.58, 0.22),
+        opacity: 0.45,
+      });
+      page.drawText(safeText(`Runtime ${this.runtimeVersion} - exportado em ${formatDateTimeBR(this.exportedAt)}`), {
+        x: this.margin,
+        y: 18,
+        size: 7,
+        font: this.regular,
+        color: rgb(0.22, 0.22, 0.22),
+      });
+      page.drawText(`Pagina ${index + 1}/${pages.length}`, {
+        x: this.width - this.margin - 64,
+        y: 18,
+        size: 7,
+        font: this.regular,
+        color: rgb(0.22, 0.22, 0.22),
+      });
+    });
+    const bytes = await this.document.save({ useObjectStreams: false });
+    return Buffer.from(bytes);
+  }
+}
+
+export async function validatePdfBuffer(buffer: Buffer, input: { expectedText?: string[] } = {}): Promise<PdfValidationResult> {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 1024) {
+    throw new PdfValidationError("PDF_INVALID_SIZE", "PDF vazio ou pequeno demais para exportacao.");
+  }
+  if (buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    throw new PdfValidationError("PDF_INVALID_HEADER", "Arquivo gerado nao comeca com %PDF-.");
+  }
+
+  let loaded: PDFDocument;
+  try {
+    loaded = await PDFDocument.load(buffer);
+  } catch (error) {
+    throw new PdfValidationError("PDFLIB_PARSE_FAILED", error instanceof Error ? error.message : String(error));
+  }
+  const pages = loaded.getPages();
+  if (pages.length === 0) {
+    throw new PdfValidationError("PDF_EMPTY_PAGE_TREE", "PDF sem paginas.");
+  }
+  for (const page of pages) {
+    const { width, height } = page.getSize();
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new PdfValidationError("PDF_INVALID_MEDIABOX", "PDF contem pagina com MediaBox invalido.");
+    }
+  }
+
+  let text = "";
+  try {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(buffer),
+      disableWorker: true,
+      stopAtErrors: true,
+    } as any);
+    const parsed = await task.promise;
+    if (parsed.numPages !== pages.length) {
+      throw new PdfValidationError("PDF_PAGE_COUNT_MISMATCH", "pdfjs e pdf-lib discordam sobre a quantidade de paginas.");
+    }
+    for (let pageNumber = 1; pageNumber <= parsed.numPages; pageNumber += 1) {
+      const page = await parsed.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      if (viewport.width <= 0 || viewport.height <= 0) {
+        throw new PdfValidationError("PDFJS_INVALID_VIEWPORT", "pdfjs encontrou pagina com tamanho invalido.");
+      }
+      const content = await page.getTextContent();
+      const pageText = content.items.map((item: any) => typeof item.str === "string" ? item.str : "").join(" ").trim();
+      if (!pageText) {
+        throw new PdfValidationError("PDF_BLANK_DATA_PAGE", `Pagina ${pageNumber} nao possui texto renderizavel.`);
+      }
+      text += ` ${pageText}`;
+    }
+    if (typeof (parsed as any).destroy === "function") {
+      await (parsed as any).destroy();
+    } else if (typeof (task as any).destroy === "function") {
+      await (task as any).destroy();
+    }
+  } catch (error) {
+    if (error instanceof PdfValidationError) throw error;
+    throw new PdfValidationError("PDFJS_PARSE_FAILED", error instanceof Error ? error.message : String(error));
+  }
+
+  for (const term of input.expectedText || []) {
+    if (!text.toLowerCase().includes(safeText(term).toLowerCase())) {
+      throw new PdfValidationError("PDF_EXPECTED_TEXT_MISSING", `PDF validado, mas sem o texto esperado: ${term}.`);
+    }
+  }
+
+  return { pageCount: pages.length, textLength: text.trim().length };
+}
+
+export async function generateCognitiveRunsReportPdf(input: {
   data: any;
   runtimeConfig: { runtimeVersion: string; deployVersion: string | null; coherenceThreshold: number };
   activeFilters: Record<string, string | number | boolean>;
@@ -237,7 +393,12 @@ export function generateCognitiveRunsReportPdf(input: {
   origin: string;
 }) {
   const exportedAt = new Date();
-  const pdf = new PdfBuilder(exportedAt, input.runtimeConfig.runtimeVersion);
+  const pdf = await PdfCanvas.create({
+    orientation: "landscape",
+    title: "Nemosine Nous - Casa de Maquinas",
+    runtimeVersion: input.runtimeConfig.runtimeVersion,
+    exportedAt,
+  });
   const summary = input.data.summary || {};
   pdf.heading("Relatorio completo");
   pdf.keyValue("Data e hora da exportacao", formatDateTimeBR(exportedAt));
@@ -256,7 +417,8 @@ export function generateCognitiveRunsReportPdf(input: {
     ["C(m) medio", formatCoherence(summary.averageCoherence)],
     ["Theta", formatNumberBR(input.runtimeConfig.coherenceThreshold)],
     ["Iteracoes medias", formatNumberBR(summary.averageIterations, 1)],
-    ["Latencia media", formatDuration(summary.averageLatencyMs)],
+    ["Latencia total media", formatDuration(summary.latency?.averageTotalMs ?? summary.averageLatencyMs)],
+    ["Latencia runtime media", formatDuration(summary.latency?.averageRuntimeMs)],
     ["Falhas de auditoria", summary.auditPersistenceFailureCount],
     ["Efeitos bloqueados", summary.optionalEffectBlockedCount],
     ["Efeitos revertidos", summary.optionalEffectRollbackCount],
@@ -266,11 +428,11 @@ export function generateCognitiveRunsReportPdf(input: {
   pdf.table(["Tipo", "Rotulo", "Codigo", "Quantidade"], [
     ...distributionRows(summary.runtimeModeDistribution, runtimeModeLabel).map((row) => ["Modo", ...row]),
     ...distributionRows(summary.executionProfileDistribution, executionProfileLabel).map((row) => ["Perfil", ...row]),
-  ], [70, 170, 140, 90]);
+  ], [60, 190, 170, 80]);
 
   pdf.heading("Execucoes filtradas");
   pdf.table(
-    ["Data", "Persona", "Modo", "Perfil", "C(m)", "Theta", "Decisao", "Entrega", "Causa"],
+    ["Data", "Persona", "Modo", "Perfil", "C(m)", "Theta", "Iter.", "Decisao", "Entrega", "Lat.", "Causa"],
     (input.data.rows || []).map((row: any) => [
       formatDateTimeBR(row.createdAt),
       row.personaId,
@@ -278,29 +440,39 @@ export function generateCognitiveRunsReportPdf(input: {
       executionProfileLabel(row.executionProfile),
       formatCoherence(row.coherence),
       formatCoherence(row.coherenceThreshold),
+      row.iterationCount,
       promotionLabel(row.promotionDecision),
       deliveryLabel(row.deliveryStatus),
-      row.dominantCause || row.blockingCategory || "",
+      formatDuration(row.latency?.totalMs ?? row.latencyMs),
+      row.dominantCause || row.blockingCategory || (row.findingCodes || []).slice(0, 3).join(", "),
     ]),
-    [62, 80, 68, 55, 38, 38, 70, 65, 78],
+    [72, 86, 62, 56, 42, 42, 32, 72, 64, 48, 185],
+    { maxCellLines: 2 },
   );
 
   pdf.heading("Legenda e proveniencia");
   pdf.text("C(m) e indice operacional de coerencia para promocao. Nao mede consciencia, inteligencia nem verdade.");
   pdf.text("Os dados vem da tabela cognitive_run_audits e da API administrativa metadata-only da Casa de Maquinas. Prompts brutos, mensagens integrais, chaves, tokens e conteudo privado nao sao exportados.");
   pdf.text(input.data.exportTruncated ? `Exportacao limitada a ${input.data.exportLimit} linhas por seguranca operacional.` : "Exportacao sem truncamento dentro do limite tecnico aplicado.");
-  return pdf.render();
+  const buffer = await pdf.render();
+  await validatePdfBuffer(buffer, { expectedText: ["Casa de Maquinas", "Relatorio completo"] });
+  return buffer;
 }
 
-export function generateCognitiveRunDetailPdf(input: {
+export async function generateCognitiveRunDetailPdf(input: {
   detail: any;
   runtimeConfig: { runtimeVersion: string; deployVersion: string | null };
   origin: string;
 }) {
   const exportedAt = new Date();
   const detail = input.detail;
-  const pdf = new PdfBuilder(exportedAt, input.runtimeConfig.runtimeVersion);
-  pdf.heading("Detalhe da Execucao");
+  const pdf = await PdfCanvas.create({
+    orientation: "portrait",
+    title: "Nemosine Nous - Casa de Maquinas",
+    runtimeVersion: input.runtimeConfig.runtimeVersion,
+    exportedAt,
+  });
+  pdf.heading("Detalhe da execucao");
   pdf.keyValue("ID da execucao", detail.identity?.runId);
   pdf.keyValue("Data e hora", formatDateTimeBR(detail.identity?.createdAt));
   pdf.keyValue("Persona", detail.identity?.personaId);
@@ -318,29 +490,30 @@ export function generateCognitiveRunDetailPdf(input: {
     transition.allowed ? "sim" : "nao",
     formatDuration(transition.latencyMs),
     transition.note || "",
-  ]), [100, 115, 55, 55, 190]);
+  ]), [92, 112, 58, 58, 195], { maxCellLines: 3 });
 
-  pdf.heading("Iteracoes O-C-V");
-  pdf.table(["Iteracao", "C(m)", "Retry", "Modelo", "Findings"], (detail.iterations || []).map((iteration: any) => [
+  pdf.heading("Iteracoes");
+  pdf.table(["Iteracao", "C(m)", "Theta", "Revisao", "Modelo", "Findings"], (detail.iterations || []).map((iteration: any) => [
     iteration.index + 1,
     formatCoherence(iteration.coherence),
+    formatCoherence(detail.vigia?.threshold),
     iteration.retryRequested ? "sim" : "nao",
     iteration.candidateModelIdentifier || "nao registrado",
-    (iteration.findingCodes || []).join(", "),
-  ]), [48, 45, 42, 120, 260]);
+    (iteration.findingCodes || []).join(", ") || iteration.coherenceUnavailableReason || "",
+  ]), [50, 45, 45, 50, 120, 205], { maxCellLines: 3 });
 
   pdf.heading("Vigia, Cientista e Filosofo");
   pdf.keyValue("Theta", formatCoherence(detail.vigia?.threshold));
   pdf.keyValue("C(m) final", formatCoherence(detail.vigia?.finalCoherence));
+  pdf.keyValue("Cientista", (detail.doubleVigilance?.scientist?.findingCodes || []).join(", ") || "avaliacao deterministica registrada");
+  pdf.keyValue("Filosofo", (detail.doubleVigilance?.philosopher?.findingCodes || []).join(", ") || "avaliacao deterministica registrada");
   pdf.table(["Dimensao", "Status", "Score", "Peso", "Razao"], (detail.vigia?.dimensions || []).map((dimension: any) => [
     dimension.name,
     dimension.status === "NOT_APPLICABLE" ? "Nao aplicavel" : "Pontuada",
     formatCoherence(dimension.score),
     dimension.weight == null ? "" : formatNumberBR(dimension.weight, 2),
     dimension.reason || "",
-  ]), [110, 75, 45, 45, 240]);
-  pdf.keyValue("Cientista", (detail.doubleVigilance?.scientist?.findingCodes || []).join(", ") || "sem finding registrado");
-  pdf.keyValue("Filosofo", (detail.doubleVigilance?.philosopher?.findingCodes || []).join(", ") || "sem finding registrado");
+  ]), [110, 75, 45, 45, 240], { maxCellLines: 3 });
 
   pdf.heading("Promocao, recuperacao e persistencia");
   pdf.keyValue("Decisao", promotionLabel(detail.identity?.promotionDecision));
@@ -352,16 +525,19 @@ export function generateCognitiveRunDetailPdf(input: {
   pdf.keyValue("Auditoria persistida", detail.persistence?.auditPersisted ? "sim" : "nao");
   pdf.keyValue("Efeitos opcionais", sideEffectLabel(detail.persistence?.sideEffectStatus));
   pdf.keyValue("Latencia total", formatDuration(detail.latency?.totalMs));
+  pdf.keyValue("Latencia runtime", formatDuration(detail.latency?.runtimeMs));
 
   pdf.heading("Finding codes");
   pdf.table(["Codigo tecnico", "Traducao segura"], (detail.findingCodes || []).map((code: string) => [
     code,
     short(code.replace(/_/g, " ").toLowerCase(), 160),
-  ]), [210, 305]);
+  ]), [210, 305], { maxCellLines: 3 });
 
   pdf.heading("Proveniencia e limitacoes");
   pdf.text("Somente metadados, hashes, comprimentos, estados e codigos seguros foram usados. Nenhum texto bruto sensivel foi incluido.");
   pdf.text("C(m) e indice operacional, nao medida de consciencia, inteligencia ou verdade.");
   pdf.keyValue("Origem", input.origin);
-  return pdf.render();
+  const buffer = await pdf.render();
+  await validatePdfBuffer(buffer, { expectedText: ["Casa de Maquinas", "Detalhe da execucao"] });
+  return buffer;
 }

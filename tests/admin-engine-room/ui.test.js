@@ -112,6 +112,16 @@ test("Double Vigilance helper does not claim completion without telemetry", () =
   }), insufficientDoubleVigilanceTelemetry);
 });
 
+test("Double Vigilance helper recognizes deterministic telemetry", () => {
+  assert.match(doubleVigilanceMessage({
+    iterationCount: 1,
+    dimensionCount: 6,
+    scientistFindingCodes: [],
+    philosopherFindingCodes: [],
+    modelIdentifiers: [],
+  }), /deterministica registrada/);
+});
+
 test("metric tooltips and finding dictionary are readable in Portuguese", () => {
   assert.match(metricExplanations.averageCoherence.tooltip, /C\(m\)/);
   assert.match(metricExplanations.rejectionRate.expanded, /shadow_only/);
