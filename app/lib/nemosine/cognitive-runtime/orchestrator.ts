@@ -11,6 +11,7 @@ import {
 import { buildRedactedAudit } from "./audit-redaction";
 import { storeCognitiveAudit } from "./audit-store";
 import { extractClaimsAndActions } from "./claim-extractor";
+import { classifyFinding, isInfrastructureDegradationFinding } from "./finding-classification";
 import { deterministicPhilosopherEvaluation, mergePhilosopherEvaluations } from "./philosopher-validator";
 import { createAiSdkCognitiveModelProvider } from "./persona-generator";
 import { evaluatePromotion } from "./promotion-gate";
@@ -135,7 +136,7 @@ function structuredValidatorDegradedFinding(module: "scientist" | "philosopher",
   return {
     code: `${label.toUpperCase()}_STRUCTURED_DEGRADED`,
     severity: "warning",
-    category: module,
+    category: "infrastructure_degradation",
     explanation: `${label} structured LLM evaluation failed and deterministic ${label} evaluation was used instead: ${message.slice(0, 500)}`,
     repairInstruction: "Keep the deterministic module output visible in the audit and do not bypass Vigia or the promotion gate.",
   };
@@ -151,6 +152,8 @@ function recordStructuredValidatorDegraded(input: {
     module: input.module,
     iteration: input.iteration,
     errorType: input.error instanceof Error ? input.error.name : "unknown",
+    classification: "infrastructure_degradation",
+    fallbackDeterministicExecuted: true,
   }));
   return structuredValidatorDegradedFinding(input.module, input.error);
 }
@@ -246,6 +249,244 @@ function evaluateRuntimePersonaInitiative(input: {
     evaluation,
     findings,
   };
+}
+
+const softInitiativeCodes = new Set([
+  "GENERIC_ASSISTANT_MODE",
+  "VOCATIONAL_INERTIA",
+  "THIN_RESPONSE",
+  "GENERIC_CLOSING",
+  "NO_CONTEXT_USE_WHEN_AVAILABLE",
+]);
+
+const personaInitiativeCodes = new Set([
+  ...softInitiativeCodes,
+  "FALSE_CONTEXT_DENIAL",
+  "GENERIC_INTERVIEW_MODE",
+  "INTERROGATIVE_ELICITATION",
+  "PASSIVE_CONTEXT_WITHHOLDING",
+  "SELF_DESCRIPTION_INSTEAD_OF_ACTION",
+  "EMPTY_FINAL_QUESTION",
+  "UNSUPPORTED_BIOGRAPHICAL_ASSERTION",
+  "PRIVATE_CONTEXT_LEAK",
+  "REPETITIVE_LOOP",
+  "INTERNAL_CONTROL_LEAK",
+]);
+
+function isRecoveryQuestion(text: string) {
+  return /\b(por que|porque)\b.*\b(nao|não)\b.*\b(respondeu|responder|resposta)\b/i.test(text)
+    || /\b(voce|você)\b.*\btravou|bloqueou|nao respondeu|não respondeu\b/i.test(text);
+}
+
+function normalizeInitiativeFindingsForRuntime(input: {
+  request: CognitiveRequest;
+  initiative: ReturnType<typeof evaluateRuntimePersonaInitiative>;
+}) {
+  const softContext = input.initiative.richness.openingType === "greeting"
+    || input.initiative.richness.openingType === "return"
+    || input.request.userText.trim().length <= 80
+    || isRecoveryQuestion(input.request.userText);
+
+  let softenedCount = 0;
+  const findings = input.initiative.findings.map((finding) => {
+    const shouldSoften = softContext && softInitiativeCodes.has(finding.code);
+    if (shouldSoften) softenedCount += 1;
+    return {
+      ...finding,
+      severity: shouldSoften ? "warning" as const : finding.severity,
+      category: finding.code === "PRIVATE_CONTEXT_LEAK"
+        ? "privacy_failure"
+        : "vocational_failure",
+    };
+  });
+
+  const blockingFindings = findings.filter((finding) =>
+    (finding.severity === "error" || finding.severity === "critical")
+    && !isInfrastructureDegradationFinding(finding)
+  );
+
+  return {
+    findings,
+    blockingFindings,
+    softenedCount,
+    softContext,
+  };
+}
+
+function findingSignature(findings: CognitiveFinding[]) {
+  const codes = findings
+    .map((finding) => finding.code)
+    .filter((code) => code !== "PROMOTION_COHERENCE_FAILED")
+    .sort();
+  return codes.join("|") || "coherence_only";
+}
+
+function shouldShortCircuitRetries(iterations: CognitiveIteration[], current: CognitiveIteration) {
+  const currentSignature = findingSignature(collectRepairFindings(current));
+  const previous = iterations.at(-1);
+  if (!previous) return false;
+  return findingSignature(collectRepairFindings(previous)) === currentSignature;
+}
+
+function classifyDominantRejectionCause(iteration: CognitiveIteration, failureReason?: string) {
+  const findings = collectRepairFindings(iteration);
+  if (findings.some((finding) => classifyFinding(finding) === "hard_safety_failure")) return "safety";
+  if (findings.some((finding) => classifyFinding(finding) === "privacy_failure")) return "privacy";
+  if (findings.some((finding) => classifyFinding(finding) === "vocational_failure")) return "vocation";
+  if (findings.some((finding) => classifyFinding(finding) === "infrastructure_degradation")) return "infrastructure";
+  if (/delivery|persistence|audit/i.test(failureReason || "")) return "persistence";
+  return "coherence";
+}
+
+function recoveryHandoffTarget(iteration: CognitiveIteration) {
+  return iteration.vocation?.handoffTargets?.[0] || "uma persona mais adequada";
+}
+
+function buildRecoveryAnswer(input: {
+  request: CognitiveRequest;
+  iteration: CognitiveIteration;
+  dominantCause: string;
+}) {
+  const personaTarget = recoveryHandoffTarget(input.iteration);
+  const templates: Record<string, string> = {
+    infrastructure: "Encontrei uma falha interna ao validar minha resposta. Sua mensagem nao causou o bloqueio. Vou seguir em modo seguro: posso tentar novamente com uma resposta mais simples e verificavel.",
+    safety: "Nao posso entregar a resposta candidata desse jeito. Para manter seguranca, preciso reformular o pedido em termos mais seguros antes de continuar.",
+    privacy: "Nao posso seguir com uma resposta que arrisque expor conteudo privado. Posso continuar se trabalharmos apenas com informacoes que voce autorizar claramente neste turno.",
+    vocation: `Este pedido pertence melhor a ${personaTarget}. Posso encaminhar a conversa para essa persona ou responder apenas no limite seguro da persona atual.`,
+    coherence: "Consigo continuar, mas preciso de uma informacao indispensavel para nao inventar uma resposta: qual e o ponto principal que voce quer que eu trate agora?",
+    persistence: "A resposta foi bloqueada por uma falha de persistencia. Nenhuma acao opcional foi executada; posso tentar novamente em modo seguro.",
+  };
+  let answer = templates[input.dominantCause] || templates.coherence;
+  const lastAssistant = (input.request.priorHistory || []).filter((item) => item.role === "assistant").at(-1)?.content?.trim();
+  if (lastAssistant && lastAssistant === answer) {
+    answer = "Ainda estou no modo de recuperacao desta conversa. Nao vou repetir a mesma falha: diga apenas o ponto minimo que voce quer retomar agora, e eu sigo em modo seguro.";
+  }
+  if (isRecoveryQuestion(input.request.userText) && input.dominantCause !== "vocation") {
+    answer = "Eu nao entreguei a resposta anterior porque ela nao passou pelos controles de validacao. Sua pergunta nao causou o bloqueio. Posso retomar agora em modo seguro, com uma resposta mais simples e sem acionar efeitos opcionais.";
+  }
+  return answer;
+}
+
+function evaluateRecoveryBasalGate(answer: string) {
+  const findings: CognitiveFinding[] = [];
+  if (!answer.trim()) {
+    findings.push({
+      code: "RECOVERY_EMPTY_RESPONSE",
+      severity: "critical",
+      category: "hard_safety_failure",
+      explanation: "Recovery response was empty.",
+      repairInstruction: "Use the static safe fallback.",
+    });
+  }
+  if (/\[(MEMORY|REGISTRY|DESTINY):/i.test(answer)) {
+    findings.push({
+      code: "RECOVERY_SIDE_EFFECT_TAG_BLOCKED",
+      severity: "critical",
+      category: "hard_safety_failure",
+      explanation: "Recovery response attempted to carry a side-effect tag.",
+      repairInstruction: "Remove all side-effect tags from recovery responses.",
+    });
+  }
+  if (/\b(prompt|token|api key|stack trace|schema engine|promotion gate|runtime id|hash)\b/i.test(answer)) {
+    findings.push({
+      code: "RECOVERY_TECHNICAL_LEAK_BLOCKED",
+      severity: "error",
+      category: "privacy_failure",
+      explanation: "Recovery response exposed internal technical language.",
+      repairInstruction: "Explain the user-facing condition without exposing internal controls.",
+    });
+  }
+  return {
+    promoted: findings.length === 0,
+    findings,
+  };
+}
+
+async function finalizeRecoveryAnswer(input: {
+  request: CognitiveRequest;
+  config: CognitiveRuntimeConfig;
+  executionProfile: CognitiveRunResult["executionProfile"];
+  stateMachine: CognitiveStateMachine;
+  iterations: CognitiveIteration[];
+  rejectedCandidateTexts: string[];
+  auditEvents: CognitiveAuditEvent[];
+  auditRequired: boolean;
+  storeAudit: (audit: RedactedCognitiveAudit) => Promise<void>;
+  persistAssistantMessage: (delivery: PersistDeliveredAssistantMessageInput) => Promise<PersistDeliveredAssistantMessageResult>;
+  commitOptionalEffects: (effects: CommitOptionalEffectsInput) => Promise<CommitOptionalEffectsResult>;
+  promptHashes: Record<string, string>;
+  createdAt: Date;
+  failureReason: string;
+}) {
+  const lastIteration = input.iterations.at(-1);
+  const dominantCause = lastIteration ? classifyDominantRejectionCause(lastIteration, input.failureReason) : "coherence";
+  input.auditEvents.push(auditEvent("REJECTION_CLASSIFIED", {
+    dominantCause,
+    failureReason: input.failureReason,
+  }));
+
+  const recoveryAnswer = lastIteration
+    ? buildRecoveryAnswer({ request: input.request, iteration: lastIteration, dominantCause })
+    : SAFE_FAILURE;
+  const basalGate = evaluateRecoveryBasalGate(recoveryAnswer);
+  input.auditEvents.push(auditEvent("RECOVERY_BASAL_GATE", {
+    dominantCause,
+    promoted: basalGate.promoted,
+    findingCodes: basalGate.findings.map((finding) => finding.code).join(","),
+  }));
+
+  if (lastIteration && basalGate.findings.length > 0) {
+    lastIteration.repairFindings.push(...basalGate.findings);
+  }
+
+  if (!basalGate.promoted) {
+    input.stateMachine.transition("FAILED_SAFE", "recovery_basal_gate_failed");
+    return finalizeSelectedAnswer({
+      request: input.request,
+      config: input.config,
+      executionProfile: input.executionProfile,
+      stateMachine: input.stateMachine,
+      iterations: input.iterations,
+      answer: SAFE_FAILURE,
+      promoted: false,
+      rejectedCandidateTexts: input.rejectedCandidateTexts,
+      auditEvents: input.auditEvents,
+      auditRequired: input.auditRequired,
+      storeAudit: input.storeAudit,
+      persistAssistantMessage: input.persistAssistantMessage,
+      commitOptionalEffects: input.commitOptionalEffects,
+      promptHashes: input.promptHashes,
+      createdAt: input.createdAt,
+      promotionDecision: input.request.runtimeMode === "shadow" ? "shadow_only" : "failed_safe",
+      failureReason: "recovery_basal_gate_failed",
+    });
+  }
+
+  input.auditEvents.push(auditEvent("RECOVERY_DELIVERED", {
+    dominantCause,
+    recoveryDelivered: true,
+    sideEffectsAllowed: false,
+  }));
+
+  return finalizeSelectedAnswer({
+    request: input.request,
+    config: input.config,
+    executionProfile: input.executionProfile,
+    stateMachine: input.stateMachine,
+    iterations: input.iterations,
+    answer: recoveryAnswer,
+    promoted: false,
+    rejectedCandidateTexts: input.rejectedCandidateTexts,
+    auditEvents: input.auditEvents,
+    auditRequired: input.auditRequired,
+    storeAudit: input.storeAudit,
+    persistAssistantMessage: input.persistAssistantMessage,
+    commitOptionalEffects: input.commitOptionalEffects,
+    promptHashes: input.promptHashes,
+    createdAt: input.createdAt,
+    promotionDecision: input.request.runtimeMode === "shadow" ? "shadow_only" : "recovery_delivered",
+    failureReason: input.failureReason,
+  });
 }
 
 async function persistAuditWithPolicy(input: {
@@ -613,6 +854,8 @@ export async function runCognitiveRuntime(
       selected: executionProfile,
       fallback: config.defaultProfile,
       highStakes: requestRisk.highStakes,
+      profileReason: requestRisk.profileReason,
+      matchedPatterns: requestRisk.matchedPatterns,
     }));
     const selectedModules = selectRuntimeModules(request, executionProfile);
     stateMachine.transition("MODULES_SELECTED");
@@ -647,6 +890,14 @@ export async function runCognitiveRuntime(
         structured: structuredValidators,
       });
       iteration.extraction = extraction;
+      if (extraction.extractorFindings.some((finding) => finding.code === "CLAIM_EXTRACTOR_STRUCTURED_DEGRADED")) {
+        auditEvents.push(auditEvent("STRUCTURED_VALIDATOR_DEGRADED", {
+          module: "claim-extractor",
+          iteration: index,
+          errorType: "structured_extraction_failure",
+          fallbackDeterministicExecuted: true,
+        }));
+      }
       stateMachine.transition("CLAIMS_EXTRACTED", `iteration:${index}`);
 
       const deterministicScientist = deterministicScientistEvaluation({ candidate, extraction });
@@ -690,10 +941,11 @@ export async function runCognitiveRuntime(
         context: contextResult.envelope,
         candidate,
       });
-      if (initiative.findings.length > 0) {
-        vocation.findings.push(...initiative.findings);
+      const runtimeInitiative = normalizeInitiativeFindingsForRuntime({ request, initiative });
+      if (runtimeInitiative.findings.length > 0) {
+        vocation.findings.push(...runtimeInitiative.findings);
       }
-      if (!initiative.evaluation.finalPass) {
+      if (runtimeInitiative.blockingFindings.length > 0) {
         vocation.hardPass = false;
         vocation.decision = vocation.decision === "refusal_required" ? vocation.decision : "warning";
       }
@@ -715,11 +967,15 @@ export async function runCognitiveRuntime(
         resonantInferenceCount: initiative.evaluation.resonantInferenceCount,
         contextualConnectionsCount: initiative.evaluation.contextualConnectionsCount,
         elicitationMode: initiative.evaluation.elicitationMode,
-        findingCount: initiative.findings.length,
-        findingCodes: initiative.findings.map((finding) => finding.code).join(","),
-        falseContextDenialDetected: initiative.findings.some((finding) => finding.code === "FALSE_CONTEXT_DENIAL"),
-        genericAssistantLeakDetected: initiative.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE" || finding.code === "GENERIC_INTERVIEW_MODE"),
+        findingCount: runtimeInitiative.findings.length,
+        findingCodes: runtimeInitiative.findings.map((finding) => finding.code).join(","),
+        blockingFindingCount: runtimeInitiative.blockingFindings.length,
+        softenedFindingCount: runtimeInitiative.softenedCount,
+        softContext: runtimeInitiative.softContext,
+        falseContextDenialDetected: runtimeInitiative.findings.some((finding) => finding.code === "FALSE_CONTEXT_DENIAL"),
+        genericAssistantLeakDetected: runtimeInitiative.findings.some((finding) => finding.code === "GENERIC_ASSISTANT_MODE" || finding.code === "GENERIC_INTERVIEW_MODE"),
         finalPass: initiative.evaluation.finalPass,
+        runtimeHardPass: runtimeInitiative.blockingFindings.length === 0,
       }));
 
       const vigia = calculateVigiaCoherence({
@@ -736,11 +992,12 @@ export async function runCognitiveRuntime(
       if (!vigia.passed) {
         rejectedCandidateTexts.push(candidate.visibleText);
         iteration.completedAt = new Date().toISOString();
+        const repeatedFindings = shouldShortCircuitRetries(iterations, iteration);
         iterations.push(iteration);
 
-        if (retriesRemainingAfterVigia > 0) {
+        if (retriesRemainingAfterVigia > 0 && !repeatedFindings) {
           repairFindings = collectRepairFindings(iteration);
-          const initiativeRepairCount = repairFindings.filter((finding) => finding.category === "persona-initiative").length;
+          const initiativeRepairCount = repairFindings.filter((finding) => personaInitiativeCodes.has(finding.code)).length;
           if (initiativeRepairCount > 0) {
             auditEvents.push(auditEvent("PERSONA_INITIATIVE_REPAIR_REQUESTED", {
               iteration: index,
@@ -751,16 +1008,20 @@ export async function runCognitiveRuntime(
           stateMachine.transition("OCV_RETRY_REQUESTED", `iteration:${index}`);
           continue;
         }
+        if (repeatedFindings) {
+          auditEvents.push(auditEvent("RETRY_SHORT_CIRCUITED", {
+            iteration: index,
+            reason: "identical_findings",
+          }));
+        }
 
         stateMachine.transition("REJECTED", "coherence exhausted");
-        return finalizeSelectedAnswer({
+        return finalizeRecoveryAnswer({
           request,
           config,
           executionProfile,
           stateMachine,
           iterations,
-          answer: SAFE_REJECTION,
-          promoted: false,
           rejectedCandidateTexts,
           auditEvents,
           auditRequired,
@@ -769,7 +1030,6 @@ export async function runCognitiveRuntime(
           commitOptionalEffects,
           promptHashes,
           createdAt,
-          promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "rejected",
           failureReason: "coherence_exhaustion",
         });
       }
@@ -824,11 +1084,12 @@ export async function runCognitiveRuntime(
       if (!promotion.promoted) {
         rejectedCandidateTexts.push(candidate.visibleText);
         iteration.completedAt = new Date().toISOString();
+        const repeatedFindings = shouldShortCircuitRetries(iterations, iteration);
         iterations.push(iteration);
 
-        if (promotion.retriable) {
+        if (promotion.retriable && !repeatedFindings) {
           repairFindings = collectRepairFindings(iteration);
-          const initiativeRepairCount = repairFindings.filter((finding) => finding.category === "persona-initiative").length;
+          const initiativeRepairCount = repairFindings.filter((finding) => personaInitiativeCodes.has(finding.code)).length;
           if (initiativeRepairCount > 0) {
             auditEvents.push(auditEvent("PERSONA_INITIATIVE_REPAIR_REQUESTED", {
               iteration: index,
@@ -839,16 +1100,20 @@ export async function runCognitiveRuntime(
           stateMachine.transition("OCV_RETRY_REQUESTED", `iteration:${index}`);
           continue;
         }
+        if (repeatedFindings) {
+          auditEvents.push(auditEvent("RETRY_SHORT_CIRCUITED", {
+            iteration: index,
+            reason: "identical_findings",
+          }));
+        }
 
         stateMachine.transition("REJECTED", "promotion rejected");
-        return finalizeSelectedAnswer({
+        return finalizeRecoveryAnswer({
           request,
           config,
           executionProfile,
           stateMachine,
           iterations,
-          answer: SAFE_REJECTION,
-          promoted: false,
           rejectedCandidateTexts,
           auditEvents,
           auditRequired,
@@ -857,7 +1122,6 @@ export async function runCognitiveRuntime(
           commitOptionalEffects,
           promptHashes,
           createdAt,
-          promotionDecision: request.runtimeMode === "shadow" ? "shadow_only" : "rejected",
           failureReason: promotion.reasons.join(",") || "promotion_rejected",
         });
       }

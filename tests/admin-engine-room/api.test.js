@@ -11,6 +11,10 @@ const {
   getSafeCognitiveRuntimeConfig,
   handleCognitiveRuntimeConfigRequest,
 } = require("../../app/lib/admin/cognitiveRuntimeConfig.ts");
+const {
+  generateCognitiveRunDetailPdf,
+  generateCognitiveRunsReportPdf,
+} = require("../../app/lib/admin/cognitiveRunsPdf.ts");
 
 const adminSession = { user: { email: "edersouzamelo@gmail.com" } };
 const userSession = { user: { email: "not-admin@example.com" } };
@@ -311,6 +315,42 @@ test("stored theta is returned for OCV runs", async () => {
   assert.match(detailJson.vigia.formula, /Theta e preservado/);
 });
 
+test("recovery and NOT_APPLICABLE dimensions are exposed safely", async () => {
+  const row = auditRow({
+    id: "recovered",
+    promotionDecision: "recovery_delivered",
+    failureReason: "coherence_exhaustion",
+    dimensionScores: {
+      factualSupport: { score: null, status: "NOT_APPLICABLE", weight: 0.16, reason: "Sem alegacao factual verificavel." },
+      responseRelevance: { score: 0.9, status: "SCORED", weight: 0.11 },
+    },
+    findingCodes: ["SCIENTIST_STRUCTURED_DEGRADED"],
+    auditEvents: [
+      { code: "STRUCTURED_VALIDATOR_DEGRADED", at: "2026-06-22T00:00:00.000Z", detail: { classification: "infrastructure_degradation" } },
+      { code: "REJECTION_CLASSIFIED", at: "2026-06-22T00:00:01.000Z", detail: { dominantCause: "infrastructure" } },
+      { code: "RECOVERY_DELIVERED", at: "2026-06-22T00:00:02.000Z", detail: { dominantCause: "infrastructure", recoveryDelivered: true } },
+    ],
+  });
+  const list = await handleCognitiveRunsListRequest(new Request("https://local/api/admin/cognitive-runs"), {
+    session: adminSession,
+    prisma: mockPrisma([row]),
+  });
+  const listJson = await body(list);
+  assert.equal(listJson.summary.recoveryRate, 1);
+  assert.equal(listJson.rows[0].recoveryDelivered, true);
+  assert.equal(listJson.rows[0].infrastructureDegraded, true);
+
+  const detail = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
+    session: adminSession,
+    prisma: mockPrisma([row]),
+    runId: "recovered",
+  });
+  const detailJson = await body(detail);
+  assert.equal(detailJson.vigia.dimensions[0].status, "NOT_APPLICABLE");
+  assert.equal(detailJson.recovery.delivered, true);
+  assert.equal(detailJson.recovery.dominantCause, "infrastructure");
+});
+
 test("detail does not claim complete Double Vigilance without telemetry", async () => {
   const response = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
     session: adminSession,
@@ -361,4 +401,34 @@ test("safe runtime config endpoint exposes no secret environment values", async 
   assert.equal(denied.status, 403);
   const allowed = await handleCognitiveRuntimeConfigRequest({ session: adminSession, env });
   assert.equal(allowed.status, 200);
+});
+
+test("PDF exports are real PDFs and exclude raw sensitive content", async () => {
+  const row = auditRow({ id: "pdf-run", privateRun: true });
+  const list = await handleCognitiveRunsListRequest(new Request("https://local/api/admin/cognitive-runs"), {
+    session: adminSession,
+    prisma: mockPrisma([row]),
+  });
+  const listJson = await body(list);
+  const runtimeConfig = getSafeCognitiveRuntimeConfig({ VERCEL_GIT_COMMIT_SHA: "sha-pdf" });
+  const reportPdf = generateCognitiveRunsReportPdf({
+    data: { ...listJson, exportScope: "page", exportLimit: 25, exportTruncated: false },
+    runtimeConfig,
+    activeFilters: listJson.activeFilters,
+    exportScope: "page",
+    origin: "https://local",
+  });
+  assert.equal(reportPdf.subarray(0, 5).toString(), "%PDF-");
+  assert.equal(reportPdf.includes(Buffer.from("SECRET USER TEXT")), false);
+  assert.ok(reportPdf.includes(Buffer.from("Casa de Maquinas")));
+
+  const detail = await handleCognitiveRunDetailRequest(new Request("https://local/detail"), {
+    session: adminSession,
+    prisma: mockPrisma([row]),
+    runId: "pdf-run",
+  });
+  const detailJson = await body(detail);
+  const detailPdf = generateCognitiveRunDetailPdf({ detail: detailJson, runtimeConfig, origin: "https://local" });
+  assert.equal(detailPdf.subarray(0, 5).toString(), "%PDF-");
+  assert.equal(detailPdf.includes(Buffer.from("SECRET CANDIDATE")), false);
 });

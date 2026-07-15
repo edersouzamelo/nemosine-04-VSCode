@@ -221,6 +221,36 @@ test("candidate passes first iteration and commits promoted assistant answer onc
   assert.equal(result.finalStatus, "DELIVERED");
 });
 
+test("casual Mentor greeting uses light profile and promotes without factualSupport", async () => {
+  const req = request({
+    personaId: "Mentor",
+    memoryScope: "Mentor",
+    userText: "Ola Mentor.",
+    displayUserText: "Ola Mentor.",
+  });
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1, defaultProfile: "full" }),
+    contextEnvelope: context(req, {
+      functionalContract: {
+        id: "mentor",
+        label: "Contrato especifico: Mentor",
+        family: "strategic",
+        text: "Contrato funcional do Mentor.",
+      },
+    }),
+    modelProvider: provider({ candidates: ["Ola. Estou com voce; podemos comecar pelo ponto mais vivo de hoje."] }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: skippedOptionalEffects(),
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.executionProfile, "light");
+  assert.equal(result.promoted, true);
+  assert.equal(result.iterations[0].vigia.dimensions.find((dimension) => dimension.name === "factualSupport").status, "NOT_APPLICABLE");
+  assert.equal(delivery.threadReload(req.runId).content, result.answer);
+});
+
 test("candidate fails Scientist gate and succeeds after revision without persisting rejected answer", async () => {
   const req = request();
   const delivery = persistenceHarness();
@@ -321,6 +351,56 @@ test("candidate never reaches threshold and no side effects are committed", asyn
   assert.equal(delivery.threadReload(req.runId).content, result.answer);
   assert.equal(result.answer.includes("BAD CANDIDATE"), false);
   assert.equal(result.rejectedCandidateTexts.length, 2);
+  assert.equal(result.audit.promotionDecision, "recovery_delivered");
+  assert.ok(result.audit.auditEvents.some((event) => event.code === "RECOVERY_DELIVERED"));
+});
+
+test("identical findings short-circuit useless retries and deliver recovery", async () => {
+  const req = request();
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 2, maxTotalCandidates: 3 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({
+      candidates: ["BAD CANDIDATE 1", "BAD CANDIDATE 2", "BAD CANDIDATE 3"],
+      scientists: [
+        scientist({ factualSupport: 0.1, logicalConsistency: 0.2, responseRelevance: 0.2 }),
+        scientist({ factualSupport: 0.1, logicalConsistency: 0.2, responseRelevance: 0.2 }),
+        scientist({ factualSupport: 0.1, logicalConsistency: 0.2, responseRelevance: 0.2 }),
+      ],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => { throw new Error("should not commit"); },
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.iterations.length, 2);
+  assert.equal(result.audit.promotionDecision, "recovery_delivered");
+  assert.ok(result.audit.auditEvents.some((event) => event.code === "RETRY_SHORT_CIRCUITED"));
+  assert.equal(result.answer.includes("BAD CANDIDATE"), false);
+});
+
+test("question about prior non-answer receives recovery explanation instead of loop", async () => {
+  const req = request({
+    userText: "Por que voce nao respondeu?",
+    displayUserText: "Por que voce nao respondeu?",
+  });
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1 }),
+    contextEnvelope: context(req),
+    modelProvider: provider({
+      candidates: ["BAD CANDIDATE"],
+      scientists: [scientist({ factualSupport: 0.1, logicalConsistency: 0.2, responseRelevance: 0.2 })],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => { throw new Error("should not commit"); },
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.audit.promotionDecision, "recovery_delivered");
+  assert.match(result.answer, /nao entreguei|não entreguei/i);
+  assert.equal(result.answer.includes("BAD CANDIDATE"), false);
 });
 
 test("permissive LLM Scientist cannot erase deterministic simulated-access failure", async () => {
@@ -364,8 +444,8 @@ test("permissive LLM Philosopher cannot erase deterministic dependency failure",
   assert.equal(result.answer.includes("indispensavel"), false);
 });
 
-test("malformed structured Scientist output blocks full-profile promotion", async () => {
-  const req = request();
+test("malformed structured Scientist output degrades without blocking full-profile candidate", async () => {
+  const req = request({ requestedProfile: "full" });
   const delivery = persistenceHarness();
   const result = await runCognitiveRuntime(req, {
     config: config({ maxRetries: 0, maxTotalCandidates: 1, defaultProfile: "full" }),
@@ -379,15 +459,41 @@ test("malformed structured Scientist output blocks full-profile promotion", asyn
     storeAudit: async () => {},
   });
 
-  assert.equal(result.promoted, false);
+  assert.equal(result.promoted, true);
   assert.equal(result.finalStatus, "DELIVERED");
   assert.equal(result.deliveryPersisted, true);
   assert.equal(delivery.threadReload(req.runId).content, result.answer);
-  assert.equal(result.answer.includes("Resposta que dependeria"), false);
-  assert.equal(result.audit.promotionDecision, "rejected");
+  assert.equal(result.answer.includes("Resposta que dependeria"), true);
+  assert.equal(result.audit.promotionDecision, "promoted");
   assert.equal(result.audit.findingCodes.includes("SCIENTIST_STRUCTURED_DEGRADED"), true);
   assert.equal(result.audit.auditEvents.some((event) => event.code === "STRUCTURED_VALIDATOR_DEGRADED"), true);
   assert.equal(result.audit.coherence >= result.audit.coherenceThreshold, true);
+});
+
+test("semantic Scientist warning still blocks full profile and delivers recovery", async () => {
+  const req = request({ requestedProfile: "full" });
+  const delivery = persistenceHarness();
+  const result = await runCognitiveRuntime(req, {
+    config: config({ maxRetries: 0, maxTotalCandidates: 1, defaultProfile: "full" }),
+    contextEnvelope: context(req),
+    modelProvider: provider({
+      candidates: ["Resposta com afirmacao sem fonte externa."],
+      extraction: {
+        claims: [{ id: "claim-1", type: "factual", text: "Afirmacao sem fonte externa.", support: "candidate_only", confidence: 0.9 }],
+      },
+      scientists: [scientist()],
+      philosophers: [philosopher()],
+    }),
+    persistAssistantMessage: delivery.persistAssistantMessage,
+    commitOptionalEffects: async () => { throw new Error("should not commit"); },
+    storeAudit: async () => {},
+  });
+
+  assert.equal(result.promoted, false);
+  assert.equal(result.audit.promotionDecision, "recovery_delivered");
+  assert.equal(result.answer.includes("Resposta com afirmacao"), false);
+  assert.equal(delivery.threadReload(req.runId).content, result.answer);
+  assert.ok(result.audit.findingCodes.includes("SCIENTIST_CANDIDATE_ONLY_CLAIM"));
 });
 
 test("standard profile can promote with deterministic Scientist when structured Scientist degrades", async () => {

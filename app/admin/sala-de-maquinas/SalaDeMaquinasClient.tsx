@@ -13,6 +13,7 @@ import {
   describeFindingCode,
   doubleVigilanceMessage,
   emptyStateCopy,
+  executionProfileLabel,
   formatCoherence,
   formatDuration,
   formatPercent,
@@ -24,10 +25,12 @@ import {
   metricExplanations,
   promotionLabel,
   rowDetailUrl,
+  runtimeModeLabel,
   sideEffectLabel,
   statusClass,
   tableColumnGuide,
   thresholdTooltip,
+  transitionLabel,
 } from "@/app/lib/admin/cognitiveRunsUi";
 
 type MetricProvenance = {
@@ -46,6 +49,7 @@ type Summary = {
   promotionRate: number | null;
   rejectionRate: number | null;
   failedSafeRate: number | null;
+  recoveryRate: number | null;
   averageCoherence: number | null;
   averageCoherenceValidCount: number;
   medianCoherence: number | null;
@@ -98,6 +102,10 @@ type RunRow = {
   };
   retryRequested: boolean;
   findingCodes: string[];
+  recoveryDelivered?: boolean;
+  dominantCause?: string | null;
+  infrastructureDegraded?: boolean;
+  blockingCategory?: string | null;
 };
 
 type ListResponse = {
@@ -161,7 +169,7 @@ type CognitiveFoundationAdminResponse = {
 
 const modeOptions = ["", "shadow", "enforce"];
 const profileOptions = ["", "light", "standard", "full"];
-const decisionOptions = ["", "promoted", "rejected", "failed_safe", "shadow_only"];
+const decisionOptions = ["", "promoted", "rejected", "failed_safe", "recovery_delivered", "shadow_only"];
 const deliveryOptions = ["", "not_attempted", "persisted", "failed", "shadow_external"];
 const sideEffectOptions = ["", "none", "skipped", "blocked", "committed", "failed_rolled_back"];
 const privateOptions = ["", "true", "false"];
@@ -187,6 +195,11 @@ function formatBoolean(value: boolean | null | undefined) {
 function DistributionBars({ title, values }: { title: string; values: Record<string, number> }) {
   const entries = Object.entries(values);
   const max = Math.max(...entries.map(([, count]) => count), 1);
+  const labelFor = (label: string) => {
+    if (/Runtime/i.test(title)) return runtimeModeLabel(label);
+    if (/Perfil|Execucao/i.test(title)) return executionProfileLabel(label);
+    return label;
+  };
   return (
     <section className="rounded-lg border border-[#c5a059]/20 bg-black/45 p-5 backdrop-blur-md" aria-label={title}>
       <h2 className="mb-4 text-[10px] font-bold uppercase tracking-[0.24em] text-[#c5a059]">{title}</h2>
@@ -194,7 +207,7 @@ function DistributionBars({ title, values }: { title: string; values: Record<str
         {entries.length === 0 && <p className="text-xs text-white/35">Sem dados para este recorte.</p>}
         {entries.map(([label, count]) => (
           <div key={label} className="grid grid-cols-[7rem_1fr_3rem] items-center gap-3">
-            <span className="truncate text-[10px] uppercase tracking-wider text-white/65">{label}</span>
+            <span className="truncate text-[10px] uppercase tracking-wider text-white/65" title={label}>{labelFor(label)}</span>
             <div className="h-3 overflow-hidden rounded-full border border-[#c5a059]/10 bg-black/45" aria-hidden="true">
               <div className="h-full rounded-full bg-[#c5a059]/75" style={{ width: `${Math.max(4, (count / max) * 100)}%` }} />
             </div>
@@ -313,6 +326,16 @@ function EmptyState({ kind }: { kind: "no-audits" | "no-results" | "diagnostic" 
 }
 
 function SelectFilter({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+  const optionLabel = (option: string) => {
+    if (!option) return "todos";
+    if (label === "Modo") return runtimeModeLabel(option);
+    if (label === "Perfil") return executionProfileLabel(option);
+    if (label === "Decisao") return promotionLabel(option);
+    if (label === "Entrega") return deliveryLabel(option);
+    if (label === "Efeitos") return sideEffectLabel(option);
+    if (label === "Privacidade") return option === "true" ? "privadas" : "publicas";
+    return option;
+  };
   return (
     <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-widest text-[#c5a059]/70">
       {label}
@@ -323,7 +346,7 @@ function SelectFilter({ label, value, options, onChange }: { label: string; valu
       >
         {options.map((option) => (
           <option key={option || "all"} value={option}>
-            {option || "todos"}
+            {optionLabel(option)}
           </option>
         ))}
       </select>
@@ -390,6 +413,13 @@ export default function SalaDeMaquinasClient() {
     }
     if (!("page" in next)) params.set("page", "1");
     router.push(`/admin/sala-de-maquinas?${params.toString()}`);
+  }
+
+  function exportUrl(scope: "page" | "all") {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("runId");
+    params.set("scope", scope);
+    return `/api/admin/cognitive-runs/export?${params.toString()}`;
   }
 
   useEffect(() => {
@@ -497,7 +527,7 @@ export default function SalaDeMaquinasClient() {
               <p className="rounded-lg border border-[#c5a059]/20 bg-black/45 p-4 text-xs leading-relaxed text-white/60">
                 C(m) e um indice operacional de coerencia para promocao, nao uma medida de consciencia, inteligencia ou probabilidade de verdade.
               </p>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <button
                   type="button"
                   onClick={() => setGuideOpen(true)}
@@ -506,6 +536,20 @@ export default function SalaDeMaquinasClient() {
                   <span className="material-icons text-sm" aria-hidden="true">menu_book</span>
                   Como ler este painel
                 </button>
+                <a
+                  href={exportUrl("page")}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/40 bg-[#c5a059]/10 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                >
+                  <span className="material-icons text-sm" aria-hidden="true">picture_as_pdf</span>
+                  Exportar relatorio completo em PDF
+                </a>
+                <a
+                  href={exportUrl("all")}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/30 bg-black/35 px-4 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                >
+                  <span className="material-icons text-sm" aria-hidden="true">dataset</span>
+                  Exportar todas as execucoes
+                </a>
                 <button
                   type="button"
                   onClick={() => router.push("/admin/observatorio-do-criador")}
@@ -542,6 +586,7 @@ export default function SalaDeMaquinasClient() {
               <MetricCard label={metricExplanations.averageIterations.label} value={compactNumber(summary?.averageIterations)} icon="repeat" copy={metricExplanations.averageIterations} provenance={summary?.provenance?.averageIterations} footnote={`${summary?.cognitiveExecutionCount ?? 0} execucoes reais`} />
               <MetricCard label={metricExplanations.retryRate.label} value={formatPercent(summary?.retryRate)} icon="restart_alt" copy={metricExplanations.retryRate} provenance={summary?.provenance?.retryRate} />
               <MetricCard label={metricExplanations.failedSafeRate.label} value={formatPercent(summary?.failedSafeRate)} icon="shield" copy={metricExplanations.failedSafeRate} provenance={summary?.provenance?.failedSafeRate} />
+              <MetricCard label={metricExplanations.recoveryRate.label} value={formatPercent(summary?.recoveryRate)} icon="support_agent" copy={metricExplanations.recoveryRate} provenance={summary?.provenance?.recoveryRate} />
               <MetricCard label={metricExplanations.latency.label} value={formatDuration(summary?.averageLatencyMs)} icon="speed" copy={metricExplanations.latency} provenance={summary?.provenance?.latency} footnote={`runtime: ${formatDuration(summary?.latency?.averageRuntimeMs)}`} />
               <MetricCard label={metricExplanations.deliveryFailures.label} value={summary?.deliveryPersistenceFailureCount ?? 0} icon="outbox" copy={metricExplanations.deliveryFailures} />
               <MetricCard label={metricExplanations.auditFailures.label} value={summary?.auditPersistenceFailureCount ?? 0} icon="fact_check" copy={metricExplanations.auditFailures} />
@@ -645,8 +690,8 @@ export default function SalaDeMaquinasClient() {
                                 <div className="text-[10px] text-white/35">{row.placeId || "sem Place"}</div>
                                 <div className="mt-2"><ContextBadges run={row} /></div>
                               </td>
-                              <td className="p-2 text-[10px] uppercase text-white/65">{row.runtimeMode}</td>
-                              <td className="p-2 text-[10px] uppercase text-white/65">{row.executionProfile}</td>
+                              <td className="p-2 text-[10px] uppercase text-white/65" title={row.runtimeMode}>{runtimeModeLabel(row.runtimeMode)}</td>
+                              <td className="p-2 text-[10px] uppercase text-white/65" title={row.executionProfile}>{executionProfileLabel(row.executionProfile)}</td>
                               <td className="p-2 font-mono text-xs text-[#fde68a]" title={coherenceTooltip(row)}>{formatCoherence(row.coherence)}</td>
                               <td className="p-2 font-mono text-xs text-white/50" title={thresholdTooltip(row)}>{formatThreshold(row.coherenceThreshold, true)}</td>
                               <td className="p-2 font-mono text-xs text-white/65">{row.iterationCount}{row.retryRequested ? " + retry" : ""}</td>
@@ -695,7 +740,7 @@ export default function SalaDeMaquinasClient() {
                           <div><dt className="text-white/35">C(m)</dt><dd className="font-mono text-[#fde68a]" title={coherenceTooltip(row)}>{formatCoherence(row.coherence)}</dd></div>
                           <div><dt className="text-white/35">Theta</dt><dd title={thresholdTooltip(row)}>{formatThreshold(row.coherenceThreshold, true)}</dd></div>
                           <div><dt className="text-white/35">Iteracoes</dt><dd>{row.iterationCount}</dd></div>
-                          <div><dt className="text-white/35">Modo</dt><dd>{row.runtimeMode}</dd></div>
+                          <div><dt className="text-white/35">Modo</dt><dd title={row.runtimeMode}>{runtimeModeLabel(row.runtimeMode)}</dd></div>
                           <div><dt className="text-white/35">Latencia</dt><dd>{formatDuration(row.latencyMs)}</dd></div>
                           <div><dt className="text-white/35">Findings</dt><dd>{row.findingCodes.join(", ") || "Sem finding registrado"}</dd></div>
                         </dl>
@@ -963,6 +1008,10 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
     deliveryStatus: detail.persistence?.deliveryStatus,
     iterationCount: detail.iterations?.length || 0,
     coherence: detail.vigia?.finalCoherence ?? null,
+    findingCodes: detail.findingCodes || [],
+    recoveryDelivered: detail.recovery?.delivered,
+    dominantCause: detail.recovery?.dominantCause,
+    infrastructureDegraded: detail.recovery?.infrastructureDegraded,
   } : null;
   const narrative = detail?.narrative || (detail ? buildRunNarrative(detail) : "");
 
@@ -973,9 +1022,20 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
           <h2 className="font-serif text-xl text-[#fde68a]">Detalhe da Execucao</h2>
           <p className="text-[10px] uppercase tracking-widest text-white/35">Somente metadados tecnicos</p>
         </div>
-        <button type="button" onClick={onClose} className="rounded border border-[#c5a059]/30 p-2 text-[#fde68a]" aria-label="Fechar detalhe">
-          <span className="material-icons" aria-hidden="true">close</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {detail?.identity?.runId && (
+            <a
+              href={`/api/admin/cognitive-runs/${encodeURIComponent(detail.identity.runId)}/export`}
+              className="inline-flex items-center gap-2 rounded border border-[#c5a059]/30 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[#fde68a] hover:bg-[#c5a059]/10"
+            >
+              <span className="material-icons text-sm" aria-hidden="true">picture_as_pdf</span>
+              Exportar esta execucao em PDF
+            </a>
+          )}
+          <button type="button" onClick={onClose} className="rounded border border-[#c5a059]/30 p-2 text-[#fde68a]" aria-label="Fechar detalhe">
+            <span className="material-icons" aria-hidden="true">close</span>
+          </button>
+        </div>
       </div>
 
       <div className="overflow-y-auto p-5">
@@ -995,14 +1055,25 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
               {detailRun && <div className="mt-3"><ContextBadges run={detailRun} /></div>}
             </DetailSection>
 
+            <DetailSection title="Classificacao operacional">
+              <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+                <KeyValue label="Causa dominante" value={detail.recovery?.dominantCause || "nao registrada"} />
+                <KeyValue label="Categoria de bloqueio" value={detail.recovery?.blockingCategory || "nao registrada"} />
+                <KeyValue label="Degradacao de infraestrutura" value={detail.recovery?.infrastructureDegraded ? "sim" : "nao"} />
+                <KeyValue label="Recuperacao entregue" value={detail.recovery?.delivered ? "sim" : "nao"} />
+                <KeyValue label="Gate basal da recuperacao" value={typeof detail.recovery?.basalGatePromoted === "boolean" ? (detail.recovery.basalGatePromoted ? "promovido" : "bloqueado") : "nao registrado"} />
+                <KeyValue label="Findings do recovery" value={detail.recovery?.basalGateFindingCodes || "nenhum"} />
+              </dl>
+            </DetailSection>
+
             <DetailSection title="Identidade e execucao">
               <dl className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
                 <KeyValue label="Run ID" value={detail.identity.runId} mono />
                 <KeyValue label="Data" value={dateTime(detail.identity.createdAt)} />
                 <KeyValue label="Persona" value={detail.identity.personaId} />
                 <KeyValue label="Place" value={detail.identity.placeId || "sem Place"} />
-                <KeyValue label="Modo" value={detail.identity.runtimeMode} />
-                <KeyValue label="Perfil" value={detail.identity.executionProfile} />
+                <KeyValue label="Modo" value={`${runtimeModeLabel(detail.identity.runtimeMode)} (${detail.identity.runtimeMode})`} />
+                <KeyValue label="Perfil" value={`${executionProfileLabel(detail.identity.executionProfile)} (${detail.identity.executionProfile})`} />
                 <KeyValue label="Modelos" value={(detail.identity.modelIdentifiers || []).join(", ") || "nao registrado"} />
                 <KeyValue label="Privada" value={detail.identity.privateRun ? "sim" : "nao"} />
               </dl>
@@ -1028,9 +1099,9 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
                 {(detail.timeline || []).map((transition: any, index: number) => (
                   <li key={`${transition.from}-${transition.to}-${index}`} className="rounded border border-[#c5a059]/10 bg-black/35 p-3 text-xs">
                     <div className="flex flex-wrap items-center gap-2 text-white/75">
-                      <span className="font-mono">{transition.from}</span>
+                      <span className="font-mono" title={transition.from}>{transitionLabel(transition.from)}</span>
                       <span className="material-icons text-sm text-[#c5a059]" aria-hidden="true">arrow_forward</span>
-                      <span className="font-mono">{transition.to}</span>
+                      <span className="font-mono" title={transition.to}>{transitionLabel(transition.to)}</span>
                       <StatusPill value={transition.allowed ? "persisted" : "failed"} label={transition.allowed ? "permitida" : "ilegal"} />
                     </div>
                     <p className="mt-1 text-white/35">{transition.at || "sem horario"} - {transition.note || "sem nota"}</p>
@@ -1061,12 +1132,14 @@ function RunDetailDrawer({ detail, loading, error, onClose }: { detail: any; loa
               <div className="space-y-3">
                 {(detail.vigia.dimensions || []).map((dimension: any) => (
                   <div key={dimension.name}>
-                    <div className="mb-1 flex justify-between text-xs text-white/60">
+                    <div className="mb-1 flex justify-between gap-3 text-xs text-white/60">
                       <span>{dimension.name}</span>
-                      <span className="font-mono">{formatCoherence(dimension.score)}</span>
+                      <span className="font-mono" title={dimension.reason || ""}>
+                        {dimension.status === "NOT_APPLICABLE" ? "Nao aplicavel" : formatCoherence(dimension.score)}
+                      </span>
                     </div>
                     <div className="h-2 rounded-full bg-white/10">
-                      <div className="h-2 rounded-full bg-[#c5a059]" style={{ width: `${Math.max(0, Math.min(1, dimension.score || 0)) * 100}%` }} />
+                      <div className={`h-2 rounded-full ${dimension.status === "NOT_APPLICABLE" ? "bg-white/25" : "bg-[#c5a059]"}`} style={{ width: `${dimension.status === "NOT_APPLICABLE" ? 100 : Math.max(0, Math.min(1, dimension.score || 0)) * 100}%` }} />
                     </div>
                   </div>
                 ))}

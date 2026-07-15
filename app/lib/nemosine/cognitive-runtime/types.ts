@@ -35,6 +35,8 @@ export type CognitiveState = typeof cognitiveStates[number];
 
 export const findingSeverities = ["info", "warning", "error", "critical"] as const;
 export type FindingSeverity = typeof findingSeverities[number];
+export const coherenceDimensionStatuses = ["SCORED", "NOT_APPLICABLE"] as const;
+export type CoherenceDimensionStatus = typeof coherenceDimensionStatuses[number];
 
 export const findingSchema = z.object({
   code: z.string().min(1).max(80),
@@ -237,6 +239,7 @@ export const extractionResultSchema = z.object({
 export type ExtractionResult = z.infer<typeof extractionResultSchema>;
 
 const scoreSchema = z.number().min(0).max(1);
+const dimensionApplicabilityStatusSchema = z.enum(["scored", "not_applicable"]);
 
 export const scientistEvaluationSchema = z.object({
   logicalConsistency: scoreSchema,
@@ -251,6 +254,7 @@ export const scientistEvaluationSchema = z.object({
   evidenceSummary: z.string().max(1200).optional(),
   approved: z.boolean(),
   findings: z.array(findingSchema).default([]),
+  dimensionApplicability: z.record(dimensionApplicabilityStatusSchema).default({}),
   modelId: z.string().max(120).optional(),
 });
 
@@ -290,8 +294,10 @@ export type PrivacyEvaluation = {
 
 export type CoherenceDimension = {
   name: string;
-  score: number;
+  score: number | null;
   weight: number;
+  status: CoherenceDimensionStatus;
+  reason?: string | null;
 };
 
 export type VigiaCoherenceResult = {
@@ -330,6 +336,10 @@ export type CognitiveAuditEvent = {
     | "PERSONA_INITIATIVE_EVALUATED"
     | "PERSONA_INITIATIVE_REPAIR_REQUESTED"
     | "STRUCTURED_VALIDATOR_DEGRADED"
+    | "REJECTION_CLASSIFIED"
+    | "RECOVERY_BASAL_GATE"
+    | "RECOVERY_DELIVERED"
+    | "RETRY_SHORT_CIRCUITED"
     | "RESPONSE_PIPELINE_CONTEXT_BROKERED"
     | "RESPONSE_PIPELINE_DIRECTOR_PLANNED"
     | "RESPONSE_PIPELINE_VALIDATED"
@@ -403,9 +413,14 @@ export type RedactedCognitiveAudit = {
   iterationCount: number;
   coherence?: number;
   coherenceThreshold?: number;
-  dimensionScores: Record<string, number>;
+  dimensionScores: Record<string, number | null | {
+    score: number | null;
+    status: CoherenceDimensionStatus;
+    weight?: number | null;
+    reason?: string | null;
+  }>;
   findingCodes: string[];
-  promotionDecision: "promoted" | "rejected" | "failed_safe" | "shadow_only";
+  promotionDecision: "promoted" | "rejected" | "failed_safe" | "shadow_only" | "recovery_delivered";
   failureReason?: string;
   latencyPerStageMs: Record<string, number>;
   modelIdentifiers: string[];

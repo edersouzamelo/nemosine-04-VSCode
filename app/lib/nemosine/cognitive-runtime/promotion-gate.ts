@@ -9,6 +9,7 @@ import {
   CognitiveFinding,
   ExecutionProfile,
 } from "./types";
+import { isInfrastructureDegradationFinding, isSemanticWarningFinding } from "./finding-classification";
 
 const scientistFloors: Record<ExecutionProfile, Partial<Record<keyof ScientistEvaluation, number>>> = {
   light: {
@@ -33,17 +34,21 @@ const scientistFloors: Record<ExecutionProfile, Partial<Record<keyof ScientistEv
 };
 
 function scientistFindingsAtOrAbove(scientist: ScientistEvaluation, severities: Array<CognitiveFinding["severity"]>) {
-  return scientist.findings.filter((finding) => severities.includes(finding.severity));
+  return scientist.findings.filter((finding) => !isInfrastructureDegradationFinding(finding) && severities.includes(finding.severity));
 }
 
-function finding(code: string, explanation: string): CognitiveFinding {
+function finding(code: string, explanation: string, category = "candidate_quality_finding"): CognitiveFinding {
   return {
     code,
     severity: "error",
-    category: "promotion",
+    category,
     explanation,
     repairInstruction: "Regenerate through the same active persona with the listed runtime repairs.",
   };
+}
+
+function dimensionApplies(scientist: ScientistEvaluation, dimension: string) {
+  return scientist.dimensionApplicability?.[dimension] !== "not_applicable";
 }
 
 export function evaluatePromotion(input: {
@@ -78,6 +83,7 @@ export function evaluatePromotion(input: {
 
   const floors = scientistFloors[executionProfile];
   for (const [dimension, floor] of Object.entries(floors)) {
+    if (!dimensionApplies(input.scientist, dimension)) continue;
     const value = input.scientist[dimension as keyof ScientistEvaluation];
     if (typeof value === "number" && value < floor) {
       reasons.push(`scientist_floor_${dimension}`);
@@ -88,7 +94,7 @@ export function evaluatePromotion(input: {
     }
   }
 
-  if (executionProfile === "full" && input.scientist.findings.some((item) => item.severity === "warning")) {
+  if (executionProfile === "full" && input.scientist.findings.some(isSemanticWarningFinding)) {
     reasons.push("full_profile_unresolved_scientist_warning");
     findings.push(finding("PROMOTION_FULL_PROFILE_WARNING_BLOCKED", "Full profile requires unresolved Scientist warnings to be repaired."));
   }
@@ -100,17 +106,17 @@ export function evaluatePromotion(input: {
 
   if (!input.privacy.hardPass) {
     reasons.push("privacy_failed");
-    findings.push(finding("PROMOTION_PRIVACY_FAILED", "Privacy evaluation did not hard-pass."));
+    findings.push(finding("PROMOTION_PRIVACY_FAILED", "Privacy evaluation did not hard-pass.", "privacy_failure"));
   }
 
   if (!input.vocation.hardPass) {
     reasons.push("vocation_failed");
-    findings.push(finding("PROMOTION_VOCATION_FAILED", "Vocational evaluation did not hard-pass."));
+    findings.push(finding("PROMOTION_VOCATION_FAILED", "Vocational evaluation did not hard-pass.", "vocational_failure"));
   }
 
   if (!input.sideEffects.approved) {
     reasons.push("side_effect_authorization_failed");
-    findings.push(finding("PROMOTION_SIDE_EFFECT_AUTH_FAILED", "Side-effect authorization failed."));
+    findings.push(finding("PROMOTION_SIDE_EFFECT_AUTH_FAILED", "Side-effect authorization failed.", "hard_safety_failure"));
   }
 
   const promoted = reasons.length === 0;

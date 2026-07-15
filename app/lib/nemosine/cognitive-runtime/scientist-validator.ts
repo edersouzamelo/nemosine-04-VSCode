@@ -26,12 +26,43 @@ function finding(code: string, severity: CognitiveFinding["severity"], explanati
   };
 }
 
+function textLooksBiographical(text: string) {
+  return genericUnsupportedBioPatterns.some((pattern) => pattern.test(text))
+    || /\b(biografia|historia pessoal|carreira|infancia|familia|passado)\b/i.test(text);
+}
+
+function buildDimensionApplicability(input: {
+  candidate: CandidateResponse;
+  extraction: ExtractionResult;
+}) {
+  const text = input.candidate.visibleText;
+  const hasFactualClaim = input.extraction.claims.some((claim) => claim.type === "factual");
+  const hasUncertaintyClaim = input.extraction.claims.some((claim) =>
+    claim.type === "uncertainty"
+    || claim.support === "unknown"
+    || claim.support === "externally_unverifiable"
+    || claim.support === "candidate_only"
+  );
+  const hasBiographyClaim = textLooksBiographical(text)
+    || input.extraction.claims.some((claim) => textLooksBiographical(claim.text));
+  const hasAccessClaim = simulatedAccessPatterns.some((pattern) => pattern.test(text))
+    || input.extraction.claims.some((claim) => claim.type === "access_or_verification");
+
+  return {
+    factualSupport: hasFactualClaim ? "scored" : "not_applicable",
+    honestUncertainty: hasUncertaintyClaim ? "scored" : "not_applicable",
+    biographicalSafety: hasBiographyClaim ? "scored" : "not_applicable",
+    accessClaimSafety: hasAccessClaim ? "scored" : "not_applicable",
+  } as const;
+}
+
 export function deterministicScientistEvaluation(input: {
   candidate: CandidateResponse;
   extraction: ExtractionResult;
 }): ScientistEvaluation {
   const findings: CognitiveFinding[] = [];
   const text = input.candidate.visibleText;
+  const dimensionApplicability = buildDimensionApplicability(input);
 
   findings.push(...input.extraction.extractorFindings);
 
@@ -88,6 +119,7 @@ export function deterministicScientistEvaluation(input: {
     evidenceSummary: "Deterministic hard checks only; no external verification was performed.",
     approved: !hasCritical && !hasError,
     findings,
+    dimensionApplicability,
     modelId: "deterministic-scientist-v1",
   };
 }
@@ -118,6 +150,10 @@ export function mergeScientistEvaluations(
     evidenceSummary: structured.evidenceSummary || deterministic.evidenceSummary,
     approved: deterministic.approved && structured.approved && !hasBlockingFinding,
     findings,
+    dimensionApplicability: {
+      ...(structured.dimensionApplicability || {}),
+      ...(deterministic.dimensionApplicability || {}),
+    },
     modelId: [deterministic.modelId, structured.modelId].filter(Boolean).join("+"),
   };
 }

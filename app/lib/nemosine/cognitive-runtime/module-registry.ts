@@ -11,8 +11,27 @@ const highStakesPatterns = [
   /processo|contrato|juridic|legal|advogad|lei|prisao|indeniza|lawsuit/i,
   /investimento|financ|imposto|divida|criptomoeda|bolsa|aposentadoria|tax|retirement/i,
   /senha|token|credencial|seguranca|security|exploit|malware|vazamento|api key/i,
+  /crianca|menor de idade|child|children|abuso|violencia|emergencia/i,
+  /conflito etico|assedi|discriminacao|ameaca|risco fisico/i,
   /apagar|deletar|irreversivel|excluir permanentemente|destrutiv|wipe|delete/i,
   /dado sensivel|documento pessoal|cpf|rg|passaporte|segredo|confidencial|sensitive data/i,
+];
+
+const greetingPatterns = [
+  /^(ola|oi|bom dia|boa tarde|boa noite|e ai|cheguei|hello|hi)\b/i,
+];
+
+const casualPatterns = [
+  /conversar livremente|bate papo|sem pauta|estou aqui|vim conversar|queria conversar/i,
+];
+
+const simpleLowRiskPatterns = [
+  /^(resuma|explique|me diga|liste|organize|traduza)\b/i,
+  /\b(simples|rapido|rapida|curto|curta|breve|sem risco)\b/i,
+];
+
+const standardPatterns = [
+  /aconselh|analise|planej|plano|decisao|prioridade|estrategia|comparar|avaliar|pergunta factual|fato|quando|onde|quem|como funciona|bug|build|deploy|codigo|erro|api/i,
 ];
 
 const profileRank: Record<ExecutionProfile, number> = {
@@ -29,8 +48,37 @@ function normalizeRiskText(text: string) {
 
 export function classifyRequestRisk(text: string) {
   const normalized = normalizeRiskText(text);
+  const compact = normalized.trim();
+  const highStakes = highStakesPatterns.some((pattern) => pattern.test(normalized));
+  const isGreeting = greetingPatterns.some((pattern) => pattern.test(compact));
+  const casual = casualPatterns.some((pattern) => pattern.test(normalized));
+  const simpleLowRisk = simpleLowRiskPatterns.some((pattern) => pattern.test(normalized)) && !highStakes;
+  const standard = standardPatterns.some((pattern) => pattern.test(normalized));
+  const recommendedProfile: ExecutionProfile = highStakes
+    ? "full"
+    : isGreeting || casual || (simpleLowRisk && compact.length < 180)
+      ? "light"
+      : standard || compact.length >= 180
+        ? "standard"
+        : "light";
+  const profileReason = highStakes
+    ? "high_stakes_full"
+    : isGreeting
+      ? "greeting_light"
+      : casual
+        ? "casual_continuity_light"
+        : simpleLowRisk && compact.length < 180
+          ? "simple_low_risk_light"
+          : standard
+            ? "standard_workload"
+            : compact.length >= 180
+              ? "substantive_length_standard"
+              : "low_risk_light";
+
   return {
-    highStakes: highStakesPatterns.some((pattern) => pattern.test(normalized)),
+    highStakes,
+    recommendedProfile,
+    profileReason,
     matchedPatterns: highStakesPatterns
       .filter((pattern) => pattern.test(normalized))
       .map((pattern) => pattern.source),
@@ -40,12 +88,15 @@ export function classifyRequestRisk(text: string) {
 export function selectExecutionProfile(request: CognitiveRequest, fallback: ExecutionProfile): ExecutionProfile {
   const risk = classifyRequestRisk(request.userText);
   if (risk.highStakes) return "full";
-  if (request.requestedProfile && profileRank[request.requestedProfile] > profileRank[fallback]) {
+  const recommended = risk.recommendedProfile;
+  if (request.requestedProfile && profileRank[request.requestedProfile] > profileRank[recommended]) {
     return request.requestedProfile;
   }
-  if (request.requestedProfile === "light" && fallback === "light") return "light";
-  if (request.runtimeMode === "enforce") return fallback === "light" ? "standard" : fallback;
-  return fallback;
+  if (request.requestedProfile && profileRank[request.requestedProfile] < profileRank[recommended]) {
+    return recommended;
+  }
+  if (fallback === "light" && recommended === "standard") return "standard";
+  return recommended;
 }
 
 export function buildProfileAuditEvent(input: {
@@ -53,6 +104,8 @@ export function buildProfileAuditEvent(input: {
   selected: ExecutionProfile;
   fallback: ExecutionProfile;
   highStakes: boolean;
+  profileReason?: string;
+  matchedPatterns?: string[];
 }): CognitiveAuditEvent {
   const rebalanced = input.highStakes
     || input.fallback !== input.selected
@@ -66,6 +119,8 @@ export function buildProfileAuditEvent(input: {
       fallbackProfile: input.fallback,
       selectedProfile: input.selected,
       highStakes: input.highStakes,
+      profileReason: input.profileReason || (input.highStakes ? "high_stakes_full" : "default_profile"),
+      matchedHighStakesPatterns: (input.matchedPatterns || []).slice(0, 3).join(","),
       symbolicConfigurationChanged: false,
     },
   };

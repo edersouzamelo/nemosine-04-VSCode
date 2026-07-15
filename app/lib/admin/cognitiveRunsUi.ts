@@ -1,3 +1,5 @@
+import { classLabel, classifyFindingCode, isInfrastructureDegradationCode } from "@/app/lib/nemosine/cognitive-runtime/finding-classification";
+
 type RunLike = {
   runtimeMode?: string | null;
   promotionDecision?: string | null;
@@ -8,6 +10,9 @@ type RunLike = {
   coherenceThreshold?: number | null;
   retryRequested?: boolean | null;
   findingCodes?: string[] | null;
+  recoveryDelivered?: boolean | null;
+  dominantCause?: string | null;
+  infrastructureDegraded?: boolean | null;
   privateRun?: boolean | null;
 };
 
@@ -89,6 +94,11 @@ export const metricExplanations = {
     label: "FAILED-SAFE",
     tooltip: "Execucoes encerradas de forma segura, sem entrega de candidata nao validada.",
     expanded: "Usa promotionDecision = failed_safe.",
+  },
+  recoveryRate: {
+    label: "RECUPERACAO",
+    tooltip: "Execucoes em que a candidata foi rejeitada, mas uma resposta segura de recuperacao foi entregue.",
+    expanded: "Usa promotionDecision = recovery_delivered e eventos RECOVERY_DELIVERED.",
   },
   latency: {
     label: "LATENCIA",
@@ -343,6 +353,38 @@ export const findingDictionary: Record<string, FindingDictionaryEntry> = {
     effect: "Sinaliza perda leve de estilo/vocacao.",
     requires: "sem retry obrigatorio",
   },
+  CLAIM_EXTRACTOR_STRUCTURED_DEGRADED: {
+    code: "CLAIM_EXTRACTOR_STRUCTURED_DEGRADED",
+    category: "Degradacao de infraestrutura",
+    explanation: "O extrator estruturado falhou e a extracao deterministica assumiu a execucao.",
+    severity: "warning",
+    effect: "Nao bloqueia isoladamente quando o fallback deterministico e valido e os gates semanticos passam.",
+    requires: "auditoria e observacao operacional",
+  },
+  SCIENTIST_STRUCTURED_DEGRADED: {
+    code: "SCIENTIST_STRUCTURED_DEGRADED",
+    category: "Degradacao de infraestrutura",
+    explanation: "O Cientista estruturado falhou e o Cientista deterministico assumiu a avaliacao.",
+    severity: "warning",
+    effect: "Nao bloqueia isoladamente quando nao ha falha semantica, privacidade/vocacao passam e C(m) passa.",
+    requires: "auditoria e fallback deterministico valido",
+  },
+  PHILOSOPHER_STRUCTURED_DEGRADED: {
+    code: "PHILOSOPHER_STRUCTURED_DEGRADED",
+    category: "Degradacao de infraestrutura",
+    explanation: "O Filosofo estruturado falhou e o Filosofo deterministico assumiu a avaliacao.",
+    severity: "warning",
+    effect: "Nao bloqueia isoladamente quando nao ha falha etica ou epistemologica.",
+    requires: "auditoria e fallback deterministico valido",
+  },
+  RECOVERY_EMPTY_RESPONSE: {
+    code: "RECOVERY_EMPTY_RESPONSE",
+    category: "Recuperacao",
+    explanation: "A resposta de recuperacao ficou vazia e foi bloqueada pelo gate basal.",
+    severity: "critical",
+    effect: "Aciona failed-safe generico.",
+    requires: "reparo do recovery mode",
+  },
 };
 
 export function describeFindingCode(code: string): FindingDictionaryEntry {
@@ -386,10 +428,57 @@ export function promotionLabel(value: string | null | undefined) {
   const labels: Record<string, string> = {
     promoted: "Promovida",
     rejected: "Rejeitada",
-    failed_safe: "Falhou em modo seguro",
+    failed_safe: "Encerrada em modo seguro",
     shadow_only: "Observada em sombra",
+    recovery_delivered: "Recuperacao entregue",
   };
   return labels[value || ""] || "Desconhecida";
+}
+
+export function runtimeModeLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    off: "Desligado",
+    shadow: "Observacao em sombra",
+    enforce: "Governanca ativa",
+  };
+  return labels[value || ""] || "Desconhecido";
+}
+
+export function executionProfileLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    light: "Leve",
+    standard: "Padrao",
+    full: "Completo",
+  };
+  return labels[value || ""] || "Desconhecido";
+}
+
+export function transitionLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    RECEIVED: "Entrada recebida",
+    AUTHORIZED: "Autorizada",
+    CONTEXT_ASSEMBLED: "Contexto montado",
+    MODULES_SELECTED: "Modulos selecionados",
+    CANDIDATE_GENERATED: "Candidata gerada",
+    CLAIMS_EXTRACTED: "Afirmacoes extraidas",
+    SCIENTIST_EVALUATED: "Cientista avaliou",
+    VIGIA_SCORED: "Vigia calculou C(m)",
+    OCV_RETRY_REQUESTED: "Nova tentativa solicitada",
+    OCV_CONVERGED: "O-C-V convergiu",
+    PHILOSOPHER_EVALUATED: "Filosofo avaliou",
+    PROMOTION_EVALUATED: "Promocao avaliada",
+    PROMOTED: "Promovida",
+    REJECTED: "Candidata rejeitada",
+    FINAL_ANSWER_SELECTED: "Resposta final selecionada",
+    DELIVERY_PERSISTED: "Entrega persistida",
+    SIDE_EFFECTS_COMMITTED: "Efeitos confirmados",
+    SIDE_EFFECTS_SKIPPED: "Efeitos opcionais ignorados",
+    SIDE_EFFECTS_BLOCKED: "Efeitos bloqueados",
+    SIDE_EFFECTS_FAILED: "Efeitos revertidos",
+    DELIVERED: "Entregue",
+    FAILED_SAFE: "Modo seguro",
+  };
+  return labels[value || ""] || value || "Desconhecida";
 }
 
 export function deliveryLabel(value: string | null | undefined) {
@@ -414,7 +503,7 @@ export function sideEffectLabel(value: string | null | undefined) {
 }
 
 export function statusTone(value: string | null | undefined) {
-  if (value === "promoted" || value === "persisted" || value === "committed" || value === "runtime_governed") {
+  if (value === "promoted" || value === "persisted" || value === "committed" || value === "runtime_governed" || value === "recovery_delivered") {
     return "success";
   }
   if (value === "rejected" || value === "candidate_rejected" || value === "failed_safe") {
@@ -505,6 +594,28 @@ export function contextualBadges(run: RunLike) {
       explanation: "A execucao terminou de forma segura, sem entregar uma candidata nao validada.",
     });
   }
+  if (run.promotionDecision === "recovery_delivered" || run.recoveryDelivered) {
+    badges.push({
+      value: "recovery_delivered",
+      label: "RECUPERACAO ENTREGUE",
+      explanation: "A candidata foi rejeitada, mas uma resposta segura de recuperacao passou pelo gate basal e foi entregue sem efeitos opcionais.",
+    });
+  }
+  if (run.infrastructureDegraded || (run.findingCodes || []).some(isInfrastructureDegradationCode)) {
+    badges.push({
+      value: "blocked",
+      label: "DEGRADACAO DE INFRAESTRUTURA",
+      explanation: "Um avaliador estruturado degradou para fallback deterministico; isto e auditado separadamente de falha semantica.",
+    });
+  }
+  const dominantClass = run.dominantCause || (run.findingCodes || []).map((code) => classifyFindingCode(code))[0];
+  if (dominantClass === "vocation" || dominantClass === "vocational_failure") {
+    badges.push({
+      value: "blocked",
+      label: "BLOQUEIO VOCACIONAL",
+      explanation: "A causa dominante apontou desalinhamento de vocacao ou necessidade de handoff.",
+    });
+  }
   return badges;
 }
 
@@ -577,6 +688,10 @@ export function buildRunNarrative(detail: DetailLike) {
     return "Esta execucao terminou em failed-safe: nenhuma candidata nao validada foi entregue.";
   }
 
+  if (identity.promotionDecision === "recovery_delivered") {
+    return "Esta execucao rejeitou a candidata original e entregou uma resposta segura de recuperacao, sem side effects opcionais.";
+  }
+
   if (identity.promotionDecision === "shadow_only") {
     return "Esta execucao foi observada em shadow. O registro demonstra observacao, nao necessariamente governanca da entrega.";
   }
@@ -585,6 +700,8 @@ export function buildRunNarrative(detail: DetailLike) {
 }
 
 function inferFindingCategory(code: string) {
+  const classification = classifyFindingCode(code);
+  if (classification !== "candidate_quality_finding") return classLabel(classification);
   if (code.startsWith("SCIENTIST_")) return "Cientista";
   if (code.startsWith("PHILOSOPHER_")) return "Filosofo";
   if (code.startsWith("PROMOTION_")) return "Promotion Gate";

@@ -236,6 +236,51 @@ test("promotion gate blocks Scientist approved=false, errors and profile floors"
   assert.ok(failsFull.reasons.includes("scientist_floor_factualSupport"));
 });
 
+test("promotion gate ignores isolated infrastructure warnings in full profile", () => {
+  const common = {
+    vigia: vigia(),
+    philosopher: philosopher(),
+    privacy: privacy(),
+    vocation: vocation(),
+    sideEffects: { approved: true, approvedMemoryActions: [], approvedRegistryActions: [], approvedDestinyActions: [], discardedActions: [], findings: [] },
+    retriesRemaining: 0,
+    executionProfile: "full",
+  };
+  const infrastructure = evaluatePromotion({
+    ...common,
+    scientist: scientist({
+      findings: [{ code: "SCIENTIST_STRUCTURED_DEGRADED", severity: "warning", category: "infrastructure_degradation", explanation: "fallback used" }],
+    }),
+  });
+  assert.equal(infrastructure.promoted, true);
+
+  const semantic = evaluatePromotion({
+    ...common,
+    scientist: scientist({
+      findings: [{ code: "SCIENTIST_CANDIDATE_ONLY_CLAIM", severity: "warning", category: "scientist", explanation: "candidate only" }],
+    }),
+  });
+  assert.equal(semantic.promoted, false);
+  assert.ok(semantic.reasons.includes("full_profile_unresolved_scientist_warning"));
+});
+
+test("Vigia excludes NOT_APPLICABLE dimensions from C(m) denominator", () => {
+  const base = readCognitiveRuntimeConfig({ NEMOSINE_COHERENCE_THRESHOLD: "0.8" });
+  const result = calculateVigiaCoherence({
+    scientist: scientist({
+      factualSupport: 0,
+      responseRelevance: 1,
+      dimensionApplicability: { factualSupport: "not_applicable" },
+    }),
+    privacy: privacy(),
+    vocation: vocation(),
+    config: { ...base, coherenceWeights: { factualSupport: 1, responseRelevance: 1 } },
+  });
+  assert.equal(result.totalCoherence, 1);
+  assert.equal(result.passed, true);
+  assert.equal(result.dimensions.find((dimension) => dimension.name === "factualSupport").status, "NOT_APPLICABLE");
+});
+
 test("schemas reject malformed structured output and enforce renamed Scientist fields", () => {
   assert.throws(() => scientistEvaluationSchema.parse({ logicalConsistency: 2 }), /Number must be less than or equal to 1/);
   assert.throws(() => scientistEvaluationSchema.parse({
@@ -285,6 +330,10 @@ test("high-stakes profile selection cannot be downgraded to light", () => {
   assert.equal(
     selectExecutionProfile(request({ userText: "Explique um CSS simples", requestedProfile: "full" }), "standard"),
     "full",
+  );
+  assert.equal(
+    selectExecutionProfile(request({ userText: "Ola Mentor." }), "full"),
+    "light",
   );
 });
 

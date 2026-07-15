@@ -10,6 +10,7 @@ const {
   doubleVigilanceMessage,
   deliveryLabel,
   emptyStateCopy,
+  executionProfileLabel,
   formatCoherence,
   formatThreshold,
   insufficientDoubleVigilanceTelemetry,
@@ -17,8 +18,10 @@ const {
   legacyShadowWarning,
   metricExplanations,
   promotionLabel,
+  runtimeModeLabel,
   sideEffectLabel,
   statusClass,
+  transitionLabel,
   thresholdTooltip,
 } = require("../../app/lib/admin/cognitiveRunsUi.ts");
 const {
@@ -35,7 +38,15 @@ test("no-audit empty state renders dignified copy", () => {
 test("promoted, rejected and failed-safe labels render clearly", () => {
   assert.equal(promotionLabel("promoted"), "Promovida");
   assert.equal(promotionLabel("rejected"), "Rejeitada");
-  assert.equal(promotionLabel("failed_safe"), "Falhou em modo seguro");
+  assert.equal(promotionLabel("failed_safe"), "Encerrada em modo seguro");
+  assert.equal(promotionLabel("recovery_delivered"), "Recuperacao entregue");
+});
+
+test("runtime labels keep technical codes secondary", () => {
+  assert.equal(runtimeModeLabel("enforce"), "Governanca ativa");
+  assert.equal(runtimeModeLabel("shadow"), "Observacao em sombra");
+  assert.equal(executionProfileLabel("full"), "Completo");
+  assert.equal(transitionLabel("DELIVERY_PERSISTED"), "Entrega persistida");
 });
 
 test("delivery and side-effect statuses render distinctly", () => {
@@ -88,6 +99,7 @@ test("contextual badges identify governed, rejected and failed-safe runs", () =>
   })[0].label, "RUNTIME GOVERNOU A RESPOSTA");
   assert.equal(contextualBadges({ promotionDecision: "rejected" })[0].label, "CANDIDATA REJEITADA PELO RUNTIME");
   assert.equal(contextualBadges({ promotionDecision: "failed_safe" })[0].label, "EXECUCAO ENCERRADA SEM ENTREGA DE CANDIDATA NAO VALIDADA");
+  assert.equal(contextualBadges({ promotionDecision: "recovery_delivered" })[0].label, "RECUPERACAO ENTREGUE");
 });
 
 test("Double Vigilance helper does not claim completion without telemetry", () => {
@@ -107,4 +119,7 @@ test("metric tooltips and finding dictionary are readable in Portuguese", () => 
   assert.equal(finding.category, "Cientista");
   assert.match(finding.explanation, /acesso/);
   assert.match(finding.effect, /Bloqueia/);
+  const degraded = describeFindingCode("SCIENTIST_STRUCTURED_DEGRADED");
+  assert.equal(degraded.category, "Degradacao de infraestrutura");
+  assert.match(degraded.effect, /Nao bloqueia isoladamente/);
 });

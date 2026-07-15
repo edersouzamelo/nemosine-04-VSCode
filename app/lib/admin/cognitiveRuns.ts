@@ -5,6 +5,7 @@ import {
   insufficientDoubleVigilanceTelemetry,
   isLegacyShadowObservation,
 } from "@/app/lib/admin/cognitiveRunsUi";
+import { classifyFindingCode, isInfrastructureDegradationCode } from "@/app/lib/nemosine/cognitive-runtime/finding-classification";
 
 type AdminSession = {
   user?: {
@@ -33,7 +34,7 @@ export const cognitiveRunSorts = [
 
 const runtimeModes = ["off", "shadow", "enforce"] as const;
 const executionProfiles = ["light", "standard", "full"] as const;
-const promotionDecisions = ["promoted", "rejected", "failed_safe", "shadow_only"] as const;
+const promotionDecisions = ["promoted", "rejected", "failed_safe", "shadow_only", "recovery_delivered"] as const;
 const deliveryStatuses = ["not_attempted", "persisted", "failed", "shadow_external"] as const;
 const sideEffectStatuses = ["none", "skipped", "blocked", "committed", "failed_rolled_back"] as const;
 
@@ -354,6 +355,38 @@ function retryRequested(row: any) {
   return sanitizeTransitions(row.stateTransitions).some((transition: any) => transition.to === "OCV_RETRY_REQUESTED");
 }
 
+function latestAuditEvent(row: any, code: string) {
+  return sanitizeAuditEvents(row.auditEvents).filter((event: any) => event.code === code).at(-1) || null;
+}
+
+function recoveryDelivered(row: any) {
+  return row.promotionDecision === "recovery_delivered"
+    || Boolean(latestAuditEvent(row, "RECOVERY_DELIVERED")?.detail?.recoveryDelivered);
+}
+
+function dominantCause(row: any) {
+  const recovery = latestAuditEvent(row, "RECOVERY_DELIVERED");
+  const rejection = latestAuditEvent(row, "REJECTION_CLASSIFIED");
+  const value = recovery?.detail?.dominantCause || rejection?.detail?.dominantCause || row.failureReason || null;
+  return typeof value === "string" ? value.slice(0, 80) : null;
+}
+
+function infrastructureDegraded(row: any) {
+  return sanitizeFindingCodes(row.findingCodes).some(isInfrastructureDegradationCode)
+    || sanitizeAuditEvents(row.auditEvents).some((event: any) =>
+      event.code === "STRUCTURED_VALIDATOR_DEGRADED" || event.detail?.classification === "infrastructure_degradation"
+    );
+}
+
+function blockingCategory(row: any) {
+  const cause = dominantCause(row);
+  if (cause === "infrastructure") return "infrastructure_degradation";
+  if (cause === "privacy") return "privacy_failure";
+  if (cause === "vocation") return "vocational_failure";
+  if (cause === "safety") return "hard_safety_failure";
+  return sanitizeFindingCodes(row.findingCodes).map((code) => classifyFindingCode(code))[0] || null;
+}
+
 function distributionFromGroups(groups: any[], field: string) {
   return Object.fromEntries(
     groups.map((group) => [String(group[field] || "unknown"), Number(group._count?._all || group._count?.id || group._count || 0)]),
@@ -441,6 +474,10 @@ function safeRow(row: any) {
     latency,
     retryRequested: retryRequested(row),
     findingCodes: sanitizeFindingCodes(row.findingCodes).slice(0, 12),
+    recoveryDelivered: recoveryDelivered(row),
+    dominantCause: dominantCause(row),
+    infrastructureDegraded: infrastructureDegraded(row),
+    blockingCategory: blockingCategory(row),
     assistantMessagePersisted: Boolean(row.assistantMessagePersisted),
     auditPersisted: Boolean(row.auditPersisted),
     memoryEffectCount: row.memoryEffectCount || 0,
@@ -465,6 +502,7 @@ function buildSummary(input: {
   const promoted = input.promotionDistribution.promoted || 0;
   const rejected = input.promotionDistribution.rejected || 0;
   const failedSafe = input.promotionDistribution.failed_safe || 0;
+  const recovered = input.promotionDistribution.recovery_delivered || 0;
   const shadowOnly = input.promotionDistribution.shadow_only || 0;
   const governedDecisionDenominator = Math.max(0, total - shadowOnly);
   const cognitiveExecutionCount = input.jsonMetrics.cognitiveExecutionCount;
@@ -478,6 +516,7 @@ function buildSummary(input: {
     promotionRate: governedDecisionDenominator > 0 ? promoted / governedDecisionDenominator : null,
     rejectionRate: governedDecisionDenominator > 0 ? rejected / governedDecisionDenominator : null,
     failedSafeRate: governedDecisionDenominator > 0 ? failedSafe / governedDecisionDenominator : null,
+    recoveryRate: governedDecisionDenominator > 0 ? recovered / governedDecisionDenominator : null,
     averageCoherence: input.averageCoherence,
     averageCoherenceValidCount: input.averageCoherenceValidCount,
     medianCoherence: input.jsonMetrics.medianCoherence,
@@ -547,6 +586,13 @@ function buildSummary(input: {
         validRecords: failedSafe,
         limitations: [],
       },
+      recoveryRate: {
+        field: "promotion_decision, audit_events",
+        calculation: "count(recovery_delivered) / (total - count(shadow_only))",
+        denominator: governedDecisionDenominator,
+        validRecords: recovered,
+        limitations: ["recuperacao entregue nao equivale a promocao da candidata original"],
+      },
       latency: {
         field: "created_at, completed_at, latency_per_stage_ms",
         calculation: "completed_at - created_at; etapas quando latency_per_stage_ms existe",
@@ -603,6 +649,7 @@ export async function getCognitiveRunsList(prisma: PrismaLike, filters: Cognitiv
     coherenceThreshold: true,
     findingCodes: true,
     promotionDecision: true,
+    failureReason: true,
     latencyPerStageMs: true,
     privateRun: true,
     metadataOnly: true,
@@ -697,11 +744,35 @@ function contentLengths(contentLengthsValue: unknown, privateRun: boolean) {
 }
 
 function dimensionsFromScores(dimensionScores: unknown) {
-  return Object.entries(asObject(dimensionScores)).map(([name, score]) => ({
-    name: name.slice(0, 80),
-    score: safeNumber(score) ?? null,
-    weight: null,
-  }));
+  return Object.entries(asObject(dimensionScores)).map(([name, value]) => {
+    const objectValue = asObject(value);
+    const hasStructuredValue = Object.keys(objectValue).length > 0;
+    const status = hasStructuredValue && objectValue.status === "NOT_APPLICABLE"
+      ? "NOT_APPLICABLE"
+      : "SCORED";
+    return {
+      name: name.slice(0, 80),
+      score: hasStructuredValue ? safeNumber(objectValue.score) ?? null : safeNumber(value) ?? null,
+      weight: hasStructuredValue ? safeNumber(objectValue.weight) ?? null : null,
+      status,
+      reason: hasStructuredValue ? safeString(objectValue.reason, 240) || null : null,
+    };
+  });
+}
+
+export async function getCognitiveRunsExport(prisma: PrismaLike, filters: CognitiveRunFilters, activeFilters: Record<string, string | number | boolean>, scope: "page" | "all" = "page") {
+  const exportFilters = {
+    ...filters,
+    page: scope === "all" ? 1 : filters.page,
+    pageSize: scope === "all" ? 1000 : filters.pageSize,
+  };
+  const result = await getCognitiveRunsList(prisma, exportFilters, activeFilters);
+  return {
+    ...result,
+    exportScope: scope,
+    exportLimit: exportFilters.pageSize,
+    exportTruncated: scope === "all" && result.pagination.total > exportFilters.pageSize,
+  };
 }
 
 function deriveIterations(row: any) {
@@ -772,6 +843,9 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
 
   const auditEvents = sanitizeAuditEvents(row.auditEvents);
   const findingCodes = sanitizeFindingCodes(row.findingCodes);
+  const recoveryEvent = auditEvents.filter((event: any) => event.code === "RECOVERY_DELIVERED").at(-1);
+  const basalRecoveryEvent = auditEvents.filter((event: any) => event.code === "RECOVERY_BASAL_GATE").at(-1);
+  const classifiedRejectionEvent = auditEvents.filter((event: any) => event.code === "REJECTION_CLASSIFIED").at(-1);
   const privacyFindingCodes = findingCodes.filter((code) => /PRIVACY|PRIVATE|SCOPE|CONTEXT/i.test(code));
   const scientistFindingCodes = findingCodes.filter((code) => /^SCIENTIST_/i.test(code));
   const philosopherFindingCodes = findingCodes.filter((code) => /^PHILOSOPHER_/i.test(code));
@@ -837,6 +911,15 @@ export async function getCognitiveRunDetail(prisma: PrismaLike, runId: string) {
         nonIdolatryStatus: findingCodes.some((code) => /IDOLATRY/i.test(code)) ? "finding-recorded" : "no-finding-recorded",
         dependencyManipulationStatus: findingCodes.some((code) => /DEPENDENCY|MANIPULATION/i.test(code)) ? "finding-recorded" : "no-finding-recorded",
       },
+    },
+    recovery: {
+      delivered: row.promotionDecision === "recovery_delivered" || Boolean(recoveryEvent?.detail?.recoveryDelivered),
+      dominantCause: safeString(recoveryEvent?.detail?.dominantCause || classifiedRejectionEvent?.detail?.dominantCause, 80) || null,
+      basalGatePromoted: safeBoolean(basalRecoveryEvent?.detail?.promoted) ?? null,
+      basalGateFindingCodes: safeString(basalRecoveryEvent?.detail?.findingCodes, 500) || "",
+      infrastructureDegraded: findingCodes.some(isInfrastructureDegradationCode)
+        || auditEvents.some((event: any) => event.code === "STRUCTURED_VALIDATOR_DEGRADED"),
+      blockingCategory: blockingCategory(row),
     },
     latency,
     persistence: {

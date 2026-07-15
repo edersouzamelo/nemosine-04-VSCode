@@ -52,7 +52,12 @@ export function buildRedactedAudit(input: {
 }): RedactedCognitiveAudit {
   const lastIteration = input.iterations[input.iterations.length - 1];
   const dimensionScores = Object.fromEntries(
-    (lastIteration?.vigia?.dimensions || []).map((dimension) => [dimension.name, dimension.score]),
+    (lastIteration?.vigia?.dimensions || []).map((dimension) => [dimension.name, {
+      score: dimension.score,
+      status: dimension.status,
+      weight: dimension.weight,
+      reason: dimension.reason || null,
+    }]),
   );
 
   return {

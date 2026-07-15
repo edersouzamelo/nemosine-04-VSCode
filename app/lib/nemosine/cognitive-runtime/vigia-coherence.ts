@@ -1,4 +1,5 @@
 import { CognitiveRuntimeConfig } from "./config";
+import { isInfrastructureDegradationFinding } from "./finding-classification";
 import {
   PrivacyEvaluation,
   ScientistEvaluation,
@@ -10,6 +11,13 @@ function clampScore(value: number) {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
 }
+
+const notApplicableReasons: Record<string, string> = {
+  factualSupport: "Sem alegacao factual verificavel nesta candidata.",
+  honestUncertainty: "Sem incerteza factual relevante nesta candidata.",
+  biographicalSafety: "Sem afirmacao biografica nesta candidata.",
+  accessClaimSafety: "Sem alegacao de acesso externo ou verificacao nesta candidata.",
+};
 
 export function calculateVigiaCoherence(input: {
   scientist: ScientistEvaluation;
@@ -30,21 +38,29 @@ export function calculateVigiaCoherence(input: {
     responseRelevance: input.scientist.responseRelevance,
   };
 
-  const dimensions = Object.entries(weights).map(([name, weight]) => ({
-    name,
-    score: clampScore(dimensionScores[name] ?? 0),
-    weight,
-  }));
+  const dimensions = Object.entries(weights).map(([name, weight]) => {
+    const status = input.scientist.dimensionApplicability?.[name] === "not_applicable"
+      ? "NOT_APPLICABLE" as const
+      : "SCORED" as const;
+    return {
+      name,
+      score: status === "NOT_APPLICABLE" ? null : clampScore(dimensionScores[name] ?? 0),
+      weight,
+      status,
+      reason: status === "NOT_APPLICABLE" ? notApplicableReasons[name] || "Dimensao nao aplicavel a este turno." : null,
+    };
+  });
 
-  const weightTotal = dimensions.reduce((total, dimension) => total + dimension.weight, 0) || 1;
-  const weightedTotal = dimensions.reduce((total, dimension) => total + dimension.score * dimension.weight, 0) / weightTotal;
+  const scoredDimensions = dimensions.filter((dimension) => dimension.status === "SCORED" && typeof dimension.score === "number");
+  const weightTotal = scoredDimensions.reduce((total, dimension) => total + dimension.weight, 0) || 1;
+  const weightedTotal = scoredDimensions.reduce((total, dimension) => total + (dimension.score || 0) * dimension.weight, 0) / weightTotal;
 
   const hardFailures = [
     ...(!input.privacy.hardPass ? ["privacy"] : []),
     ...(!input.vocation.hardPass ? ["vocation"] : []),
     ...(!input.scientist.approved ? ["scientist:approved_false"] : []),
     ...input.scientist.findings
-      .filter((finding) => finding.severity === "error" || finding.severity === "critical")
+      .filter((finding) => !isInfrastructureDegradationFinding(finding) && (finding.severity === "error" || finding.severity === "critical"))
       .map((finding) => `scientist:${finding.code}`),
   ];
 

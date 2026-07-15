@@ -37,7 +37,7 @@ function structuredExtractionFailureFinding(error: unknown): CognitiveFinding {
   return {
     code: "CLAIM_EXTRACTOR_STRUCTURED_DEGRADED",
     severity: "warning",
-    category: "claim-extractor",
+    category: "infrastructure_degradation",
     explanation: `Structured claim extraction failed and deterministic extraction was used instead: ${message.slice(0, 500)}`,
     repairInstruction: "Proceed with deterministic claim/action extraction and let Scientist/Vigia evaluate the reduced evidence surface.",
   };
