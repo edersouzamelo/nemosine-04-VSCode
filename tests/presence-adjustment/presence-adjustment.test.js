@@ -256,6 +256,10 @@ test("chat wiring keeps old primer manual and exposes presence overlay controls"
   assert.match(chatSource, /renderedPresenceOpeningTexts/);
   assert.match(chatSource, /presenceFlowType === "MANUAL_RECONFIGURATION"/);
   assert.match(chatRouteSource, /NEMOSINE_PRESENCE_OPENING/);
+  assert.match(chatRouteSource, /buildPresenceOpeningMessage/);
+  assert.match(chatRouteSource, /hasPresenceAdjusted\(priorHistory\)/);
+  assert.match(chatRouteSource, /isFirstSignificantTurn\(priorHistory\)/);
+  assert.match(chatRouteSource, /primeiro turno significativo/);
   assert.match(chatRouteSource, /!presenceAnchoredRouting/);
   assert.match(chatRouteSource, /renderPresenceAnchoredUserText/);
   assert.match(overlaySource, /nemosine-presence-step/);

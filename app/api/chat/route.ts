@@ -48,6 +48,8 @@ import {
 import {
     detectGenericClosingViolation,
     normalizePresenceMode,
+    createPresenceContract,
+    extractPresenceSignals,
     renderPresenceAnchoredUserText,
     removeGenericClosingByContract,
     renderPresenceContractForRuntime,
@@ -69,6 +71,7 @@ import {
     inferHandoffTarget,
     isHandoffSelectionRequest,
     PersonaHandoffOffer,
+    resolveVocationalTargets,
 } from '@/app/lib/nemosine/handoff';
 
 export const dynamic = 'force-dynamic';
@@ -79,6 +82,132 @@ const MAX_EXTRACTED_PDF_TEXT_LENGTH = 100_000;
 const MAX_TEXT_FILE_SIZE_BYTES = 1 * 1024 * 1024;
 const MAX_MESSAGE_TEXT_LENGTH = 120_000;
 const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
+
+function buildPresenceOpeningMessage(input: {
+    userId: string;
+    personaId: string;
+    threadId: string;
+    userText: string;
+}) {
+    const signals = extractPresenceSignals(input.userText);
+    const contract = createPresenceContract({
+        userId: input.userId,
+        personaId: input.personaId,
+        conversationId: input.threadId,
+        scope: "CONVERSATION",
+        recentContext: signals.recentContext || input.userText,
+        currentGoal: signals.currentGoal || "iniciar esta conversa com presenca ajustada",
+        importantEntities: [
+            ...(signals.involvedPeopleOrProjects || []),
+            ...(signals.deadlinesOrEvents || []),
+        ],
+        responseDepth: signals.preferredDepth || "PERSONA_DECIDES",
+        prohibitedPatterns: signals.prohibitedPatterns,
+        customConstraints: ["primeiro turno significativo", "nao usar fechamento generico"],
+    });
+    return [
+        PRESENCE_OPENING_MARKER,
+        "Ajuste de Presenca confirmado. Produza agora a primeira leitura da persona com base neste ajuste.",
+        `Persona ativa: ${input.personaId}.`,
+        contract.recentContext ? `Contexto recente autorizado: ${contract.recentContext}` : "",
+        contract.currentGoal ? `Objetivo atual: ${contract.currentGoal}` : "",
+        contract.importantEntities?.length ? `Entidades importantes: ${contract.importantEntities.join(", ")}` : "",
+        `Profundidade solicitada: ${contract.responseDepth}.`,
+        contract.customConstraints?.length ? `Restricoes aplicadas: ${contract.customConstraints.join("; ")}` : "",
+        `Escopo do ajuste: ${contract.scope}.`,
+        `Politica de oferta generica: ${contract.genericHelpOfferPolicy}.`,
+        `Politica de pedido de contexto: ${contract.genericContextRequestPolicy}.`,
+        `Politica de pergunta final: ${contract.finalQuestionPolicy}.`,
+        `Validade do ajuste: ${contract.validUntil || "sem vencimento automatico"}.`,
+        "Nao mencione contrato, formulario, ajuste, configuracao ou bastidor.",
+        "Abra pela vocacao propria da persona e entregue uma leitura substantiva do caso informado.",
+    ].filter(Boolean).join("\n");
+}
+
+function hasPresenceAdjusted(history: Array<{ role: string; content: string }>) {
+    return history.some((message) => message.content?.startsWith(PRESENCE_OPENING_MARKER));
+}
+
+function isFirstSignificantTurn(history: Array<{ role: string; content: string }>) {
+    return !history.some((message) => (
+        !message.content?.startsWith(PRESENCE_OPENING_MARKER)
+        && (message.role === "user" || message.role === "assistant")
+        && message.content?.trim()
+    ));
+}
+
+function isVocationalContinuationQuestion(text: string) {
+    const normalized = text
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    return /\b(qual persona seria|quem voce recomenda|me manda para alguem|qual e a melhor|qual seria melhor|abre o|abrir o|quero falar com)\b/.test(normalized);
+}
+
+function persistedHandoffOffers(history: Array<{ id: string; metadata?: unknown | null }>) {
+    return history
+        .map((message) => {
+            const metadata = message.metadata as any;
+            if (!metadata || metadata.eventType !== "HANDOFF_OFFERED" || !metadata.targetPersona) return null;
+            return {
+                sourcePersona: metadata.sourcePersona,
+                targetPersona: metadata.targetPersona,
+                targetSlug: metadata.targetSlug,
+                title: metadata.title,
+                reason: metadata.reason,
+                summary: metadata.summary,
+                draft: metadata.draft,
+                requiresConfirmation: Boolean(metadata.requiresConfirmation),
+                state: metadata.state || "offered",
+                eventMessageId: message.id,
+                originMessageId: metadata.originMessageId || null,
+            } as PersonaHandoffOffer;
+        })
+        .filter(Boolean) as PersonaHandoffOffer[];
+}
+
+function buildVocationalAnswer(input: {
+    sourcePersona: string;
+    userText: string;
+    offers: PersonaHandoffOffer[];
+    reused?: boolean;
+}) {
+    const names = input.offers.map((offer) => offer.targetPersona);
+    const first = input.offers[0];
+    const secondary = input.offers.slice(1, 3);
+    const scientistPrefix = input.sourcePersona === "Cientista"
+        ? "Consigo ajuda-lo a separar fatos, hipoteses, padroes e criterios observaveis nessa situacao."
+        : `Consigo continuar pelo meu campo, mas vejo uma rota vocacional mais direta.`;
+    const alternatives = secondary.length
+        ? ` Tambem faz sentido considerar ${secondary.map((offer) => `${offer.targetPersona}, ${offer.reason.toLowerCase()}`).join("; ")}.`
+        : "";
+    return [
+        scientistPrefix,
+        `${first.targetPersona} e a opcao mais direta agora: ${first.reason.toLowerCase()}.${alternatives}`,
+        input.reused
+            ? `Eu ja deixei essas opcoes registradas no cartao de encaminhamento: ${names.join(", ")}.`
+            : `Deixei um cartao com ${names.join(", ")} para voce abrir uma conversa ou convidar alguem para esta conversa.`,
+    ].join("\n\n");
+}
+
+function buildHandoffOffersFromResolution(input: {
+    sourcePersona: string;
+    userText: string;
+    resolution: ReturnType<typeof resolveVocationalTargets>;
+    privateRun: boolean;
+}) {
+    const personas = [
+        input.resolution.primaryTargetPersonaId,
+        ...input.resolution.alternativeTargetPersonaIds,
+    ].filter(Boolean).slice(0, 3) as string[];
+    return personas.map((targetPersona) => buildPersonaHandoffOffer({
+        sourcePersona: input.sourcePersona,
+        targetPersona,
+        userText: input.userText,
+        privateRun: input.privateRun,
+        reasonOverride: input.resolution.rationaleByPersona[targetPersona],
+    }));
+}
 
 function hasExplicitDestinyAuthorization(text: string) {
     const normalized = text
@@ -582,6 +711,7 @@ export async function POST(req: NextRequest) {
             role: 'user' | 'assistant' | 'system';
             content: string;
             timestamp: number;
+            metadata?: unknown | null;
         }> = [];
 
         if (typeof threadId !== 'string' || !threadId) {
@@ -613,6 +743,21 @@ export async function POST(req: NextRequest) {
         const shouldRetainConversationContinuity = !isPresenceOpeningRequest
             && !presenceAnchoredRouting
             && shouldRetainUserInputForContinuity(userText);
+        if (
+            !isPresenceOpeningRequest
+            && userText.trim()
+            && !hasPresenceAdjusted(priorHistory)
+            && isFirstSignificantTurn(priorHistory)
+        ) {
+            await addMessageToThread(
+                userId,
+                activeThreadId,
+                'user',
+                buildPresenceOpeningMessage({ userId, personaId, threadId: activeThreadId, userText }),
+            ).catch((error) => {
+                console.warn("[PresenceAdjustment] automatic first-turn card skipped.", error);
+            });
+        }
         await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
 
         const cognitiveRequest = createCognitiveRequest({
@@ -634,6 +779,8 @@ export async function POST(req: NextRequest) {
             candidateOverride?: string;
             headers?: Record<string, string>;
             handoffOffer?: PersonaHandoffOffer | null;
+            handoffOffers?: PersonaHandoffOffer[];
+            persistHandoffEvents?: boolean;
         } = {}) => {
             const runtimeResult = input.candidateOverride
                 ? await runCognitiveRuntime(cognitiveRequest, {
@@ -642,36 +789,41 @@ export async function POST(req: NextRequest) {
                 })
                 : await executeCognitiveRuntime(cognitiveRequest);
             const deliveredRuntimeAnswer = runtimeResult.answer;
-            const handoffOffer = input.handoffOffer || extractHandoffOfferFromAudit({
+            const singleAuditHandoff = input.handoffOffer || extractHandoffOfferFromAudit({
                 auditEvents: runtimeResult.audit.auditEvents,
                 personaId,
                 userText,
                 privateRun: cognitiveRequest.privateRun,
             });
-            let persistedHandoffOffer: PersonaHandoffOffer | null = null;
-            if (handoffOffer && runtimeResult.assistantMessageId) {
-                try {
-                    const handoffMessage = await upsertHandoffEventMessage(userId, activeThreadId, {
-                        originMessageId: runtimeResult.assistantMessageId,
-                        offer: handoffOffer,
-                        state: 'offered',
-                    });
-                    persistedHandoffOffer = {
-                        ...handoffOffer,
-                        eventMessageId: handoffMessage.id,
-                        originMessageId: runtimeResult.assistantMessageId,
-                        state: 'offered',
-                        offeredAt: new Date(handoffMessage.timestamp).toISOString(),
-                        updatedAt: new Date(handoffMessage.timestamp).toISOString(),
-                    };
-                } catch (error) {
-                    console.warn("[API/Chat] Handoff event persistence skipped.", error);
-                    persistedHandoffOffer = handoffOffer;
+            const rawHandoffOffers = input.handoffOffers?.length
+                ? input.handoffOffers
+                : singleAuditHandoff ? [singleAuditHandoff] : [];
+            const persistedHandoffOffers: PersonaHandoffOffer[] = [];
+            if (rawHandoffOffers.length > 0 && runtimeResult.assistantMessageId && input.persistHandoffEvents !== false) {
+                for (const offer of rawHandoffOffers) {
+                    try {
+                        const handoffMessage = await upsertHandoffEventMessage(userId, activeThreadId, {
+                            originMessageId: runtimeResult.assistantMessageId,
+                            offer,
+                            state: 'offered',
+                        });
+                        persistedHandoffOffers.push({
+                            ...offer,
+                            eventMessageId: handoffMessage.id,
+                            originMessageId: runtimeResult.assistantMessageId,
+                            state: 'offered',
+                            offeredAt: new Date(handoffMessage.timestamp).toISOString(),
+                            updatedAt: new Date(handoffMessage.timestamp).toISOString(),
+                        });
+                    } catch (error) {
+                        console.warn("[API/Chat] Handoff event persistence skipped.", error);
+                        persistedHandoffOffers.push(offer);
+                    }
                 }
             }
-            const handoffOfferForStream = persistedHandoffOffer || handoffOffer;
-            const streamedRuntimeAnswer = handoffOfferForStream
-                ? `${deliveredRuntimeAnswer}\n\n${encodeHandoffMarker(handoffOfferForStream)}`
+            const handoffOffersForStream = persistedHandoffOffers.length > 0 ? persistedHandoffOffers : rawHandoffOffers;
+            const streamedRuntimeAnswer = handoffOffersForStream.length > 0
+                ? `${deliveredRuntimeAnswer}\n\n${handoffOffersForStream.map((offer) => encodeHandoffMarker(offer)).join("\n")}`
                 : deliveredRuntimeAnswer;
             if (shouldRetainConversationContinuity) {
                 await Promise.all([
@@ -709,9 +861,10 @@ export async function POST(req: NextRequest) {
                     'x-cognitive-run-id': runtimeResult.runId,
                     'x-cognitive-promoted': String(runtimeResult.promoted),
                     'x-cognitive-promotion-decision': runtimeResult.audit.promotionDecision,
-                    ...(handoffOfferForStream ? {
-                        'x-nemosine-handoff-target': handoffOfferForStream.targetPersona,
-                        'x-nemosine-handoff-slug': handoffOfferForStream.targetSlug,
+                    ...(handoffOffersForStream[0] ? {
+                        'x-nemosine-handoff-target': handoffOffersForStream[0].targetPersona,
+                        'x-nemosine-handoff-slug': handoffOffersForStream[0].targetSlug,
+                        'x-nemosine-handoff-count': String(handoffOffersForStream.length),
                     } : {}),
                     ...(input.headers || {}),
                 },
@@ -719,6 +872,88 @@ export async function POST(req: NextRequest) {
         };
 
         const latestAssistantText = priorHistory.filter((message) => message.role === "assistant").at(-1)?.content || "";
+        const existingHandoffOffers = persistedHandoffOffers(priorHistory);
+        if (isVocationalContinuationQuestion(userText) && existingHandoffOffers.length > 0 && runtimeConfig.mode === "enforce") {
+            console.info("[VocationalTargetResolver]", {
+                event: "HANDOFF_REUSED_FROM_HISTORY",
+                threadId: activeThreadId,
+                sourcePersona: personaId,
+                targets: existingHandoffOffers.map((offer) => offer.targetPersona),
+            });
+            return deliverEnforcedCognitiveRuntime({
+                candidateOverride: buildVocationalAnswer({
+                    sourcePersona: personaId,
+                    userText,
+                    offers: existingHandoffOffers,
+                    reused: true,
+                }),
+                handoffOffers: existingHandoffOffers,
+                persistHandoffEvents: false,
+                headers: {
+                    'x-nemosine-handoff-reused': 'true',
+                },
+            });
+        }
+        const vocationalResolution = resolveVocationalTargets({
+            currentPersona: personaId,
+            userText,
+            contextText: latestAssistantText,
+            maxTargets: 3,
+        });
+        if (
+            runtimeConfig.mode === "enforce"
+            && vocationalResolution.primaryTargetPersonaId
+            && vocationalResolution.confidence >= 0.55
+            && (
+                isHandoffSelectionRequest(userText)
+                || /chefe|superior|lider|reuniao|demanda|profissional|trabalho/i.test(userText)
+            )
+        ) {
+            const offers = buildHandoffOffersFromResolution({
+                sourcePersona: personaId,
+                userText,
+                resolution: vocationalResolution,
+                privateRun: cognitiveRequest.privateRun,
+            });
+            console.info("[VocationalTargetResolver]", {
+                event: "VOCATIONAL_TARGET_RESOLVED",
+                threadId: activeThreadId,
+                sourcePersona: personaId,
+                targets: offers.map((offer) => offer.targetPersona),
+                confidence: vocationalResolution.confidence,
+                reason: vocationalResolution.routingReason,
+            });
+            console.info("[VocationalTargetResolver]", {
+                event: "HANDOFF_OPTIONS_PRESENTED",
+                threadId: activeThreadId,
+                targetCount: offers.length,
+            });
+            return deliverEnforcedCognitiveRuntime({
+                candidateOverride: buildVocationalAnswer({
+                    sourcePersona: personaId,
+                    userText,
+                    offers,
+                }),
+                handoffOffers: offers,
+                headers: {
+                    'x-nemosine-handoff-offered': 'true',
+                },
+            });
+        }
+        if (isVocationalContinuationQuestion(userText) && runtimeConfig.mode === "enforce") {
+            console.info("[VocationalTargetResolver]", {
+                event: "VOCATIONAL_TARGET_UNRESOLVED",
+                threadId: activeThreadId,
+                sourcePersona: personaId,
+                confidence: vocationalResolution.confidence,
+            });
+            return deliverEnforcedCognitiveRuntime({
+                candidateOverride: "Posso continuar aqui pelo meu campo sem mandar voce adivinhar uma porta do Castelo. Pelo que apareceu ate agora, eu preciso de uma frase a mais sobre o centro do problema: e prioridade, autoridade, organizacao do trabalho ou relacao humana?",
+                headers: {
+                    'x-nemosine-handoff-unresolved': 'true',
+                },
+            });
+        }
         const requestedHandoffTarget = isHandoffSelectionRequest(userText)
             ? inferHandoffTarget({ sourcePersona: personaId, userText, priorAssistantText: latestAssistantText })
             : null;

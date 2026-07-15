@@ -12,7 +12,7 @@ import { buildRedactedAudit } from "./audit-redaction";
 import { storeCognitiveAudit } from "./audit-store";
 import { extractClaimsAndActions } from "./claim-extractor";
 import { classifyFinding, isInfrastructureDegradationFinding } from "./finding-classification";
-import { buildPersonaHandoffOffer } from "@/app/lib/nemosine/handoff";
+import { buildPersonaHandoffOffer, resolveVocationalTargets } from "@/app/lib/nemosine/handoff";
 import { deterministicPhilosopherEvaluation, mergePhilosopherEvaluations } from "./philosopher-validator";
 import { createAiSdkCognitiveModelProvider } from "./persona-generator";
 import { evaluatePromotion } from "./promotion-gate";
@@ -352,7 +352,7 @@ function classifyDominantRejectionCause(iteration: CognitiveIteration, failureRe
 }
 
 function recoveryHandoffTarget(iteration: CognitiveIteration) {
-  return iteration.vocation?.handoffTargets?.[0] || "uma persona mais adequada";
+  return iteration.vocation?.handoffTargets?.[0] || null;
 }
 
 function buildRecoveryAnswer(input: {
@@ -361,10 +361,15 @@ function buildRecoveryAnswer(input: {
   dominantCause: string;
 }) {
   const personaTarget = recoveryHandoffTarget(input.iteration);
-  const handoff = input.dominantCause === "vocation"
+  const resolvedTarget = personaTarget || resolveVocationalTargets({
+    currentPersona: input.request.personaId,
+    userText: input.request.userText,
+    maxTargets: 1,
+  }).primaryTargetPersonaId;
+  const handoff = input.dominantCause === "vocation" && resolvedTarget
     ? buildPersonaHandoffOffer({
       sourcePersona: input.request.personaId,
-      targetPersona: personaTarget,
+      targetPersona: resolvedTarget,
       userText: input.request.userText,
       privateRun: input.request.privateRun,
     })
@@ -373,7 +378,7 @@ function buildRecoveryAnswer(input: {
     infrastructure: "A resposta que eu tinha em maos nao ficou firme o bastante para chegar ate voce. Posso retomar por um caminho mais simples, verificavel e sem prometer mais do que consigo sustentar.",
     safety: "Nao posso seguir por esse caminho do jeito como ele apareceu. Posso ajudar a reformular a pergunta em termos mais seguros e ainda uteis para voce.",
     privacy: "Nao vou atravessar uma fronteira que possa expor algo privado. Posso continuar apenas com o que voce autorizar claramente nesta conversa.",
-    vocation: handoff?.answer || `Posso olhar para isso dentro do meu campo, mas ${personaTarget} tem mais precisao para conduzir essa parte. Abra essa conversa e revise o resumo minimo antes de enviar.`,
+    vocation: handoff?.answer || "Posso continuar dentro do meu proprio campo sem empurrar voce para uma porta incerta. Vou separar o que consigo observar agora e, se faltar uma direcao concreta, farei uma unica pergunta indispensavel.",
     coherence: "Consigo continuar daqui, mas preciso escolher um ponto claro para nao inventar uma direcao. Diga o ponto central que voce quer retomar.",
     persistence: "A resposta nao ficou registrada com confianca. Posso tentar de novo por uma via simples, sem acionar nenhuma acao adicional.",
   };

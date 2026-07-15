@@ -1,6 +1,11 @@
 const fs = require("fs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
+require("./load-ts.cjs");
+const {
+  resolveVocationalTargets,
+  buildPersonaHandoffOffer,
+} = require("../../app/lib/nemosine/handoff.ts");
 
 function source(path) {
   return fs.readFileSync(path, "utf8");
@@ -54,4 +59,44 @@ test("chat history restores handoff cards without raw persona text", () => {
   assert.match(chat, /recordSelection\("opened"\)/);
   assert.match(chat, /recordSelection\("invited"\)/);
   assert.match(handoff, /personaSlug\(offer\.targetPersona\)/);
+});
+
+test("vocational resolver returns concrete ranked personas for boss conflict", () => {
+  const resolution = resolveVocationalTargets({
+    currentPersona: "Cientista",
+    userText: "Meu chefe nao sabe o que quer e pede dados diferentes em cada reuniao. Como lidar com isso?",
+    maxTargets: 3,
+  });
+  const targets = [resolution.primaryTargetPersonaId, ...resolution.alternativeTargetPersonaIds].filter(Boolean);
+
+  assert.equal(resolution.primaryTargetPersonaId, "Estrategista");
+  assert.ok(targets.includes("Estrategista"));
+  assert.ok(targets.some((target) => ["Comandante", "Adjunto", "Mentor"].includes(target)));
+  assert.ok(resolution.confidence >= 0.55);
+  assert.equal(targets.includes("uma persona mais adequada"), false);
+  assert.match(resolution.rationaleByPersona.Estrategista, /prioridade|plano|opcoes|riscos/i);
+});
+
+test("handoff answer names a concrete target and never exposes vocational placeholders", () => {
+  const offer = buildPersonaHandoffOffer({
+    sourcePersona: "Cientista",
+    targetPersona: "Estrategista",
+    userText: "Meu chefe muda as demandas em toda reuniao.",
+    reasonOverride: "Para organizar opcoes, prioridades e um plano de abordagem.",
+  });
+
+  assert.match(offer.answer, /Estrategista/);
+  assert.doesNotMatch(offer.answer, /uma persona mais adequada|aplicar essa missao|preservando diferenca de voz/i);
+});
+
+test("chat route reuses persisted handoff options and blocks duplicate fallback loops", () => {
+  const chatRoute = source("app/api/chat/route.ts");
+  const orchestrator = source("app/lib/nemosine/cognitive-runtime/orchestrator.ts");
+
+  assert.match(chatRoute, /HANDOFF_REUSED_FROM_HISTORY/);
+  assert.match(chatRoute, /persistHandoffEvents:\s*false/);
+  assert.match(chatRoute, /VOCATIONAL_TARGET_RESOLVED/);
+  assert.match(chatRoute, /HANDOFF_OPTIONS_PRESENTED/);
+  assert.match(chatRoute, /buildHandoffOffersFromResolution/);
+  assert.doesNotMatch(orchestrator, /uma persona mais adequada/);
 });
