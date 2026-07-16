@@ -13,7 +13,10 @@ const infrastructureDegradationCodes = new Set([
   "PHILOSOPHER_STRUCTURED_DEGRADED",
 ]);
 
-const vocationalCodes = new Set([
+// These findings describe how well the candidate expressed the persona. They may
+// justify regeneration, but they are not evidence that the user asked the wrong
+// persona and must never be promoted to a vocational hard failure.
+const candidateQualityCodes = new Set([
   "GENERIC_ASSISTANT_MODE",
   "GENERIC_INTERVIEW_MODE",
   "INTERROGATIVE_ELICITATION",
@@ -25,7 +28,13 @@ const vocationalCodes = new Set([
   "GENERIC_CLOSING",
   "REPETITIVE_LOOP",
   "THIN_RESPONSE",
-  "INTERNAL_CONTROL_LEAK",
+  "FALSE_CONTEXT_DENIAL",
+]);
+
+const hardVocationalCodes = new Set([
+  "VOCATION_FORBIDDEN_TASK_FAMILY",
+  "VOCATION_INCOMPATIBLE_OPERATION",
+  "PROMOTION_VOCATION_FAILED",
 ]);
 
 const hardSafetyCodes = new Set([
@@ -34,6 +43,7 @@ const hardSafetyCodes = new Set([
   "UNSUPPORTED_BIOGRAPHICAL_ASSERTION",
   "PHILOSOPHER_IDOLATRY_RISK",
   "PHILOSOPHER_DEPENDENCY_RISK",
+  "INTERNAL_CONTROL_LEAK",
 ]);
 
 export function isInfrastructureDegradationCode(code: string) {
@@ -50,11 +60,17 @@ export function classifyFindingCode(code: string, severity?: CognitiveFinding["s
   if (/PRIVACY|PRIVATE_CONTEXT_LEAK|SCOPE|CONTEXT_BLOCKED/i.test(code) || category === "privacy_failure") {
     return "privacy_failure";
   }
-  if (/VOCATION|VOCATIONAL/i.test(code) || vocationalCodes.has(code) || category === "vocational_failure") {
-    return "vocational_failure";
-  }
   if (hardSafetyCodes.has(code) || severity === "critical" || category === "hard_safety_failure") {
     return "hard_safety_failure";
+  }
+  // Code semantics take precedence over the legacy category assigned by the
+  // initiative adapter. This prevents a thin or generic answer from being
+  // misdiagnosed as a refusal/incompatibility of the active persona.
+  if (candidateQualityCodes.has(code) || category === "candidate_quality_finding" || category === "persona-initiative") {
+    return "candidate_quality_finding";
+  }
+  if (hardVocationalCodes.has(code) || /^VOCATION_(FORBIDDEN|INCOMPATIBLE)/.test(code) || category === "vocational_failure") {
+    return "vocational_failure";
   }
   return "candidate_quality_finding";
 }
