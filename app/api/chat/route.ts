@@ -77,6 +77,7 @@ import {
     classifyTitlePayloadKind,
     shouldRepairThreadTitle,
 } from '@/app/lib/nemosine/thread_title';
+import { extractPureUserText, PRESENCE_OPENING_MARKER } from '@/app/lib/nemosine/pure_user_text';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -85,8 +86,6 @@ const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_EXTRACTED_PDF_TEXT_LENGTH = 100_000;
 const MAX_TEXT_FILE_SIZE_BYTES = 1 * 1024 * 1024;
 const MAX_MESSAGE_TEXT_LENGTH = 120_000;
-const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
-
 function buildPresenceOpeningMessage(input: {
     userId: string;
     personaId: string;
@@ -621,11 +620,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Invalid message content' }, { status: 400 });
         }
         const rawDisplayUserText = userText;
-        const isPresenceOpeningRequest = userText.startsWith(PRESENCE_OPENING_MARKER);
-        if (isPresenceOpeningRequest) {
-            userText = userText.slice(PRESENCE_OPENING_MARKER.length).trim();
-        }
-        const displayUserText = isPresenceOpeningRequest ? rawDisplayUserText : userText;
+        const pureExtraction = extractPureUserText(rawDisplayUserText);
+        const isPresenceOpeningRequest = pureExtraction.source === "presence_opening";
+        userText = pureExtraction.pureUserText;
+        const displayUserText = userText;
         if (userText.length > MAX_MESSAGE_TEXT_LENGTH) {
             return NextResponse.json({ error: 'Message content exceeds the allowed limit' }, { status: 413 });
         }
@@ -728,10 +726,22 @@ export async function POST(req: NextRequest) {
             await addMessageToThread(
                 userId,
                 activeThreadId,
-                'user',
+                'system',
                 buildPresenceOpeningMessage({ userId, personaId, threadId: activeThreadId, userText }),
+                { messageKind: 'SYSTEM_EVENT' },
             ).catch((error) => {
                 console.warn("[PresenceAdjustment] automatic first-turn card skipped.", error);
+            });
+        }
+        if (isPresenceOpeningRequest) {
+            await addMessageToThread(
+                userId,
+                activeThreadId,
+                'system',
+                rawDisplayUserText,
+                { messageKind: 'SYSTEM_EVENT' },
+            ).catch((error) => {
+                console.warn("[PresenceAdjustment] submitted presence event persistence skipped.", error);
             });
         }
         await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
@@ -1211,7 +1221,7 @@ export async function POST(req: NextRequest) {
                 finalResponse = bestRejected.visibleText;
             } else {
                 promotedByFallback = true;
-                finalResponse = "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
+                finalResponse = "Nao foi possivel formular uma resposta adequada nesta tentativa.";
                 selectedRawText = finalResponse;
             }
         }

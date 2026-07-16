@@ -39,6 +39,12 @@ export type VocationalTargetResolution = {
   trigger?: "explicit_user_request" | "incompatible_operation" | "prohibited_capability" | null;
 };
 
+export type PersonaMentionMatch = {
+  matchedPersonaId: string | null;
+  matchType: "vocative" | "explicit_invitation" | "ordinary_noun" | null;
+  confidence: number;
+};
+
 function normalize(value: string) {
   return value
     .normalize("NFD")
@@ -71,14 +77,38 @@ export function sanitizeHandoffSummary(text: string, maxLength = 180) {
   return cleaned.length > maxLength ? `${cleaned.slice(0, maxLength - 3).trim()}...` : cleaned;
 }
 
-function mentionedPersona(text: string) {
-  const normalized = normalize(text);
-  return Object.values(ENTITIES)
-    .filter((item) => item.type === "persona")
-    .find((item) => {
-      const personaName = normalize(item.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(`(^|\\s)${personaName}(?=\\s|$)`).test(normalized);
-    })?.name || null;
+export function detectPersonaMention(text?: string | null): PersonaMentionMatch {
+  const raw = text || "";
+  const normalized = normalize(raw);
+  const normalizedWithPunctuation = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s,.!?-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  for (const item of Object.values(ENTITIES).filter((entity) => entity.type === "persona")) {
+    const persona = item.name;
+    const personaName = normalize(persona).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const personaPattern = new RegExp(`(^|\\s)${personaName}(?=\\s|$)`);
+    if (!personaPattern.test(normalized)) continue;
+
+    const vocativePattern = new RegExp(`(^|[.!?]\\s*)${personaName}\\s*,`);
+    const invitationPattern = new RegExp(`\\b(chame|chamar|convide|convidar|abre|abrir|quero falar com|falar com|responda|agora responda|persona)\\s+(a\\s+|o\\s+|ao\\s+|a\\s+persona\\s+|o\\s+persona\\s+)?${personaName}\\b|\\b${personaName}\\s*,\\s*(o que acha|responda|me ajuda|ajude)\\b`);
+    const ordinaryPattern = new RegExp(`\\b(o|a|os|as|meu|minha|meus|minhas|um|uma)\\s+${personaName}\\b|\\b${personaName}\\s+(do|da|dos|das|de)\\b`);
+
+    if (vocativePattern.test(normalizedWithPunctuation)) {
+      return { matchedPersonaId: persona, matchType: "vocative", confidence: 0.95 };
+    }
+    if (invitationPattern.test(normalized)) {
+      return { matchedPersonaId: persona, matchType: "explicit_invitation", confidence: 0.95 };
+    }
+    if (ordinaryPattern.test(normalized)) {
+      return { matchedPersonaId: persona, matchType: "ordinary_noun", confidence: 0.2 };
+    }
+    return { matchedPersonaId: persona, matchType: "ordinary_noun", confidence: 0.2 };
+  }
+  return { matchedPersonaId: null, matchType: null, confidence: 0 };
 }
 
 function allPersonaNames() {
@@ -171,15 +201,19 @@ export function resolveVocationalTargets(input: {
   maxTargets?: number;
 }): VocationalTargetResolution {
   const combined = [input.userText, input.contextText || ""].join("\n");
-  const directMention = mentionedPersona(combined);
-  if (directMention && directMention !== input.currentPersona) {
+  const directMention = detectPersonaMention(combined);
+  if (
+    directMention.matchedPersonaId
+    && directMention.matchedPersonaId !== input.currentPersona
+    && directMention.matchType !== "ordinary_noun"
+  ) {
     return {
       currentPersonaCanContinue: false,
       currentPersonaFit: "partial",
-      primaryTargetPersonaId: directMention,
+      primaryTargetPersonaId: directMention.matchedPersonaId,
       alternativeTargetPersonaIds: [],
-      rationaleByPersona: { [directMention]: rationaleForPersona(directMention, classifyVocationalNeed(combined)) },
-      confidence: 0.95,
+      rationaleByPersona: { [directMention.matchedPersonaId]: rationaleForPersona(directMention.matchedPersonaId, classifyVocationalNeed(combined)) },
+      confidence: directMention.confidence,
       routingReason: "persona mencionada diretamente pelo usuario",
       trigger: "explicit_user_request",
     };
@@ -260,8 +294,15 @@ export function inferHandoffTarget(input: {
   userText: string;
   priorAssistantText?: string | null;
 }) {
-  const directMention = mentionedPersona(input.userText) || mentionedPersona(input.priorAssistantText || "");
-  if (directMention && personaExists(directMention) && directMention !== input.sourcePersona) return directMention;
+  const directMention = detectPersonaMention(input.userText);
+  const priorMention = detectPersonaMention(input.priorAssistantText || "");
+  const mentioned = directMention.matchType !== "ordinary_noun" ? directMention : priorMention;
+  if (
+    mentioned.matchedPersonaId
+    && mentioned.matchType !== "ordinary_noun"
+    && personaExists(mentioned.matchedPersonaId)
+    && mentioned.matchedPersonaId !== input.sourcePersona
+  ) return mentioned.matchedPersonaId;
 
   const normalized = normalize(input.userText);
   const source = normalize(input.sourcePersona);

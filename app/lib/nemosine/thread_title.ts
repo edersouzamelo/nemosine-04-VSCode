@@ -1,3 +1,5 @@
+import { extractPureUserText } from "./pure_user_text";
+
 const GENERIC_TITLE_PATTERNS = [
   /^nova conversa/i,
   /^ajuste de presenca/i,
@@ -41,8 +43,11 @@ export function isGenericThreadTitle(title?: string | null) {
 }
 
 export function buildDeterministicThreadTitle(text: string) {
-  if (classifyTitlePayloadKind(text) !== "user-authored") return "Nova conversa";
-  const cleaned = normalizeTitleText(text);
+  const extracted = extractPureUserText(text);
+  const titleSource = extracted.source === "presence_opening" ? extracted.pureUserText : text;
+  if (classifyTitlePayloadKind(text) !== "user-authored" && !titleSource.trim()) return "Nova conversa";
+  if (classifyTitlePayloadKind(text) === "handoff-boilerplate") return "Nova conversa";
+  const cleaned = normalizeTitleText(titleSource);
   if (!cleaned || cleaned.length < 12) return "Nova conversa";
 
   const words = cleaned

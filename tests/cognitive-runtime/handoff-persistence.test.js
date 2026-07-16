@@ -6,7 +6,14 @@ const {
   resolveVocationalTargets,
   buildPersonaHandoffOffer,
   buildHandoffUrl,
+  detectPersonaMention,
 } = require("../../app/lib/nemosine/handoff.ts");
+const {
+  classifyRequestedOperations,
+} = require("../../app/lib/nemosine/cognitive-runtime/vocational-policy.ts");
+const {
+  extractPureUserText,
+} = require("../../app/lib/nemosine/pure_user_text.ts");
 
 function source(path) {
   return fs.readFileSync(path, "utf8");
@@ -58,7 +65,8 @@ test("chat history restores handoff cards without raw persona text", () => {
   assert.match(chat, /aria-expanded=\{expanded\}/);
   assert.match(chat, /nemosine-handoff-card-open/);
   assert.match(chat, /Perspectivas sugeridas · \{offers\.length\}/);
-  assert.match(chat, /max-h-\[25vh\]/);
+  assert.match(chat, /max-w-\[680px\]/);
+  assert.match(chat, /max-h-\[32vh\]/);
   assert.match(chat, /recordSelection\("opened"\)/);
   assert.match(chat, /recordSelection\("invited"\)/);
   assert.match(handoff, /personaSlug\(offer\.targetPersona\)/);
@@ -170,4 +178,60 @@ test("chat route reuses persisted handoff options and blocks duplicate fallback 
   assert.doesNotMatch(chatRoute, /candidateOverride:\s*buildVocationalAnswer/);
   assert.doesNotMatch(orchestrator, /uma persona mais adequada|meu proprio campo|porta incerta/i);
   assert.doesNotMatch(handoff, /answer:\s*buildHostStyledHandoffAnswer/);
+});
+
+test("forensic Executor case keeps venting as the requested operation without automatic handoff", () => {
+  const envelope = [
+    "[[NEMOSINE_PRESENCE_OPENING]]",
+    "Ajuste de Presenca confirmado. Produza agora a primeira leitura da persona com base neste ajuste.",
+    "Persona ativa: Executor.",
+    "Contexto recente autorizado: Estou me sentindo cansado e sem energia. Dormindo muito tarde fazendo programacao do Nemosine. E aqui agora no trabalho acabamos de terminar uma formatura longa e cansativa. O Comandante do quartel falou demais, discurso longo.",
+    "Objetivo atual: desabafar",
+  ].join("\n");
+  const extraction = extractPureUserText(envelope);
+  const operations = classifyRequestedOperations({
+    pureUserText: extraction.pureUserText,
+    presenceObjective: extraction.presenceObjective,
+  });
+  const mention = detectPersonaMention(extraction.pureUserText);
+  const resolution = resolveVocationalTargets({
+    currentPersona: "Executor",
+    userText: extraction.pureUserText,
+    maxTargets: 3,
+  });
+
+  assert.doesNotMatch(extraction.pureUserText, /NEMOSINE_PRESENCE_OPENING|Ajuste de Presenca|Persona ativa/);
+  assert.match(extraction.pureUserText, /cansado|sem energia|programacao do Nemosine|Quero desabafar/i);
+  assert.deepEqual(operations, ["converse", "reflect"]);
+  assert.equal(operations.includes("implement"), false);
+  assert.equal(operations.includes("diagnose-system"), false);
+  assert.equal(mention.matchType, "ordinary_noun");
+  assert.equal(resolution.currentPersonaFit === "incompatible", false);
+  assert.equal(resolution.trigger, null);
+  assert.equal(resolution.primaryTargetPersonaId === "Engenheiro", false);
+  assert.equal(resolution.primaryTargetPersonaId === "Autor", false);
+});
+
+test("persona mention distinguishes explicit vocative from real-world role nouns", () => {
+  const explicit = detectPersonaMention("Engenheiro, ajude a corrigir um erro no deploy do Nemosine.");
+  const ordinary = detectPersonaMention("Meu comandante pediu outro relatorio.");
+
+  assert.equal(explicit.matchedPersonaId, "Engenheiro");
+  assert.equal(explicit.matchType, "vocative");
+  assert.equal(ordinary.matchedPersonaId, "Comandante");
+  assert.equal(ordinary.matchType, "ordinary_noun");
+});
+
+test("technical request remains compatible with explicit technical routing", () => {
+  const operations = classifyRequestedOperations("Engenheiro, ajude a corrigir um erro no deploy do Nemosine.");
+  const resolution = resolveVocationalTargets({
+    currentPersona: "Executor",
+    userText: "Engenheiro, ajude a corrigir um erro no deploy do Nemosine.",
+    maxTargets: 3,
+  });
+
+  assert.ok(operations.includes("implement"));
+  assert.ok(operations.includes("diagnose-system"));
+  assert.equal(resolution.primaryTargetPersonaId, "Engenheiro");
+  assert.equal(resolution.trigger, "explicit_user_request");
 });

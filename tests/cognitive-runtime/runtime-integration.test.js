@@ -418,7 +418,7 @@ test("identical findings short-circuit useless retries and deliver recovery", as
   assert.equal(result.answer.includes("BAD CANDIDATE"), false);
 });
 
-test("question about prior non-answer receives recovery explanation instead of loop", async () => {
+test("question about prior non-answer receives compact system recovery instead of loop", async () => {
   const req = request({
     userText: "Por que voce nao respondeu?",
     displayUserText: "Por que voce nao respondeu?",
@@ -437,7 +437,7 @@ test("question about prior non-answer receives recovery explanation instead of l
   });
 
   assert.equal(result.audit.promotionDecision, "recovery_delivered");
-  assert.match(result.answer, /nao entreguei|não entreguei/i);
+  assert.equal(result.answer, "Nao foi possivel formular uma resposta adequada nesta tentativa.");
   assert.equal(result.answer.includes("BAD CANDIDATE"), false);
 });
 

@@ -355,21 +355,22 @@ function buildRecoveryAnswer(input: {
   iteration: CognitiveIteration;
   dominantCause: string;
 }) {
+  const systemRecovery = "Nao foi possivel formular uma resposta adequada nesta tentativa.";
   const templates: Record<string, string> = {
-    infrastructure: "A resposta que eu tinha em maos nao ficou firme o bastante para chegar ate voce. Posso retomar por um caminho mais simples, verificavel e sem prometer mais do que consigo sustentar.",
-    safety: "Nao posso seguir por esse caminho do jeito como ele apareceu. Posso ajudar a reformular a pergunta em termos mais seguros e ainda uteis para voce.",
-    privacy: "Nao vou atravessar uma fronteira que possa expor algo privado. Posso continuar apenas com o que voce autorizar claramente nesta conversa.",
-    vocation: "Esta voz nao conseguiu formular uma resposta adequada neste turno.",
-    coherence: "Consigo continuar daqui, mas preciso escolher um ponto claro para nao inventar uma direcao. Diga o ponto central que voce quer retomar.",
-    persistence: "A resposta nao ficou registrada com confianca. Posso tentar de novo por uma via simples, sem acionar nenhuma acao adicional.",
+    infrastructure: systemRecovery,
+    safety: systemRecovery,
+    privacy: systemRecovery,
+    vocation: systemRecovery,
+    coherence: systemRecovery,
+    persistence: systemRecovery,
   };
   let answer = templates[input.dominantCause] || templates.coherence;
   const lastAssistant = (input.request.priorHistory || []).filter((item) => item.role === "assistant").at(-1)?.content?.trim();
   if (lastAssistant && lastAssistant === answer) {
-    answer = "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
+    answer = systemRecovery;
   }
   if (isRecoveryQuestion(input.request.userText) && input.dominantCause !== "vocation") {
-    answer = "Eu nao entreguei antes porque a resposta nao estava confiavel o bastante para te servir. Posso retomar agora com uma resposta mais direta, simples e sem acionar nada alem desta conversa.";
+    answer = systemRecovery;
   }
   return answer;
 }

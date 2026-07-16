@@ -444,6 +444,9 @@ export type HandoffEventMetadata = {
     userAuthoredPrompt?: string | null;
     structuredSummary?: string | null;
     presenceContractSnapshot?: string | null;
+    decisionId?: string | null;
+    trigger?: PersonaHandoffOffer["trigger"];
+    currentPersonaFit?: PersonaHandoffOffer["currentPersonaFit"];
     requiresConfirmation: boolean;
     actions: {
         open: boolean;
@@ -481,6 +484,9 @@ function handoffMetadataFromOffer(input: {
         userAuthoredPrompt: input.offer.userAuthoredPrompt || existing.userAuthoredPrompt || null,
         structuredSummary: input.offer.structuredSummary || input.offer.summary || existing.structuredSummary || null,
         presenceContractSnapshot: existing.presenceContractSnapshot || null,
+        decisionId: input.offer.decisionId || existing.decisionId || null,
+        trigger: input.offer.trigger || existing.trigger || null,
+        currentPersonaFit: input.offer.currentPersonaFit || existing.currentPersonaFit || null,
         requiresConfirmation: Boolean(input.offer.requiresConfirmation),
         actions: {
             open: true,

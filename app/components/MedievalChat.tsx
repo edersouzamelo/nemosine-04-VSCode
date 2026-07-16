@@ -64,7 +64,7 @@ function getMessageText(message: UIMessage): string {
 
 const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
 const PERSONA_FEEDBACK_STORAGE_PREFIX = "nemosine-persona-feedback-v1";
-const COLLECTIVE_PERSONA_SYSTEM_FAILURE = "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
+const COLLECTIVE_PERSONA_SYSTEM_FAILURE = "Nao foi possivel formular uma resposta adequada nesta tentativa.";
 
 type PersonaFeedbackRating = "up" | "down";
 type PresenceAdjustmentSnapshot = {
@@ -174,12 +174,13 @@ function PresenceAdjustmentEventCard({
 
     return (
         <div className="flex justify-center">
-            <div className="max-w-[92%] rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+            <div className={`${expanded ? "max-w-[680px]" : "max-w-[620px]"} w-full rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]`}>
                 <button
                     type="button"
                     onClick={toggleExpanded}
-                    className="flex w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-2 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                    className="flex h-12 w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-1.5 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                     aria-expanded={expanded}
+                    title={principalQuestion}
                 >
                     <span className="flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]">
                         <span className="material-icons text-[16px]" aria-hidden="true">tune</span>
@@ -194,10 +195,10 @@ function PresenceAdjustmentEventCard({
                     className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}
                 >
                     <div className="min-h-0 overflow-hidden">
-                    <div className="mt-2 max-h-72 space-y-2 overflow-y-auto px-2 pb-2">
+                    <div className="mt-2 max-h-[32vh] space-y-1.5 overflow-y-auto px-2 pb-2">
                         <div className="grid gap-2 sm:grid-cols-2">
                             {rows.map(([label, value]) => (
-                                <div key={label} className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-2">
+                                <div key={label} className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-1.5">
                                     <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">{label}</div>
                                     <div className="whitespace-pre-wrap text-xs leading-relaxed text-[#efe7d7]">{value}</div>
                                 </div>
@@ -411,12 +412,13 @@ function HandoffOfferCard({
         window.location.assign(href);
     };
     return (
-        <div className="mt-3 rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+        <div className="mt-2 w-full max-w-[680px] rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
             <button
                 type="button"
                 onClick={toggleExpanded}
-                className="flex w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-2 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                className="flex h-12 w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-1.5 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                 aria-expanded={expanded}
+                title={`${offer.title}: ${offer.reason}`}
             >
                 <span className="flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]">
                     <span className="material-icons text-[16px]" aria-hidden="true">swap_horiz</span>
@@ -429,7 +431,7 @@ function HandoffOfferCard({
             </button>
             <div className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}>
                 <div className="min-h-0 overflow-hidden">
-                    <div className="mt-2 max-h-72 space-y-2 overflow-y-auto px-2 pb-2">
+                    <div className="mt-2 max-h-[32vh] space-y-1.5 overflow-y-auto px-2 pb-2">
                         <div className="grid gap-2 sm:grid-cols-2">
                         <div className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-2">
                             <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">Resumo autorizado</div>
@@ -563,11 +565,11 @@ function HandoffOfferGroupCard({
     };
 
     return (
-        <div className="mt-3 max-w-[760px] rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+        <div className="mt-2 w-full max-w-[680px] rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
             <button
                 type="button"
                 onClick={toggleExpanded}
-                className="flex w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-2 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                className="flex h-12 w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-1.5 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                 aria-expanded={expanded}
             >
                 <span className="flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]">
@@ -581,7 +583,7 @@ function HandoffOfferGroupCard({
             </button>
             <div className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}>
                 <div className="min-h-0 overflow-hidden">
-                    <div className="mt-2 max-h-[25vh] overflow-y-auto px-2 pb-2">
+                    <div className="mt-2 max-h-[32vh] overflow-y-auto px-2 pb-2">
                         <div className="grid gap-1.5">
                             {offers.map((offer) => (
                                 <div key={`${offer.targetPersona}:${offer.targetSlug}`} className="grid gap-2 rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-2 text-xs sm:grid-cols-[110px_minmax(0,1fr)_auto_auto] sm:items-center">
@@ -1889,7 +1891,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 {messages.map((rawMsg: UIMessage) => {
                     const msg = rawMsg as CollectiveMessage;
                     const messageText = getMessageText(msg);
-                    if (msg.role === "user" && messageText.startsWith(PRESENCE_OPENING_MARKER)) {
+                    if ((msg.role === "user" || msg.role === "system") && messageText.startsWith(PRESENCE_OPENING_MARKER)) {
                         const presenceOpeningKey = messageText.replace(/\s+/g, " ").trim();
                         if (renderedPresenceOpeningTexts.has(presenceOpeningKey)) return null;
                         renderedPresenceOpeningTexts.add(presenceOpeningKey);
@@ -1908,7 +1910,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         if (!persistedOffer) return null;
                         return (
                             <div key={msg.id} className="flex justify-start">
-                                <div className="max-w-[92%]">
+                                <div className="w-full max-w-[680px]">
                                     <HandoffOfferCard
                                         offer={persistedOffer}
                                         messageId={msg.id}
@@ -1934,11 +1936,26 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         msg.role === "assistant"
                         && (msg.generationStatus === "FAILED" || cleanContent(messageText) === COLLECTIVE_PERSONA_SYSTEM_FAILURE)
                     ) {
-                        const speaker = msg.speakerPersonaId || personaId;
                         return (
                             <div key={msg.id} className="flex justify-center">
-                                <div className="max-w-[92%] rounded-full border border-[#c5a059]/15 bg-black/35 px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">
-                                    {speaker} nao conseguiu concluir uma contribuicao adequada neste turno.
+                                <div className="flex max-w-[680px] flex-col items-center gap-2 rounded-xl border border-[#c5a059]/15 bg-black/35 px-3 py-2 text-center text-[10px] uppercase tracking-[0.16em] text-[#c5a059]/65">
+                                    <span>{COLLECTIVE_PERSONA_SYSTEM_FAILURE}</span>
+                                    <span className="flex flex-wrap justify-center gap-2">
+                                        <button
+                                            type="button"
+                                            className="rounded-md border border-[#c5a059]/25 px-2 py-1 text-[9px] text-[#f4dfad] hover:bg-[#c5a059]/10"
+                                            onClick={() => setInput("Tente novamente de forma mais simples.")}
+                                        >
+                                            Tentar novamente
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="rounded-md border border-[#c5a059]/25 px-2 py-1 text-[9px] text-[#f4dfad] hover:bg-[#c5a059]/10"
+                                            onClick={() => setInput("Vamos continuar a conversa.")}
+                                        >
+                                            Continuar a conversa
+                                        </button>
+                                    </span>
                                 </div>
                             </div>
                         );

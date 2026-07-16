@@ -151,9 +151,20 @@ export function classifySubjectDomains(text: string) {
   return Array.from(new Set(domains.length > 0 ? domains : ["general"]));
 }
 
-export function classifyRequestedOperations(text: string) {
-  const normalized = normalize(text);
+export function classifyRequestedOperations(input: string | {
+  pureUserText: string;
+  presenceObjective?: string | null;
+  principalQuestion?: string | null;
+}) {
+  const text = typeof input === "string" ? input : input.pureUserText;
+  const explicitObjective = typeof input === "string" ? "" : [input.presenceObjective || "", input.principalQuestion || ""].join(" ");
+  const normalized = normalize([explicitObjective, text].join(" "));
+  const normalizedTextOnly = normalize(text);
   const operations: string[] = [];
+  if (/\b(desabafar|desabafo|so quero falar|s[oó] quero falar|quero falar do que aconteceu|preciso falar)\b/.test(normalized)) {
+    operations.push("converse", "reflect");
+    return Array.from(new Set(operations));
+  }
   if (/\b(narrar|narrativa|reconstruir|historia|sequencia|como .* chegou|relato|contei|vivi)\b/.test(normalized)) operations.push("narrate");
   if (/\b(compreender|entender|sentido|conversar livremente|conversa livre|o que estou vivendo|por que reajo|padroes emocionais)\b/.test(normalized)) operations.push("understand", "reflect");
   if (/\b(plano|planejar|montar|estrategia|prioridade|proximo passo)\b/.test(normalized)) operations.push("plan");
@@ -165,7 +176,9 @@ export function classifyRequestedOperations(text: string) {
   if (/\b(criar|escrever|inventar|desenhar|compor)\b/.test(normalized)) operations.push("create");
   if (/\b(decidir|escolher|decisao)\b/.test(normalized)) operations.push("decide");
   if (/\b(parecer juridico|opinia[oã] juridica|legalmente|processo)\b/.test(normalized)) operations.push("legal-opinion");
-  if (/\b(debugar|corrigir|implementar|programar|diagnosticar sistema)\b/.test(normalized)) operations.push("diagnose-system", "implement");
+  if (/\b(debugar|corrigir|implementar|diagnosticar sistema)\b/.test(normalizedTextOnly)
+    || /\b(ajude|preciso|quero|vamos|pode)\s+(a\s+)?(corrigir|debugar|implementar|programar|mexer no codigo|resolver o deploy)\b/.test(normalizedTextOnly)
+  ) operations.push("diagnose-system", "implement");
   return Array.from(new Set(operations.length > 0 ? operations : ["converse"]));
 }
 
