@@ -1,5 +1,5 @@
 import { CognitiveRuntimeConfig } from "./config";
-import { isInfrastructureDegradationFinding } from "./finding-classification";
+import { classifyFinding, isInfrastructureDegradationFinding } from "./finding-classification";
 import {
   PrivacyEvaluation,
   ScientistEvaluation,
@@ -54,10 +54,14 @@ export function calculateVigiaCoherence(input: {
   const scoredDimensions = dimensions.filter((dimension) => dimension.status === "SCORED" && typeof dimension.score === "number");
   const weightTotal = scoredDimensions.reduce((total, dimension) => total + dimension.weight, 0) || 1;
   const weightedTotal = scoredDimensions.reduce((total, dimension) => total + (dimension.score || 0) * dimension.weight, 0) / weightTotal;
+  const vocationalHardFindings = input.vocation.findings.filter((finding) =>
+    (finding.severity === "error" || finding.severity === "critical")
+    && classifyFinding(finding) === "vocational_failure"
+  );
 
   const hardFailures = [
     ...(!input.privacy.hardPass ? ["privacy"] : []),
-    ...(!input.vocation.hardPass ? ["vocation"] : []),
+    ...(vocationalHardFindings.length > 0 ? vocationalHardFindings.map((finding) => `vocation:${finding.code}`) : []),
     ...(!input.scientist.approved ? ["scientist:approved_false"] : []),
     ...input.scientist.findings
       .filter((finding) => !isInfrastructureDegradationFinding(finding) && (finding.severity === "error" || finding.severity === "critical"))
