@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { authConfig } from "./auth.config";
 import { isAdminEmail } from "./app/lib/accessControl";
 
@@ -22,7 +22,7 @@ function isSocialPreviewBot(userAgent: string | null) {
     return SOCIAL_PREVIEW_BOTS.some((bot) => normalized.includes(bot));
 }
 
-function requestOrigin(req: Parameters<Parameters<typeof auth>[0]>[0]) {
+function requestOrigin(req: NextRequest) {
     const forwardedHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
     const forwardedProtocol = req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(":", "") || "https";
     return forwardedHost ? `${forwardedProtocol}://${forwardedHost}` : req.nextUrl.origin;
