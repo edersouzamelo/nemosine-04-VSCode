@@ -15,22 +15,12 @@ class InvalidLoginError extends CredentialsSignin {
 }
 
 const prisma = new PrismaClient()
-
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
-  adapter: PrismaAdapter(prisma),
-  // JWT keeps the existing credential flow while the adapter persists linked OAuth accounts.
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/access",
-    error: "/access",
-  },
-  secret: process.env.AUTH_SECRET,
-  debug: process.env.NODE_ENV === "development",
-  providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+const googleClientId = process.env.AUTH_GOOGLE_ID?.trim()
+const googleClientSecret = process.env.AUTH_GOOGLE_SECRET?.trim()
+const googleProvider = googleClientId && googleClientSecret
+  ? Google({
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
       authorization: {
         params: GOOGLE_AUTHORIZATION_PARAMS,
       },
@@ -48,7 +38,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           image: profile.picture,
         }
       },
-    }),
+    })
+  : null
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+  adapter: PrismaAdapter(prisma),
+  // JWT keeps the existing credential flow while the adapter persists linked OAuth accounts.
+  session: { strategy: "jwt" },
+  pages: {
+    signIn: "/access",
+    error: "/access",
+  },
+  secret: process.env.AUTH_SECRET,
+  redirectProxyUrl: process.env.AUTH_REDIRECT_PROXY_URL?.trim() || undefined,
+  debug: process.env.NODE_ENV === "development",
+  providers: [
+    ...(googleProvider ? [googleProvider] : []),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
