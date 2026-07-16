@@ -9,7 +9,7 @@ import {
   CognitiveFinding,
   ExecutionProfile,
 } from "./types";
-import { isInfrastructureDegradationFinding, isSemanticWarningFinding } from "./finding-classification";
+import { classifyFinding, isInfrastructureDegradationFinding, isSemanticWarningFinding } from "./finding-classification";
 
 const scientistFloors: Record<ExecutionProfile, Partial<Record<keyof ScientistEvaluation, number>>> = {
   light: {
@@ -109,9 +109,13 @@ export function evaluatePromotion(input: {
     findings.push(finding("PROMOTION_PRIVACY_FAILED", "Privacy evaluation did not hard-pass.", "privacy_failure"));
   }
 
-  if (!input.vocation.hardPass) {
+  const vocationalHardFindings = input.vocation.findings.filter((vocationalFinding) =>
+    (vocationalFinding.severity === "error" || vocationalFinding.severity === "critical")
+    && classifyFinding(vocationalFinding) === "vocational_failure"
+  );
+  if (vocationalHardFindings.length > 0) {
     reasons.push("vocation_failed");
-    findings.push(finding("PROMOTION_VOCATION_FAILED", "Vocational evaluation did not hard-pass.", "vocational_failure"));
+    findings.push(finding("PROMOTION_VOCATION_FAILED", "Vocational evaluation found an incompatible or forbidden operation.", "vocational_failure"));
   }
 
   if (!input.sideEffects.approved) {
