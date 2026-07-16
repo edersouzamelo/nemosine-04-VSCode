@@ -22,6 +22,12 @@ function isSocialPreviewBot(userAgent: string | null) {
     return SOCIAL_PREVIEW_BOTS.some((bot) => normalized.includes(bot));
 }
 
+function requestOrigin(req: Parameters<Parameters<typeof auth>[0]>[0]) {
+    const forwardedHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
+    const forwardedProtocol = req.headers.get("x-forwarded-proto") || req.nextUrl.protocol.replace(":", "") || "https";
+    return forwardedHost ? `${forwardedProtocol}://${forwardedHost}` : req.nextUrl.origin;
+}
+
 export default auth((req) => {
     const { pathname } = req.nextUrl;
 
@@ -46,7 +52,9 @@ export default auth((req) => {
     }
 
     if (!req.auth) {
-        const accessUrl = new URL("/access", req.nextUrl);
+        // Keep authentication on the exact deployment host. Using a canonical
+        // production origin here made preview tests silently return to production.
+        const accessUrl = new URL("/access", requestOrigin(req));
         accessUrl.searchParams.set("callbackUrl", `${req.nextUrl.pathname}${req.nextUrl.search}`);
         return NextResponse.redirect(accessUrl);
     }
@@ -55,7 +63,7 @@ export default auth((req) => {
         (req.nextUrl.pathname.startsWith("/admin") || req.nextUrl.pathname.startsWith("/developer/messages"))
         && !isAdminEmail(req.auth.user?.email)
     ) {
-        return NextResponse.redirect(new URL("/space", req.nextUrl));
+        return NextResponse.redirect(new URL("/space", requestOrigin(req)));
     }
 });
 
