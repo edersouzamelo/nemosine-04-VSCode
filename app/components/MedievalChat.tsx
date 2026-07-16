@@ -173,31 +173,30 @@ function PresenceAdjustmentEventCard({
 
     return (
         <div className="flex justify-center">
-            <div className="max-w-[92%] rounded-2xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-2 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+            <div className="max-w-[92%] rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
                 <button
                     type="button"
                     onClick={toggleExpanded}
-                    className="flex w-full flex-col gap-2 rounded-xl border border-[#c5a059]/20 bg-[#c5a059]/10 px-3 py-3 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                    className="flex w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-2 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                     aria-expanded={expanded}
                 >
-                    <span className="flex w-full items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059]">
+                    <span className="flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]">
                         <span className="material-icons text-[16px]" aria-hidden="true">tune</span>
                         Presenca ajustada
-                        <span className={`material-icons text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
                     </span>
-                    <span className="block w-full rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
-                        <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">Pergunta principal</span>
-                        <span className="block whitespace-pre-wrap text-sm leading-relaxed text-[#efe7d7]">{principalQuestion}</span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-[#efe7d7]">
+                        {principalQuestion}
                     </span>
+                    <span className={`material-icons shrink-0 text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
                 </button>
                 <div
                     className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}
                 >
                     <div className="min-h-0 overflow-hidden">
-                    <div className="mt-3 space-y-3 px-2 pb-2">
-                        <div className="grid gap-2">
+                    <div className="mt-2 max-h-72 space-y-2 overflow-y-auto px-2 pb-2">
+                        <div className="grid gap-2 sm:grid-cols-2">
                             {rows.map(([label, value]) => (
-                                <div key={label} className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
+                                <div key={label} className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-2">
                                     <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">{label}</div>
                                     <div className="whitespace-pre-wrap text-xs leading-relaxed text-[#efe7d7]">{value}</div>
                                 </div>
@@ -206,7 +205,7 @@ function PresenceAdjustmentEventCard({
                         <button
                             type="button"
                             onClick={onReconfigure}
-                            className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#c5a059]/25 bg-black/35 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059] transition-colors hover:border-[#c5a059]/55 hover:bg-[#c5a059]/10"
+                            className="inline-flex h-8 items-center gap-2 rounded-lg border border-[#c5a059]/25 bg-black/35 px-2.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059] transition-colors hover:border-[#c5a059]/55 hover:bg-[#c5a059]/10"
                         >
                             <span className="material-icons text-[16px]" aria-hidden="true">restart_alt</span>
                             Reajustar presenca
@@ -380,29 +379,34 @@ function HandoffOfferCard({
         }).catch(() => undefined);
     };
     return (
-        <div className="mt-4 rounded-2xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-2 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+        <div className="mt-3 rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
             <button
                 type="button"
                 onClick={toggleExpanded}
-                className="flex w-full flex-col gap-2 rounded-xl border border-[#c5a059]/20 bg-[#c5a059]/10 px-3 py-3 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                className="flex w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-2 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
                 aria-expanded={expanded}
             >
-                <span className="flex w-full items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#c5a059]">
+                <span className="flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]">
                     <span className="material-icons text-[16px]" aria-hidden="true">swap_horiz</span>
                     {statusText}
-                    <span className={`material-icons text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
                 </span>
-                <span className="block w-full rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
-                    <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">{offer.title}</span>
-                    <span className="block text-sm leading-relaxed text-[#efe7d7]">{offer.reason}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-[#efe7d7]">
+                    {offer.title}: {offer.reason}
                 </span>
+                <span className={`material-icons shrink-0 text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
             </button>
             <div className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}>
                 <div className="min-h-0 overflow-hidden">
-                    <div className="mt-3 space-y-3 px-2 pb-2">
-                        <div className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-3 py-2">
+                    <div className="mt-2 max-h-72 space-y-2 overflow-y-auto px-2 pb-2">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-2">
                             <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">Resumo autorizado</div>
                             <div className="text-xs leading-relaxed text-[#efe7d7]">{offer.summary}</div>
+                        </div>
+                        <div className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-2">
+                            <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">Destino</div>
+                            <div className="text-xs leading-relaxed text-[#efe7d7]">{offer.targetPersona}</div>
+                        </div>
                         </div>
                         {offer.requiresConfirmation && (
                             <p className="rounded border border-amber-400/25 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-100">
@@ -413,7 +417,7 @@ function HandoffOfferCard({
                             <a
                                 href={href}
                                 onClick={() => recordSelection("opened")}
-                                className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c5a059] px-3 text-center text-[10px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
+                                className="inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c5a059] px-2.5 text-center text-[9px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
                             >
                                 <span className="material-icons text-[16px]" aria-hidden="true">open_in_new</span>
                                 Abrir conversa com {offer.targetPersona}
@@ -425,7 +429,7 @@ function HandoffOfferCard({
                                         recordSelection("invited");
                                         void onInvite(offer.targetPersona);
                                     }}
-                                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/35 bg-black/35 px-3 text-center text-[10px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
+                                    className="inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/35 bg-black/35 px-2.5 text-center text-[9px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
                                 >
                                     <span className="material-icons text-[16px]" aria-hidden="true">group_add</span>
                                     Convidar {offer.targetPersona} para esta conversa

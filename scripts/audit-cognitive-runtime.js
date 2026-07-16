@@ -89,7 +89,8 @@ const routeContract = {
   chatDeliveryContractHeader: /x-cognitive-delivery-contract['"]:\s*['"]ocv-promotion-gate/.test(chatRouteSource),
   collectiveRuntimeEnforceBeforeLegacyEffects: collectiveRuntimeEnforce > 0
     && collectiveLegacyEffectsAfterRuntime > collectiveRuntimeEnforce,
-  collectiveRuntimePersistsPersonaMessage: /persistAssistantMessage:\s*async \(\{ answer \}\)/.test(collectiveSource)
+  collectiveRuntimePersistsPersonaMessage: /const persistPromotedPersonaMessage = async \(\{ answer \}:\s*\{ answer: string \}\)/.test(collectiveSource)
+    && /persistAssistantMessage:\s*persistPromotedPersonaMessage/.test(collectiveSource)
     && /updatePersonaMessageGeneration\(input\.round\.userId, input\.messageId, answer, "COMPLETED"\)/.test(collectiveSource),
   pureChatBufferedBeforeBasalSafety: !pureChatSource.includes("streamText")
     && /generateText/.test(pureChatSource)

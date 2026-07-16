@@ -28,7 +28,8 @@ test("collective chat persists persona messages through cognitive runtime in ENF
   assert.ok(runtimeEnforce > 0, "collective runtime ENFORCE branch missing");
   assert.ok(legacyEffects > 0, "legacy collective effects path missing");
   assert.ok(runtimeEnforce < legacyEffects || collective.indexOf("commitPersonaLegacyEffects({", runtimeEnforce) > runtimeEnforce);
-  assert.match(collective, /persistAssistantMessage:\s*async \(\{ answer \}\)/);
+  assert.match(collective, /const persistPromotedPersonaMessage = async \(\{ answer \}:\s*\{ answer: string \}\)/);
+  assert.match(collective, /persistAssistantMessage:\s*persistPromotedPersonaMessage/);
   assert.match(collective, /updatePersonaMessageGeneration\(input\.round\.userId, input\.messageId, answer, "COMPLETED"\)/);
   assert.match(collective, /cognitivePromotionDecision/);
 });

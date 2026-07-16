@@ -20,9 +20,11 @@ export type PersonaHandoffOffer = {
 const HANDOFF_MARKER_PATTERN = /\[\[NEMOSINE_HANDOFF:([^\]]+)\]\]/g;
 
 export type HandoffState = "offered" | "opened" | "invited" | "declined" | "unavailable";
+export type CurrentPersonaFit = "primary" | "valid" | "partial" | "incompatible";
 
 export type VocationalTargetResolution = {
   currentPersonaCanContinue: boolean;
+  currentPersonaFit: CurrentPersonaFit;
   primaryTargetPersonaId: string | null;
   alternativeTargetPersonaIds: string[];
   rationaleByPersona: Record<string, string>;
@@ -66,7 +68,10 @@ function mentionedPersona(text: string) {
   const normalized = normalize(text);
   return Object.values(ENTITIES)
     .filter((item) => item.type === "persona")
-    .find((item) => normalized.includes(normalize(item.name)))?.name || null;
+    .find((item) => {
+      const personaName = normalize(item.name).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(^|\\s)${personaName}(?=\\s|$)`).test(normalized);
+    })?.name || null;
 }
 
 function allPersonaNames() {
@@ -80,6 +85,41 @@ function tokenHits(text: string, terms: string[]) {
   return terms.filter((term) => normalized.includes(normalize(term))).length;
 }
 
+function evaluateCurrentPersonaFit(input: {
+  currentPersona: string;
+  text: string;
+  signals: string[];
+}): CurrentPersonaFit {
+  const contract = getPersonaBehaviorContract(input.currentPersona);
+  const normalizedPersona = normalize(input.currentPersona);
+  const missionHits = tokenHits(input.text, [contract.operationalMission, contract.expectedInference, ...contract.lexicalHints]);
+  const contextHits = tokenHits(input.text, contract.contextToSeek);
+  const prohibitionHits = tokenHits(input.text, contract.prohibitions);
+
+  if (contract.family === "emotional" && input.signals.some((signal) => ["emotional", "human-posture", "professional-conflict"].includes(signal))) {
+    return missionHits + contextHits >= 1 ? "primary" : "valid";
+  }
+  if (/\bpsic|terapeut/.test(normalizedPersona) && input.signals.some((signal) => ["emotional", "human-posture", "professional-conflict"].includes(signal))) {
+    return "primary";
+  }
+  if (input.signals.includes("emotional") && input.signals.includes("professional-conflict")) {
+    return "valid";
+  }
+  if (contract.family === "strategic" && input.signals.some((signal) => ["professional-conflict", "strategy", "authority"].includes(signal))) {
+    return missionHits + contextHits >= 1 ? "primary" : "valid";
+  }
+  if (contract.family === "operational" && input.signals.some((signal) => ["work-organization", "technical", "evidence"].includes(signal))) {
+    return missionHits + contextHits >= 1 ? "primary" : "valid";
+  }
+  if (contract.family === "symbolic" && input.signals.some((signal) => ["symbolic", "narrative"].includes(signal))) {
+    return missionHits + contextHits >= 1 ? "primary" : "valid";
+  }
+  if (missionHits + contextHits >= 2) return "primary";
+  if (missionHits + contextHits === 1) return "valid";
+  if (prohibitionHits > 0) return "partial";
+  return "partial";
+}
+
 function classifyVocationalNeed(text: string) {
   const normalized = normalize(text);
   const signals: string[] = [];
@@ -91,9 +131,11 @@ function classifyVocationalNeed(text: string) {
   if (/\b(registro|organizar|acompanhar|fluxo|demandas|dados|reuniao|entregas|documentar)\b/.test(normalized)) signals.push("work-organization");
   if (/\b(postura|discernimento|equilibrio|relacao|humana|conversa|conduzir)\b/.test(normalized)) signals.push("human-posture");
   if (/\b(fato|evidencia|hipotese|padrao|criterio|observavel|testar|experimento|dados)\b/.test(normalized)) signals.push("evidence");
+  if (/\b(narrativa|historia|autor|texto|escrever|forma|cena|relato)\b/.test(normalized)) signals.push("narrative");
+  if (/\b(simbolo|imagem|metafora|sentido|rito)\b/.test(normalized)) signals.push("symbolic");
   if (/\b(contrato|juridico|lei|processo)\b/.test(normalized)) signals.push("legal");
   if (/\b(codigo|bug|deploy|api|banco|sistema)\b/.test(normalized)) signals.push("technical");
-  if (/\b(ansiedade|sentimento|medo|terapia|dor|relacao)\b/.test(normalized)) signals.push("emotional");
+  if (/\b(ansiedade|sentimento|medo|terapia|dor|relacao|estresse|stress|estressado|sono|dormir|dormindo|inseguranca|corporal)\b/.test(normalized)) signals.push("emotional");
   return signals.length ? Array.from(new Set(signals)) : ["general"];
 }
 
@@ -126,6 +168,7 @@ export function resolveVocationalTargets(input: {
   if (directMention && directMention !== input.currentPersona) {
     return {
       currentPersonaCanContinue: false,
+      currentPersonaFit: "partial",
       primaryTargetPersonaId: directMention,
       alternativeTargetPersonaIds: [],
       rationaleByPersona: { [directMention]: rationaleForPersona(directMention, classifyVocationalNeed(combined)) },
@@ -135,8 +178,11 @@ export function resolveVocationalTargets(input: {
   }
 
   const signals = classifyVocationalNeed(combined);
-  const currentContract = getPersonaBehaviorContract(input.currentPersona);
-  const currentHits = tokenHits(combined, [...currentContract.lexicalHints, currentContract.operationalMission]);
+  const currentPersonaFit = evaluateCurrentPersonaFit({
+    currentPersona: input.currentPersona,
+    text: combined,
+    signals,
+  });
   const scored = allPersonaNames()
     .filter((persona) => persona !== input.currentPersona)
     .map((persona) => {
@@ -168,12 +214,11 @@ export function resolveVocationalTargets(input: {
 
   const selected = scored.slice(0, Math.max(1, input.maxTargets || 3));
   const top = selected[0];
-  const currentPersonaCanContinue = normalize(input.currentPersona) === "cientista"
-    && signals.some((signal) => ["evidence", "professional-conflict"].includes(signal))
-    && currentHits > 0;
+  const currentPersonaCanContinue = currentPersonaFit === "primary" || currentPersonaFit === "valid" || currentPersonaFit === "partial";
   if (!top || top.score < 4) {
     return {
       currentPersonaCanContinue: true,
+      currentPersonaFit,
       primaryTargetPersonaId: null,
       alternativeTargetPersonaIds: [],
       rationaleByPersona: {},
@@ -183,6 +228,7 @@ export function resolveVocationalTargets(input: {
   }
   return {
     currentPersonaCanContinue,
+    currentPersonaFit,
     primaryTargetPersonaId: top.persona,
     alternativeTargetPersonaIds: selected.slice(1).map((item) => item.persona),
     rationaleByPersona: Object.fromEntries(selected.map((item) => [item.persona, item.rationale])),
@@ -229,7 +275,6 @@ export function buildHostStyledHandoffAnswer(input: {
   alternatives?: PersonaHandoffOffer[];
   reused?: boolean;
 }) {
-  const sourceContract = getPersonaBehaviorContract(input.sourcePersona);
   const targetReason = input.reason.replace(/\.$/, "").toLowerCase();
   const alternatives = (input.alternatives || [])
     .filter((offer) => offer.targetPersona !== input.targetPersona)
@@ -265,8 +310,8 @@ export function buildHostStyledHandoffAnswer(input: {
   }
 
   return [
-    `Pelo meu campo, eu continuo a partir desta funcao: ${sourceContract.operationalMission.replace(/\.$/, "").toLowerCase()}.`,
-    `${input.targetPersona} e a melhor continuidade agora porque ${targetReason}.${alternativeLine}`,
+    `Eu consigo responder daqui sem vestir outra voz, mas este ponto tambem pode ganhar outra lente.`,
+    `${input.targetPersona} pode acrescentar algo porque ${targetReason}.${alternativeLine}`,
     reusedLine,
   ].join("\n\n");
 }

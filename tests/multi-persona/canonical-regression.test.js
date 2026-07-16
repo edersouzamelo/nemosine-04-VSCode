@@ -23,7 +23,7 @@ function participant(personaId, role, muted = false) {
   };
 }
 
-test("canonical B keeps host and invited guests distinct in a debate round", () => {
+test("canonical B keeps host and invited guests distinct while defaulting the next turn to host", () => {
   const invite = parsePersonaPresenceCommands("Convide Luz e Sombra para debater comigo.");
   assert.equal(invite.commands.length, 1);
   assert.equal(invite.commands[0].action, "invite");
@@ -36,11 +36,11 @@ test("canonical B keeps host and invited guests distinct in a debate round", () 
   ];
   const speakers = selectSpeakingParticipantsForRound(participants, "Quero um debate real entre voces.");
 
-  assert.deepEqual(speakers.map((item) => item.personaId), ["Inimigo", "Luz", "Sombra"]);
-  assert.deepEqual(speakers.map((item) => item.role), ["HOST", "GUEST", "GUEST"]);
+  assert.deepEqual(speakers.map((item) => item.personaId), ["Inimigo"]);
+  assert.deepEqual(speakers.map((item) => item.role), ["HOST"]);
 });
 
-test("canonical C silences one participant while host and others continue", () => {
+test("canonical C silences one participant while default speaker remains the host", () => {
   const mute = parsePersonaPresenceCommands("silencie Sombra por enquanto.");
   assert.equal(mute.commands.length, 1);
   assert.equal(mute.commands[0].action, "mute");
@@ -53,7 +53,7 @@ test("canonical C silences one participant while host and others continue", () =
   ];
   const speakers = selectSpeakingParticipantsForRound(participants, "Continuem a rodada.");
 
-  assert.deepEqual(speakers.map((item) => item.personaId), ["Inimigo", "Luz"]);
+  assert.deepEqual(speakers.map((item) => item.personaId), ["Inimigo"]);
   assert.equal(speakers.some((item) => item.personaId === "Sombra"), false);
 });
 

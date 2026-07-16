@@ -260,8 +260,12 @@ test("chat wiring keeps old primer manual and exposes presence overlay controls"
   assert.match(chatRouteSource, /hasPresenceAdjusted\(priorHistory\)/);
   assert.match(chatRouteSource, /isFirstSignificantTurn\(priorHistory\)/);
   assert.match(chatRouteSource, /primeiro turno significativo/);
+  assert.match(chatRouteSource, /buildDeterministicThreadTitle/);
+  assert.doesNotMatch(chatRouteSource, /isPresenceOpeningRequest \? "Ajuste de Presenca"/);
   assert.match(chatRouteSource, /!presenceAnchoredRouting/);
   assert.match(chatRouteSource, /renderPresenceAnchoredUserText/);
+  assert.match(chatSource, /max-h-72/);
+  assert.match(chatSource, /sm:grid-cols-2/);
   assert.match(overlaySource, /nemosine-presence-step/);
   assert.match(overlaySource, /Entrar sem ajuste/);
   assert.match(overlaySource, /Entendi o seguinte/);

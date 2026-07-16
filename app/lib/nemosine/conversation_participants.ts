@@ -452,7 +452,10 @@ export function selectSpeakingParticipantsForRound(
 ) {
   const available = participants.filter((participant) => participant.active && !participant.muted);
   const addressed = new Set(detectAddressedParticipantIds(userText, participants));
-  if (addressed.size === 0) return available;
+  if (addressed.size === 0) {
+    const host = available.find((participant) => participant.role === "HOST");
+    return host ? [host] : available.slice(0, 1);
+  }
   return available.filter((participant) => addressed.has(participant.personaId));
 }
 

@@ -140,6 +140,7 @@ test("cognitive foundation panel explains off modules without activating them", 
 
   assert.match(source, /Desativado por configuracao/);
   assert.match(source, /independentes do ciclo O-C-V/);
+  assert.match(source, /Configuracao realizada atualmente pelas variaveis de ambiente da Vercel/);
   assert.match(source, /COGNITIVE_USER_GRAPH_MODE/);
   assert.match(source, /Matriz|Recomendacao|manter desligado ate teste especifico/i);
   assert.doesNotMatch(source, /set.*userGraphMode.*enforce/i);

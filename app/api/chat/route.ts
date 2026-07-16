@@ -66,7 +66,6 @@ import {
 import type { ResponsePipelineRequest } from '@/app/lib/nemosine/response';
 import { observeCognitiveFoundationResponse } from '@/app/lib/nemosine/cognitive-foundation';
 import {
-    buildHostStyledHandoffAnswer,
     buildPersonaHandoffOffer,
     encodeHandoffMarker,
     inferHandoffTarget,
@@ -145,6 +144,24 @@ function isVocationalContinuationQuestion(text: string) {
     return /\b(qual persona seria|quem voce recomenda|me manda para alguem|qual e a melhor|qual seria melhor|abre o|abrir o|quero falar com)\b/.test(normalized);
 }
 
+function buildDeterministicThreadTitle(text: string) {
+    const cleaned = text
+        .replace(/\[\[NEMOSINE_[^\]]+\]\]/g, " ")
+        .replace(/\[NEMOSINE_FILE:[^\]]+\]/g, " arquivo anexado ")
+        .replace(/\[NEMOSINE_AUDIO\]/g, " audio anexado ")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !/^(Ajuste de Presenca|Persona ativa|Profundidade solicitada|Restricoes aplicadas|Escopo do ajuste|Politica de|Validade do ajuste|Nao mencione|Abra pela vocacao)/i.test(line))
+        .map((line) => line.replace(/^(Contexto recente autorizado|Objetivo atual|Entidades importantes):\s*/i, ""))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const fallback = cleaned || "Nova conversa";
+    const words = fallback.split(/\s+/).slice(0, 7).join(" ");
+    const title = words.length > 44 ? `${words.slice(0, 41).trim()}...` : words;
+    return title || "Nova conversa";
+}
+
 function persistedHandoffOffers(history: Array<{ id: string; metadata?: unknown | null }>) {
     return history
         .map((message) => {
@@ -165,22 +182,6 @@ function persistedHandoffOffers(history: Array<{ id: string; metadata?: unknown 
             } as PersonaHandoffOffer;
         })
         .filter(Boolean) as PersonaHandoffOffer[];
-}
-
-function buildVocationalAnswer(input: {
-    sourcePersona: string;
-    userText: string;
-    offers: PersonaHandoffOffer[];
-    reused?: boolean;
-}) {
-    const first = input.offers[0];
-    return buildHostStyledHandoffAnswer({
-        sourcePersona: input.sourcePersona,
-        targetPersona: first.targetPersona,
-        reason: first.reason,
-        alternatives: input.offers,
-        reused: input.reused,
-    });
 }
 
 function buildHandoffOffersFromResolution(input: {
@@ -708,8 +709,7 @@ export async function POST(req: NextRequest) {
         }> = [];
 
         if (typeof threadId !== 'string' || !threadId) {
-            const titleBase = isPresenceOpeningRequest ? "Ajuste de Presenca" : displayUserText.trim() || 'Anexo';
-            const newTitle = titleBase.length > 30 ? `${titleBase.substring(0, 30).trim()}...` : titleBase;
+            const newTitle = buildDeterministicThreadTitle(displayUserText || userText);
             const thread = await createThread(userId, conversationScope, newTitle);
             activeThreadId = thread.id;
             priorHistory = thread.messages;
@@ -874,12 +874,6 @@ export async function POST(req: NextRequest) {
                 targets: existingHandoffOffers.map((offer) => offer.targetPersona),
             });
             return deliverEnforcedCognitiveRuntime({
-                candidateOverride: buildVocationalAnswer({
-                    sourcePersona: personaId,
-                    userText,
-                    offers: existingHandoffOffers,
-                    reused: true,
-                }),
                 handoffOffers: existingHandoffOffers,
                 persistHandoffEvents: false,
                 headers: {
@@ -897,10 +891,8 @@ export async function POST(req: NextRequest) {
             runtimeConfig.mode === "enforce"
             && vocationalResolution.primaryTargetPersonaId
             && vocationalResolution.confidence >= 0.55
-            && (
-                isHandoffSelectionRequest(userText)
-                || /chefe|superior|lider|reuniao|demanda|profissional|trabalho/i.test(userText)
-            )
+            && isHandoffSelectionRequest(userText)
+            && vocationalResolution.currentPersonaFit !== "primary"
         ) {
             const offers = buildHandoffOffersFromResolution({
                 sourcePersona: personaId,
@@ -928,11 +920,6 @@ export async function POST(req: NextRequest) {
                 targetPersona: offers[0]?.targetPersona,
             });
             return deliverEnforcedCognitiveRuntime({
-                candidateOverride: buildVocationalAnswer({
-                    sourcePersona: personaId,
-                    userText,
-                    offers,
-                }),
                 handoffOffers: offers,
                 headers: {
                     'x-nemosine-handoff-offered': 'true',
@@ -947,7 +934,6 @@ export async function POST(req: NextRequest) {
                 confidence: vocationalResolution.confidence,
             });
             return deliverEnforcedCognitiveRuntime({
-                candidateOverride: "Posso continuar aqui pelo meu campo sem mandar voce adivinhar uma porta do Castelo. Pelo que apareceu ate agora, eu preciso de uma frase a mais sobre o centro do problema: e prioridade, autoridade, organizacao do trabalho ou relacao humana?",
                 headers: {
                     'x-nemosine-handoff-unresolved': 'true',
                 },
@@ -964,7 +950,6 @@ export async function POST(req: NextRequest) {
                 privateRun: cognitiveRequest.privateRun,
             });
             return deliverEnforcedCognitiveRuntime({
-                candidateOverride: handoff.answer,
                 handoffOffer: handoff,
                 headers: {
                     'x-nemosine-handoff-offered': 'true',

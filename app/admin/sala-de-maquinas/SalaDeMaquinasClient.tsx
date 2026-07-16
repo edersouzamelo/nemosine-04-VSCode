@@ -377,6 +377,9 @@ function CognitiveFoundationPanel({ data, loading }: { data: CognitiveFoundation
           <WarningBanner>
             Estes modulos pertencem a Fundacao Cognitiva e sao independentes do ciclo O-C-V. OCV pode estar em Governanca Ativa mesmo com estes recursos desativados.
           </WarningBanner>
+          <p className="rounded-lg border border-[#c5a059]/15 bg-black/30 px-3 py-2 text-xs leading-relaxed text-white/55">
+            Configuracao realizada atualmente pelas variaveis de ambiente da Vercel. Nao existe ativacao direta neste painel.
+          </p>
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {cognitiveFoundationModules.map((module) => {

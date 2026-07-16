@@ -78,6 +78,19 @@ test("vocational resolver returns concrete ranked personas for boss conflict", (
   assert.match(resolution.rationaleByPersona.Estrategista, /prioridade|plano|opcoes|riscos/i);
 });
 
+test("current persona fit protects competent emotional personas from aggressive handoff", () => {
+  const resolution = resolveVocationalTargets({
+    currentPersona: "Psicólogo",
+    userText: "Estou muito estressado no trabalho, dormindo mal e com inseguranca corporal antes da competicao.",
+    maxTargets: 3,
+  });
+  const targets = [resolution.primaryTargetPersonaId, ...resolution.alternativeTargetPersonaIds].filter(Boolean);
+
+  assert.match(resolution.currentPersonaFit, /primary|valid/);
+  assert.equal(resolution.currentPersonaCanContinue, true);
+  assert.equal(targets.includes("Autor"), false);
+});
+
 test("handoff answer names a concrete target and never exposes vocational placeholders", () => {
   const offer = buildPersonaHandoffOffer({
     sourcePersona: "Cientista",
@@ -87,7 +100,7 @@ test("handoff answer names a concrete target and never exposes vocational placeh
   });
 
   assert.match(offer.answer, /Estrategista/);
-  assert.doesNotMatch(offer.answer, /uma persona mais adequada|aplicar essa missao|preservando diferenca de voz/i);
+  assert.doesNotMatch(offer.answer, /uma persona mais adequada|Pelo meu campo|aplicar essa missao|preservando diferenca de voz/i);
 });
 
 test("host styled handoff keeps persona voice instead of bureaucratic template", () => {
@@ -110,7 +123,7 @@ test("host styled handoff keeps persona voice instead of bureaucratic template",
   assert.match(inimigo, /mordendo|flanco|faca|corte/i);
   assert.match(mentor, /eixo|sentido|companhia/i);
   assert.match(cientista, /fatos|hipoteses|criterios observaveis/i);
-  assert.doesNotMatch(inimigo + mentor + cientista, /rota vocacional mais direta|texto burocratico/i);
+  assert.doesNotMatch(inimigo + mentor + cientista, /Pelo meu campo|rota vocacional mais direta|texto burocratico/i);
   assert.notEqual(inimigo, mentor);
   assert.notEqual(mentor, cientista);
 });
@@ -125,5 +138,8 @@ test("chat route reuses persisted handoff options and blocks duplicate fallback 
   assert.match(chatRoute, /HOST_STYLED_HANDOFF_COMPOSED/);
   assert.match(chatRoute, /HANDOFF_OPTIONS_PRESENTED/);
   assert.match(chatRoute, /buildHandoffOffersFromResolution/);
+  assert.doesNotMatch(chatRoute, /chefe\|superior\|lider\|reuniao\|demanda\|profissional\|trabalho/);
+  assert.doesNotMatch(chatRoute, /candidateOverride:\s*handoff\.answer/);
+  assert.doesNotMatch(chatRoute, /candidateOverride:\s*buildVocationalAnswer/);
   assert.doesNotMatch(orchestrator, /uma persona mais adequada/);
 });
