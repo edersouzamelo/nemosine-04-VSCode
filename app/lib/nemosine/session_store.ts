@@ -55,6 +55,7 @@ type SelectedMessage = {
 };
 
 const HANDOFF_EVENT_CONTENT_PREFIX = '[[NEMOSINE_EVENT:HANDOFF:';
+const HANDOFF_CONTEXT_CONTENT_PREFIX = '[[NEMOSINE_EVENT:HANDOFF_CONTEXT:';
 
 function encodeHandoffEventContent(metadata: HandoffEventMetadata) {
     return `${HANDOFF_EVENT_CONTENT_PREFIX}${encodeURIComponent(JSON.stringify(metadata))}]]`;
@@ -439,6 +440,10 @@ export type HandoffEventMetadata = {
     reason: string;
     summary: string;
     draft: string;
+    handoffContextId?: string | null;
+    userAuthoredPrompt?: string | null;
+    structuredSummary?: string | null;
+    presenceContractSnapshot?: string | null;
     requiresConfirmation: boolean;
     actions: {
         open: boolean;
@@ -472,6 +477,10 @@ function handoffMetadataFromOffer(input: {
         reason: input.offer.reason,
         summary: input.offer.summary,
         draft: input.offer.draft,
+        handoffContextId: input.offer.handoffContextId || existing.handoffContextId || null,
+        userAuthoredPrompt: input.offer.userAuthoredPrompt || existing.userAuthoredPrompt || null,
+        structuredSummary: input.offer.structuredSummary || input.offer.summary || existing.structuredSummary || null,
+        presenceContractSnapshot: existing.presenceContractSnapshot || null,
         requiresConfirmation: Boolean(input.offer.requiresConfirmation),
         actions: {
             open: true,
@@ -614,6 +623,111 @@ export const updateHandoffEventState = async (
         select: { id: true },
     });
     return mapChatMessage(message);
+};
+
+export type HandoffContextRecord = {
+    id: string;
+    sourceThreadId: string;
+    sourceMessageIds: string[];
+    sourcePersona: string;
+    targetPersona: string;
+    userAuthoredPrompt: string;
+    structuredSummary: string;
+    presenceContractSnapshot: string | null;
+    createdAt: string;
+    expiresAt: string;
+    consumedAt: string | null;
+    requiresConfirmation: boolean;
+};
+
+function encodeHandoffContextContent(context: HandoffContextRecord) {
+    return `${HANDOFF_CONTEXT_CONTENT_PREFIX}${encodeURIComponent(JSON.stringify(context))}]]`;
+}
+
+function decodeHandoffContextContent(content: string): HandoffContextRecord | null {
+    if (!content.startsWith(HANDOFF_CONTEXT_CONTENT_PREFIX) || !content.endsWith(']]')) return null;
+    const encoded = content.slice(HANDOFF_CONTEXT_CONTENT_PREFIX.length, -2);
+    try {
+        const parsed = JSON.parse(decodeURIComponent(encoded)) as HandoffContextRecord;
+        return parsed?.id && parsed?.sourceThreadId ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+function sanitizeHandoffPrompt(text: string, maxLength: number) {
+    return String(text || "")
+        .replace(/\[\[NEMOSINE_[^\]]+\]\]/g, " ")
+        .replace(/^Ajuste de Presen[cç]a confirmado[\s\S]*$/i, " ")
+        .replace(/\bNEMOSINE_PRESENCE_OPENING\b/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, maxLength);
+}
+
+export const createHandoffContext = async (
+    userId: string,
+    input: {
+        sourceThreadId: string;
+        sourceMessageIds?: string[];
+        sourcePersona: string;
+        targetPersona: string;
+        userAuthoredPrompt: string;
+        structuredSummary?: string | null;
+        presenceContractSnapshot?: string | null;
+        requiresConfirmation?: boolean;
+    },
+): Promise<HandoffContextRecord> => {
+    const thread = await prisma.thread.findFirst({ where: { id: input.sourceThreadId, userId }, select: { id: true } });
+    if (!thread) throw new Error("Thread not found or unauthorized");
+
+    const now = new Date();
+    const context: HandoffContextRecord = {
+        id: randomUUID(),
+        sourceThreadId: input.sourceThreadId,
+        sourceMessageIds: (input.sourceMessageIds || []).filter(Boolean).slice(0, 8),
+        sourcePersona: input.sourcePersona,
+        targetPersona: input.targetPersona,
+        userAuthoredPrompt: sanitizeHandoffPrompt(input.userAuthoredPrompt, 4000),
+        structuredSummary: sanitizeHandoffPrompt(input.structuredSummary || input.userAuthoredPrompt, 1000),
+        presenceContractSnapshot: input.presenceContractSnapshot ? sanitizeHandoffPrompt(input.presenceContractSnapshot, 1000) : null,
+        createdAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        consumedAt: null,
+        requiresConfirmation: Boolean(input.requiresConfirmation),
+    };
+    if (!context.userAuthoredPrompt || /^ajuste de presen/i.test(context.userAuthoredPrompt)) {
+        throw new Error("INVALID_HANDOFF_CONTEXT_SOURCE");
+    }
+
+    await prisma.message.create({
+        data: {
+            threadId: input.sourceThreadId,
+            role: 'system',
+            content: encodeHandoffContextContent(context),
+            messageKind: 'SYSTEM_EVENT',
+        },
+        select: { id: true },
+    });
+    return context;
+};
+
+export const getHandoffContext = async (userId: string, contextId: string) => {
+    const rows = await prisma.message.findMany({
+        where: {
+            thread: { userId },
+            messageKind: 'SYSTEM_EVENT',
+            content: { startsWith: HANDOFF_CONTEXT_CONTENT_PREFIX },
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 80,
+        select: chatMessageSelect,
+    });
+    const row = rows.find((message) => decodeHandoffContextContent(message.content)?.id === contextId);
+    const context = row ? decodeHandoffContextContent(row.content) : null;
+    if (!context) return null;
+    if (new Date(context.expiresAt).getTime() < Date.now()) return { ...context, expired: true as const };
+    return context;
 };
 
 export type PersistedAssistantMessage = {

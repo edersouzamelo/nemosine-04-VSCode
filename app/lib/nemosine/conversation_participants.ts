@@ -26,6 +26,13 @@ export type ParticipantSnapshot = {
   guestCount: number;
 };
 
+export type SpeakerDecision = {
+  mode: "host" | "single_target" | "council" | "none";
+  targetPersonaIds: string[];
+  reason: string;
+  confidence: number;
+};
+
 function splitLegacyScope(scope: string) {
   const [personaName, placeName] = scope.split(/\s+@\s+/);
   return {
@@ -440,8 +447,10 @@ export function detectAddressedParticipantIds(text: string, participants: Array<
       const sentenceVocative = new RegExp(`(?:^|[.!?;]\\s+)@?${namePattern}\\s*(?:,|:|;)`, "u").test(normalizedText);
       const explicitTarget = new RegExp(`\\b(?:para|pra|pro|ao|a)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText)
         || new RegExp(`\\b(?:pergunta|duvida|questao)\\s+(?:e\\s+)?(?:para|pra|pro|ao|a)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText)
-        || new RegExp(`\\b(?:chamei|convidei|trouxe|chama|convide)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText);
-      return startsWithName || sentenceVocative || explicitTarget ? participant.personaId : null;
+        || new RegExp(`\\b(?:fala|fale|responde|responda|quero\\s+ouvir|deixa|deixe|pergunta\\s+pro|pergunta\\s+para|pergunta\\s+ao)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`, "u").test(normalizedText);
+      const negativeAddress = new RegExp(`^@?${namePattern}\\s*,?\\s*(?:fique quieto|deixe|deixa)\\b`, "u").test(normalizedText)
+        && participants.some((candidate) => candidate.personaId !== participant.personaId && normalizedText.includes(normalizeAddressText(candidate.personaId)));
+      return !negativeAddress && (startsWithName || sentenceVocative || explicitTarget) ? participant.personaId : null;
     })
     .filter((personaId): personaId is string => Boolean(personaId));
 }
@@ -475,27 +484,114 @@ export function detectSpeakerFocusCommand(text: string, participants: Array<{ pe
   return { action: "none" };
 }
 
+export function decideSpeakersForRound(
+  participants: ConversationParticipant[],
+  userText: string,
+  focusedSpeakerId?: string | null,
+): SpeakerDecision {
+  const available = participants.filter((participant) => participant.active && !participant.muted);
+  if (available.length === 0) {
+    return { mode: "none", targetPersonaIds: [], reason: "no_active_unmuted_participants", confidence: 1 };
+  }
+
+  const normalizedText = normalizeAddressText(userText);
+  if (/\b(quero ouvir os dois|ouvir ambos|respondam ambos|voces dois respondam|debatam|todos respondam)\b/u.test(normalizedText)) {
+    return {
+      mode: "council",
+      targetPersonaIds: available.map((participant) => participant.personaId),
+      reason: "explicit_council_request",
+      confidence: 0.95,
+    };
+  }
+
+  const directTargets = available.filter((participant) => {
+    const normalizedName = normalizeAddressText(participant.personaId);
+    const namePattern = escapeRegExp(normalizedName);
+    const negativeAddress = new RegExp(`^@?${namePattern}\\s*,?\\s*(?:fique quieto|deixe|deixa)\\b`, "u").test(normalizedText)
+      && available.some((candidate) => candidate.personaId !== participant.personaId && normalizedText.includes(normalizeAddressText(candidate.personaId)));
+    if (negativeAddress) return false;
+    return [
+      `^@?${namePattern}(?:\\s|,|:|;|$)`,
+      `\\bfala\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`,
+      `\\b(?:quero\\s+ouvir|deixe|deixa|pergunta\\s+pro|pergunta\\s+para|pergunta\\s+ao)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`,
+      `\\b(?:so|somente|apenas)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`,
+      `\\bfalar\\s+(?:so|somente|apenas)\\s+com\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`,
+    ].some((pattern) => new RegExp(pattern, "u").test(normalizedText));
+  });
+  if (directTargets.length === 1) {
+    return {
+      mode: "single_target",
+      targetPersonaIds: [directTargets[0].personaId],
+      reason: "direct_persona_addressing",
+      confidence: 0.92,
+    };
+  }
+  if (directTargets.length > 1) {
+    return {
+      mode: "council",
+      targetPersonaIds: directTargets.map((participant) => participant.personaId),
+      reason: "multiple_personas_addressed",
+      confidence: 0.82,
+    };
+  }
+  const addressedAny = detectAddressedParticipantIds(userText, participants);
+  if (addressedAny.length > 0) {
+    return {
+      mode: "none",
+      targetPersonaIds: [],
+      reason: "addressed_persona_unavailable_or_muted",
+      confidence: 0.84,
+    };
+  }
+
+  const focusCommand = detectSpeakerFocusCommand(userText, participants);
+  if (focusCommand.action === "council") {
+    return {
+      mode: "council",
+      targetPersonaIds: available.map((participant) => participant.personaId),
+      reason: "legacy_council_focus",
+      confidence: 0.9,
+    };
+  }
+  if (focusCommand.action === "set" && focusCommand.personaId) {
+    const target = available.find((participant) => participant.personaId === focusCommand.personaId);
+    return {
+      mode: target ? "single_target" : "none",
+      targetPersonaIds: target ? [target.personaId] : [],
+      reason: target ? "explicit_single_speaker_focus" : "focused_persona_unavailable",
+      confidence: 0.9,
+    };
+  }
+  if (focusCommand.action !== "clear" && focusedSpeakerId) {
+    const focused = available.find((participant) => participant.personaId === focusedSpeakerId);
+    if (focused) {
+      return {
+        mode: "single_target",
+        targetPersonaIds: [focused.personaId],
+        reason: "persistent_speaker_focus",
+        confidence: 0.86,
+      };
+    }
+  }
+
+  const host = available.find((participant) => participant.role === "HOST") || available[0];
+  return {
+    mode: "host",
+    targetPersonaIds: host ? [host.personaId] : [],
+    reason: "no_addressee_host_default",
+    confidence: 0.78,
+  };
+}
+
 export function selectSpeakingParticipantsForRound(
   participants: ConversationParticipant[],
   userText: string,
   focusedSpeakerId?: string | null,
 ) {
   const available = participants.filter((participant) => participant.active && !participant.muted);
-  const focusCommand = detectSpeakerFocusCommand(userText, participants);
-  if (focusCommand.action === "council") return available;
-  if (focusCommand.action === "set" && focusCommand.personaId) {
-    return available.filter((participant) => participant.personaId === focusCommand.personaId);
-  }
-  if (focusCommand.action !== "clear" && focusedSpeakerId) {
-    const focused = available.find((participant) => participant.personaId === focusedSpeakerId);
-    if (focused) return [focused];
-  }
-  const addressed = new Set(detectAddressedParticipantIds(userText, participants));
-  if (addressed.size === 0) {
-    const host = available.find((participant) => participant.role === "HOST");
-    return host ? [host] : available.slice(0, 1);
-  }
-  return available.filter((participant) => addressed.has(participant.personaId));
+  const decision = decideSpeakersForRound(participants, userText, focusedSpeakerId);
+  const targetIds = new Set(decision.targetPersonaIds);
+  return available.filter((participant) => targetIds.has(participant.personaId));
 }
 
 export async function isPersonaPresentAt(threadId: string, personaId: string, timestamp: Date) {

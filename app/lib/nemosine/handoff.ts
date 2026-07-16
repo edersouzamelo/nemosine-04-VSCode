@@ -15,6 +15,9 @@ export type PersonaHandoffOffer = {
   originMessageId?: string | null;
   offeredAt?: string | null;
   updatedAt?: string | null;
+  handoffContextId?: string | null;
+  userAuthoredPrompt?: string | null;
+  structuredSummary?: string | null;
   decisionId?: string | null;
   trigger?: "explicit_user_request" | "incompatible_operation" | "prohibited_capability" | null;
   currentPersonaFit?: CurrentPersonaFit | null;
@@ -309,6 +312,8 @@ export function buildPersonaHandoffOffer(input: {
     title: `Continuar com ${input.targetPersona}`,
     reason,
     summary,
+    userAuthoredPrompt: input.userText.slice(0, 4000),
+    structuredSummary: summary.slice(0, 1000),
     draft,
     requiresConfirmation: sensitive,
     decisionId: input.decisionId || null,
@@ -319,10 +324,11 @@ export function buildPersonaHandoffOffer(input: {
 
 export function buildHandoffUrl(offer: PersonaHandoffOffer) {
   const params = new URLSearchParams();
-  params.set("handoffFrom", offer.sourcePersona);
-  params.set("handoffDraft", offer.draft);
-  params.set("handoffSummary", offer.summary);
-  return `/agents/${encodeURIComponent(personaSlug(offer.targetPersona) || offer.targetSlug)}?${params.toString()}`;
+  if (offer.handoffContextId) {
+    params.set("handoffContextId", offer.handoffContextId);
+  }
+  const query = params.toString();
+  return `/agents/${encodeURIComponent(personaSlug(offer.targetPersona) || offer.targetSlug)}${query ? `?${query}` : ""}`;
 }
 
 export function encodeHandoffMarker(offer: PersonaHandoffOffer) {

@@ -64,6 +64,7 @@ function getMessageText(message: UIMessage): string {
 
 const PRESENCE_OPENING_MARKER = "[[NEMOSINE_PRESENCE_OPENING]]";
 const PERSONA_FEEDBACK_STORAGE_PREFIX = "nemosine-persona-feedback-v1";
+const COLLECTIVE_PERSONA_SYSTEM_FAILURE = "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
 
 type PersonaFeedbackRating = "up" | "down";
 type PresenceAdjustmentSnapshot = {
@@ -378,6 +379,37 @@ function HandoffOfferCard({
             keepalive: true,
         }).catch(() => undefined);
     };
+    const openWithServerContext = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
+        recordSelection("opened");
+        try {
+            if (!offer.handoffContextId && threadId) {
+                const response = await fetch("/api/chat/handoff/context", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sourceThreadId: threadId,
+                        sourceMessageId: messageId || offer.eventMessageId || null,
+                        originMessageId: originMessageId || offer.originMessageId || null,
+                        sourcePersona: offer.sourcePersona,
+                        targetPersona: offer.targetPersona,
+                        targetSlug: offer.targetSlug,
+                        userAuthoredPrompt: offer.userAuthoredPrompt || offer.draft || offer.summary,
+                        structuredSummary: offer.structuredSummary || offer.summary,
+                        requiresConfirmation: offer.requiresConfirmation,
+                    }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (response.ok && data.url) {
+                    window.location.assign(data.url);
+                    return;
+                }
+            }
+        } catch {
+            // Fall back to the canonical target without transporting context.
+        }
+        window.location.assign(href);
+    };
     return (
         <div className="mt-3 rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
             <button
@@ -416,7 +448,7 @@ function HandoffOfferCard({
                         <div className="flex flex-col gap-2 sm:flex-row">
                             <a
                                 href={href}
-                                onClick={() => recordSelection("opened")}
+                                onClick={openWithServerContext}
                                 className="inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c5a059] px-2.5 text-center text-[9px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
                             >
                                 <span className="material-icons text-[16px]" aria-hidden="true">open_in_new</span>
@@ -497,6 +529,38 @@ function HandoffOfferGroupCard({
             keepalive: true,
         }).catch(() => undefined);
     };
+    const openGroupedOffer = async (event: React.MouseEvent<HTMLAnchorElement>, offer: PersonaHandoffOffer) => {
+        event.preventDefault();
+        recordSelection(offer, "opened");
+        const fallbackUrl = buildHandoffUrl(offer);
+        try {
+            if (!offer.handoffContextId && threadId) {
+                const response = await fetch("/api/chat/handoff/context", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sourceThreadId: threadId,
+                        sourceMessageId: messageId || offer.eventMessageId || null,
+                        originMessageId: offer.originMessageId || messageId || null,
+                        sourcePersona: offer.sourcePersona,
+                        targetPersona: offer.targetPersona,
+                        targetSlug: offer.targetSlug,
+                        userAuthoredPrompt: offer.userAuthoredPrompt || offer.draft || offer.summary,
+                        structuredSummary: offer.structuredSummary || offer.summary,
+                        requiresConfirmation: offer.requiresConfirmation,
+                    }),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (response.ok && data.url) {
+                    window.location.assign(data.url);
+                    return;
+                }
+            }
+        } catch {
+            // Fall back to canonical target without context transport.
+        }
+        window.location.assign(fallbackUrl);
+    };
 
     return (
         <div className="mt-3 max-w-[760px] rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
@@ -525,7 +589,7 @@ function HandoffOfferGroupCard({
                                     <div className="min-w-0 truncate text-[#d8ceb9]">{offer.reason}</div>
                                     <a
                                         href={buildHandoffUrl(offer)}
-                                        onClick={() => recordSelection(offer, "opened")}
+                                        onClick={(event) => openGroupedOffer(event, offer)}
                                         className="inline-flex min-h-8 items-center justify-center rounded-md bg-[#c5a059] px-2 text-[9px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
                                     >
                                         Abrir
@@ -614,6 +678,9 @@ function handoffOfferFromMessage(message: CollectiveMessage): PersonaHandoffOffe
         originMessageId: metadata.originMessageId || null,
         offeredAt: metadata.offeredAt || null,
         updatedAt: metadata.updatedAt || null,
+        handoffContextId: metadata.handoffContextId || null,
+        userAuthoredPrompt: metadata.userAuthoredPrompt || metadata.draft || null,
+        structuredSummary: metadata.structuredSummary || metadata.summary || null,
         decisionId: metadata.decisionId || null,
         trigger: metadata.trigger || null,
         currentPersonaFit: metadata.currentPersonaFit || null,
@@ -1859,6 +1926,19 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                             <div key={msg.id} className="flex justify-center">
                                 <div className="max-w-[92%] rounded-full border border-[#c5a059]/15 bg-black/35 px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">
                                     {cleanContent(messageText)}
+                                </div>
+                            </div>
+                        );
+                    }
+                    if (
+                        msg.role === "assistant"
+                        && (msg.generationStatus === "FAILED" || cleanContent(messageText) === COLLECTIVE_PERSONA_SYSTEM_FAILURE)
+                    ) {
+                        const speaker = msg.speakerPersonaId || personaId;
+                        return (
+                            <div key={msg.id} className="flex justify-center">
+                                <div className="max-w-[92%] rounded-full border border-[#c5a059]/15 bg-black/35 px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">
+                                    {speaker} nao conseguiu concluir uma contribuicao adequada neste turno.
                                 </div>
                             </div>
                         );

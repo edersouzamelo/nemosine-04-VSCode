@@ -1,5 +1,6 @@
 import { openai as vercelOpenai } from "@ai-sdk/openai";
 import { generateText } from "ai";
+import { createHash } from "crypto";
 import { createDestinyEvent } from "@/app/lib/sovereignStore";
 import { createUserRegistry } from "@/app/lib/userFeatureStore";
 import {
@@ -10,10 +11,10 @@ import {
 } from "./llm_client";
 import {
   detectSpeakerFocusCommand,
+  decideSpeakersForRound,
   getParticipantSnapshot,
   invitePersona,
   removePersona,
-  selectSpeakingParticipantsForRound,
   setPersonaMuted,
 } from "./conversation_participants";
 import {
@@ -569,6 +570,14 @@ async function runPersonaGeneration(input: {
       role: message.role as "user" | "assistant" | "system",
       content: message.content,
     }));
+    const promptHash = createHash("sha256")
+      .update(JSON.stringify({
+        personaId: input.participant.personaId,
+        system: promptAssembly.systemPrompt,
+        messages: modelMessages,
+      }))
+      .digest("hex")
+      .slice(0, 16);
 
     await writePromptDebugAudit({
       personaId: input.participant.personaId,
@@ -789,6 +798,14 @@ async function runPersonaGeneration(input: {
         promotionDecision: runtimeResult.audit.promotionDecision,
         sideEffectStatus: runtimeResult.sideEffectStatus,
       };
+      console.info("[CollectiveChat] PERSONA_CONTRIBUTION_PROVENANCE", {
+        personaId: input.participant.personaId,
+        promptHash,
+        candidateModelId: activeChatModel.model,
+        cognitiveRunId: runtimeResult.runId,
+        promoted: runtimeResult.promoted,
+        promotionDecision: runtimeResult.audit.promotionDecision,
+      });
       generationUsage = {
         llm: generationUsage || null,
         cognitiveRuntime: {
@@ -1033,7 +1050,19 @@ export function createCollectiveChatStream(input: CollectiveChatRoundInput) {
                   content: `Falando apenas com ${focusedSpeakerId}.`,
                 });
               }
-              const speakingParticipants = selectSpeakingParticipantsForRound(snapshot.participants, input.displayUserText || input.userText, focusedSpeakerId);
+              const speakerDecision = decideSpeakersForRound(snapshot.participants, input.displayUserText || input.userText, focusedSpeakerId);
+              const speakingParticipants = snapshot.participants
+                .filter((participant) => participant.active && !participant.muted)
+                .filter((participant) => speakerDecision.targetPersonaIds.includes(participant.personaId));
+              console.info("[CollectiveChat] SPEAKER_DECISION", {
+                threadId: input.threadId,
+                userAddressingMode: speakerDecision.mode,
+                detectedPersonaIds: speakerDecision.targetPersonaIds,
+                focusedSpeakerId: focusedSpeakerId || null,
+                finalSpeakerIds: speakingParticipants.map((participant) => participant.personaId),
+                decisionReason: speakerDecision.reason,
+                confidence: speakerDecision.confidence,
+              });
               const mutedCount = snapshot.participants.filter((participant) => participant.muted).length;
           const addressedCount = speakingParticipants.length < snapshot.participants.filter((participant) => !participant.muted).length
             ? speakingParticipants.length

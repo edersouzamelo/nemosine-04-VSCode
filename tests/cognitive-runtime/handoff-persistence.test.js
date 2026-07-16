@@ -5,6 +5,7 @@ require("./load-ts.cjs");
 const {
   resolveVocationalTargets,
   buildPersonaHandoffOffer,
+  buildHandoffUrl,
 } = require("../../app/lib/nemosine/handoff.ts");
 
 function source(path) {
@@ -61,6 +62,25 @@ test("chat history restores handoff cards without raw persona text", () => {
   assert.match(chat, /recordSelection\("opened"\)/);
   assert.match(chat, /recordSelection\("invited"\)/);
   assert.match(handoff, /personaSlug\(offer\.targetPersona\)/);
+});
+
+test("handoff context uses server-side id instead of draft query strings", () => {
+  const longPrompt = `Estou perdendo muitas horas de sono desenvolvendo o Nemosine. ${"Preciso organizar uma estrategia segura. ".repeat(20)}`;
+  const offer = buildPersonaHandoffOffer({
+    sourcePersona: "Vigia",
+    targetPersona: "Estrategista",
+    userText: longPrompt,
+  });
+  const url = buildHandoffUrl({ ...offer, handoffContextId: "ctx_123" });
+  const contextRoute = source("app/api/chat/handoff/context/route.ts");
+  const sessionStore = source("app/lib/nemosine/session_store.ts");
+
+  assert.equal(offer.userAuthoredPrompt.length > 500, true);
+  assert.match(url, /\?handoffContextId=ctx_123$/);
+  assert.doesNotMatch(url, /handoffDraft|handoffSummary|Vim%20encaminhado/);
+  assert.match(contextRoute, /HANDOFF_CONTEXT_SOURCE/);
+  assert.match(sessionStore, /HANDOFF_CONTEXT_CONTENT_PREFIX/);
+  assert.match(sessionStore, /sanitizeHandoffPrompt\(input\.userAuthoredPrompt,\s*4000\)/);
 });
 
 test("vocational resolver returns concrete ranked personas for boss conflict", () => {

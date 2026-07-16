@@ -12,6 +12,11 @@ import {
 import { getThread } from "@/app/lib/nemosine/session_store";
 import { parsePersonaPresenceCommands } from "@/app/lib/nemosine/persona_command_parser";
 import { normalizePresenceMode } from "@/app/lib/nemosine/presence_adjustment";
+import {
+  buildDeterministicThreadTitle,
+  classifyTitlePayloadKind,
+  shouldRepairThreadTitle,
+} from "@/app/lib/nemosine/thread_title";
 import type { ConversationPresenceContract } from "@/app/lib/nemosine/presence_adjustment";
 import type { ChatThreadMessage } from "@/app/lib/nemosine/types";
 
@@ -171,17 +176,17 @@ export async function POST(req: NextRequest) {
     let activeThreadId: string;
     let priorHistory: ChatThreadMessage[] = [];
 
+    let currentThreadTitle = "Nova conversa";
     if (typeof threadId !== "string" || !threadId) {
-      const titleBase = displayUserText.trim() || "Conselho";
-      const newTitle = titleBase.length > 30 ? `${titleBase.substring(0, 30).trim()}...` : titleBase;
       const thread = await createCollectiveThreadWithHost({
         userId,
         hostPersonaId: personaId,
         placeId: normalizedPlaceId,
-        title: newTitle,
+        title: "Nova conversa",
       });
       activeThreadId = thread.id;
       priorHistory = thread.messages;
+      currentThreadTitle = thread.title;
     } else {
       const thread = await getThread(userId, threadId);
       if (!thread) {
@@ -192,6 +197,33 @@ export async function POST(req: NextRequest) {
       }
       activeThreadId = thread.id;
       priorHistory = thread.messages;
+      currentThreadTitle = thread.title;
+    }
+
+    if (shouldRepairThreadTitle(currentThreadTitle, displayUserText)) {
+      const { updateThreadTitle } = await import("@/app/lib/nemosine/session_store");
+      const titleGenerated = buildDeterministicThreadTitle(displayUserText);
+      await updateThreadTitle(userId, activeThreadId, titleGenerated).catch((error) => {
+        console.warn("[ThreadTitle] collective title repair skipped.", {
+          threadId: activeThreadId,
+          errorCode: error instanceof Error ? error.name : "unknown",
+        });
+      });
+      console.info("[ThreadTitle]", {
+        event: "THREAD_TITLE_SOURCE",
+        threadId: activeThreadId,
+        payloadKind: classifyTitlePayloadKind(displayUserText),
+        sourceLength: displayUserText.length,
+        titleGenerated,
+      });
+    } else {
+      console.info("[ThreadTitle]", {
+        event: "THREAD_TITLE_SOURCE",
+        threadId: activeThreadId,
+        payloadKind: classifyTitlePayloadKind(displayUserText),
+        sourceLength: displayUserText.length,
+        titleGenerated: currentThreadTitle,
+      });
     }
 
     return createCollectiveChatStream({

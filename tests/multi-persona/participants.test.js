@@ -7,6 +7,7 @@ const {
   MAX_ACTIVE_GUEST_PERSONAS,
   assertParticipantLimit,
   assertPersonaCanParticipate,
+  decideSpeakersForRound,
   detectAddressedParticipantIds,
   detectSpeakerFocusCommand,
   getThreadHostAndPlace,
@@ -60,16 +61,16 @@ test("selects only addressed unmuted participants for directed turns", () => {
   );
 });
 
-test("recognizes first turn after invitation as addressed to the invited persona", () => {
+test("inviting a persona does not make the invited persona answer automatically", () => {
   const participants = [
     { personaId: "Inimigo", role: "HOST", active: true, muted: false },
     { personaId: "Autor", role: "GUEST", active: true, muted: false },
   ];
 
-  assert.deepEqual(detectAddressedParticipantIds("chamei o Autor, e agora?", participants), ["Autor"]);
+  assert.deepEqual(detectAddressedParticipantIds("chamei o Autor, e agora?", participants), []);
   assert.deepEqual(
     selectSpeakingParticipantsForRound(participants, "chamei o Autor, e agora?").map((participant) => participant.personaId),
-    ["Autor"],
+    ["Inimigo"],
   );
 });
 
@@ -90,6 +91,24 @@ test("exclusive speaker focus overrides incidental persona mentions", () => {
   assert.deepEqual(
     selectSpeakingParticipantsForRound(participants, "Agora quero ouvir os dois sobre isso.").map((participant) => participant.personaId),
     ["Vidente", "Estrategista"],
+  );
+});
+
+test("speaker decision sends direct vocational address only to Estrategista", () => {
+  const participants = [
+    { personaId: "Vigia", role: "HOST", active: true, muted: false },
+    { personaId: "Estrategista", role: "GUEST", active: true, muted: false },
+  ];
+  const decision = decideSpeakersForRound(participants, "fala Estrategista, o que voce pode ajudar nesta questao?");
+  assert.deepEqual(decision, {
+    mode: "single_target",
+    targetPersonaIds: ["Estrategista"],
+    reason: "direct_persona_addressing",
+    confidence: 0.92,
+  });
+  assert.deepEqual(
+    selectSpeakingParticipantsForRound(participants, "Vigia, deixe so o Estrategista falar").map((participant) => participant.personaId),
+    ["Estrategista"],
   );
 });
 

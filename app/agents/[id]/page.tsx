@@ -90,7 +90,8 @@ export default function AgentDetailPage() {
     const entity = ENTITIES[id];
     const hostSummonedPersona = summonedPersonas[0] || "";
     const activePersonaName = entity?.type === "place" ? hostSummonedPersona : entity?.name || "";
-    const handoffDraft = searchParams.get("handoffDraft") || "";
+    const handoffContextId = searchParams.get("handoffContextId") || "";
+    const [handoffDraft, setHandoffDraft] = useState("");
 
     React.useEffect(() => {
         if (entity) {
@@ -108,6 +109,27 @@ export default function AgentDetailPage() {
         const threadId = searchParams.get("threadId");
         if (threadId) setCurrentThreadId(threadId);
     }, [searchParams]);
+
+    React.useEffect(() => {
+        if (!handoffContextId) {
+            setHandoffDraft("");
+            return;
+        }
+        let cancelled = false;
+        fetch(`/api/chat/handoff/context?id=${encodeURIComponent(handoffContextId)}`)
+            .then((response) => response.ok ? response.json() : null)
+            .then((data) => {
+                if (cancelled) return;
+                const prompt = data?.context?.userAuthoredPrompt;
+                setHandoffDraft(typeof prompt === "string" ? prompt : "");
+            })
+            .catch(() => {
+                if (!cancelled) setHandoffDraft("");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [handoffContextId]);
 
     React.useEffect(() => {
         let cameFromOrigins = false;

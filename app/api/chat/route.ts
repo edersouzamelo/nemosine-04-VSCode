@@ -72,6 +72,11 @@ import {
     PersonaHandoffOffer,
     resolveVocationalTargets,
 } from '@/app/lib/nemosine/handoff';
+import {
+    buildDeterministicThreadTitle,
+    classifyTitlePayloadKind,
+    shouldRepairThreadTitle,
+} from '@/app/lib/nemosine/thread_title';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -143,24 +148,6 @@ function isVocationalContinuationQuestion(text: string) {
     return /\b(qual persona seria|quem voce recomenda|me manda para alguem|qual e a melhor|qual seria melhor|abre o|abrir o|quero falar com)\b/.test(normalized);
 }
 
-function buildDeterministicThreadTitle(text: string) {
-    const cleaned = text
-        .replace(/\[\[NEMOSINE_[^\]]+\]\]/g, " ")
-        .replace(/\[NEMOSINE_FILE:[^\]]+\]/g, " arquivo anexado ")
-        .replace(/\[NEMOSINE_AUDIO\]/g, " audio anexado ")
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && !/^(Ajuste de Presenca|Persona ativa|Profundidade solicitada|Restricoes aplicadas|Escopo do ajuste|Politica de|Validade do ajuste|Nao mencione|Abra pela vocacao)/i.test(line))
-        .map((line) => line.replace(/^(Contexto recente autorizado|Objetivo atual|Entidades importantes):\s*/i, ""))
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-    const fallback = cleaned || "Nova conversa";
-    const words = fallback.split(/\s+/).slice(0, 7).join(" ");
-    const title = words.length > 44 ? `${words.slice(0, 41).trim()}...` : words;
-    return title || "Nova conversa";
-}
-
 function persistedHandoffOffers(history: Array<{ id: string; metadata?: unknown | null }>) {
     return history
         .map((message) => {
@@ -178,6 +165,9 @@ function persistedHandoffOffers(history: Array<{ id: string; metadata?: unknown 
                 state: metadata.state || "offered",
                 eventMessageId: message.id,
                 originMessageId: metadata.originMessageId || null,
+                handoffContextId: typeof metadata.handoffContextId === "string" ? metadata.handoffContextId : null,
+                userAuthoredPrompt: typeof metadata.userAuthoredPrompt === "string" ? metadata.userAuthoredPrompt : null,
+                structuredSummary: typeof metadata.structuredSummary === "string" ? metadata.structuredSummary : null,
                 decisionId: typeof metadata.decisionId === "string" ? metadata.decisionId : null,
                 trigger: typeof metadata.trigger === "string" ? metadata.trigger as PersonaHandoffOffer["trigger"] : null,
                 currentPersonaFit: typeof metadata.currentPersonaFit === "string" ? metadata.currentPersonaFit as PersonaHandoffOffer["currentPersonaFit"] : null,
@@ -698,12 +688,13 @@ export async function POST(req: NextRequest) {
             timestamp: number;
             metadata?: unknown | null;
         }> = [];
+        let currentThreadTitle = "Nova conversa";
 
         if (typeof threadId !== 'string' || !threadId) {
-            const newTitle = buildDeterministicThreadTitle(displayUserText || userText);
-            const thread = await createThread(userId, conversationScope, newTitle);
+            const thread = await createThread(userId, conversationScope, "Nova conversa");
             activeThreadId = thread.id;
             priorHistory = thread.messages;
+            currentThreadTitle = thread.title;
         } else {
             const thread = await getThread(userId, threadId);
             if (!thread) {
@@ -714,6 +705,7 @@ export async function POST(req: NextRequest) {
             }
             activeThreadId = thread.id;
             priorHistory = thread.messages;
+            currentThreadTitle = thread.title;
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
@@ -743,6 +735,30 @@ export async function POST(req: NextRequest) {
             });
         }
         await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
+        if (shouldRepairThreadTitle(currentThreadTitle, displayUserText)) {
+            const titleGenerated = buildDeterministicThreadTitle(displayUserText);
+            await updateThreadTitle(userId, activeThreadId, titleGenerated).catch((error) => {
+                console.warn("[ThreadTitle] title repair skipped.", {
+                    threadId: activeThreadId,
+                    errorCode: error instanceof Error ? error.name : "unknown",
+                });
+            });
+            console.info("[ThreadTitle]", {
+                event: "THREAD_TITLE_SOURCE",
+                threadId: activeThreadId,
+                payloadKind: classifyTitlePayloadKind(displayUserText),
+                sourceLength: displayUserText.length,
+                titleGenerated,
+            });
+        } else {
+            console.info("[ThreadTitle]", {
+                event: "THREAD_TITLE_SOURCE",
+                threadId: activeThreadId,
+                payloadKind: classifyTitlePayloadKind(displayUserText),
+                sourceLength: displayUserText.length,
+                titleGenerated: currentThreadTitle,
+            });
+        }
 
         const cognitiveRequest = createCognitiveRequest({
             userId,
