@@ -8,6 +8,7 @@ const {
   assertParticipantLimit,
   assertPersonaCanParticipate,
   detectAddressedParticipantIds,
+  detectSpeakerFocusCommand,
   getThreadHostAndPlace,
   selectSpeakingParticipantsForRound,
 } = require("../../app/lib/nemosine/conversation_participants.ts");
@@ -72,6 +73,26 @@ test("recognizes first turn after invitation as addressed to the invited persona
   );
 });
 
+test("exclusive speaker focus overrides incidental persona mentions", () => {
+  const participants = [
+    { personaId: "Vidente", role: "HOST", active: true, muted: false },
+    { personaId: "Estrategista", role: "GUEST", active: true, muted: false },
+  ];
+
+  assert.deepEqual(detectSpeakerFocusCommand("Vidente, deixa eu falar so com o Estrategista.", participants), {
+    action: "set",
+    personaId: "Estrategista",
+  });
+  assert.deepEqual(
+    selectSpeakingParticipantsForRound(participants, "Vidente, deixa eu falar so com o Estrategista.").map((participant) => participant.personaId),
+    ["Estrategista"],
+  );
+  assert.deepEqual(
+    selectSpeakingParticipantsForRound(participants, "Agora quero ouvir os dois sobre isso.").map((participant) => participant.personaId),
+    ["Vidente", "Estrategista"],
+  );
+});
+
 test("collective duplicate detector catches near-identical persona answers", () => {
   const duplicate = detectCollectiveDuplicateResponse(
     "O sistema esta instavel. Esta persona nao conseguiu concluir a resposta agora.",
@@ -95,4 +116,7 @@ test("chat UI sends first post-invite message through collective route", () => {
   assert.match(source, /entrou na conversa/);
   assert.match(collective, /COLLECTIVE_DUPLICATE_DETECTED/);
   assert.match(collective, /COLLECTIVE_RESPONSE_REGENERATED/);
+  assert.match(collective, /COLLECTIVE_RESPONSE_SUPPRESSED/);
+  assert.doesNotMatch(collective, /buildComplementaryCollectiveFallback/);
+  assert.doesNotMatch(collective, /minha obrigacao e acrescentar|Se essa leitura nao acrescentar/);
 });

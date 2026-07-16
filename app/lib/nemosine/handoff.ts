@@ -151,7 +151,7 @@ function rationaleForPersona(persona: string, signals: string[]) {
   const contract = getPersonaBehaviorContract(persona);
   const mission = contract.operationalMission
     .replace(/Aplicar essa missao[\s\S]*$/i, "")
-    .replace(/preservando diferenca de voz e funcao/ig, "")
+    .replace(/mantendo voz e funcao proprias/ig, "")
     .replace(/\.$/, "")
     .trim();
   return `${mission}${signals.includes("general") ? "" : "."}`;
@@ -268,54 +268,6 @@ export function inferHandoffTarget(input: {
   }).primaryTargetPersonaId;
 }
 
-export function buildHostStyledHandoffAnswer(input: {
-  sourcePersona: string;
-  targetPersona: string;
-  reason: string;
-  alternatives?: PersonaHandoffOffer[];
-  reused?: boolean;
-}) {
-  const targetReason = input.reason.replace(/\.$/, "").toLowerCase();
-  const alternatives = (input.alternatives || [])
-    .filter((offer) => offer.targetPersona !== input.targetPersona)
-    .slice(0, 2);
-  const alternativeLine = alternatives.length
-    ? ` Tambem ha ${alternatives.map((offer) => `${offer.targetPersona}, ${offer.reason.replace(/\.$/, "").toLowerCase()}`).join("; ")}.`
-    : "";
-  const reusedLine = input.reused
-    ? "Eu ja deixei esse caminho registrado no cartao de encaminhamento; escolha ali se quer abrir outra sala ou trazer essa voz para ca."
-    : "Deixei o cartao de encaminhamento pronto para voce abrir a conversa ou convidar essa voz para ca.";
-
-  const key = normalize(input.sourcePersona);
-  if (key === "inimigo") {
-    return [
-      `Posso continuar mordendo o flanco fraco do seu relato; isso ainda e meu terreno.`,
-      `${input.targetPersona}, porem, entra melhor agora porque ${targetReason}.${alternativeLine} Nao e uma fuga elegante: e escolher a faca certa para o corte certo.`,
-      reusedLine,
-    ].join("\n\n");
-  }
-  if (key === "mentor") {
-    return [
-      "Eu posso sustentar o eixo e o sentido do caminho, sem pressa de empurrar voce para outra porta.",
-      `${input.targetPersona} parece a companhia mais justa para este trecho porque ${targetReason}.${alternativeLine}`,
-      reusedLine,
-    ].join("\n\n");
-  }
-  if (key === "cientista") {
-    return [
-      "Consigo separar fatos, hipoteses, padroes e criterios observaveis antes de qualquer decisao.",
-      `${input.targetPersona} e a rota mais precisa para continuar porque ${targetReason}.${alternativeLine}`,
-      reusedLine,
-    ].join("\n\n");
-  }
-
-  return [
-    `Eu consigo responder daqui sem vestir outra voz, mas este ponto tambem pode ganhar outra lente.`,
-    `${input.targetPersona} pode acrescentar algo porque ${targetReason}.${alternativeLine}`,
-    reusedLine,
-  ].join("\n\n");
-}
-
 export function buildPersonaHandoffOffer(input: {
   sourcePersona: string;
   targetPersona: string;
@@ -342,11 +294,6 @@ export function buildPersonaHandoffOffer(input: {
     summary,
     draft,
     requiresConfirmation: sensitive,
-    answer: buildHostStyledHandoffAnswer({
-      sourcePersona: input.sourcePersona,
-      targetPersona: input.targetPersona,
-      reason: input.reasonOverride || reason,
-    }),
   };
 }
 

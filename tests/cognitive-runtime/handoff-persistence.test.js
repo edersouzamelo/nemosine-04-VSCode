@@ -5,7 +5,6 @@ require("./load-ts.cjs");
 const {
   resolveVocationalTargets,
   buildPersonaHandoffOffer,
-  buildHostStyledHandoffAnswer,
 } = require("../../app/lib/nemosine/handoff.ts");
 
 function source(path) {
@@ -57,6 +56,8 @@ test("chat history restores handoff cards without raw persona text", () => {
   assert.match(chat, /handoffOfferFromMessage/);
   assert.match(chat, /aria-expanded=\{expanded\}/);
   assert.match(chat, /nemosine-handoff-card-open/);
+  assert.match(chat, /Perspectivas sugeridas · \{offers\.length\}/);
+  assert.match(chat, /max-h-\[25vh\]/);
   assert.match(chat, /recordSelection\("opened"\)/);
   assert.match(chat, /recordSelection\("invited"\)/);
   assert.match(handoff, /personaSlug\(offer\.targetPersona\)/);
@@ -99,47 +100,31 @@ test("handoff answer names a concrete target and never exposes vocational placeh
     reasonOverride: "Para organizar opcoes, prioridades e um plano de abordagem.",
   });
 
-  assert.match(offer.answer, /Estrategista/);
-  assert.doesNotMatch(offer.answer, /uma persona mais adequada|Pelo meu campo|aplicar essa missao|preservando diferenca de voz/i);
+  assert.equal(Object.prototype.hasOwnProperty.call(offer, "answer"), false);
+  assert.match(offer.targetPersona, /Estrategista/);
+  assert.doesNotMatch(JSON.stringify(offer), /uma persona mais adequada|Pelo meu campo|aplicar essa missao|preservando diferenca de voz/i);
 });
 
-test("host styled handoff keeps persona voice instead of bureaucratic template", () => {
-  const inimigo = buildHostStyledHandoffAnswer({
-    sourcePersona: "Inimigo",
-    targetPersona: "Autor",
-    reason: "Para transformar o material vivido em forma narrativa.",
-  });
-  const mentor = buildHostStyledHandoffAnswer({
-    sourcePersona: "Mentor",
-    targetPersona: "Estrategista",
-    reason: "Para organizar prioridade e plano.",
-  });
-  const cientista = buildHostStyledHandoffAnswer({
-    sourcePersona: "Cientista",
-    targetPersona: "Estrategista",
-    reason: "Para organizar prioridade e plano.",
-  });
+test("backend no longer exposes deterministic handoff persona speech", () => {
+  const handoff = source("app/lib/nemosine/handoff.ts");
 
-  assert.match(inimigo, /mordendo|flanco|faca|corte/i);
-  assert.match(mentor, /eixo|sentido|companhia/i);
-  assert.match(cientista, /fatos|hipoteses|criterios observaveis/i);
-  assert.doesNotMatch(inimigo + mentor + cientista, /Pelo meu campo|rota vocacional mais direta|texto burocratico/i);
-  assert.notEqual(inimigo, mentor);
-  assert.notEqual(mentor, cientista);
+  assert.doesNotMatch(handoff, /buildHostStyledHandoffAnswer/);
+  assert.doesNotMatch(handoff, /Eu consigo responder daqui|Posso continuar mordendo|Deixei o cartao de encaminhamento/);
 });
 
 test("chat route reuses persisted handoff options and blocks duplicate fallback loops", () => {
   const chatRoute = source("app/api/chat/route.ts");
   const orchestrator = source("app/lib/nemosine/cognitive-runtime/orchestrator.ts");
+  const handoff = source("app/lib/nemosine/handoff.ts");
 
   assert.match(chatRoute, /HANDOFF_REUSED_FROM_HISTORY/);
   assert.match(chatRoute, /persistHandoffEvents:\s*false/);
   assert.match(chatRoute, /VOCATIONAL_TARGET_RESOLVED/);
-  assert.match(chatRoute, /HOST_STYLED_HANDOFF_COMPOSED/);
   assert.match(chatRoute, /HANDOFF_OPTIONS_PRESENTED/);
   assert.match(chatRoute, /buildHandoffOffersFromResolution/);
   assert.doesNotMatch(chatRoute, /chefe\|superior\|lider\|reuniao\|demanda\|profissional\|trabalho/);
   assert.doesNotMatch(chatRoute, /candidateOverride:\s*handoff\.answer/);
   assert.doesNotMatch(chatRoute, /candidateOverride:\s*buildVocationalAnswer/);
-  assert.doesNotMatch(orchestrator, /uma persona mais adequada/);
+  assert.doesNotMatch(orchestrator, /uma persona mais adequada|meu proprio campo|porta incerta/i);
+  assert.doesNotMatch(handoff, /answer:\s*buildHostStyledHandoffAnswer/);
 });

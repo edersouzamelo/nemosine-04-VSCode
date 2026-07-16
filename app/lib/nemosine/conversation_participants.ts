@@ -446,11 +446,50 @@ export function detectAddressedParticipantIds(text: string, participants: Array<
     .filter((personaId): personaId is string => Boolean(personaId));
 }
 
+export type SpeakerFocusCommand = {
+  action: "set" | "clear" | "council" | "none";
+  personaId?: string;
+};
+
+export function detectSpeakerFocusCommand(text: string, participants: Array<{ personaId: string; active: boolean }>): SpeakerFocusCommand {
+  const normalizedText = normalizeAddressText(text);
+  if (!normalizedText) return { action: "none" };
+
+  if (/\b(voltem todos|vidente volte)\b/u.test(normalizedText)) return { action: "clear" };
+  if (/\b(quero ouvir os dois|ouvir ambos|voces dois respondam|vocês dois respondam|debatam isso|todos respondam)\b/u.test(normalizedText)) {
+    return { action: "council" };
+  }
+
+  for (const participant of participants.filter((item) => item.active)) {
+    const normalizedName = normalizeAddressText(participant.personaId);
+    const namePattern = escapeRegExp(normalizedName);
+    const exclusiveTarget = [
+      `\\b(?:so|somente|apenas)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`,
+      `\\bfalar\\s+(?:so|somente|apenas)\\s+com\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`,
+      `\\bcom\\s+(?:o\\s+|a\\s+)?${namePattern}\\s+(?:so|somente|apenas)\\b`,
+      `\\bagora\\s+(?:so|somente|apenas)\\s+(?:o\\s+|a\\s+)?${namePattern}\\s+responde\\b`,
+    ].some((pattern) => new RegExp(pattern, "u").test(normalizedText));
+    if (exclusiveTarget) return { action: "set", personaId: participant.personaId };
+  }
+
+  return { action: "none" };
+}
+
 export function selectSpeakingParticipantsForRound(
   participants: ConversationParticipant[],
   userText: string,
+  focusedSpeakerId?: string | null,
 ) {
   const available = participants.filter((participant) => participant.active && !participant.muted);
+  const focusCommand = detectSpeakerFocusCommand(userText, participants);
+  if (focusCommand.action === "council") return available;
+  if (focusCommand.action === "set" && focusCommand.personaId) {
+    return available.filter((participant) => participant.personaId === focusCommand.personaId);
+  }
+  if (focusCommand.action !== "clear" && focusedSpeakerId) {
+    const focused = available.find((participant) => participant.personaId === focusedSpeakerId);
+    if (focused) return [focused];
+  }
   const addressed = new Set(detectAddressedParticipantIds(userText, participants));
   if (addressed.size === 0) {
     const host = available.find((participant) => participant.role === "HOST");

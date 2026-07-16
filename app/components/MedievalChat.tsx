@@ -443,6 +443,115 @@ function HandoffOfferCard({
     );
 }
 
+function HandoffOfferGroupCard({
+    offers,
+    threadId,
+    canInvite,
+    onInvite,
+    messageId,
+}: {
+    offers: PersonaHandoffOffer[];
+    threadId?: string | null;
+    canInvite: boolean;
+    onInvite: (personaId: string) => void | Promise<void>;
+    messageId?: string | null;
+}) {
+    const storageKey = `nemosine-handoff-card-open:${messageId || offers.map((offer) => offer.targetPersona).join("-")}`;
+    const [expanded, setExpanded] = useState(() => {
+        if (typeof window === "undefined") return false;
+        return window.sessionStorage.getItem(storageKey) === "true";
+    });
+    const toggleExpanded = React.useCallback(() => {
+        setExpanded((current) => {
+            const next = !current;
+            try {
+                window.sessionStorage.setItem(storageKey, String(next));
+            } catch {
+                // Session storage is best-effort only.
+            }
+            return next;
+        });
+    }, [storageKey]);
+    const recordSelection = (offer: PersonaHandoffOffer, nextState: HandoffState) => {
+        const payload = JSON.stringify({
+            action: nextState,
+            messageId: messageId || offer.eventMessageId || null,
+            originMessageId: offer.originMessageId || messageId || null,
+            sourcePersona: offer.sourcePersona,
+            targetPersona: offer.targetPersona,
+            targetSlug: offer.targetSlug,
+            threadId: threadId || null,
+        });
+        try {
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon("/api/chat/handoff", new Blob([payload], { type: "application/json" }));
+                return;
+            }
+        } catch {
+            // Do not block navigation when metadata auditing is unavailable.
+        }
+        fetch("/api/chat/handoff", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+            keepalive: true,
+        }).catch(() => undefined);
+    };
+
+    return (
+        <div className="mt-3 max-w-[760px] rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1.5 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
+            <button
+                type="button"
+                onClick={toggleExpanded}
+                className="flex w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-2 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
+                aria-expanded={expanded}
+            >
+                <span className="flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]">
+                    <span className="material-icons text-[16px]" aria-hidden="true">hub</span>
+                    Perspectivas sugeridas · {offers.length}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-xs text-[#efe7d7]">
+                    {offers.map((offer) => offer.targetPersona).join(", ")}
+                </span>
+                <span className={`material-icons shrink-0 text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
+            </button>
+            <div className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}>
+                <div className="min-h-0 overflow-hidden">
+                    <div className="mt-2 max-h-[25vh] overflow-y-auto px-2 pb-2">
+                        <div className="grid gap-1.5">
+                            {offers.map((offer) => (
+                                <div key={`${offer.targetPersona}:${offer.targetSlug}`} className="grid gap-2 rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-2 text-xs sm:grid-cols-[110px_minmax(0,1fr)_auto_auto] sm:items-center">
+                                    <div className="font-semibold text-[#f4dfad]">{offer.targetPersona}</div>
+                                    <div className="min-w-0 truncate text-[#d8ceb9]">{offer.reason}</div>
+                                    <a
+                                        href={buildHandoffUrl(offer)}
+                                        onClick={() => recordSelection(offer, "opened")}
+                                        className="inline-flex min-h-8 items-center justify-center rounded-md bg-[#c5a059] px-2 text-[9px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-[#b08d48]"
+                                    >
+                                        Abrir
+                                    </a>
+                                    {canInvite && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                recordSelection(offer, "invited");
+                                                void onInvite(offer.targetPersona);
+                                            }}
+                                            className="inline-flex min-h-8 items-center justify-center rounded-md border border-[#c5a059]/35 bg-black/35 px-2 text-[9px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
+                                        >
+                                            Convidar
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function PersonaMessageFeedback({
     rating,
     onRate,
@@ -993,9 +1102,12 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             || event.type === "participant-left"
             || event.type === "participant-muted"
             || event.type === "participant-unmuted"
+            || event.type === "speaker-focus"
             || event.type === "round-notice"
         ) {
             const content = event.type === "round-notice"
+                ? String(event.content || "")
+                : event.type === "speaker-focus"
                 ? String(event.content || "")
                 : event.type === "participant-joined"
                 ? `${event.personaId} entrou na conversa.`
@@ -1052,12 +1164,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         if (event.type === "persona-finish" || event.type === "persona-error") {
             updateMessageById(event.messageId, (message) => ({
                 ...message,
+                role: event.systemNotice ? "system" : message.role,
                 content: String(event.content || ""),
                 parts: [{ type: "text", text: String(event.content || "") }],
                 generationStatus: event.status,
-                speakerPersonaId: event.personaId || message.speakerPersonaId,
+                speakerPersonaId: event.systemNotice ? undefined : event.personaId || message.speakerPersonaId,
                 turnGroupId: event.turnGroupId || message.turnGroupId,
-                messageKind: "PERSONA",
+                messageKind: event.systemNotice ? "SYSTEM_EVENT" : "PERSONA",
             } as CollectiveMessage));
             return;
         }
@@ -1784,7 +1897,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                                     rating={feedbackRating}
                                                     onRate={(nextRating) => handlePersonaFeedback(msg, nextRating)}
                                                 />
-                                                {handoffOffers.map((offer) => (
+                                                {handoffOffers.length > 1 ? (
+                                                    <HandoffOfferGroupCard
+                                                        offers={handoffOffers}
+                                                        messageId={msg.id}
+                                                        threadId={currentThreadIdRef.current}
+                                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                                        onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
+                                                    />
+                                                ) : handoffOffers.map((offer) => (
                                                     <HandoffOfferCard
                                                         key={`${msg.id}:${offer.targetPersona}:${offer.targetSlug}`}
                                                         offer={offer}

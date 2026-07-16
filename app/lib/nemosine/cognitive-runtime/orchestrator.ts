@@ -378,7 +378,7 @@ function buildRecoveryAnswer(input: {
     infrastructure: "A resposta que eu tinha em maos nao ficou firme o bastante para chegar ate voce. Posso retomar por um caminho mais simples, verificavel e sem prometer mais do que consigo sustentar.",
     safety: "Nao posso seguir por esse caminho do jeito como ele apareceu. Posso ajudar a reformular a pergunta em termos mais seguros e ainda uteis para voce.",
     privacy: "Nao vou atravessar uma fronteira que possa expor algo privado. Posso continuar apenas com o que voce autorizar claramente nesta conversa.",
-    vocation: handoff?.answer || "Posso continuar dentro do meu proprio campo sem empurrar voce para uma porta incerta. Vou separar o que consigo observar agora e, se faltar uma direcao concreta, farei uma unica pergunta indispensavel.",
+    vocation: "Esta voz nao conseguiu formular uma resposta adequada neste turno.",
     coherence: "Consigo continuar daqui, mas preciso escolher um ponto claro para nao inventar uma direcao. Diga o ponto central que voce quer retomar.",
     persistence: "A resposta nao ficou registrada com confianca. Posso tentar de novo por uma via simples, sem acionar nenhuma acao adicional.",
   };
@@ -386,8 +386,8 @@ function buildRecoveryAnswer(input: {
   const lastAssistant = (input.request.priorHistory || []).filter((item) => item.role === "assistant").at(-1)?.content?.trim();
   if (lastAssistant && lastAssistant === answer) {
     answer = input.dominantCause === "vocation" && handoff
-      ? `${handoff.answer}\n\nPara nao girarmos em circulo: escolha abrir ${handoff.targetPersona}, ou seguimos aqui pelo meu angulo.`
-      : "Consigo continuar com voce daqui. Para evitar repetir o mesmo impasse, escolha apenas o ponto central que devo retomar agora.";
+      ? `Esta voz nao conseguiu formular uma resposta adequada neste turno. ${handoff.targetPersona} pode ser aberto como lente opcional.`
+      : "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
   }
   if (isRecoveryQuestion(input.request.userText) && input.dominantCause !== "vocation") {
     answer = "Eu nao entreguei antes porque a resposta nao estava confiavel o bastante para te servir. Posso retomar agora com uma resposta mais direta, simples e sem acionar nada alem desta conversa.";

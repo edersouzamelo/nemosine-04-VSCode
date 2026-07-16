@@ -37,6 +37,20 @@ test("Comandante has a specific anti-receptionist command contract", () => {
   assert.ok(contract.prohibitions.some((item) => /qual missao/i.test(item)));
 });
 
+test("Vidente forecast contract requires committed scenario and revision marker", () => {
+  const contract = getPersonaBehaviorContract("Vidente");
+  const combined = [
+    contract.expectedInference,
+    contract.goodResponseCriteria.join(" "),
+    contract.genericResponseSignals.join(" "),
+    contract.vocationalClosing,
+  ].join(" ");
+
+  assert.match(combined, /cenario principal|cenario escolhido|confianca|alternativa|marcador/i);
+  assert.match(combined, /mudaria|verificacao|validacao/i);
+  assert.match(combined, /tudo pode acontecer|ambos tem chances/i);
+});
+
 test("all official personas resolve their native prompt records", () => {
   assert.equal(PERSONAS.length, 56);
 

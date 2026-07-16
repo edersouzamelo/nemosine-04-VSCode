@@ -24,7 +24,6 @@ import {
 } from '@/app/lib/nemosine/cognitive-runtime/runtime';
 import { runCognitiveRuntime } from '@/app/lib/nemosine/cognitive-runtime/orchestrator';
 import {
-    buildDeterministicInitiativeFallback,
     classifyConversationInputRichness,
     evaluatePersonaInitiativeQuality,
     isConversationNavigationRequest,
@@ -913,12 +912,6 @@ export async function POST(req: NextRequest) {
                 threadId: activeThreadId,
                 targetCount: offers.length,
             });
-            console.info("[VocationalTargetResolver]", {
-                event: "HOST_STYLED_HANDOFF_COMPOSED",
-                threadId: activeThreadId,
-                sourcePersona: personaId,
-                targetPersona: offers[0]?.targetPersona,
-            });
             return deliverEnforcedCognitiveRuntime({
                 handoffOffers: offers,
                 headers: {
@@ -1203,14 +1196,7 @@ export async function POST(req: NextRequest) {
                 finalResponse = bestRejected.visibleText;
             } else {
                 promotedByFallback = true;
-                finalResponse = buildDeterministicInitiativeFallback({
-                    personaId,
-                    userText: routedUserText,
-                    richness: promptAssembly.initiative.richness,
-                    snapshot: promptAssembly.initiative.snapshot,
-                    brief: promptAssembly.initiative.brief,
-                    contract: promptAssembly.initiative.contract,
-                });
+                finalResponse = "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
                 selectedRawText = finalResponse;
             }
         }

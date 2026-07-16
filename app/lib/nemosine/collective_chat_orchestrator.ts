@@ -9,6 +9,7 @@ import {
   buildSystemPromptAssembly,
 } from "./llm_client";
 import {
+  detectSpeakerFocusCommand,
   getParticipantSnapshot,
   invitePersona,
   removePersona,
@@ -78,7 +79,8 @@ type CollectiveStreamEvent = {
     | "participant-joined"
     | "participant-left"
     | "participant-muted"
-    | "participant-unmuted";
+    | "participant-unmuted"
+    | "speaker-focus";
   [key: string]: unknown;
 };
 
@@ -365,25 +367,7 @@ export function detectCollectiveDuplicateResponse(candidate: string, completedMe
   return { duplicate: false, matchedPersonaId: null, similarity: 0 };
 }
 
-function buildComplementaryCollectiveFallback(input: {
-  personaId: string;
-  role: "HOST" | "GUEST";
-  userText: string;
-  completedMessages: CompletedRoundMessage[];
-  duplicateOf: string;
-  contract: PersonaBehaviorContract;
-}) {
-  const first = input.completedMessages.find((message) => message.personaId === input.duplicateOf);
-  const roleLine = input.role === "HOST"
-    ? "Eu mantenho a passagem do anfitriao, mas nao vou repetir a mesma fala."
-    : "Eu entro como convidado, entao minha obrigacao e acrescentar angulo, nao eco.";
-  return [
-    roleLine,
-    `${first?.personaId || "A voz anterior"} ja ocupou esse caminho. Pela minha funcao, eu acrescento isto: ${input.contract.expectedInference.replace(/\.$/, "").toLowerCase()}.`,
-    `Neste caso, o ponto que eu isolaria e: ${input.userText.slice(0, 220)}.`,
-    "Se essa leitura nao acrescentar nada ao que ja foi dito, mantenha apenas a fala anterior como resposta principal deste turno.",
-  ].join("\n\n");
-}
+const COLLECTIVE_PERSONA_SYSTEM_FAILURE = "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
 
 function buildCollectiveAntiHerdRule(participant: { personaId: string; role: "HOST" | "GUEST" }, completedMessages: CompletedRoundMessage[]) {
   const previousScoreGuesses = extractScoreGuesses(completedMessages);
@@ -450,6 +434,39 @@ function enqueueEvent(controller: ReadableStreamDefaultController<Uint8Array>, e
   const encoder = new TextEncoder();
   controller.enqueue(encoder.encode(`event: ${event.type}\n`));
   controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+}
+
+function latestFocusedSpeakerId(history: ChatThreadMessage[]) {
+  for (const message of [...history].reverse()) {
+    const text = message.content || "";
+    const set = text.match(/\[\[NEMOSINE_FOCUSED_SPEAKER:([^\]]+)\]\]/);
+    if (set?.[1]) return set[1].trim();
+    if (text.includes("[[NEMOSINE_FOCUSED_SPEAKER:CLEAR]]")) return null;
+  }
+  return null;
+}
+
+async function persistSpeakerFocus(input: {
+  userId: string;
+  threadId: string;
+  turnGroupId: string;
+  command: ReturnType<typeof detectSpeakerFocusCommand>;
+}) {
+  if (input.command.action === "set" && input.command.personaId) {
+    await addMessageToThread(input.userId, input.threadId, "system", `[[NEMOSINE_FOCUSED_SPEAKER:${input.command.personaId}]]`, {
+      turnGroupId: input.turnGroupId,
+      messageKind: "SYSTEM_EVENT",
+    });
+    return input.command.personaId;
+  }
+  if (input.command.action === "clear" || input.command.action === "council") {
+    await addMessageToThread(input.userId, input.threadId, "system", "[[NEMOSINE_FOCUSED_SPEAKER:CLEAR]]", {
+      turnGroupId: input.turnGroupId,
+      messageKind: "SYSTEM_EVENT",
+    });
+    return null;
+  }
+  return undefined;
 }
 
 async function executePresenceCommands(input: CollectiveChatRoundInput) {
@@ -639,24 +656,13 @@ async function runPersonaGeneration(input: {
     }
 
     if (!visibleText) {
-      selectedRawText = bestRejected?.rawText || "";
-      visibleText = bestRejected?.visibleText || "Nao consegui sustentar a voz desta persona nesta rodada.";
-      generationUsage = bestRejected?.usage;
+      return { status: "FAILED", content: COLLECTIVE_PERSONA_SYSTEM_FAILURE };
     }
 
     let duplicateReplacement = false;
     const preRuntimeDuplicate = detectCollectiveDuplicateResponse(visibleText, input.completedRoundMessages);
     if (preRuntimeDuplicate.duplicate) {
       duplicateReplacement = true;
-      visibleText = buildComplementaryCollectiveFallback({
-        personaId: input.participant.personaId,
-        role: input.participant.role,
-        userText: input.round.displayUserText || input.round.userText,
-        completedMessages: input.completedRoundMessages,
-        duplicateOf: preRuntimeDuplicate.matchedPersonaId || "persona anterior",
-        contract: promptAssembly.initiative.contract,
-      });
-      selectedRawText = visibleText;
       console.warn("[CollectiveChat] COLLECTIVE_DUPLICATE_DETECTED", {
         threadId: input.round.threadId,
         turnGroupId: input.turnGroupId,
@@ -664,6 +670,33 @@ async function runPersonaGeneration(input: {
         matchedPersonaId: preRuntimeDuplicate.matchedPersonaId,
         similarity: Number(preRuntimeDuplicate.similarity.toFixed(3)),
       });
+      const regeneration = await generateCandidate("Instrucao interna de revisao: acrescente contribuicao diferente e especifica. Nao explique esta regra, nao narre obrigacoes internas e nao repita tese, justificativa ou fechamento ja entregue.");
+      const regeneratedRaw = regeneration.text || "";
+      const regeneratedVisible = applyPresenceContractToResponse(stripGenericAssistantClosing(stripLegacyActionTags(regeneratedRaw)));
+      const regeneratedDuplicate = detectCollectiveDuplicateResponse(regeneratedVisible, input.completedRoundMessages);
+      const regeneratedEvaluation = evaluatePersonaInitiativeQuality({
+        responseText: regeneratedVisible,
+        personaId: input.participant.personaId,
+        userText: input.round.userText,
+        richness: promptAssembly.initiative.richness,
+        snapshot: promptAssembly.initiative.snapshot,
+        contract: promptAssembly.initiative.contract,
+        brief: promptAssembly.initiative.brief,
+        privateRun: isPrivateMemorySpace(memoryScope),
+        recentAssistantTexts,
+      });
+      if (!regeneratedVisible.trim() || regeneratedDuplicate.duplicate || !regeneratedEvaluation.finalPass) {
+        console.warn("[CollectiveChat] COLLECTIVE_RESPONSE_SUPPRESSED", {
+          threadId: input.round.threadId,
+          turnGroupId: input.turnGroupId,
+          personaId: input.participant.personaId,
+          reason: regeneratedDuplicate.duplicate ? "duplicate_after_regeneration" : "failed_after_regeneration",
+        });
+        return { status: "FAILED", content: COLLECTIVE_PERSONA_SYSTEM_FAILURE };
+      }
+      selectedRawText = regeneratedRaw;
+      visibleText = regeneratedVisible;
+      generationUsage = (regeneration as any).usage || generationUsage;
       console.info("[CollectiveChat] COLLECTIVE_RESPONSE_REGENERATED", {
         threadId: input.round.threadId,
         turnGroupId: input.turnGroupId,
@@ -709,15 +742,6 @@ async function runPersonaGeneration(input: {
       const postRuntimeDuplicate = detectCollectiveDuplicateResponse(visibleText, input.completedRoundMessages);
       if (postRuntimeDuplicate.duplicate) {
         duplicateReplacement = true;
-        visibleText = buildComplementaryCollectiveFallback({
-          personaId: input.participant.personaId,
-          role: input.participant.role,
-          userText: input.round.displayUserText || input.round.userText,
-          completedMessages: input.completedRoundMessages,
-          duplicateOf: postRuntimeDuplicate.matchedPersonaId || "persona anterior",
-          contract: promptAssembly.initiative.contract,
-        });
-        selectedRawText = visibleText;
         console.warn("[CollectiveChat] COLLECTIVE_DUPLICATE_DETECTED", {
           threadId: input.round.threadId,
           turnGroupId: input.turnGroupId,
@@ -726,12 +750,21 @@ async function runPersonaGeneration(input: {
           similarity: Number(postRuntimeDuplicate.similarity.toFixed(3)),
           phase: "post-runtime",
         });
-        console.info("[CollectiveChat] COLLECTIVE_RESPONSE_REGENERATED", {
-          threadId: input.round.threadId,
-          turnGroupId: input.turnGroupId,
-          personaId: input.participant.personaId,
-          phase: "post-runtime",
-        });
+        const regeneration = await generateCandidate("Instrucao interna de revisao: acrescente contribuicao diferente e especifica. Reaja ao que ja foi promovido antes de voce e nao explique esta regra.");
+        const regeneratedRaw = regeneration.text || "";
+        const regeneratedVisible = applyPresenceContractToResponse(stripGenericAssistantClosing(stripLegacyActionTags(regeneratedRaw)));
+        const regeneratedDuplicate = detectCollectiveDuplicateResponse(regeneratedVisible, input.completedRoundMessages);
+        if (!regeneratedVisible.trim() || regeneratedDuplicate.duplicate) {
+          console.warn("[CollectiveChat] COLLECTIVE_RESPONSE_SUPPRESSED", {
+            threadId: input.round.threadId,
+            turnGroupId: input.turnGroupId,
+            personaId: input.participant.personaId,
+            reason: "duplicate_after_runtime_regeneration",
+          });
+          return { status: "FAILED", content: COLLECTIVE_PERSONA_SYSTEM_FAILURE };
+        }
+        selectedRawText = regeneratedRaw;
+        visibleText = regeneratedVisible;
         runtimeResult = await runCognitiveRuntime(cognitiveRequest, {
           config: runtimeConfig,
           candidateOverride: visibleText,
@@ -742,6 +775,12 @@ async function runPersonaGeneration(input: {
         }
         visibleText = runtimeResult.answer;
         selectedRawText = runtimeResult.answer;
+        console.info("[CollectiveChat] COLLECTIVE_RESPONSE_REGENERATED", {
+          threadId: input.round.threadId,
+          turnGroupId: input.turnGroupId,
+          personaId: input.participant.personaId,
+          phase: "post-runtime",
+        });
       }
       memoryWrites = runtimeResult.sideEffectCounts.memory;
       cognitiveRuntimeMetadata = {
@@ -960,9 +999,42 @@ export function createCollectiveChatStream(input: CollectiveChatRoundInput) {
             messageKind: "USER",
           });
 
-          const snapshot = await getParticipantSnapshot(input.userId, input.threadId);
-          const speakingParticipants = selectSpeakingParticipantsForRound(snapshot.participants, input.displayUserText || input.userText);
-          const mutedCount = snapshot.participants.filter((participant) => participant.muted).length;
+              const snapshot = await getParticipantSnapshot(input.userId, input.threadId);
+              const focusCommand = detectSpeakerFocusCommand(input.displayUserText || input.userText, snapshot.participants);
+              const persistedFocus = await persistSpeakerFocus({
+                userId: input.userId,
+                threadId: input.threadId,
+                turnGroupId,
+                command: focusCommand,
+              });
+              const focusedSpeakerId = persistedFocus === undefined ? latestFocusedSpeakerId(input.priorHistory) : persistedFocus;
+              if (focusCommand.action === "set" && focusCommand.personaId) {
+                enqueueEvent(controller, {
+                  type: "speaker-focus",
+                  threadId: input.threadId,
+                  turnGroupId,
+                  personaId: focusCommand.personaId,
+                  content: `Falando apenas com ${focusCommand.personaId}.`,
+                });
+              } else if (focusCommand.action === "clear" || focusCommand.action === "council") {
+                enqueueEvent(controller, {
+                  type: "speaker-focus",
+                  threadId: input.threadId,
+                  turnGroupId,
+                  personaId: null,
+                  content: "Foco exclusivo removido.",
+                });
+              } else if (focusedSpeakerId) {
+                enqueueEvent(controller, {
+                  type: "speaker-focus",
+                  threadId: input.threadId,
+                  turnGroupId,
+                  personaId: focusedSpeakerId,
+                  content: `Falando apenas com ${focusedSpeakerId}.`,
+                });
+              }
+              const speakingParticipants = selectSpeakingParticipantsForRound(snapshot.participants, input.displayUserText || input.userText, focusedSpeakerId);
+              const mutedCount = snapshot.participants.filter((participant) => participant.muted).length;
           const addressedCount = speakingParticipants.length < snapshot.participants.filter((participant) => !participant.muted).length
             ? speakingParticipants.length
             : 0;
@@ -1024,14 +1096,24 @@ export function createCollectiveChatStream(input: CollectiveChatRoundInput) {
               participantCount: speakingParticipants.length,
               controller,
             });
-            if (result.status === "COMPLETED" && result.content.trim()) {
-              completedRoundMessages.push({
-                personaId: participant.personaId,
-                role: participant.role,
-                content: result.content,
-              });
-            }
-          }
+                if (result.status === "COMPLETED" && result.content.trim()) {
+                  completedRoundMessages.push({
+                    personaId: participant.personaId,
+                    role: participant.role,
+                    content: result.content,
+                  });
+                } else if (result.content === COLLECTIVE_PERSONA_SYSTEM_FAILURE) {
+                  enqueueEvent(controller, {
+                    type: "persona-error",
+                    personaId: participant.personaId,
+                    turnGroupId,
+                    messageId: message.id,
+                    content: result.content,
+                    status: "FAILED",
+                    systemNotice: true,
+                  });
+                }
+              }
 
           enqueueEvent(controller, {
             type: "round-finish",
