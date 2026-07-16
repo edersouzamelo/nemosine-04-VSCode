@@ -45,6 +45,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isPreview = process.env.VERCEL_ENV === "preview";
+  const shortSha = (process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7);
+
   return (
     <html lang="pt-BR" className="dark">
       <head>
@@ -58,6 +61,11 @@ export default function RootLayout({
       >
         <Providers>
           {children}
+          {isPreview && (
+            <div className="pointer-events-none fixed bottom-2 left-2 z-[9999] rounded border border-amber-300/55 bg-black/90 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-amber-200 shadow-lg">
+              Preview · {shortSha}
+            </div>
+          )}
         </Providers>
       </body>
     </html>
