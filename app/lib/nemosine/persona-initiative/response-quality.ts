@@ -91,6 +91,9 @@ const contextualConnectionPatterns = [
 
 const selfDescriptionPatterns = [
   /\bminha funcao e\b/,
+  /\bminha vocacao e\b/,
+  /\bpelo meu campo\b/,
+  /\bposso continuar a partir desta funcao\b/,
   /\beu sou (o|a)?\b/,
   /\bcomo persona\b/,
   /\bno sistema nemosine\b.*\bminha missao\b/,
@@ -397,7 +400,7 @@ export function evaluatePersonaInitiativeQuality(input: {
       "SELF_DESCRIPTION_INSTEAD_OF_ACTION",
       "error",
       "A persona explicou quem e ou o que faz, mas nao operou.",
-      "Substitua autoapresentacao por acao vocacional aplicada ao contexto.",
+      "Nao explique sua funcao. Realize-a diretamente sobre o caso do usuario.",
     ));
   }
 

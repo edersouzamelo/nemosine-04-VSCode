@@ -614,6 +614,9 @@ function handoffOfferFromMessage(message: CollectiveMessage): PersonaHandoffOffe
         originMessageId: metadata.originMessageId || null,
         offeredAt: metadata.offeredAt || null,
         updatedAt: metadata.updatedAt || null,
+        decisionId: metadata.decisionId || null,
+        trigger: metadata.trigger || null,
+        currentPersonaFit: metadata.currentPersonaFit || null,
     };
 }
 

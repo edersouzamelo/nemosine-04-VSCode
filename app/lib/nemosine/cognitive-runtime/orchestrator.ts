@@ -12,7 +12,6 @@ import { buildRedactedAudit } from "./audit-redaction";
 import { storeCognitiveAudit } from "./audit-store";
 import { extractClaimsAndActions } from "./claim-extractor";
 import { classifyFinding, isInfrastructureDegradationFinding } from "./finding-classification";
-import { buildPersonaHandoffOffer, resolveVocationalTargets } from "@/app/lib/nemosine/handoff";
 import { deterministicPhilosopherEvaluation, mergePhilosopherEvaluations } from "./philosopher-validator";
 import { createAiSdkCognitiveModelProvider } from "./persona-generator";
 import { evaluatePromotion } from "./promotion-gate";
@@ -351,29 +350,11 @@ function classifyDominantRejectionCause(iteration: CognitiveIteration, failureRe
   return "coherence";
 }
 
-function recoveryHandoffTarget(iteration: CognitiveIteration) {
-  return iteration.vocation?.handoffTargets?.[0] || null;
-}
-
 function buildRecoveryAnswer(input: {
   request: CognitiveRequest;
   iteration: CognitiveIteration;
   dominantCause: string;
 }) {
-  const personaTarget = recoveryHandoffTarget(input.iteration);
-  const resolvedTarget = personaTarget || resolveVocationalTargets({
-    currentPersona: input.request.personaId,
-    userText: input.request.userText,
-    maxTargets: 1,
-  }).primaryTargetPersonaId;
-  const handoff = input.dominantCause === "vocation" && resolvedTarget
-    ? buildPersonaHandoffOffer({
-      sourcePersona: input.request.personaId,
-      targetPersona: resolvedTarget,
-      userText: input.request.userText,
-      privateRun: input.request.privateRun,
-    })
-    : null;
   const templates: Record<string, string> = {
     infrastructure: "A resposta que eu tinha em maos nao ficou firme o bastante para chegar ate voce. Posso retomar por um caminho mais simples, verificavel e sem prometer mais do que consigo sustentar.",
     safety: "Nao posso seguir por esse caminho do jeito como ele apareceu. Posso ajudar a reformular a pergunta em termos mais seguros e ainda uteis para voce.",
@@ -385,9 +366,7 @@ function buildRecoveryAnswer(input: {
   let answer = templates[input.dominantCause] || templates.coherence;
   const lastAssistant = (input.request.priorHistory || []).filter((item) => item.role === "assistant").at(-1)?.content?.trim();
   if (lastAssistant && lastAssistant === answer) {
-    answer = input.dominantCause === "vocation" && handoff
-      ? `Esta voz nao conseguiu formular uma resposta adequada neste turno. ${handoff.targetPersona} pode ser aberto como lente opcional.`
-      : "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
+    answer = "Esta voz nao conseguiu formular uma resposta adequada neste turno.";
   }
   if (isRecoveryQuestion(input.request.userText) && input.dominantCause !== "vocation") {
     answer = "Eu nao entreguei antes porque a resposta nao estava confiavel o bastante para te servir. Posso retomar agora com uma resposta mais direta, simples e sem acionar nada alem desta conversa.";
@@ -965,11 +944,15 @@ export async function runCognitiveRuntime(
 
       const vocation = evaluateVocationalPolicy({ request, extraction });
       if (vocation.handoffTargets.length > 0) {
-        auditEvents.push(auditEvent("HANDOFF_OFFERED", {
+        auditEvents.push(auditEvent("HANDOFF_DECISION_RECORDED", {
           sourcePersona: request.personaId,
           targetPersona: vocation.handoffTargets[0],
           targetCount: vocation.handoffTargets.length,
           decision: vocation.decision,
+          trigger: vocation.handoffTrigger || "",
+          currentPersonaFit: vocation.currentPersonaFit || "",
+          requestedOperations: (vocation.requestedOperations || []).join(","),
+          subjectDomains: (vocation.subjectDomains || []).join(","),
           reason: vocation.findings.map((finding) => finding.code).join(","),
         }));
       }

@@ -359,6 +359,53 @@ test("vocational policy identifies misplaced medical request for symbolic person
   });
   assert.equal(evaluation.hardPass, false);
   assert.equal(evaluation.decision, "refusal_required");
+  assert.equal(evaluation.currentPersonaFit, "incompatible");
+  assert.equal(evaluation.handoffTargets.includes("Narrador"), false);
+  assert.ok(evaluation.handoffTargets.length > 0);
+});
+
+test("vocational policy prioritizes requested operation over emotional subject", () => {
+  const evaluation = evaluateVocationalPolicy({
+    request: request({
+      personaId: "Narrador",
+      userText: "Estou com estresse profissional e instabilidades conjugais. Quero conversar livremente e tentar compreender o que estou vivendo.",
+    }),
+    extraction: extractionResultSchema.parse({}),
+  });
+
+  assert.equal(evaluation.hardPass, true);
+  assert.equal(evaluation.decision, "allowed");
+  assert.equal(evaluation.currentPersonaFit, "primary");
+  assert.ok(evaluation.subjectDomains?.includes("work"));
+  assert.ok(evaluation.subjectDomains?.includes("relationship"));
+  assert.ok(evaluation.requestedOperations?.includes("understand"));
+  assert.deepEqual(evaluation.handoffTargets, []);
+  assert.equal(evaluation.findings.some((finding) => finding.code === "VOCATION_LOW_CONFIDENCE_MATCH"), false);
+});
+
+test("secondary vocational fit is non-blocking and cannot drive recovery", () => {
+  const evaluation = evaluateVocationalPolicy({
+    request: request({ personaId: "Narrador", userText: "Estou com uma planilha de gastos e quero conversar livremente sobre o que isso significa para mim." }),
+    extraction: extractionResultSchema.parse({}),
+  });
+
+  assert.equal(evaluation.hardPass, true);
+  assert.notEqual(evaluation.decision, "handoff_recommended");
+  assert.deepEqual(evaluation.handoffTargets, []);
+  assert.equal(evaluation.findings.some((finding) => finding.code === "VOCATION_LOW_CONFIDENCE_MATCH"), false);
+});
+
+test("narrative operation stays primary even when subject is emotional", () => {
+  const evaluation = evaluateVocationalPolicy({
+    request: request({ personaId: "Narrador", userText: "Quero reconstruir como meu casamento chegou ate aqui." }),
+    extraction: extractionResultSchema.parse({}),
+  });
+
+  assert.equal(evaluation.hardPass, true);
+  assert.equal(evaluation.currentPersonaFit, "primary");
+  assert.ok(evaluation.requestedOperations?.includes("narrate"));
+  assert.ok(evaluation.subjectDomains?.includes("relationship"));
+  assert.deepEqual(evaluation.handoffTargets, []);
 });
 
 test("side-effect authorization requires explicit consent and isolates private runs", () => {

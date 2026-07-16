@@ -15,6 +15,9 @@ export type PersonaHandoffOffer = {
   originMessageId?: string | null;
   offeredAt?: string | null;
   updatedAt?: string | null;
+  decisionId?: string | null;
+  trigger?: "explicit_user_request" | "incompatible_operation" | "prohibited_capability" | null;
+  currentPersonaFit?: CurrentPersonaFit | null;
 };
 
 const HANDOFF_MARKER_PATTERN = /\[\[NEMOSINE_HANDOFF:([^\]]+)\]\]/g;
@@ -30,6 +33,7 @@ export type VocationalTargetResolution = {
   rationaleByPersona: Record<string, string>;
   confidence: number;
   routingReason: string;
+  trigger?: "explicit_user_request" | "incompatible_operation" | "prohibited_capability" | null;
 };
 
 function normalize(value: string) {
@@ -174,6 +178,7 @@ export function resolveVocationalTargets(input: {
       rationaleByPersona: { [directMention]: rationaleForPersona(directMention, classifyVocationalNeed(combined)) },
       confidence: 0.95,
       routingReason: "persona mencionada diretamente pelo usuario",
+      trigger: "explicit_user_request",
     };
   }
 
@@ -214,7 +219,10 @@ export function resolveVocationalTargets(input: {
 
   const selected = scored.slice(0, Math.max(1, input.maxTargets || 3));
   const top = selected[0];
-  const currentPersonaCanContinue = currentPersonaFit === "primary" || currentPersonaFit === "valid" || currentPersonaFit === "partial";
+  const forbiddenCapability = signals.some((signal) => ["legal", "technical"].includes(signal))
+    && !signals.some((signal) => ["narrative", "symbolic", "human-posture", "emotional", "strategy", "work-organization"].includes(signal));
+  const effectivePersonaFit = forbiddenCapability ? "incompatible" : currentPersonaFit;
+  const currentPersonaCanContinue = effectivePersonaFit === "primary" || effectivePersonaFit === "valid" || effectivePersonaFit === "partial";
   if (!top || top.score < 4) {
     return {
       currentPersonaCanContinue: true,
@@ -224,16 +232,18 @@ export function resolveVocationalTargets(input: {
       rationaleByPersona: {},
       confidence: 0.25,
       routingReason: "nenhuma persona concreta atingiu confianca minima",
+      trigger: null,
     };
   }
   return {
     currentPersonaCanContinue,
-    currentPersonaFit,
+    currentPersonaFit: effectivePersonaFit,
     primaryTargetPersonaId: top.persona,
     alternativeTargetPersonaIds: selected.slice(1).map((item) => item.persona),
     rationaleByPersona: Object.fromEntries(selected.map((item) => [item.persona, item.rationale])),
     confidence: Math.min(0.98, 0.5 + top.score / 30),
     routingReason: signals.join(", "),
+    trigger: forbiddenCapability ? "prohibited_capability" : null,
   };
 }
 
@@ -255,17 +265,21 @@ export function inferHandoffTarget(input: {
   if (source === "vidente" && /\b(reconstru|acontec|sequencia|o que aconteceu|relato|historia|narrar|narrativa)\b/.test(normalized)) {
     return "Narrador";
   }
-  if (/\b(diagnostico|remedio|dose|sintoma|dor no peito|exame)\b/.test(normalized)) return "Medico";
-  if (/\b(contrato|processo|lei|juridico|advogado|defesa)\b/.test(normalized)) return "Advogado";
-  if (/\b(bug|codigo|build|deploy|api|banco|erro tecnico)\b/.test(normalized)) return "Engenheiro";
-  if (/\b(estrategia|plano|prioridade|risco|decisao)\b/.test(normalized)) return "Estrategista";
-  if (/\b(historia|narrativa|relato|cena|acontecimentos)\b/.test(normalized)) return "Narrador";
-  return resolveVocationalTargets({
+  const directTarget =
+    /\b(diagnostico|remedio|dose|sintoma|dor no peito|exame)\b/.test(normalized) ? "Medico"
+    : /\b(contrato|processo|lei|juridico|advogado|defesa)\b/.test(normalized) ? "Advogado"
+    : /\b(bug|codigo|build|deploy|api|banco|erro tecnico)\b/.test(normalized) ? "Engenheiro"
+    : /\b(estrategia|plano|prioridade|risco|decisao)\b/.test(normalized) ? "Estrategista"
+    : /\b(historia|narrativa|relato|cena|acontecimentos)\b/.test(normalized) ? "Narrador"
+    : null;
+  if (directTarget && normalize(directTarget) !== source) return directTarget;
+  const resolved = resolveVocationalTargets({
     currentPersona: input.sourcePersona,
     userText: input.userText,
     contextText: input.priorAssistantText,
     maxTargets: 1,
   }).primaryTargetPersonaId;
+  return resolved && normalize(resolved) !== source ? resolved : null;
 }
 
 export function buildPersonaHandoffOffer(input: {
@@ -274,6 +288,9 @@ export function buildPersonaHandoffOffer(input: {
   userText: string;
   privateRun?: boolean;
   reasonOverride?: string;
+  decisionId?: string | null;
+  trigger?: PersonaHandoffOffer["trigger"];
+  currentPersonaFit?: CurrentPersonaFit | null;
 }) {
   const targetContract = getPersonaBehaviorContract(input.targetPersona);
   const sensitive = Boolean(input.privateRun || /confessor|porao|porão|privad|segred|anexo|arquivo|historico|histórico/i.test(input.userText));
@@ -294,6 +311,9 @@ export function buildPersonaHandoffOffer(input: {
     summary,
     draft,
     requiresConfirmation: sensitive,
+    decisionId: input.decisionId || null,
+    trigger: input.trigger || null,
+    currentPersonaFit: input.currentPersonaFit || null,
   };
 }
 

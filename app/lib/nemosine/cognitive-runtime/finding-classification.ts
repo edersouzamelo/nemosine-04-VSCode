@@ -44,6 +44,9 @@ export function classifyFindingCode(code: string, severity?: CognitiveFinding["s
   if (isInfrastructureDegradationCode(code) || category === "infrastructure_degradation") {
     return "infrastructure_degradation";
   }
+  if (code === "VOCATION_SECONDARY_FIT" || category === "vocation_audit") {
+    return "candidate_quality_finding";
+  }
   if (/PRIVACY|PRIVATE_CONTEXT_LEAK|SCOPE|CONTEXT_BLOCKED/i.test(code) || category === "privacy_failure") {
     return "privacy_failure";
   }

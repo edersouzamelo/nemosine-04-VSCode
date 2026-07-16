@@ -178,6 +178,9 @@ function persistedHandoffOffers(history: Array<{ id: string; metadata?: unknown 
                 state: metadata.state || "offered",
                 eventMessageId: message.id,
                 originMessageId: metadata.originMessageId || null,
+                decisionId: typeof metadata.decisionId === "string" ? metadata.decisionId : null,
+                trigger: typeof metadata.trigger === "string" ? metadata.trigger as PersonaHandoffOffer["trigger"] : null,
+                currentPersonaFit: typeof metadata.currentPersonaFit === "string" ? metadata.currentPersonaFit as PersonaHandoffOffer["currentPersonaFit"] : null,
             } as PersonaHandoffOffer;
         })
         .filter(Boolean) as PersonaHandoffOffer[];
@@ -189,16 +192,22 @@ function buildHandoffOffersFromResolution(input: {
     resolution: ReturnType<typeof resolveVocationalTargets>;
     privateRun: boolean;
 }) {
+    const decisionId = crypto.randomUUID();
     const personas = [
         input.resolution.primaryTargetPersonaId,
         ...input.resolution.alternativeTargetPersonaIds,
-    ].filter(Boolean).slice(0, 3) as string[];
+    ]
+        .filter((persona): persona is string => Boolean(persona) && persona !== input.sourcePersona)
+        .slice(0, 3);
     return personas.map((targetPersona) => buildPersonaHandoffOffer({
         sourcePersona: input.sourcePersona,
         targetPersona,
         userText: input.userText,
         privateRun: input.privateRun,
         reasonOverride: input.resolution.rationaleByPersona[targetPersona],
+        decisionId,
+        trigger: input.resolution.trigger || "explicit_user_request",
+        currentPersonaFit: input.resolution.currentPersonaFit,
     }));
 }
 
@@ -383,23 +392,6 @@ function createResponsePipelineRequest(input: {
 function buildBufferedLlmFailureMessage(error: unknown) {
     console.error("[API/Chat] LLM generation failed before buffered delivery:", error);
     return "O sistema esta instavel. Nao consigo concluir esta resposta agora.";
-}
-
-function extractHandoffOfferFromAudit(input: {
-    auditEvents: Array<{ code?: string; detail?: Record<string, unknown> }>;
-    personaId: string;
-    userText: string;
-    privateRun: boolean;
-}): PersonaHandoffOffer | null {
-    const event = [...input.auditEvents].reverse().find((item) => item.code === "HANDOFF_OFFERED");
-    const targetPersona = typeof event?.detail?.targetPersona === "string" ? event.detail.targetPersona : null;
-    if (!targetPersona || targetPersona === input.personaId) return null;
-    return buildPersonaHandoffOffer({
-        sourcePersona: input.personaId,
-        targetPersona,
-        userText: input.userText,
-        privateRun: input.privateRun,
-    });
 }
 
 function splitConversationScope(scope: string) {
@@ -781,12 +773,7 @@ export async function POST(req: NextRequest) {
                 })
                 : await executeCognitiveRuntime(cognitiveRequest);
             const deliveredRuntimeAnswer = runtimeResult.answer;
-            const singleAuditHandoff = input.handoffOffer || extractHandoffOfferFromAudit({
-                auditEvents: runtimeResult.audit.auditEvents,
-                personaId,
-                userText,
-                privateRun: cognitiveRequest.privateRun,
-            });
+            const singleAuditHandoff = input.handoffOffer || null;
             const rawHandoffOffers = input.handoffOffers?.length
                 ? input.handoffOffers
                 : singleAuditHandoff ? [singleAuditHandoff] : [];
@@ -890,8 +877,7 @@ export async function POST(req: NextRequest) {
             runtimeConfig.mode === "enforce"
             && vocationalResolution.primaryTargetPersonaId
             && vocationalResolution.confidence >= 0.55
-            && isHandoffSelectionRequest(userText)
-            && vocationalResolution.currentPersonaFit !== "primary"
+            && (isHandoffSelectionRequest(userText) || vocationalResolution.currentPersonaFit === "incompatible")
         ) {
             const offers = buildHandoffOffersFromResolution({
                 sourcePersona: personaId,
@@ -899,6 +885,9 @@ export async function POST(req: NextRequest) {
                 resolution: vocationalResolution,
                 privateRun: cognitiveRequest.privateRun,
             });
+            if (offers.length === 0) {
+                return deliverEnforcedCognitiveRuntime();
+            }
             console.info("[VocationalTargetResolver]", {
                 event: "VOCATIONAL_TARGET_RESOLVED",
                 threadId: activeThreadId,
@@ -906,6 +895,9 @@ export async function POST(req: NextRequest) {
                 targets: offers.map((offer) => offer.targetPersona),
                 confidence: vocationalResolution.confidence,
                 reason: vocationalResolution.routingReason,
+                decisionId: offers[0]?.decisionId,
+                trigger: offers[0]?.trigger,
+                currentPersonaFit: vocationalResolution.currentPersonaFit,
             });
             console.info("[VocationalTargetResolver]", {
                 event: "HANDOFF_OPTIONS_PRESENTED",
@@ -916,6 +908,8 @@ export async function POST(req: NextRequest) {
                 handoffOffers: offers,
                 headers: {
                     'x-nemosine-handoff-offered': 'true',
+                    'x-nemosine-handoff-decision-id': offers[0]?.decisionId || "",
+                    'x-nemosine-handoff-trigger': offers[0]?.trigger || "",
                 },
             });
         }
@@ -936,16 +930,22 @@ export async function POST(req: NextRequest) {
             ? inferHandoffTarget({ sourcePersona: personaId, userText, priorAssistantText: latestAssistantText })
             : null;
         if (requestedHandoffTarget && runtimeConfig.mode === "enforce") {
+            const decisionId = crypto.randomUUID();
             const handoff = buildPersonaHandoffOffer({
                 sourcePersona: personaId,
                 targetPersona: requestedHandoffTarget,
                 userText,
                 privateRun: cognitiveRequest.privateRun,
+                decisionId,
+                trigger: "explicit_user_request",
+                currentPersonaFit: vocationalResolution.currentPersonaFit,
             });
             return deliverEnforcedCognitiveRuntime({
                 handoffOffer: handoff,
                 headers: {
                     'x-nemosine-handoff-offered': 'true',
+                    'x-nemosine-handoff-decision-id': decisionId,
+                    'x-nemosine-handoff-trigger': 'explicit_user_request',
                 },
             });
         }
@@ -988,8 +988,7 @@ export async function POST(req: NextRequest) {
                     config: responsePipelineConfig,
                     model: activeChatModel,
                 });
-                const blockingFailures = responsePipelineResult.validation.criticalFailures
-                    .filter((failure) => failure !== "TOO_SHORT_FOR_DEEP_RESPONSE");
+                const blockingFailures = responsePipelineResult.validation.criticalFailures;
                 if (blockingFailures.length > 0) {
                     throw new Error(`response_pipeline_v2_blocked:${blockingFailures.join(",")}`);
                 }

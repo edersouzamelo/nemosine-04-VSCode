@@ -279,6 +279,10 @@ export type VocationalEvaluation = {
   decision: "allowed" | "warning" | "refusal_required" | "handoff_recommended";
   personaId: string;
   classifiedTaskFamilies: string[];
+  subjectDomains?: string[];
+  requestedOperations?: string[];
+  currentPersonaFit?: "primary" | "valid" | "partial" | "incompatible";
+  handoffTrigger?: "explicit_user_request" | "incompatible_operation" | "prohibited_capability" | null;
   handoffTargets: string[];
   hardPass: boolean;
   findings: CognitiveFinding[];
@@ -334,6 +338,7 @@ export type CognitiveAuditEvent = {
     | "SIDE_EFFECTS_BLOCKED"
     | "SIDE_EFFECTS_ROLLED_BACK"
     | "HANDOFF_OFFERED"
+    | "HANDOFF_DECISION_RECORDED"
     | "PERSONA_INITIATIVE_EVALUATED"
     | "PERSONA_INITIATIVE_REPAIR_REQUESTED"
     | "STRUCTURED_VALIDATOR_DEGRADED"

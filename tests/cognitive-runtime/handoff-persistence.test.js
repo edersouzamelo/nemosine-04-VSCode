@@ -92,6 +92,29 @@ test("current persona fit protects competent emotional personas from aggressive 
   assert.equal(targets.includes("Autor"), false);
 });
 
+test("handoff resolver never recommends the source persona as target", () => {
+  const narrador = resolveVocationalTargets({
+    currentPersona: "Narrador",
+    userText: "Quero reconstruir como meu casamento chegou ate aqui.",
+    maxTargets: 3,
+  });
+  const psicologo = resolveVocationalTargets({
+    currentPersona: "Psicólogo",
+    userText: "Quero entender meus padroes emocionais.",
+    maxTargets: 3,
+  });
+  const estrategista = resolveVocationalTargets({
+    currentPersona: "Estrategista",
+    userText: "Quero montar um plano e decidir prioridades.",
+    maxTargets: 3,
+  });
+
+  for (const [source, resolution] of [["Narrador", narrador], ["Psicólogo", psicologo], ["Estrategista", estrategista]]) {
+    const targets = [resolution.primaryTargetPersonaId, ...resolution.alternativeTargetPersonaIds].filter(Boolean);
+    assert.equal(targets.includes(source), false);
+  }
+});
+
 test("handoff answer names a concrete target and never exposes vocational placeholders", () => {
   const offer = buildPersonaHandoffOffer({
     sourcePersona: "Cientista",
