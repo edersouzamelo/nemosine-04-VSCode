@@ -1,0 +1,55 @@
+name: Runtime Integrity Direct 2
+
+on:
+  push:
+    branches:
+      - repair/runtime-integrity-direct-2
+    paths:
+      - scripts/apply-runtime-integrity-direct-2.mjs
+      - .github/workflows/runtime-integrity-direct-2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-validate-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: repair/runtime-integrity-direct-2
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply focused patch
+        run: node scripts/apply-runtime-integrity-direct-2.mjs
+
+      - name: Remove one-shot patch machinery
+        run: |
+          rm -f scripts/apply-runtime-integrity-direct-2.mjs
+          rm -f .github/workflows/runtime-integrity-direct-2.yml
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate focused contracts
+        run: |
+          npm run test:multi-persona
+          npm run test:presence-adjustment
+          npm run test:cognitive-runtime
+          npm run build
+
+      - name: Commit validated repair
+        run: |
+          git config user.name "Nemosine Engineer"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: restore handoff continuity and speaker integrity"
+          git push origin HEAD:repair/runtime-integrity-direct-2
