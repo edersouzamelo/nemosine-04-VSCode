@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function connectionTarget() {
+const PROJECT_REF = "jhxdlzecuqxpkiodowdf";
+const REGION = "us-east-1";
+
+function connectionTarget(value = process.env.DATABASE_URL?.trim()) {
   try {
-    const value = process.env.DATABASE_URL?.trim();
     if (!value) return null;
     const url = new URL(value);
     return {
@@ -27,38 +29,75 @@ function sanitizeErrorMessage(error: unknown) {
     .replace(/:\/\/[^@\s]+@/g, "://[REDACTED]@");
 }
 
+function candidateUrl(index: number) {
+  const direct = process.env.DIRECT_URL?.trim();
+  if (!direct) return null;
+
+  try {
+    const url = new URL(direct);
+    url.username = `postgres.${PROJECT_REF}`;
+    url.hostname = `aws-${index}-${REGION}.pooler.supabase.com`;
+    url.port = "6543";
+    url.searchParams.set("pgbouncer", "true");
+    url.searchParams.set("connection_limit", "1");
+    url.searchParams.set("connect_timeout", "3");
+    url.searchParams.set("pool_timeout", "3");
+    url.searchParams.set("sslmode", "require");
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
-  const isPreview = process.env.VERCEL_ENV === "preview";
-  if (!isPreview) {
+  if (process.env.VERCEL_ENV !== "preview") {
     return NextResponse.json({ error: "not_available" }, { status: 404 });
   }
 
-  let databaseReachable = false;
-  let databaseError: string | null = null;
-  let databaseErrorMessage: string | null = null;
+  const { PrismaClient } = await import("@prisma/client");
+  const probes: Array<{
+    index: number;
+    host: string;
+    reachable: boolean;
+    error: string | null;
+  }> = [];
 
-  try {
-    const { PrismaClient } = await import("@prisma/client");
-    const prisma = new PrismaClient();
+  let discoveredUrl: string | null = null;
+
+  for (let index = 0; index <= 5; index += 1) {
+    const url = candidateUrl(index);
+    if (!url) break;
+
+    const prisma = new PrismaClient({ datasources: { db: { url } } });
     try {
       await prisma.$queryRaw`SELECT 1`;
-      databaseReachable = true;
+      probes.push({
+        index,
+        host: connectionTarget(url)?.host || `aws-${index}-${REGION}.pooler.supabase.com`,
+        reachable: true,
+        error: null,
+      });
+      discoveredUrl = url;
+      break;
+    } catch (error) {
+      const message = sanitizeErrorMessage(error);
+      probes.push({
+        index,
+        host: connectionTarget(url)?.host || `aws-${index}-${REGION}.pooler.supabase.com`,
+        reachable: false,
+        error: message.split("\n").filter(Boolean).slice(-1)[0] || "unknown_error",
+      });
     } finally {
       await prisma.$disconnect();
     }
-  } catch (error) {
-    databaseError = error instanceof Error ? error.name : "unknown_error";
-    databaseErrorMessage = sanitizeErrorMessage(error);
-    console.error("[preview-db-check]", databaseError, databaseErrorMessage);
   }
 
   return NextResponse.json({
-    vercelEnv: process.env.VERCEL_ENV ?? null,
-    databaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
+    vercelEnv: process.env.VERCEL_ENV,
     directUrl: Boolean(process.env.DIRECT_URL?.trim()),
-    target: connectionTarget(),
-    databaseReachable,
-    databaseError,
-    databaseErrorMessage,
+    currentTarget: connectionTarget(),
+    discoveredTarget: connectionTarget(discoveredUrl || undefined),
+    databaseReachable: Boolean(discoveredUrl),
+    probes,
   });
 }
