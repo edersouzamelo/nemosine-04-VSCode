@@ -41,6 +41,11 @@ export async function register() {
     console.info("[runtime-env] MULTI_PERSONA_ENABLED restored for preview")
   }
 
+  if (process.env.VERCEL_ENV === "preview" && !process.env.PRESENCE_ADJUSTMENT_MODE?.trim()) {
+    process.env.PRESENCE_ADJUSTMENT_MODE = "enforce"
+    console.info("[runtime-env] PRESENCE_ADJUSTMENT_MODE restored for preview")
+  }
+
   const resolved = resolveRuntimeDatabaseUrl()
   if (!process.env.DATABASE_URL?.trim() && resolved.url) {
     process.env.DATABASE_URL = resolved.url
