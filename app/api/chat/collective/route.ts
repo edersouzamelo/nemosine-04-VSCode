@@ -6,6 +6,7 @@ import { createCollectiveChatStream } from "@/app/lib/nemosine/collective_chat_o
 import {
   createCollectiveThreadWithHost,
   getCollectiveSchemaStatus,
+  getParticipantSnapshot,
   getThreadHostAndPlace,
   isMultiPersonaEnabled,
 } from "@/app/lib/nemosine/conversation_participants";
@@ -94,6 +95,55 @@ function threadMatchesRequest(thread: { personaId: string; placeId?: string | nu
   if (thread.personaId === requestedLegacyScope) return true;
   const threadContext = getThreadHostAndPlace(thread);
   return threadContext.hostPersonaId === personaId && (threadContext.placeId || null) === (placeId || null);
+}
+
+function normalizeAddressingText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s@,;:.?!-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+}
+
+function detectDirectPersonaAddress(text: string) {
+  const normalizedText = normalizeAddressingText(text);
+  if (!normalizedText) return null;
+
+  const personas = Object.values(ENTITIES)
+    .filter((entity) => entity.type === "persona")
+    .map((entity) => entity.name)
+    .sort((left, right) => right.length - left.length);
+
+  for (const persona of personas) {
+    const normalizedName = normalizeAddressingText(persona);
+    const namePattern = escapeRegExp(normalizedName);
+    const patterns = [
+      `^(?:bom\\s+dia|boa\\s+tarde|boa\\s+noite|oi|ola|salve)\\s+(?:o\\s+|a\\s+)?${namePattern}(?=$|[\\s,;:.?!])`,
+      `^@?${namePattern}(?=$|[\\s,;:.?!])`,
+      `(?:^|[.!?;]\\s+)@?${namePattern}\\s*(?:,|:|;)`,
+      `\\b(?:fala|fale|responde|responda|quero\\s+ouvir|pergunta\\s+pro|pergunta\\s+para|pergunta\\s+ao)\\s+(?:o\\s+|a\\s+)?${namePattern}\\b`,
+    ];
+    if (patterns.some((pattern) => new RegExp(pattern, "u").test(normalizedText))) {
+      return persona;
+    }
+  }
+
+  return null;
+}
+
+function buildInvitedPersonaPrompt(targetPersona: string, semanticText: string) {
+  const normalizedSemantic = normalizeAddressingText(semanticText);
+  const stillLooksLikeCommand = /\b(chama|chame|chamar|traz|traga|convida|convide|convidar)\b/.test(normalizedSemantic);
+  const effectivePrompt = semanticText.trim() && !stillLooksLikeCommand
+    ? semanticText.trim()
+    : "entre na conversa e ofereca sua leitura sobre o tema em curso, usando o contexto ja registrado nesta sessao.";
+  return `${targetPersona}, ${effectivePrompt}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -226,16 +276,38 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const snapshot = await getParticipantSnapshot(userId, activeThreadId);
+    const activePersonaIds = new Set(snapshot.participants.filter((participant) => participant.active).map((participant) => participant.personaId));
+    const requestedInviteTarget = parsedCommands.commands
+      .find((command) => command.action === "invite")
+      ?.personaIds.find((targetPersonaId) => targetPersonaId !== personaId) || null;
+    const effectiveCommands = parsedCommands.commands
+      .map((command) => ({
+        ...command,
+        personaIds: command.action === "invite"
+          ? command.personaIds.filter((targetPersonaId) => targetPersonaId !== personaId && !activePersonaIds.has(targetPersonaId))
+          : command.personaIds,
+      }))
+      .filter((command) => command.personaIds.length > 0);
+
+    const directAddressTarget = detectDirectPersonaAddress(displayUserText);
+    const semanticUserText = parsedCommands.semanticText || userText;
+    const routedUserText = requestedInviteTarget
+      ? buildInvitedPersonaPrompt(requestedInviteTarget, parsedCommands.semanticText)
+      : directAddressTarget
+        ? `${directAddressTarget}, ${semanticUserText}`
+        : semanticUserText;
+
     return createCollectiveChatStream({
       userId,
       threadId: activeThreadId,
       hostPersonaId: personaId,
       placeId: normalizedPlaceId,
       language: selectedLanguage,
-      userText: parsedCommands.semanticText || userText,
+      userText: routedUserText,
       displayUserText,
       priorHistory,
-      commands: parsedCommands.commands,
+      commands: effectiveCommands,
       presenceContract: activePresenceContract,
       presenceAdjustmentMode: presenceRuntimeMode,
     });
