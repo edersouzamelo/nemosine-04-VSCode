@@ -22,6 +22,37 @@ function unauthorized() {
   return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 }
 
+function messageText(message: any) {
+  if (typeof message?.content === "string") return message.content;
+  if (Array.isArray(message?.parts)) {
+    return message.parts
+      .filter((part: any) => part?.type === "text")
+      .map((part: any) => part.text || "")
+      .join("");
+  }
+  return "";
+}
+
+function isPublicSystemEvent(message: any) {
+  const text = messageText(message).trim();
+  if (!text || /^\[\[NEMOSINE_/i.test(text)) return false;
+  return /\b(entrou na conversa|deixou a conversa|foi silenciad[oa]|voltou a falar|falando apenas com|foco exclusivo removido)\b/i.test(text);
+}
+
+function sanitizeSharedMessages(messages: any[]) {
+  return messages
+    .filter((message) => {
+      if (message?.role === "system" || message?.messageKind === "SYSTEM_EVENT") {
+        return isPublicSystemEvent(message);
+      }
+      return true;
+    })
+    .map((message) => {
+      const { metadata, ...publicMessage } = message || {};
+      return publicMessage;
+    });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -38,9 +69,7 @@ export async function POST(request: NextRequest) {
 
     await ensureSharedChatsTable();
     const token = crypto.randomUUID().replace(/-/g, "");
-    const messagesJson = JSON.stringify(thread.messages.filter((message) => (
-      message.role !== "system" || message.messageKind === "SYSTEM_EVENT"
-    )));
+    const messagesJson = JSON.stringify(sanitizeSharedMessages(thread.messages));
 
     await prisma.$executeRaw`
       INSERT INTO shared_chats (token, user_id, thread_id, title, persona_id, messages_json)
@@ -82,7 +111,7 @@ export async function GET(request: NextRequest) {
         token: row.token,
         title: row.title,
         personaId: row.persona_id,
-        messages: JSON.parse(row.messages_json || "[]"),
+        messages: sanitizeSharedMessages(JSON.parse(row.messages_json || "[]")),
         createdAt: row.created_at.toISOString(),
       },
     });
