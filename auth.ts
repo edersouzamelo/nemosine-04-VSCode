@@ -14,6 +14,14 @@ class InvalidLoginError extends CredentialsSignin {
   code = "Email ou senha incorretos"
 }
 
+// Preview deployments may expose only DIRECT_URL. Prisma requires DATABASE_URL
+// at client initialization, so reuse the available connection without changing
+// Vercel project variables or production configuration.
+const runtimeDatabaseUrl = process.env.DATABASE_URL?.trim() || process.env.DIRECT_URL?.trim()
+if (!process.env.DATABASE_URL?.trim() && runtimeDatabaseUrl) {
+  process.env.DATABASE_URL = runtimeDatabaseUrl
+}
+
 const prisma = new PrismaClient()
 const googleClientId = process.env.AUTH_GOOGLE_ID?.trim()
 const googleClientSecret = process.env.AUTH_GOOGLE_SECRET?.trim()
