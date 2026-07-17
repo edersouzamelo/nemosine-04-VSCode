@@ -11,11 +11,20 @@ function connectionTarget() {
     return {
       host: url.hostname,
       port: url.port || "5432",
+      username: decodeURIComponent(url.username),
       pooled: /pooler\.supabase\.com$/i.test(url.hostname),
     };
   } catch {
     return null;
   }
+}
+
+function sanitizeErrorMessage(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error || "unknown_error");
+  return raw
+    .replace(/postgres(?:ql)?:\/\/[^\s'\"]+/gi, "[DATABASE_URL_REDACTED]")
+    .replace(/password=[^\s&]+/gi, "password=[REDACTED]")
+    .replace(/:\/\/[^@\s]+@/g, "://[REDACTED]@");
 }
 
 export async function GET() {
@@ -26,6 +35,7 @@ export async function GET() {
 
   let databaseReachable = false;
   let databaseError: string | null = null;
+  let databaseErrorMessage: string | null = null;
 
   try {
     const { PrismaClient } = await import("@prisma/client");
@@ -38,6 +48,8 @@ export async function GET() {
     }
   } catch (error) {
     databaseError = error instanceof Error ? error.name : "unknown_error";
+    databaseErrorMessage = sanitizeErrorMessage(error);
+    console.error("[preview-db-check]", databaseError, databaseErrorMessage);
   }
 
   return NextResponse.json({
@@ -47,5 +59,6 @@ export async function GET() {
     target: connectionTarget(),
     databaseReachable,
     databaseError,
+    databaseErrorMessage,
   });
 }
