@@ -144,7 +144,10 @@ function findTriggeredCommand(text: string, action: PersonaPresenceCommandAction
   if (!trigger) return null;
 
   const commandText = text.slice(normalized.indexMap[trigger.index] ?? 0);
-  const personaIds = resolvePersonas(commandText);
+  const personaIdsAfterTrigger = resolvePersonas(commandText);
+  const personaIds = personaIdsAfterTrigger.length > 0
+    ? personaIdsAfterTrigger
+    : action === "invite" ? resolvePersonas(text) : [];
   if (personaIds.length === 0) return null;
 
   return {
