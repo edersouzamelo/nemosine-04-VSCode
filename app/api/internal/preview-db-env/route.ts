@@ -3,20 +3,49 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+function connectionTarget() {
+  try {
+    const value = process.env.DATABASE_URL?.trim();
+    if (!value) return null;
+    const url = new URL(value);
+    return {
+      host: url.hostname,
+      port: url.port || "5432",
+      pooled: /pooler\.supabase\.com$/i.test(url.hostname),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   const isPreview = process.env.VERCEL_ENV === "preview";
   if (!isPreview) {
     return NextResponse.json({ error: "not_available" }, { status: 404 });
   }
 
+  let databaseReachable = false;
+  let databaseError: string | null = null;
+
+  try {
+    const { PrismaClient } = await import("@prisma/client");
+    const prisma = new PrismaClient();
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      databaseReachable = true;
+    } finally {
+      await prisma.$disconnect();
+    }
+  } catch (error) {
+    databaseError = error instanceof Error ? error.name : "unknown_error";
+  }
+
   return NextResponse.json({
     vercelEnv: process.env.VERCEL_ENV ?? null,
     databaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
     directUrl: Boolean(process.env.DIRECT_URL?.trim()),
-    postgresUrl: Boolean(process.env.POSTGRES_URL?.trim()),
-    postgresPrismaUrl: Boolean(process.env.POSTGRES_PRISMA_URL?.trim()),
-    supabaseDatabaseUrl: Boolean(process.env.SUPABASE_DATABASE_URL?.trim()),
-    supabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()),
-    supabaseAnonKey: Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()),
+    target: connectionTarget(),
+    databaseReachable,
+    databaseError,
   });
 }
