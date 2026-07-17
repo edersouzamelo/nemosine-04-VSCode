@@ -30,10 +30,12 @@ function resolveRuntimeDatabaseUrl() {
     if (projectRef !== "jhxdlzecuqxpkiodowdf") return direct
 
     url.username = `postgres.${projectRef}`
-    url.hostname = "aws-0-us-east-1.pooler.supabase.com"
+    url.hostname = "aws-1-us-east-1.pooler.supabase.com"
     url.port = "6543"
     url.searchParams.set("pgbouncer", "true")
     url.searchParams.set("connection_limit", "1")
+    url.searchParams.set("connect_timeout", "5")
+    url.searchParams.set("pool_timeout", "5")
     url.searchParams.set("sslmode", "require")
 
     return url.toString()
