@@ -21,11 +21,16 @@ type NormalizedText = {
 const INVITE_TRIGGERS = [
   "/convidar",
   "convide",
+  "convida",
+  "convidar",
   "chamei",
   "chame",
   "chama",
+  "chamar",
   "traga",
+  "traz",
   "quero chamar",
+  "quero convidar",
 ];
 
 const REMOVE_TRIGGERS = [
@@ -108,8 +113,13 @@ function resolvePersonas(text: string) {
 }
 
 function hasNegationBeforeTrigger(normalizedText: string, triggerIndex: number) {
-  const before = normalizedText.slice(Math.max(0, triggerIndex - 12), triggerIndex).trim();
+  const before = normalizedText.slice(Math.max(0, triggerIndex - 24), triggerIndex).trim();
   return /\b(nao|nunca|jamais)$/.test(before);
+}
+
+function isNegativeInvitationQuestion(normalizedText: string, triggerIndex: number) {
+  const before = normalizedText.slice(Math.max(0, triggerIndex - 36), triggerIndex).trim();
+  return /\b(por que|porque)\s+(?:voce\s+|vc\s+)?nao$/.test(before);
 }
 
 function findTriggeredCommand(text: string, action: PersonaPresenceCommandAction, triggers: string[]) {
@@ -124,7 +134,11 @@ function findTriggeredCommand(text: string, action: PersonaPresenceCommandAction
         index: match ? match.index + (match[1]?.length || 0) : -1,
       };
     })
-    .filter((item) => item.index >= 0 && !hasNegationBeforeTrigger(normalizedText, item.index))
+    .filter((item) => {
+      if (item.index < 0) return false;
+      if (!hasNegationBeforeTrigger(normalizedText, item.index)) return true;
+      return action === "invite" && isNegativeInvitationQuestion(normalizedText, item.index);
+    })
     .sort((a, b) => a.index - b.index)[0];
 
   if (!trigger) return null;
