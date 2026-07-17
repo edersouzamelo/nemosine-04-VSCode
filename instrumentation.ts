@@ -36,6 +36,11 @@ function resolveRuntimeDatabaseUrl() {
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return
 
+  if (process.env.VERCEL_ENV === "preview" && !process.env.MULTI_PERSONA_ENABLED?.trim()) {
+    process.env.MULTI_PERSONA_ENABLED = "true"
+    console.info("[runtime-env] MULTI_PERSONA_ENABLED restored for preview")
+  }
+
   const resolved = resolveRuntimeDatabaseUrl()
   if (!process.env.DATABASE_URL?.trim() && resolved.url) {
     process.env.DATABASE_URL = resolved.url
