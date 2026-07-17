@@ -33,6 +33,7 @@ const deliveryBlockingCodes = new Set([
   "UNSUPPORTED_BIOGRAPHICAL_ASSERTION",
   "PRIVATE_CONTEXT_LEAK",
   "INTERNAL_CONTROL_LEAK",
+  "FALSE_CONTEXT_DENIAL",
 ]);
 
 function isConversationalOpening(input: PersonaInitiativeQualityInput) {
@@ -48,35 +49,40 @@ function hasSafeUsableText(text: string) {
     && !/^o sistema esta instavel/.test(normalized);
 }
 
+function canDegradeToDelivery(input: PersonaInitiativeQualityInput, evaluation: PersonaInitiativeQualityEvaluation) {
+  if (!hasSafeUsableText(input.responseText)) return false;
+  const hasDeliveryBlocker = evaluation.findings.some((finding) =>
+    finding.severity === "critical" || deliveryBlockingCodes.has(finding.code),
+  );
+  if (hasDeliveryBlocker) return false;
+
+  if (isConversationalOpening(input)) return true;
+
+  // A quality gate may request another generation, but it must not erase a
+  // coherent, safe answer after repair attempts. Substantive candidates remain
+  // deliverable while their quality findings are preserved as warnings/audit.
+  return input.responseText.trim().length >= 40;
+}
+
 /**
- * Keeps the strict initiative evaluator for substantive turns, but prevents it
- * from turning greetings and recovery clicks into dead-end failure cards.
- * Integrity/privacy findings remain blocking in every case.
+ * The strict evaluator remains the source of quality findings. This wrapper
+ * changes only the delivery consequence: safe conversational or substantive
+ * prose is delivered instead of becoming a dead-end failure card. Privacy,
+ * invented biography, internal-control leaks and false context denial remain
+ * hard blockers.
  */
 export function evaluatePersonaInitiativeQuality(
   input: PersonaInitiativeQualityInput,
 ): PersonaInitiativeQualityEvaluation {
   const evaluation = evaluateStrictPersonaInitiativeQuality(input);
-  if (evaluation.finalPass) return evaluation;
+  if (evaluation.finalPass || !canDegradeToDelivery(input, evaluation)) return evaluation;
 
-  const hasDeliveryBlocker = evaluation.findings.some((finding) =>
-    finding.severity === "critical" || deliveryBlockingCodes.has(finding.code),
-  );
-
-  if (
-    isConversationalOpening(input)
-    && hasSafeUsableText(input.responseText)
-    && !hasDeliveryBlocker
-  ) {
-    return {
-      ...evaluation,
-      initiativeScore: Math.max(0.64, evaluation.initiativeScore),
-      findings: evaluation.findings.map((finding) =>
-        finding.severity === "error" ? { ...finding, severity: "warning" as const } : finding,
-      ),
-      finalPass: true,
-    };
-  }
-
-  return evaluation;
+  return {
+    ...evaluation,
+    initiativeScore: Math.max(0.64, evaluation.initiativeScore),
+    findings: evaluation.findings.map((finding) =>
+      finding.severity === "error" ? { ...finding, severity: "warning" as const } : finding,
+    ),
+    finalPass: true,
+  };
 }
