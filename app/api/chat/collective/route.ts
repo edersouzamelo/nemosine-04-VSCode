@@ -10,7 +10,7 @@ import {
   getThreadHostAndPlace,
   isMultiPersonaEnabled,
 } from "@/app/lib/nemosine/conversation_participants";
-import { getThread } from "@/app/lib/nemosine/session_store";
+import { getThread, prisma } from "@/app/lib/nemosine/session_store";
 import { parsePersonaPresenceCommands } from "@/app/lib/nemosine/persona_command_parser";
 import { normalizePresenceMode } from "@/app/lib/nemosine/presence_adjustment";
 import {
@@ -28,11 +28,17 @@ const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_EXTRACTED_PDF_TEXT_LENGTH = 100_000;
 const MAX_TEXT_FILE_SIZE_BYTES = 1 * 1024 * 1024;
 const MAX_MESSAGE_TEXT_LENGTH = 120_000;
+const ORPHANED_PERSONA_MESSAGE = "Esta voz não conseguiu concluir a resposta nesta rodada.";
 
 type CollectiveFilePart = {
   filename?: string;
   mediaType?: string;
   url?: string;
+};
+
+type CollectiveStreamEvent = {
+  type?: string;
+  messageId?: string;
 };
 
 async function getAuthenticatedUserId() {
@@ -144,6 +150,79 @@ function buildInvitedPersonaPrompt(targetPersona: string, semanticText: string) 
     ? semanticText.trim()
     : "entre na conversa e ofereca sua leitura sobre o tema em curso, usando o contexto ja registrado nesta sessao.";
   return `${targetPersona}, ${effectivePrompt}`;
+}
+
+async function closeOrphanedPersonaMessages(threadId: string, messageIds: Set<string>) {
+  if (messageIds.size === 0) return;
+  const result = await prisma.message.updateMany({
+    where: {
+      id: { in: [...messageIds] },
+      threadId,
+      role: "assistant",
+      generationStatus: "PENDING",
+    },
+    data: {
+      content: ORPHANED_PERSONA_MESSAGE,
+      generationStatus: "FAILED",
+    },
+  });
+  if (result.count > 0) {
+    console.warn("[API/Collective Chat] Orphaned pending persona messages closed.", {
+      threadId,
+      count: result.count,
+    });
+  }
+}
+
+function wrapCollectiveStreamWithPendingCleanup(response: Response, threadId: string) {
+  if (!response.body) return response;
+
+  const pendingMessageIds = new Set<string>();
+  const decoder = new TextDecoder();
+  let eventBuffer = "";
+
+  const inspectChunk = (chunk: Uint8Array, final = false) => {
+    eventBuffer += decoder.decode(chunk, { stream: !final });
+    let eventEnd = eventBuffer.indexOf("\n\n");
+    while (eventEnd >= 0) {
+      const rawEvent = eventBuffer.slice(0, eventEnd);
+      eventBuffer = eventBuffer.slice(eventEnd + 2);
+      const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
+      if (dataLine) {
+        try {
+          const event = JSON.parse(dataLine.slice(6)) as CollectiveStreamEvent;
+          if (event.type === "persona-start" && event.messageId) {
+            pendingMessageIds.add(event.messageId);
+          }
+        } catch {
+          // The client still receives the original bytes; malformed telemetry is ignored here.
+        }
+      }
+      eventEnd = eventBuffer.indexOf("\n\n");
+    }
+  };
+
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      inspectChunk(chunk);
+      controller.enqueue(chunk);
+    },
+    async flush() {
+      inspectChunk(new Uint8Array(), true);
+      await closeOrphanedPersonaMessages(threadId, pendingMessageIds).catch((error) => {
+        console.error("[API/Collective Chat] Pending cleanup failed.", {
+          threadId,
+          errorCode: error instanceof Error ? error.name : "unknown",
+        });
+      });
+    },
+  });
+
+  return new Response(response.body.pipeThrough(transform), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -298,7 +377,7 @@ export async function POST(req: NextRequest) {
         ? `${directAddressTarget}, ${semanticUserText}`
         : semanticUserText;
 
-    return createCollectiveChatStream({
+    const collectiveResponse = createCollectiveChatStream({
       userId,
       threadId: activeThreadId,
       hostPersonaId: personaId,
@@ -311,6 +390,8 @@ export async function POST(req: NextRequest) {
       presenceContract: activePresenceContract,
       presenceAdjustmentMode: presenceRuntimeMode,
     });
+
+    return wrapCollectiveStreamWithPendingCleanup(collectiveResponse, activeThreadId);
   } catch (error) {
     console.error("[API/Collective Chat] Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
