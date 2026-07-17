@@ -143,6 +143,34 @@ function detectDirectPersonaAddress(text: string) {
   return null;
 }
 
+function isPronounInviteRequest(text: string) {
+  const normalized = normalizeAddressingText(text);
+  return /\b(?:consegue|pode|da para|tem como)\s+(?:me\s+)?(?:chamar|trazer|convidar)\s+(?:ele|ela)\b/.test(normalized)
+    || /\b(?:chame|chama|traga|traz|convide)\s+(?:ele|ela)\b/.test(normalized);
+}
+
+function resolveRecentHandoffTarget(history: ChatThreadMessage[], hostPersonaId: string) {
+  const personaNames = Object.values(ENTITIES)
+    .filter((entity) => entity.type === "persona")
+    .map((entity) => entity.name);
+
+  for (const message of [...history].reverse()) {
+    const metadata = message.metadata as { eventType?: string; targetPersona?: string } | null | undefined;
+    if (metadata?.eventType === "HANDOFF_OFFERED" && metadata.targetPersona && metadata.targetPersona !== hostPersonaId) {
+      return metadata.targetPersona;
+    }
+    if (message.role !== "assistant") continue;
+    const normalized = normalizeAddressingText(message.content || "");
+    const referenced = personaNames
+      .filter((persona) => persona !== hostPersonaId)
+      .map((persona) => ({ persona, index: normalized.lastIndexOf(normalizeAddressingText(persona)) }))
+      .filter((item) => item.index >= 0)
+      .sort((left, right) => right.index - left.index)[0]?.persona;
+    if (referenced) return referenced;
+  }
+  return null;
+}
+
 function buildInvitedPersonaPrompt(targetPersona: string, semanticText: string) {
   const normalizedSemantic = normalizeAddressingText(semanticText);
   const stillLooksLikeCommand = /\b(chama|chame|chamar|traz|traga|convida|convide|convidar)\b/.test(normalizedSemantic);
@@ -355,12 +383,21 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const pronounInviteTarget = parsedCommands.commands.some((command) => command.action === "invite")
+      ? null
+      : isPronounInviteRequest(displayUserText)
+        ? resolveRecentHandoffTarget(priorHistory, personaId)
+        : null;
+    const resolvedCommands = pronounInviteTarget
+      ? [...parsedCommands.commands, { action: "invite" as const, personaIds: [pronounInviteTarget], raw: displayUserText }]
+      : parsedCommands.commands;
+
     const snapshot = await getParticipantSnapshot(userId, activeThreadId);
     const activePersonaIds = new Set(snapshot.participants.filter((participant) => participant.active).map((participant) => participant.personaId));
-    const requestedInviteTarget = parsedCommands.commands
+    const requestedInviteTarget = resolvedCommands
       .find((command) => command.action === "invite")
       ?.personaIds.find((targetPersonaId) => targetPersonaId !== personaId) || null;
-    const effectiveCommands = parsedCommands.commands
+    const effectiveCommands = resolvedCommands
       .map((command) => ({
         ...command,
         personaIds: command.action === "invite"
@@ -377,6 +414,18 @@ export async function POST(req: NextRequest) {
         ? `${directAddressTarget}, ${semanticUserText}`
         : semanticUserText;
 
+    const speakerTarget = requestedInviteTarget
+      || (directAddressTarget && activePersonaIds.has(directAddressTarget) ? directAddressTarget : null);
+    const routingHistory: ChatThreadMessage[] = speakerTarget
+      ? [...priorHistory, {
+          id: `speaker-routing-${crypto.randomUUID()}`,
+          role: "system",
+          content: `[[NEMOSINE_FOCUSED_SPEAKER:${speakerTarget}]]`,
+          timestamp: Date.now(),
+          messageKind: "SYSTEM_EVENT",
+        }]
+      : priorHistory;
+
     const collectiveResponse = createCollectiveChatStream({
       userId,
       threadId: activeThreadId,
@@ -385,7 +434,7 @@ export async function POST(req: NextRequest) {
       language: selectedLanguage,
       userText: routedUserText,
       displayUserText,
-      priorHistory,
+      priorHistory: routingHistory,
       commands: effectiveCommands,
       presenceContract: activePresenceContract,
       presenceAdjustmentMode: presenceRuntimeMode,
