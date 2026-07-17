@@ -19,6 +19,8 @@
       }
     ],
     "paths": {
+      "@/app/lib/nemosine/handoff": ["./app/lib/nemosine/handoff_runtime.ts"],
+      "@/app/lib/nemosine/presence_adjustment": ["./app/lib/nemosine/presence_adjustment_runtime.ts"],
       "@/*": ["./*"]
     }
   },
