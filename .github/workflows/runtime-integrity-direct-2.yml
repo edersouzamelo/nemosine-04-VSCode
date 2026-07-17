@@ -53,3 +53,5 @@ jobs:
           git add -A
           git commit -m "fix: restore handoff continuity and speaker integrity"
           git push origin HEAD:repair/runtime-integrity-direct-2
+
+# one-shot trigger
