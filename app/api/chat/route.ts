@@ -18,6 +18,10 @@ import { openai as vercelOpenai } from '@ai-sdk/openai';
 import { buildSystemPromptAssembly, DEFAULT_CHAT_MAX_OUTPUT_TOKENS, DEFAULT_CHAT_MODEL, DEFAULT_CHAT_TEMPERATURE } from '@/app/lib/nemosine/llm_client';
 import { readCognitiveRuntimeConfig } from '@/app/lib/nemosine/cognitive-runtime/config';
 import {
+    canPromoteReleasePreviewSafeRejectedCandidate,
+    releasePreviewOriginalFindingCodes,
+} from '@/app/lib/nemosine/release_candidate_promotion';
+import {
     createCognitiveRequest,
     createPromotedUIMessageStreamResponse,
     executeCognitiveRuntime,
@@ -1219,6 +1223,19 @@ export async function POST(req: NextRequest) {
             if (bestRejected && canPromoteRejectedPersonaCandidate(bestRejected.evaluation, bestRejected.visibleText)) {
                 selectedRawText = bestRejected.rawText;
                 finalResponse = bestRejected.visibleText;
+            } else if (bestRejected && canPromoteReleasePreviewSafeRejectedCandidate({
+                evaluation: bestRejected.evaluation,
+                text: bestRejected.visibleText,
+            })) {
+                selectedRawText = bestRejected.rawText;
+                finalResponse = bestRejected.visibleText;
+                console.warn("[API/Chat]", {
+                    event: "RELEASE_SAFE_CANDIDATE_PROMOTED",
+                    personaId,
+                    threadId: activeThreadId,
+                    originalFindingCodes: releasePreviewOriginalFindingCodes(bestRejected.evaluation),
+                    initiativeScore: Number(bestRejected.evaluation.initiativeScore.toFixed(3)),
+                });
             } else {
                 promotedByFallback = true;
                 finalResponse = "Nao foi possivel formular uma resposta adequada nesta tentativa.";

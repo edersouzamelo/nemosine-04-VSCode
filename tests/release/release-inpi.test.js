@@ -12,6 +12,9 @@ const {
   sanitizeSharedMessages,
   sanitizeSharedText,
 } = require("../../app/lib/nemosine/shared_chat_sanitizer.ts");
+const {
+  canPromoteReleasePreviewSafeRejectedCandidate,
+} = require("../../app/lib/nemosine/release_candidate_promotion.ts");
 
 test("release flag applies only to the INPI preview branch or explicit local override", () => {
   assert.equal(INPI_ONE_YEAR_RELEASE_BRANCH, "release/inpi-1ano-20260720");
@@ -42,4 +45,56 @@ test("shared chat export hides private system events and keeps public conversati
   assert.equal(JSON.stringify(messages).includes("NEMOSINE_"), false);
   assert.equal(JSON.stringify(messages).includes("SYSTEM_EVENT"), false);
   assert.equal(JSON.stringify(messages).includes("promotion gate"), false);
+});
+
+test("release preview promotes safe rejected candidate after quality-only findings", () => {
+  const env = { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: INPI_ONE_YEAR_RELEASE_BRANCH };
+  const firstRejected = {
+    initiativeScore: 0.41,
+    findings: [{ code: "GENERIC_INTERVIEW_MODE", severity: "error" }],
+  };
+  const bestRejected = {
+    initiativeScore: 0.62,
+    findings: [
+      { code: "GENERIC_INTERVIEW_MODE", severity: "error" },
+      { code: "PASSIVE_CONTEXT_WITHHOLDING", severity: "error" },
+    ],
+  };
+
+  assert.equal(canPromoteReleasePreviewSafeRejectedCandidate({
+    evaluation: firstRejected,
+    text: "Mentor, posso comecar te perguntando qual decisao voce precisa tomar agora?",
+    env,
+  }), true);
+  assert.equal(canPromoteReleasePreviewSafeRejectedCandidate({
+    evaluation: bestRejected,
+    text: "Mentor, a decisao parece estar entre preservar energia agora ou assumir uma conversa dificil com mais clareza.",
+    env,
+  }), true);
+});
+
+test("release preview never promotes rejected candidate with private leak", () => {
+  const env = { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: INPI_ONE_YEAR_RELEASE_BRANCH };
+  assert.equal(canPromoteReleasePreviewSafeRejectedCandidate({
+    evaluation: {
+      initiativeScore: 0.7,
+      findings: [
+        { code: "GENERIC_INTERVIEW_MODE", severity: "error" },
+        { code: "PRIVATE_CONTEXT_LEAK", severity: "error" },
+      ],
+    },
+    text: "Resposta com conteudo seguro aparente.",
+    env,
+  }), false);
+});
+
+test("outside release preview rejected quality candidate keeps previous policy", () => {
+  assert.equal(canPromoteReleasePreviewSafeRejectedCandidate({
+    evaluation: {
+      initiativeScore: 0.7,
+      findings: [{ code: "GENERIC_INTERVIEW_MODE", severity: "error" }],
+    },
+    text: "Resposta segura gerada pelo modelo.",
+    env: { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "main" },
+  }), false);
 });
