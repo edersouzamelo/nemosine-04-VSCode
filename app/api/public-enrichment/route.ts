@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { isIntegrationOwner } from "@/app/lib/integration_capabilities";
 import {
   buildPublicEnrichmentPlan,
   isWebEnrichmentActive,
@@ -20,6 +21,9 @@ function jsonResponse(body: unknown, status = 200) {
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) return jsonResponse({ error: "Unauthorized" }, 401);
+  if (!isIntegrationOwner(session.user.email)) {
+    return jsonResponse({ error: "WEB_ENRICHMENT_DEV_ONLY" }, 403);
+  }
 
   const config = readCognitiveFoundationConfig();
   if (!isWebEnrichmentActive(config.webEnrichmentMode)) {

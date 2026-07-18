@@ -62,8 +62,12 @@ export default function InvitePersonaDialog({
             <aside className="relative z-[121] flex h-full w-full max-w-[34rem] flex-col overflow-hidden border-l border-[#c5a059]/25 bg-[#050507]/98 shadow-2xl">
                 <header className="flex items-center justify-between border-b border-[#c5a059]/15 p-5">
                     <div>
-                        <h2 className="font-serif text-lg uppercase tracking-widest text-[#ecd49c]">Convidar persona</h2>
-                        <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#c5a059]/65">{guestCount} de 4 convidados ativos</p>
+                        <div className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-[#4169e1]/45 bg-[#4169e1]/10 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#8fb3ff]">
+                            <span className="material-icons text-[13px]" aria-hidden="true">code</span>
+                            DEV-ONLY
+                        </div>
+                        <h2 className="font-serif text-lg uppercase tracking-widest text-[#dbe7ff]">Convidar persona</h2>
+                        <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-[#8fb3ff]/75">{guestCount} de 4 convidados ativos</p>
                     </div>
                     <button
                         type="button"

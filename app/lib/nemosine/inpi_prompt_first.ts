@@ -1,4 +1,4 @@
-import { getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
+import { buildNativePersonaSoulCard, getNativePersonaPromptRecord } from "@/app/data/nativePersonaPrompts";
 import { ENTITIES } from "@/app/data/entities";
 import {
   getUserMemoryRecords,
@@ -7,6 +7,7 @@ import {
 } from "./session_store";
 import { getVisibleActiveTopics } from "./conversation_continuity";
 import type { ConversationPresenceContract } from "./presence_adjustment";
+import { renderDepthInstruction, type ResponseDepthProfile } from "./response_depth";
 
 type PromptFirstHistoryMessage = {
   id?: string;
@@ -22,6 +23,9 @@ export type PromptFirstAssembly = {
   retrievedEpisodeCount: number;
   retrievedTopicCount: number;
   nativePromptResolved: boolean;
+  nativePromptKey: string;
+  promptSource: string;
+  depthProfile: ResponseDepthProfile;
 };
 
 function normalizeWhitespace(text: string) {
@@ -79,10 +83,13 @@ export async function buildInpiPromptFirstAssembly(input: {
   priorHistory: PromptFirstHistoryMessage[];
   activeThreadId: string;
   presenceContract?: ConversationPresenceContract | null;
+  depthProfile: ResponseDepthProfile;
 }): Promise<PromptFirstAssembly> {
   const persona = Object.values(ENTITIES).find((entity) => entity.name === input.personaId && entity.type === "persona");
   const nativePrompt = getNativePersonaPromptRecord(input.personaId);
-  const personaPrompt = nativePrompt?.prompt || persona?.prompt || `Voce e ${input.personaId}.`;
+  const localPersonaVoice = persona?.script || persona?.transcription || persona?.prompt || `Voce e ${input.personaId}.`;
+  const nativeSoulCard = buildNativePersonaSoulCard(input.personaId, localPersonaVoice);
+  const personaPrompt = nativeSoulCard.soulCard;
   const [memories, episodes, topics] = await Promise.all([
     getUserMemoryRecords(input.userId, input.memoryScope, 8).catch(() => []),
     getVisibleConversationEpisodes(input.userId, input.memoryScope, { excludeThreadId: input.activeThreadId }).then((items) => items.slice(0, 4)).catch(() => []),
@@ -100,7 +107,7 @@ export async function buildInpiPromptFirstAssembly(input: {
     : "Nenhum tema ativo recuperado.";
 
   const systemPrompt = [
-    "PROMPT ORIGINAL INTEGRAL DA PERSONA",
+    "PROMPT VIVO DA PERSONA",
     personaPrompt,
     "",
     "REGRAS UNIVERSAIS MINIMAS DA RELEASE INPI",
@@ -110,6 +117,19 @@ export async function buildInpiPromptFirstAssembly(input: {
     "- Nao invente memoria, biografia, fatos ou historico do usuario. Use apenas o que foi dito no historico, na mensagem atual ou nos blocos recuperados abaixo.",
     "- Em temas juridicos, medicos, financeiros ou de risco, organize limites e recomende profissional habilitado quando necessario.",
     "- Se nao houver contexto factual recuperado, responda apenas ao que o usuario disse agora ou reconheca a ausencia de base factual.",
+    "",
+    "CONTRATO DE COMPOSICAO NAO CENSOR",
+    renderDepthInstruction(input.depthProfile),
+    "- Responda diretamente ao conteudo especifico apresentado.",
+    "- Reflita fatos e expressoes concretas da mensagem do usuario.",
+    "- Nao use conselhos que caberiam igualmente para qualquer pessoa.",
+    "- Diferencie observacao, evidencia e inferencia quando estiver interpretando.",
+    "- Em DEEP e EXTENSIVE, desenvolva multiplas camadas: tensoes, causas, implicacoes, alternativas e consequencias.",
+    "- Em DEEP e EXTENSIVE, produza pelo menos dois insights nao obvios, fundamentados no contexto disponivel.",
+    "- Nao force titulos ou listas quando a fala narrativa for mais natural.",
+    "- Nao conclua automaticamente com pergunta generica.",
+    "- Nao repita a mesma estrutura em todos os turnos.",
+    "- Preserve integralmente a voz da persona.",
     "",
     renderPresenceContract(input.presenceContract || null),
     "",
@@ -136,5 +156,8 @@ export async function buildInpiPromptFirstAssembly(input: {
     retrievedEpisodeCount: episodes.length,
     retrievedTopicCount: topics.length,
     nativePromptResolved: Boolean(nativePrompt?.prompt),
+    nativePromptKey: nativeSoulCard.promptKey,
+    promptSource: nativeSoulCard.source,
+    depthProfile: input.depthProfile,
   };
 }

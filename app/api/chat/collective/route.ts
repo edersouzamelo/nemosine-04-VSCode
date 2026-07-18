@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
 import { auth } from "@/auth";
 import { ENTITIES } from "@/app/data/entities";
+import { isAdminEmail } from "@/app/lib/accessControl";
 import { createCollectiveChatStream } from "@/app/lib/nemosine/collective_chat_orchestrator";
 import {
   createCollectiveThreadWithHost,
@@ -41,9 +42,12 @@ type CollectiveStreamEvent = {
   messageId?: string;
 };
 
-async function getAuthenticatedUserId() {
+async function getAuthenticatedUser() {
   const session = await auth();
-  return session?.user?.id ?? null;
+  return {
+    id: session?.user?.id ?? null,
+    email: session?.user?.email ?? null,
+  };
 }
 
 function unauthorizedResponse() {
@@ -255,8 +259,12 @@ function wrapCollectiveStreamWithPendingCleanup(response: Response, threadId: st
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
+    const user = await getAuthenticatedUser();
+    const userId = user.id;
     if (!userId) return unauthorizedResponse();
+    if (!isAdminEmail(user.email)) {
+      return NextResponse.json({ error: "Collective persona features are dev-only" }, { status: 403 });
+    }
     if (!isMultiPersonaEnabled()) {
       return NextResponse.json({ error: "Multi-persona disabled" }, { status: 403 });
     }

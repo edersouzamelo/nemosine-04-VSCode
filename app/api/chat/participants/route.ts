@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ENTITIES } from "@/app/data/entities";
+import { isAdminEmail } from "@/app/lib/accessControl";
 import {
   createCollectiveThreadWithHost,
   getCollectiveSchemaStatus,
@@ -18,9 +19,12 @@ function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
-async function getAuthenticatedUserId() {
+async function getAuthenticatedUser() {
   const session = await auth();
-  return session?.user?.id ?? null;
+  return {
+    id: session?.user?.id ?? null,
+    email: session?.user?.email ?? null,
+  };
 }
 
 function isValidPlace(placeId?: string | null) {
@@ -35,8 +39,12 @@ function isValidPersona(personaId?: string | null) {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
+    const user = await getAuthenticatedUser();
+    const userId = user.id;
     if (!userId) return unauthorized();
+    if (!isAdminEmail(user.email)) {
+      return NextResponse.json({ enabled: false, participants: [], guestCount: 0, devOnly: true });
+    }
 
     const { searchParams } = new URL(request.url);
     const threadId = searchParams.get("threadId");
@@ -117,8 +125,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
+    const user = await getAuthenticatedUser();
+    const userId = user.id;
     if (!userId) return unauthorized();
+    if (!isAdminEmail(user.email)) {
+      return NextResponse.json({ error: "Collective persona features are dev-only" }, { status: 403 });
+    }
     if (!isMultiPersonaEnabled()) {
       return NextResponse.json({ error: "Multi-persona disabled" }, { status: 403 });
     }

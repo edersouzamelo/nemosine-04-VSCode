@@ -26,6 +26,7 @@ import {
     buildInpiPromptFirstAssembly,
     stripPromptFirstTechnicalMarkers,
 } from '@/app/lib/nemosine/inpi_prompt_first';
+import { countWords, selectResponseDepthProfile } from '@/app/lib/nemosine/response_depth';
 import {
     createCognitiveRequest,
     createPromotedUIMessageStreamResponse,
@@ -367,6 +368,76 @@ function getConfiguredPrimaryChatModel() {
         model,
         modelInstance: vercelOpenai(model),
     };
+}
+
+const INPI_PROMPT_FIRST_MAX_OUTPUT_TOKENS = 6000;
+
+function getConfiguredInpiPromptFirstChatModel() {
+    const model = process.env.NEMOSINE_INPI_CHAT_MODEL?.trim()
+        || process.env.OPENAI_CHAT_MODEL?.trim()
+        || process.env.CHAT_MODEL?.trim()
+        || DEFAULT_CHAT_MODEL;
+
+    return {
+        id: "inpi-prompt-first",
+        provider: "openai",
+        model,
+        modelInstance: vercelOpenai(model),
+        source: process.env.NEMOSINE_INPI_CHAT_MODEL?.trim()
+            ? "NEMOSINE_INPI_CHAT_MODEL"
+            : process.env.OPENAI_CHAT_MODEL?.trim()
+                ? "OPENAI_CHAT_MODEL"
+                : process.env.CHAT_MODEL?.trim()
+                    ? "CHAT_MODEL"
+                    : "DEFAULT_CHAT_MODEL",
+    };
+}
+
+function promptFirstProviderOptions(input: {
+    modelId: string;
+    reasoningEffort: "medium" | "high";
+}) {
+    if (!/^gpt-5(?:\.|-|$)/i.test(input.modelId)) return undefined;
+    return {
+        openai: {
+            textVerbosity: "high",
+            reasoningEffort: input.reasoningEffort,
+        },
+    };
+}
+
+async function expandPromptFirstAnswer(input: {
+    modelInstance: ReturnType<typeof vercelOpenai>;
+    modelId: string;
+    systemPrompt: string;
+    messages: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+    answer: string;
+    minWords: number;
+    reasoningEffort: "medium" | "high";
+}) {
+    return generateText({
+        model: input.modelInstance,
+        system: input.systemPrompt,
+        messages: [
+            ...input.messages,
+            { role: "assistant", content: input.answer },
+            {
+                role: "user",
+                content: [
+                    `Expanda a resposta anterior para pelo menos ${input.minWords} palavras, preservando todas as afirmacoes ja feitas.`,
+                    "Nao invente fatos externos. Acrescente elaboracao, relacoes, consequencias, contrapontos e exemplos ancorados no contexto ja disponivel.",
+                    "Mantenha a voz da persona. Nao explique este pedido tecnico ao usuario.",
+                ].join("\n"),
+            },
+        ],
+        temperature: DEFAULT_CHAT_TEMPERATURE,
+        maxOutputTokens: INPI_PROMPT_FIRST_MAX_OUTPUT_TOKENS,
+        maxRetries: 1,
+        providerOptions: promptFirstProviderOptions({
+            modelId: input.modelId,
+            reasoningEffort: input.reasoningEffort,
+        }),
+    });
 }
 
 function createResponsePipelineRequest(input: {
@@ -749,17 +820,31 @@ export async function POST(req: NextRequest) {
                 priorHistory,
                 activeThreadId,
                 presenceContract: activePresenceContract,
+                depthProfile: selectResponseDepthProfile({
+                    userText,
+                    priorHistory,
+                    personaId,
+                    presenceContract: activePresenceContract,
+                }),
             });
             let promptFirstRaw = "";
+            let promptFirstResult: any = null;
+            const promptFirstModel = getConfiguredInpiPromptFirstChatModel();
+            const promptFirstProviderOptionsValue = promptFirstProviderOptions({
+                modelId: promptFirstModel.model,
+                reasoningEffort: promptFirstAssembly.depthProfile.reasoningEffort,
+            });
             try {
                 const result = await generateText({
-                    model: getConfiguredPrimaryChatModel().modelInstance,
+                    model: promptFirstModel.modelInstance,
                     system: promptFirstAssembly.systemPrompt,
                     messages: promptFirstAssembly.messages,
                     temperature: DEFAULT_CHAT_TEMPERATURE,
-                    maxOutputTokens: DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
+                    maxOutputTokens: INPI_PROMPT_FIRST_MAX_OUTPUT_TOKENS,
                     maxRetries: 1,
+                    providerOptions: promptFirstProviderOptionsValue,
                 });
+                promptFirstResult = result;
                 promptFirstRaw = result.text;
             } catch (error) {
                 const failureMessage = buildBufferedLlmFailureMessage(error);
@@ -772,7 +857,66 @@ export async function POST(req: NextRequest) {
                     { status: 502, headers: { 'x-thread-id': activeThreadId } },
                 );
             }
-            const promptFirstAnswer = stripPromptFirstTechnicalMarkers(promptFirstRaw);
+            let promptFirstAnswer = stripPromptFirstTechnicalMarkers(promptFirstRaw);
+            const initialWordCount = countWords(promptFirstAnswer);
+            let expansionApplied = false;
+            let expansionFailed = false;
+            if (
+                promptFirstAssembly.depthProfile.id === "EXTENSIVE"
+                && initialWordCount > 0
+                && initialWordCount < promptFirstAssembly.depthProfile.minWords
+            ) {
+                try {
+                    const expansion = await expandPromptFirstAnswer({
+                        modelInstance: promptFirstModel.modelInstance,
+                        modelId: promptFirstModel.model,
+                        systemPrompt: promptFirstAssembly.systemPrompt,
+                        messages: promptFirstAssembly.messages,
+                        answer: promptFirstAnswer,
+                        minWords: promptFirstAssembly.depthProfile.minWords,
+                        reasoningEffort: "high",
+                    });
+                    promptFirstResult = expansion;
+                    const expandedAnswer = stripPromptFirstTechnicalMarkers(expansion.text);
+                    if (expandedAnswer.trim()) {
+                        promptFirstAnswer = expandedAnswer;
+                        expansionApplied = true;
+                    }
+                } catch (error) {
+                    expansionFailed = true;
+                    console.warn("[INPI_PROMPT_FIRST_EXPANSION_FAILED]", {
+                        personaId,
+                        threadId: activeThreadId,
+                        modelId: promptFirstModel.model,
+                        profile: promptFirstAssembly.depthProfile.id,
+                        initialWordCount,
+                        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+                    });
+                }
+            }
+            const finalWordCount = countWords(promptFirstAnswer);
+            console.info("[INPI_PROMPT_FIRST_GENERATION]", {
+                event: "INPI_PROMPT_FIRST_GENERATION",
+                personaId,
+                threadId: activeThreadId,
+                provider: promptFirstModel.provider,
+                modelId: promptFirstModel.model,
+                modelSource: promptFirstModel.source,
+                maxOutputTokens: INPI_PROMPT_FIRST_MAX_OUTPUT_TOKENS,
+                verbosity: promptFirstProviderOptionsValue ? "high" : "provider-default",
+                reasoningEffort: promptFirstProviderOptionsValue ? promptFirstAssembly.depthProfile.reasoningEffort : "provider-default",
+                finishReason: promptFirstResult?.finishReason || null,
+                inputTokens: promptFirstResult?.usage?.inputTokens ?? null,
+                outputTokens: promptFirstResult?.usage?.outputTokens ?? null,
+                totalTokens: promptFirstResult?.usage?.totalTokens ?? null,
+                wordCount: finalWordCount,
+                initialWordCount,
+                depthProfile: promptFirstAssembly.depthProfile.id,
+                expansionApplied,
+                expansionFailed,
+                promptSource: promptFirstAssembly.promptSource,
+                nativePromptKey: promptFirstAssembly.nativePromptKey,
+            });
             await addMessageToThread(userId, activeThreadId, 'assistant', promptFirstAnswer);
 
             const cognitiveRequest = createCognitiveRequest({
@@ -818,6 +962,9 @@ export async function POST(req: NextRequest) {
                     'x-cognitive-runtime': runtimeConfig.mode,
                     'x-prompt-first-native-prompt': String(promptFirstAssembly.nativePromptResolved),
                     'x-prompt-first-memory-count': String(promptFirstAssembly.retrievedMemoryCount),
+                    'x-prompt-first-model': promptFirstModel.model,
+                    'x-prompt-first-depth': promptFirstAssembly.depthProfile.id,
+                    'x-prompt-first-word-count': String(finalWordCount),
                 },
             });
         }
