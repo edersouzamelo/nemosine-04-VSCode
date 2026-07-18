@@ -160,11 +160,16 @@ Testes nao executados:
 
 ## 8. Preview
 
-- URL: pendente ate deploy de Preview.
-- Deployment ID: pendente ate deploy de Preview.
-- Commit: pendente ate commit/push.
+- URL: `https://nemosine-04-vs-code-5l75h8k9p-edersouzamelo-4267s-projects.vercel.app`
+- Deployment ID: `dpl_BXtc3wDiFWkr9BJTMzqXyk71pVTC`
+- Commit: `75514893ea7c78be8c965619aa7f32c3c46a9682`
 - Autenticacao: usar o caminho ja funcional do ambiente, sem alteracao de segredos.
-- Smoke: pendente apos Preview `READY`.
+- Status: `Ready`, target `preview`.
+- Smoke minimo executado:
+  - `/`: `200 OK`
+  - `/access`: `200 OK`
+  - `/api/internal/preview-db-env`: `databaseReachable: true`, `directUrl: true`, host pooler Supabase redigido sem senha.
+- Smoke autenticado: pendente com usuario logado.
 
 ## 9. Limitacoes conhecidas
 
@@ -185,10 +190,9 @@ Pronto:
 
 Pendente:
 
-- Deploy de Preview.
 - Smoke autenticado.
 - Link compartilhado real de uma conversa de demonstracao.
-- Confirmacao do banco no Preview.
+- Chat individual real com LLM por cinco turnos.
 
 Bloqueador para producao:
 
