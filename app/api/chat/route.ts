@@ -21,6 +21,11 @@ import {
     canPromoteReleasePreviewSafeRejectedCandidate,
     releasePreviewOriginalFindingCodes,
 } from '@/app/lib/nemosine/release_candidate_promotion';
+import { isInpiPromptFirstMode } from '@/app/lib/nemosine/release_config';
+import {
+    buildInpiPromptFirstAssembly,
+    stripPromptFirstTechnicalMarkers,
+} from '@/app/lib/nemosine/inpi_prompt_first';
 import {
     createCognitiveRequest,
     createPromotedUIMessageStreamResponse,
@@ -711,6 +716,111 @@ export async function POST(req: NextRequest) {
         }
 
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
+        const promptFirstActive = isInpiPromptFirstMode();
+        if (promptFirstActive) {
+            if (isPresenceOpeningRequest) {
+                await addMessageToThread(
+                    userId,
+                    activeThreadId,
+                    'system',
+                    rawDisplayUserText,
+                    { messageKind: 'SYSTEM_EVENT' },
+                ).catch((error) => {
+                    console.warn("[PresenceAdjustment] prompt-first explicit presence event persistence skipped.", error);
+                });
+            }
+            await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
+            if (shouldRepairThreadTitle(currentThreadTitle, displayUserText)) {
+                const titleGenerated = buildDeterministicThreadTitle(displayUserText);
+                await updateThreadTitle(userId, activeThreadId, titleGenerated).catch((error) => {
+                    console.warn("[ThreadTitle] prompt-first title repair skipped.", {
+                        threadId: activeThreadId,
+                        errorCode: error instanceof Error ? error.name : "unknown",
+                    });
+                });
+            }
+
+            const promptFirstAssembly = await buildInpiPromptFirstAssembly({
+                userId,
+                personaId,
+                memoryScope,
+                userText,
+                language: selectedLanguage,
+                priorHistory,
+                activeThreadId,
+                presenceContract: activePresenceContract,
+            });
+            let promptFirstRaw = "";
+            try {
+                const result = await generateText({
+                    model: getConfiguredPrimaryChatModel().modelInstance,
+                    system: promptFirstAssembly.systemPrompt,
+                    messages: promptFirstAssembly.messages,
+                    temperature: DEFAULT_CHAT_TEMPERATURE,
+                    maxOutputTokens: DEFAULT_CHAT_MAX_OUTPUT_TOKENS,
+                    maxRetries: 1,
+                });
+                promptFirstRaw = result.text;
+            } catch (error) {
+                const failureMessage = buildBufferedLlmFailureMessage(error);
+                await addMessageToThread(userId, activeThreadId, 'assistant', failureMessage);
+                return NextResponse.json(
+                    {
+                        error: "LLM generation failed before prompt-first delivery",
+                        message: failureMessage,
+                    },
+                    { status: 502, headers: { 'x-thread-id': activeThreadId } },
+                );
+            }
+            const promptFirstAnswer = stripPromptFirstTechnicalMarkers(promptFirstRaw);
+            await addMessageToThread(userId, activeThreadId, 'assistant', promptFirstAnswer);
+
+            const cognitiveRequest = createCognitiveRequest({
+                userId,
+                threadId: activeThreadId,
+                personaId,
+                placeId: normalizedPlaceId,
+                language: selectedLanguage,
+                userText,
+                displayUserText,
+                memoryScope,
+                priorHistory,
+            });
+            const runtimeConfig = readCognitiveRuntimeConfig();
+            if (runtimeConfig.mode === "shadow") {
+                await runCognitiveRuntime(cognitiveRequest, {
+                    config: runtimeConfig,
+                    candidateOverride: promptFirstAnswer,
+                }).catch((error) => {
+                    console.error("[API/Chat] Prompt-first cognitive runtime shadow audit failed:", error);
+                });
+            }
+            if (!isPresenceOpeningRequest && shouldRetainUserInputForContinuity(userText)) {
+                await Promise.all([
+                    retainConversationEpisode(userId, memoryScope, userText),
+                    retainActiveTopicsFromUserMessage({
+                        userId,
+                        threadId: activeThreadId,
+                        personaId,
+                        memoryScope,
+                        userText,
+                    }),
+                ]).catch((error) => {
+                    console.warn("[API/Chat] Prompt-first continuity retention skipped.", error);
+                });
+            }
+
+            return createPromotedUIMessageStreamResponse({
+                text: promptFirstAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-inpi-prompt-first': 'true',
+                    'x-cognitive-runtime': runtimeConfig.mode,
+                    'x-prompt-first-native-prompt': String(promptFirstAssembly.nativePromptResolved),
+                    'x-prompt-first-memory-count': String(promptFirstAssembly.retrievedMemoryCount),
+                },
+            });
+        }
         const presenceAnchoredRouting = shouldApplyPresenceContract && shouldAnchorPresenceContractForTurn({
             userText,
             contract: activePresenceContract,

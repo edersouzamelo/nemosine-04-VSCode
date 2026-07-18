@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const {
   INPI_ONE_YEAR_RELEASE_BRANCH,
   isInpiOneYearReleasePreview,
+  isInpiPromptFirstMode,
   releasePreviewRuntimeMode,
 } = require("../../app/lib/nemosine/release_config.ts");
 const {
@@ -15,6 +16,10 @@ const {
 const {
   canPromoteReleasePreviewSafeRejectedCandidate,
 } = require("../../app/lib/nemosine/release_candidate_promotion.ts");
+const {
+  stripPromptFirstTechnicalMarkers,
+} = require("../../app/lib/nemosine/inpi_prompt_first.ts");
+const fs = require("fs");
 
 test("release flag applies only to the INPI preview branch or explicit local override", () => {
   assert.equal(INPI_ONE_YEAR_RELEASE_BRANCH, "release/inpi-1ano-20260720");
@@ -97,4 +102,53 @@ test("outside release preview rejected quality candidate keeps previous policy",
     text: "Resposta segura gerada pelo modelo.",
     env: { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "main" },
   }), false);
+});
+
+test("INPI prompt-first mode requires explicit flag and preview release branch", () => {
+  assert.equal(isInpiPromptFirstMode({
+    NEMOSINE_INPI_PROMPT_FIRST: "1",
+    VERCEL_ENV: "preview",
+    VERCEL_GIT_COMMIT_REF: INPI_ONE_YEAR_RELEASE_BRANCH,
+  }), true);
+  assert.equal(isInpiPromptFirstMode({
+    NEMOSINE_INPI_PROMPT_FIRST: "1",
+    VERCEL_ENV: "production",
+    VERCEL_GIT_COMMIT_REF: INPI_ONE_YEAR_RELEASE_BRANCH,
+  }), false);
+  assert.equal(isInpiPromptFirstMode({
+    NEMOSINE_INPI_PROMPT_FIRST: "1",
+    VERCEL_ENV: "preview",
+    VERCEL_GIT_COMMIT_REF: "main",
+  }), false);
+  assert.equal(isInpiPromptFirstMode({
+    VERCEL_ENV: "preview",
+    VERCEL_GIT_COMMIT_REF: INPI_ONE_YEAR_RELEASE_BRANCH,
+  }), false);
+});
+
+test("prompt-first strips technical markers without replacing persona speech", () => {
+  const cleaned = stripPromptFirstTechnicalMarkers([
+    "Bom dia.",
+    "[[NEMOSINE_PRESENCE_OPENING]]",
+    "[MEMORY: EPISODIO | guardar isto]",
+    "[REGISTRY: tarefa | 2026-07-20]",
+    "[DESTINY: marco | sem data | release | descricao]",
+  ].join(" "));
+
+  assert.equal(cleaned, "Bom dia.");
+});
+
+test("chat route prompt-first bypass is placed before automatic presence and initiative gates", () => {
+  const source = fs.readFileSync("app/api/chat/route.ts", "utf8");
+  const promptFirstIndex = source.indexOf("const promptFirstActive = isInpiPromptFirstMode()");
+  const autoPresenceIndex = source.indexOf("buildPresenceOpeningMessage({ userId, personaId");
+  const initiativeIndex = source.indexOf("evaluatePersonaInitiativeQuality({");
+  const responsePipelineIndex = source.indexOf("runResponsePipelineV2({");
+
+  assert.ok(promptFirstIndex > 0);
+  assert.ok(autoPresenceIndex > promptFirstIndex);
+  assert.ok(initiativeIndex > promptFirstIndex);
+  assert.ok(responsePipelineIndex > promptFirstIndex);
+  assert.match(source, /x-inpi-prompt-first/);
+  assert.match(source, /stripPromptFirstTechnicalMarkers\(promptFirstRaw\)/);
 });

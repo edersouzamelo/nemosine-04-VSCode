@@ -12,3 +12,9 @@ export function releasePreviewRuntimeMode<T extends string>(mode: T, env: NodeJS
 export function shouldDisableCognitiveFoundationForInpiRelease(env: NodeJS.ProcessEnv = process.env) {
   return isInpiOneYearReleasePreview(env);
 }
+
+export function isInpiPromptFirstMode(env: NodeJS.ProcessEnv = process.env) {
+  return env.NEMOSINE_INPI_PROMPT_FIRST === "1"
+    && env.VERCEL_ENV === "preview"
+    && env.VERCEL_GIT_COMMIT_REF === INPI_ONE_YEAR_RELEASE_BRANCH;
+}
