@@ -268,6 +268,8 @@ test("chat wiring keeps old primer manual and exposes presence overlay controls"
   assert.match(chatSource, /max-w-\[620px\]/);
   assert.match(chatSource, /sm:grid-cols-2/);
   assert.match(overlaySource, /nemosine-presence-step/);
+  assert.match(overlaySource, /\["DEEP", "Resposta profunda"\]/);
+  assert.match(overlaySource, /setResponseDepth\(value\)/);
   assert.match(overlaySource, /Entrar sem ajuste/);
   assert.match(overlaySource, /Entendi o seguinte/);
   assert.match(overlaySource, /step \+ 1/);

@@ -372,7 +372,7 @@ export default function PresenceAdjustmentOverlay({
     const options: Array<[PresenceDepth, string]> = [
       ["SHORT", "curta"],
       ["BALANCED", "equilibrada"],
-      ["DEEP", "profunda"],
+      ["DEEP", "Resposta profunda"],
       ["PERSONA_DECIDES", "deixar a persona decidir"],
     ];
     return (

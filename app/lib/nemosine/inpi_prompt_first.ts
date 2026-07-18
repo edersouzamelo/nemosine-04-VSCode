@@ -38,7 +38,10 @@ export function stripPromptFirstTechnicalMarkers(text: string) {
     .replace(/\[NEMOSINE_FILE:[^\]]+\]/gi, " ")
     .replace(/\[NEMOSINE_AUDIO\]/gi, " ")
     .replace(/\[(MEMORY|REGISTRY|DESTINY):[^\]]+\]/gi, " ")
-    .replace(/\s{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -124,6 +127,11 @@ export async function buildInpiPromptFirstAssembly(input: {
     "- Reflita fatos e expressoes concretas da mensagem do usuario.",
     "- Nao use conselhos que caberiam igualmente para qualquer pessoa.",
     "- Diferencie observacao, evidencia e inferencia quando estiver interpretando.",
+    "- Use paragrafos legiveis, preservando respiros naturais entre ideias.",
+    "- Em DEEP e EXTENSIVE, divida blocos longos com subtitulos ou transicoes naturais quando isso ajudar a leitura.",
+    "- Use listas apenas quando elas realmente organizarem melhor a resposta.",
+    "- Emojis sao permitidos com moderacao quando forem coerentes com a persona, mas nunca obrigatorios.",
+    "- Nao transforme toda resposta numa estrutura rigida.",
     "- Em DEEP e EXTENSIVE, desenvolva multiplas camadas: tensoes, causas, implicacoes, alternativas e consequencias.",
     "- Em DEEP e EXTENSIVE, produza pelo menos dois insights nao obvios, fundamentados no contexto disponivel.",
     "- Nao force titulos ou listas quando a fala narrativa for mais natural.",

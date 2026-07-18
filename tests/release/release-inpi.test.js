@@ -138,6 +138,18 @@ test("prompt-first strips technical markers without replacing persona speech", (
   assert.equal(cleaned, "Bom dia.");
 });
 
+test("prompt-first sanitizer preserves paragraphs while removing technical markers", () => {
+  const cleaned = stripPromptFirstTechnicalMarkers("Primeiro paragrafo.\n\n[[NEMOSINE_INTERNAL]]\n\nSegundo paragrafo.");
+
+  assert.equal(cleaned, "Primeiro paragrafo.\n\nSegundo paragrafo.");
+});
+
+test("prompt-first sanitizer preserves markdown lists while removing technical markers", () => {
+  const cleaned = stripPromptFirstTechnicalMarkers("- item um\n- item dois [NEMOSINE_AUDIO]\n- item tres");
+
+  assert.equal(cleaned, "- item um\n- item dois\n- item tres");
+});
+
 test("chat route prompt-first bypass is placed before automatic presence and initiative gates", () => {
   const source = fs.readFileSync("app/api/chat/route.ts", "utf8");
   const promptFirstIndex = source.indexOf("const promptFirstActive = isInpiPromptFirstMode()");
