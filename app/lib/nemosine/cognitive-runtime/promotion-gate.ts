@@ -113,6 +113,14 @@ export function evaluatePromotion(input: {
     (vocationalFinding.severity === "error" || vocationalFinding.severity === "critical")
     && classifyFinding(vocationalFinding) === "vocational_failure"
   );
+  const candidateQualityFindings = input.vocation.findings.filter((vocationalFinding) =>
+    (vocationalFinding.severity === "error" || vocationalFinding.severity === "critical")
+    && classifyFinding(vocationalFinding) === "candidate_quality_finding"
+  );
+  if (candidateQualityFindings.length > 0) {
+    reasons.push("candidate_quality_failed");
+    findings.push(finding("PROMOTION_CANDIDATE_QUALITY_FAILED", "Persona initiative quality found repairable candidate defects."));
+  }
   if (vocationalHardFindings.length > 0) {
     reasons.push("vocation_failed");
     findings.push(finding("PROMOTION_VOCATION_FAILED", "Vocational evaluation found an incompatible or forbidden operation.", "vocational_failure"));

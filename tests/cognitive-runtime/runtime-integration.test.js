@@ -861,3 +861,14 @@ test("runtime off remains legacy-disabled at configuration boundary", () => {
   assert.equal(shouldUseCognitiveRuntime(readCognitiveRuntimeConfig({})), false);
   assert.equal(shouldUseCognitiveRuntime(readCognitiveRuntimeConfig({ NEMOSINE_COGNITIVE_RUNTIME_MODE: "enforce" })), true);
 });
+
+test("INPI release preview forces OCV to observational shadow mode", () => {
+  const config = readCognitiveRuntimeConfig({
+    VERCEL_ENV: "preview",
+    VERCEL_GIT_COMMIT_REF: "release/inpi-1ano-20260720",
+    NEMOSINE_COGNITIVE_RUNTIME_MODE: "enforce",
+  });
+
+  assert.equal(config.mode, "shadow");
+  assert.equal(shouldUseCognitiveRuntime(config), true);
+});

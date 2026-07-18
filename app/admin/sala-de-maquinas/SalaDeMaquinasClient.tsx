@@ -300,42 +300,48 @@ const cognitiveFoundationModules = [
   {
     label: "User Graph",
     key: "userGraphMode",
-    env: "COGNITIVE_USER_GRAPH_MODE",
+    env: "USER_GRAPH_MODE",
+    accepted: "off, shadow, enforce",
     purpose: "Relaciona sinais persistidos do usuario em grafo seguro de preferencias, evidencias e temas.",
     docs: "docs/cognitive-runtime-v1-privacy.md",
   },
   {
     label: "Extrator",
     key: "memoryExtractorMode",
-    env: "COGNITIVE_MEMORY_EXTRACTOR_MODE",
+    env: "MEMORY_EXTRACTOR_MODE",
+    accepted: "off, shadow, enforce",
     purpose: "Propõe candidatos de memoria a partir de autorizacoes explicitas e metadados seguros.",
     docs: "docs/cognitive-runtime-v1-evidence.md",
   },
   {
     label: "Depth Gate",
     key: "depthGateMode",
-    env: "COGNITIVE_DEPTH_GATE_MODE",
+    env: "DEPTH_GATE_MODE",
+    accepted: "off, shadow, enforce",
     purpose: "Classifica profundidade da demanda para evitar resposta rasa em pedido denso.",
     docs: "docs/cognitive-runtime-v1-gap-matrix.md",
   },
   {
     label: "Projecao",
     key: "personaProjectionMode",
-    env: "COGNITIVE_PERSONA_PROJECTION_MODE",
+    env: "PERSONA_PROJECTION_MODE",
+    accepted: "off, shadow, enforce",
     purpose: "Monta contexto projetado por persona sem entregar conteudo privado indevido.",
     docs: "docs/cognitive-runtime-v1-architecture.md",
   },
   {
     label: "Onboarding V2",
     key: "onboardingV2Mode",
-    env: "COGNITIVE_ONBOARDING_V2_MODE",
+    env: "ONBOARDING_V2_MODE",
+    accepted: "off, internal, opt_in, public",
     purpose: "Usa sinais iniciais para sugerir entrada e rota sem substituir a escolha do usuario.",
     docs: "docs/cognitive-runtime-v1-rollout.md",
   },
   {
     label: "Web Enrichment",
     key: "webEnrichmentMode",
-    env: "COGNITIVE_WEB_ENRICHMENT_MODE",
+    env: "WEB_ENRICHMENT_MODE",
+    accepted: "off, internal, opt_in",
     purpose: "Enriquece contexto com fonte externa autorizada quando houver politica e testes proprios.",
     docs: "docs/cognitive-runtime-v1-privacy.md",
   },
@@ -345,7 +351,7 @@ function foundationStateLabel(mode: string, migrationReady: boolean) {
   if (!migrationReady) return "Indisponivel por migration";
   if (mode === "off") return "Desativado por configuracao";
   if (mode === "shadow") return "Em observacao";
-  if (mode === "internal" || mode === "enforce" || mode === "on") return "Ativo";
+  if (mode === "internal" || mode === "enforce" || mode === "opt_in" || mode === "public") return "Ativo";
   if (!mode) return "Nao configurado";
   return mode;
 }
@@ -375,7 +381,7 @@ function CognitiveFoundationPanel({ data, loading }: { data: CognitiveFoundation
       {!loading && data && (
         <div className="grid gap-4">
           <WarningBanner>
-            Estes modulos pertencem a Fundacao Cognitiva e sao independentes do ciclo O-C-V. OCV pode estar em Governanca Ativa mesmo com estes recursos desativados.
+            Estes modulos sao experimentais e permanecem desativados nesta edicao. Eles pertencem a Fundacao Cognitiva e sao independentes do ciclo O-C-V; OCV pode estar em modo observacional mesmo com estes recursos desativados.
           </WarningBanner>
           <p className="rounded-lg border border-[#c5a059]/15 bg-black/30 px-3 py-2 text-xs leading-relaxed text-white/55">
             Configuracao realizada atualmente pelas variaveis de ambiente da Vercel. Nao existe ativacao direta neste painel.
@@ -392,6 +398,7 @@ function CognitiveFoundationPanel({ data, loading }: { data: CognitiveFoundation
                     <p className="mt-2 text-[11px] leading-relaxed text-white/50">{module.purpose}</p>
                     <dl className="mt-3 grid gap-1 text-[10px] text-white/45">
                       <div className="flex justify-between gap-2"><dt>Config</dt><dd className="font-mono text-white/60">{module.env}</dd></div>
+                      <div className="flex justify-between gap-2"><dt>Valores</dt><dd className="font-mono text-white/60">{module.accepted}</dd></div>
                       <div className="flex justify-between gap-2"><dt>Dependencias</dt><dd>{data.summary.migrationReady ? "satisfeitas" : "migration pendente"}</dd></div>
                       <div className="flex justify-between gap-2"><dt>Eventos</dt><dd>{row?.count ?? 0}</dd></div>
                       <div className="flex justify-between gap-2"><dt>Ultima execucao</dt><dd>{row ? "registrada" : "sem evento"}</dd></div>

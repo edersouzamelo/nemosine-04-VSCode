@@ -139,9 +139,12 @@ test("cognitive foundation panel explains off modules without activating them", 
   const source = fs.readFileSync("app/admin/sala-de-maquinas/SalaDeMaquinasClient.tsx", "utf8");
 
   assert.match(source, /Desativado por configuracao/);
+  assert.match(source, /experimentais e permanecem desativados nesta edicao/);
   assert.match(source, /independentes do ciclo O-C-V/);
   assert.match(source, /Configuracao realizada atualmente pelas variaveis de ambiente da Vercel/);
-  assert.match(source, /COGNITIVE_USER_GRAPH_MODE/);
+  assert.match(source, /USER_GRAPH_MODE/);
+  assert.doesNotMatch(source, /COGNITIVE_USER_GRAPH_MODE/);
+  assert.match(source, /off, shadow, enforce/);
   assert.match(source, /Matriz|Recomendacao|manter desligado ate teste especifico/i);
   assert.doesNotMatch(source, /set.*userGraphMode.*enforce/i);
 });

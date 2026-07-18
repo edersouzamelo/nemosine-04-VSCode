@@ -74,6 +74,27 @@ test("foundation flags default to off and activate only explicit modes", () => {
   assert.equal(hasAnyCognitiveFoundationRuntime(active), true);
 });
 
+test("INPI release preview keeps cognitive foundation disabled", () => {
+  const release = readCognitiveFoundationConfig({
+    VERCEL_ENV: "preview",
+    VERCEL_GIT_COMMIT_REF: "release/inpi-1ano-20260720",
+    USER_GRAPH_MODE: "enforce",
+    MEMORY_EXTRACTOR_MODE: "enforce",
+    DEPTH_GATE_MODE: "enforce",
+    PERSONA_PROJECTION_MODE: "enforce",
+    ONBOARDING_V2_MODE: "public",
+    WEB_ENRICHMENT_MODE: "opt_in",
+  });
+
+  assert.equal(release.userGraphMode, "off");
+  assert.equal(release.memoryExtractorMode, "off");
+  assert.equal(release.depthGateMode, "off");
+  assert.equal(release.personaProjectionMode, "off");
+  assert.equal(release.onboardingV2Mode, "off");
+  assert.equal(release.webEnrichmentMode, "off");
+  assert.equal(hasAnyCognitiveFoundationRuntime(release), false);
+});
+
 test("memory extractor creates candidates but never auto-persists facts", () => {
   const result = extractMemoryCandidates({
     userText: "Meu objetivo e terminar o User Graph do Nemosine sem quebrar as personas.",

@@ -1,4 +1,5 @@
 import { CognitiveRuntimeMode, ExecutionProfile, cognitiveRuntimeModes, executionProfiles } from "./types";
+import { releasePreviewRuntimeMode } from "../release_config";
 
 export type CognitiveRuntimeConfig = {
   mode: CognitiveRuntimeMode;
@@ -49,7 +50,7 @@ export function readCognitiveRuntimeConfig(env: NodeJS.ProcessEnv = process.env)
   const maxRetries = Math.floor(parseNumber(env.NEMOSINE_COGNITIVE_MAX_RETRIES, 2, 0, 5));
 
   return {
-    mode: parseMode(env.NEMOSINE_COGNITIVE_RUNTIME_MODE),
+    mode: releasePreviewRuntimeMode(parseMode(env.NEMOSINE_COGNITIVE_RUNTIME_MODE), env),
     coherenceThreshold: parseNumber(env.NEMOSINE_COHERENCE_THRESHOLD, 0.8, 0, 1),
     maxRetries,
     maxTotalCandidates: maxRetries + 1,

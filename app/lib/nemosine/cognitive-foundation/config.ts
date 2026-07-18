@@ -1,3 +1,5 @@
+import { shouldDisableCognitiveFoundationForInpiRelease } from "../release_config";
+
 export const cognitiveFoundationModes = ["off", "shadow", "enforce"] as const;
 export type CognitiveFoundationMode = typeof cognitiveFoundationModes[number];
 
@@ -36,7 +38,7 @@ function parseWebEnrichmentMode(value?: string): WebEnrichmentMode {
 }
 
 export function readCognitiveFoundationConfig(env: NodeJS.ProcessEnv = process.env): CognitiveFoundationConfig {
-  return {
+  const config: CognitiveFoundationConfig = {
     userGraphMode: parseFoundationMode(env.USER_GRAPH_MODE),
     memoryExtractorMode: parseFoundationMode(env.MEMORY_EXTRACTOR_MODE),
     depthGateMode: parseFoundationMode(env.DEPTH_GATE_MODE),
@@ -51,6 +53,16 @@ export function readCognitiveFoundationConfig(env: NodeJS.ProcessEnv = process.e
       onboardingV2Mode: "ONBOARDING_V2_MODE",
       webEnrichmentMode: "WEB_ENRICHMENT_MODE",
     },
+  };
+  if (!shouldDisableCognitiveFoundationForInpiRelease(env)) return config;
+  return {
+    ...config,
+    userGraphMode: "off",
+    memoryExtractorMode: "off",
+    depthGateMode: "off",
+    personaProjectionMode: "off",
+    onboardingV2Mode: "off",
+    webEnrichmentMode: "off",
   };
 }
 
