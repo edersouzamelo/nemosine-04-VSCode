@@ -38,6 +38,14 @@ const RESTRICTION_OPTIONS = [
   "nao transformar toda resposta em aconselhamento",
 ];
 
+const RESTRICTION_LABELS: Record<string, string> = {
+  "nao usar se quiser": "evitar frases cordiais abertas",
+};
+
+const RESTRICTION_HELPERS: Record<string, string> = {
+  "nao usar se quiser": "Ex.: 'se quiser', 'se puder', 'se desejar'.",
+};
+
 function depthLabel(depth: PresenceDepth) {
   if (depth === "SHORT") return "curta";
   if (depth === "BALANCED") return "equilibrada";
@@ -352,9 +360,14 @@ export default function PresenceAdjustmentOverlay({
         {renderDepthControls()}
         <div className="mt-4 grid gap-2">
           {RESTRICTION_OPTIONS.map((option) => (
-            <label key={option} className="flex items-center gap-2 rounded-md border border-[#c5a059]/15 bg-black/30 px-3 py-2 text-sm text-[#e8ddc5]">
+            <label key={option} title={RESTRICTION_HELPERS[option]} className="flex items-start gap-2 rounded-md border border-[#c5a059]/15 bg-black/30 px-3 py-2 text-sm text-[#e8ddc5]">
               <input type="checkbox" checked={prohibitedPatterns.includes(option)} onChange={() => toggleRestriction(option)} />
-              {option}
+              <span>
+                <span>{RESTRICTION_LABELS[option] || option}</span>
+                {RESTRICTION_HELPERS[option] && (
+                  <span className="mt-0.5 block text-xs leading-snug text-[#c5a059]/70">{RESTRICTION_HELPERS[option]}</span>
+                )}
+              </span>
             </label>
           ))}
         </div>

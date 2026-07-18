@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { SYSTEM_VERSION_NAME, getSystemBuildId } from "./lib/system_version";
+import { Providers } from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,15 +40,15 @@ export const viewport: Viewport = {
   themeColor: "#c5a059",
 };
 
-import { Providers } from "./providers";
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const isPreview = process.env.VERCEL_ENV === "preview";
-  const shortSha = (process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7);
+  const isProduction = process.env.VERCEL_ENV === "production";
+  const shortSha = getSystemBuildId();
+  const versionBadge = isPreview ? `Preview · ${shortSha}` : SYSTEM_VERSION_NAME;
 
   return (
     <html lang="pt-BR" className="dark">
@@ -61,9 +63,9 @@ export default function RootLayout({
       >
         <Providers>
           {children}
-          {isPreview && (
+          {(isPreview || isProduction) && (
             <div className="pointer-events-none fixed bottom-2 left-2 z-[9999] rounded border border-amber-300/55 bg-black/90 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-amber-200 shadow-lg">
-              Preview · {shortSha}
+              {versionBadge}
             </div>
           )}
         </Providers>

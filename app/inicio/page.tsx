@@ -8,6 +8,7 @@ import Navbar from "../components/Navbar";
 import OnboardingTour from "../components/OnboardingTour";
 import { routeInitialIntent } from "../lib/onboardingRouting";
 import { useLanguage } from "../components/LanguageProvider";
+import { SYSTEM_VERSION_NAME, SYSTEM_VERSION_UPDATED_AT, getSystemBuildId } from "../lib/system_version";
 
 const introductoryVideos = [
   {
@@ -32,9 +33,9 @@ const introductoryVideos = [
   }
 ];
 
-const systemVersion = process.env.NEXT_PUBLIC_APP_VERSION || "Nemosine Nous v0.4";
-const systemUpdatedAt = process.env.NEXT_PUBLIC_BUILD_DATE || "14/07/2026";
-const systemBuild = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || "local";
+const systemVersion = SYSTEM_VERSION_NAME;
+const systemUpdatedAt = SYSTEM_VERSION_UPDATED_AT;
+const systemBuild = getSystemBuildId();
 
 export default function InicioPage() {
   const router = useRouter();

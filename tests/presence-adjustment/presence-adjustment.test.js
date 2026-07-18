@@ -270,6 +270,8 @@ test("chat wiring keeps old primer manual and exposes presence overlay controls"
   assert.match(overlaySource, /nemosine-presence-step/);
   assert.match(overlaySource, /\["DEEP", "Resposta profunda"\]/);
   assert.match(overlaySource, /setResponseDepth\(value\)/);
+  assert.match(overlaySource, /evitar frases cordiais abertas/);
+  assert.match(overlaySource, /Ex\.: 'se quiser', 'se puder', 'se desejar'\./);
   assert.match(overlaySource, /Entrar sem ajuste/);
   assert.match(overlaySource, /Entendi o seguinte/);
   assert.match(overlaySource, /step \+ 1/);
