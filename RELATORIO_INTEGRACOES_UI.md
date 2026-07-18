@@ -20,8 +20,6 @@ Interfaces que prometem integracao externa sem OAuth, rota funcional, leitura re
 | Web Enrichment | `app/api/public-enrichment/route.ts` e Casa de Maquinas como diagnostico | `dev_only` | A rota existe, mas retorna plano sem busca de rede e sem persistencia | Rota protegida server-side para a conta proprietaria ate a integracao real existir. |
 | Fontes locais | `app/components/SourcesPanelButton.tsx`, `app/api/sources/route.ts` | `functional` | Upload/extracao de PDF, DOCX, TXT, MD, CSV; persistencia por usuario e remocao | Mantida visivel; nao e conector externo simulado. |
 | Login com Google | `app/access/page.tsx`, `/api/auth/*` | `functional` | NextAuth Google provider | Mantido visivel como autenticacao real. |
-| Conversas colegiadas / convite de persona | `app/components/MedievalChat.tsx`, `app/api/chat/participants/route.ts`, `app/api/chat/collective/route.ts` | `dev_only` | Backend existe, mas a experiencia foi classificada como incompleta | Oculta para usuarios comuns; mutacoes e rota coletiva retornam `403`; visivel em azul para a conta proprietaria. |
-
 ## Registro central
 
 Criado `app/lib/integration_capabilities.ts` com estados:

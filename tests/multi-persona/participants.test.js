@@ -131,7 +131,6 @@ test("chat UI sends first post-invite message through collective route", () => {
   const source = fs.readFileSync("app/components/MedievalChat.tsx", "utf8");
   const collective = fs.readFileSync("app/lib/nemosine/collective_chat_orchestrator.ts", "utf8");
 
-  assert.match(source, /const isCollectiveDevOnly = isAdmin/);
   assert.match(source, /optimisticGuestCount > 0/);
   assert.match(source, /entrou na conversa/);
   assert.match(collective, /COLLECTIVE_DUPLICATE_DETECTED/);
@@ -139,24 +138,4 @@ test("chat UI sends first post-invite message through collective route", () => {
   assert.match(collective, /COLLECTIVE_RESPONSE_SUPPRESSED/);
   assert.doesNotMatch(collective, /buildComplementaryCollectiveFallback/);
   assert.doesNotMatch(collective, /minha obrigacao e acrescentar|Se essa leitura nao acrescentar/);
-});
-
-test("collective invite controls and routes are dev-only for the creator account", () => {
-  const chat = fs.readFileSync("app/components/MedievalChat.tsx", "utf8");
-  const inviteButton = fs.readFileSync("app/components/InvitePersonaButton.tsx", "utf8");
-  const inviteDialog = fs.readFileSync("app/components/InvitePersonaDialog.tsx", "utf8");
-  const presenceStrip = fs.readFileSync("app/components/PersonaPresenceStrip.tsx", "utf8");
-  const participantsRoute = fs.readFileSync("app/api/chat/participants/route.ts", "utf8");
-  const collectiveRoute = fs.readFileSync("app/api/chat/collective/route.ts", "utf8");
-
-  assert.match(chat, /isCollectiveDevOnly && multiPersonaEnabled && \(/);
-  assert.match(chat, /const shouldUseCollective = isCollectiveDevOnly\s+&& multiPersonaEnabled/);
-  assert.match(chat, /canInvite=\{isCollectiveDevOnly && multiPersonaEnabled/);
-  assert.match(inviteButton, /DEV-ONLY: Convidar persona/);
-  assert.match(inviteDialog, /DEV-ONLY/);
-  assert.match(presenceStrip, /DEV-ONLY/);
-  assert.match(participantsRoute, /isAdminEmail\(user\.email\)/);
-  assert.match(participantsRoute, /devOnly: true/);
-  assert.match(collectiveRoute, /isAdminEmail\(user\.email\)/);
-  assert.match(collectiveRoute, /Collective persona features are dev-only/);
 });

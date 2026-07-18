@@ -728,7 +728,7 @@ function ThinkingIndicator() {
 }
 
 export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat, actionMenu, initialDraft }: MedievalChatProps) {
-    const { language, t, entityName, isAdmin } = useLanguage();
+    const { language, t, entityName } = useLanguage();
     const { data: session, status: sessionStatus } = useSession();
     const displayedPersonaName = entityName(personaId);
     const placeArticle = placeId && FEMININE_PLACES_PT.has(placeId) ? "na" : "no";
@@ -907,7 +907,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [voiceTranscript, setVoiceTranscript] = useState("");
     const [liveVoiceTranscript, setLiveVoiceTranscript] = useState("");
-    const isCollectiveDevOnly = isAdmin;
     const [multiPersonaEnabled, setMultiPersonaEnabled] = useState(false);
     const [collectiveMigrationRequired, setCollectiveMigrationRequired] = useState(false);
     const [participants, setParticipants] = useState<PersonaPresence[]>([]);
@@ -1026,14 +1025,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     }, [setMessages]);
 
     const fetchParticipants = React.useCallback(async (threadIdOverride?: string | null) => {
-        if (!isCollectiveDevOnly) {
-            setCollectiveMigrationRequired(false);
-            setMultiPersonaEnabled(false);
-            setParticipants([]);
-            setParticipantGuestCount(0);
-            setPendingParticipantIds([]);
-            return;
-        }
         try {
             const params = new URLSearchParams();
             const effectiveThreadId = threadIdOverride ?? currentThreadIdRef.current;
@@ -1059,7 +1050,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             setParticipants([]);
             setParticipantGuestCount(0);
         }
-    }, [isCollectiveDevOnly, personaId, placeId]);
+    }, [personaId, placeId]);
 
     useEffect(() => {
         fetchParticipants(currentThreadId);
@@ -1083,7 +1074,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const optimisticGuestCount = optimisticParticipants.filter((participant) => participant.active && participant.role === "GUEST").length;
 
     const mutateParticipant = React.useCallback(async (action: "invite" | "remove" | "mute" | "unmute", targetPersonaId: string) => {
-        if (!isCollectiveDevOnly) return;
         setCollectiveError(null);
         const alreadyActive = participants.some((participant) => participant.active && participant.personaId === targetPersonaId);
         const alreadyPending = pendingParticipantIds.includes(targetPersonaId);
@@ -1135,7 +1125,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 setPendingParticipantIds((current) => current.filter((personaId) => personaId !== targetPersonaId));
             }
         }
-    }, [isCollectiveDevOnly, onThreadCreated, participants, pendingParticipantIds, personaId, placeId, replaceMessages]);
+    }, [onThreadCreated, participants, pendingParticipantIds, personaId, placeId, replaceMessages]);
 
     const isLoading = status === 'submitted' || status === 'streaming' || collectiveStatus !== "idle" || pendingParticipantIds.length > 0;
     const showThinkingIndicator = status === 'submitted'
@@ -1264,10 +1254,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     }, [appendMessage, updateMessageById, fetchParticipants]);
 
     const sendCollectiveMessage = React.useCallback(async (messageText: string, hiddenVoiceTranscript: string, file: File | null) => {
-        if (!isCollectiveDevOnly) {
-            await sendMessage({ text: messageText });
-            return;
-        }
         setCollectiveStatus("submitted");
         setCollectiveError(null);
         const userMessage: CollectiveMessage = {
@@ -1334,7 +1320,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             setCollectiveStatus("idle");
             fetchParticipants(currentThreadIdRef.current);
         }
-    }, [appendMessage, fetchParticipants, handleCollectiveEvent, isCollectiveDevOnly, language, onThreadCreated, personaId, placeId, presenceConfig.enabled, presenceConfig.mode, sendMessage]);
+    }, [appendMessage, fetchParticipants, handleCollectiveEvent, language, onThreadCreated, personaId, placeId, presenceConfig.enabled, presenceConfig.mode]);
 
     const clearComposer = React.useCallback(() => {
         shouldKeepListeningRef.current = false;
@@ -1358,15 +1344,14 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     ) => {
         clearError();
         clearComposer();
-        const shouldUseCollective = isCollectiveDevOnly
-            && multiPersonaEnabled
+        const shouldUseCollective = multiPersonaEnabled
             && (optimisticGuestCount > 0 || participantGuestCount > 0 || hasLocalPresenceCommand(`${messageText}\n${hiddenVoiceTranscript}`));
         if (shouldUseCollective) {
             await sendCollectiveMessage(messageText, hiddenVoiceTranscript, fileForSend);
         } else {
             await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
         }
-    }, [clearComposer, clearError, isCollectiveDevOnly, multiPersonaEnabled, optimisticGuestCount, participantGuestCount, sendCollectiveMessage, sendMessage]);
+    }, [clearComposer, clearError, multiPersonaEnabled, optimisticGuestCount, participantGuestCount, sendCollectiveMessage, sendMessage]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1764,7 +1749,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         Guia
                                     </span>
                                 </button>
-                                {isCollectiveDevOnly && multiPersonaEnabled && (
+                                {multiPersonaEnabled && (
                                     <InvitePersonaButton
                                         hostPersonaId={personaId}
                                         presentPersonaIds={optimisticParticipants.filter((participant) => participant.active).map((participant) => participant.personaId)}
@@ -1812,7 +1797,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 </div>
             </div>
 
-            {isCollectiveDevOnly && multiPersonaEnabled && optimisticParticipants.length > 0 && (
+            {multiPersonaEnabled && optimisticParticipants.length > 0 && (
                 <PersonaPresenceStrip
                     participants={optimisticParticipants}
                     disabled={isLoading || collectiveMigrationRequired}
@@ -1820,7 +1805,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     onMuteToggle={(targetPersonaId, muted) => mutateParticipant(muted ? "unmute" : "mute", targetPersonaId)}
                 />
             )}
-            {isCollectiveDevOnly && collectiveMigrationRequired && (
+            {collectiveMigrationRequired && (
                 <div className="border-b border-amber-500/25 bg-amber-950/35 px-3 py-2 text-xs text-amber-100">
                     Migração multi-persona pendente no banco. O convite está desativado até aplicar o SQL aditivo.
                 </div>
@@ -1931,7 +1916,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         messageId={msg.id}
                                         originMessageId={persistedOffer.originMessageId || null}
                                         threadId={currentThreadIdRef.current}
-                                        canInvite={isCollectiveDevOnly && multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                     />
                                 </div>
@@ -2017,7 +2002,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                                         offers={handoffOffers}
                                                         messageId={msg.id}
                                                         threadId={currentThreadIdRef.current}
-                                                        canInvite={isCollectiveDevOnly && multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
                                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                                     />
                                                 ) : handoffOffers.map((offer) => (
@@ -2028,7 +2013,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                                         originMessageId={offer.originMessageId || msg.id}
                                                         initialExpanded
                                                         threadId={currentThreadIdRef.current}
-                                                        canInvite={isCollectiveDevOnly && multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
                                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                                     />
                                                 ))}

@@ -28,11 +28,7 @@ export default function PersonaPresenceStrip({
     if (activeParticipants.length === 0) return null;
 
     return (
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-[#4169e1]/25 bg-[#071027]/70 px-3 py-2 scrollbar-thin scrollbar-thumb-[#4169e1]/35">
-            <div className="flex h-12 shrink-0 items-center gap-1.5 rounded-lg border border-[#4169e1]/45 bg-[#4169e1]/10 px-2 text-[8px] font-bold uppercase tracking-[0.16em] text-[#8fb3ff]">
-                <span className="material-icons text-[13px]" aria-hidden="true">code</span>
-                DEV-ONLY
-            </div>
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-[#c5a059]/10 bg-black/55 px-3 py-2 scrollbar-thin scrollbar-thumb-[#c5a059]/25">
             {activeParticipants.map((participant) => {
                 const entity = Object.values(ENTITIES).find((item) => item.name === participant.personaId && item.type === "persona");
                 return (
