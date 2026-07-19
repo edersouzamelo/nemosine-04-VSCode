@@ -574,6 +574,247 @@ body {
   content: "\1F451\00a0";
 }
 
+.nemosine-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483200;
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  padding: 1.5rem;
+  background-color: #080405;
+  background-image:
+    linear-gradient(180deg, rgba(28, 5, 8, 0.96), rgba(5, 5, 7, 0.98)),
+    linear-gradient(90deg, rgba(197, 160, 89, 0.08) 0 1px, transparent 1px),
+    linear-gradient(0deg, rgba(65, 105, 225, 0.045) 0 1px, transparent 1px);
+  background-size: auto, 88px 88px, 88px 88px;
+  color: #f5e6c6;
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+.nemosine-loading-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(65, 105, 225, 0.12), transparent 24%, transparent 76%, rgba(197, 160, 89, 0.16)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 44%, rgba(0, 0, 0, 0.58));
+  opacity: 0.82;
+}
+
+.nemosine-loading-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 440px);
+  justify-items: center;
+  gap: 1.15rem;
+  border: 1px solid rgba(197, 160, 89, 0.26);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(12, 9, 10, 0.76), rgba(4, 4, 6, 0.58));
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.62),
+    0 0 0 1px rgba(255, 229, 153, 0.06) inset;
+  padding: 2rem 1.5rem 1.65rem;
+  text-align: center;
+  backdrop-filter: blur(16px);
+}
+
+.nemosine-loading-shell::before,
+.nemosine-loading-shell::after {
+  content: "";
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(197, 160, 89, 0.56), transparent);
+}
+
+.nemosine-loading-shell::before {
+  top: 0.75rem;
+}
+
+.nemosine-loading-shell::after {
+  bottom: 0.75rem;
+}
+
+.nemosine-loading-sigil {
+  position: relative;
+  width: 128px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+
+.nemosine-loading-ring,
+.nemosine-loading-axis,
+.nemosine-loading-diamond {
+  position: absolute;
+  display: block;
+}
+
+.nemosine-loading-ring {
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+
+.nemosine-loading-ring-one {
+  inset: 0;
+  border-color: rgba(197, 160, 89, 0.34);
+  border-left-color: rgba(65, 105, 225, 0.62);
+  border-top-color: rgba(245, 218, 147, 0.72);
+  box-shadow: 0 0 32px rgba(197, 160, 89, 0.12);
+  animation: nemosine-loading-spin 6s linear infinite;
+}
+
+.nemosine-loading-ring-two {
+  inset: 18px;
+  border-color: rgba(197, 160, 89, 0.22);
+  border-right-color: rgba(245, 218, 147, 0.82);
+  border-bottom-color: rgba(65, 105, 225, 0.48);
+  animation: nemosine-loading-spin 3.8s linear infinite reverse;
+}
+
+.nemosine-loading-axis {
+  left: 50%;
+  top: 50%;
+  background: linear-gradient(90deg, transparent, rgba(245, 218, 147, 0.5), transparent);
+  opacity: 0.58;
+  transform-origin: center;
+}
+
+.nemosine-loading-axis-horizontal {
+  width: 92px;
+  height: 1px;
+  transform: translate(-50%, -50%);
+}
+
+.nemosine-loading-axis-vertical {
+  width: 92px;
+  height: 1px;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.nemosine-loading-diamond {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(245, 218, 147, 0.88);
+  background: rgba(197, 160, 89, 0.18);
+  box-shadow: 0 0 20px rgba(245, 218, 147, 0.34);
+  transform: rotate(45deg);
+  animation: nemosine-loading-breathe 1.8s ease-in-out infinite;
+}
+
+.nemosine-loading-copy {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 28rem;
+}
+
+.nemosine-loading-copy p {
+  margin: 0;
+}
+
+.nemosine-loading-kicker {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(65, 105, 225, 0.78);
+}
+
+.nemosine-loading-title {
+  font-family: "Cinzel", var(--font-geist-sans), serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f1d38a;
+}
+
+.nemosine-loading-subtitle {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: rgba(245, 230, 198, 0.68);
+}
+
+.nemosine-loading-meter {
+  position: relative;
+  width: min(240px, 78%);
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(197, 160, 89, 0.16);
+}
+
+.nemosine-loading-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(65, 105, 225, 0.9), rgba(245, 218, 147, 0.95), transparent);
+  animation: nemosine-loading-meter 1.45s ease-in-out infinite;
+}
+
+@keyframes nemosine-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes nemosine-loading-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: rotate(45deg) scale(0.88);
+  }
+  50% {
+    opacity: 1;
+    transform: rotate(45deg) scale(1);
+  }
+}
+
+@keyframes nemosine-loading-meter {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}
+
+@media (max-width: 640px) {
+  .nemosine-loading-shell {
+    width: min(100%, 360px);
+    padding: 1.75rem 1.1rem 1.5rem;
+  }
+
+  .nemosine-loading-sigil {
+    width: 104px;
+  }
+
+  .nemosine-loading-title {
+    font-size: 1.08rem;
+    letter-spacing: 0.08em;
+  }
+
+  .nemosine-loading-subtitle {
+    font-size: 0.82rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nemosine-loading-ring,
+  .nemosine-loading-diamond,
+  .nemosine-loading-meter span {
+    animation: none;
+  }
+}
+
 .is-singularity .route-transition-shell {
   animation: route-transition-fade 170ms ease-out both;
 }

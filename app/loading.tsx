@@ -1,23 +1,25 @@
-import React from 'react';
-
 export default function Loading() {
     return (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
-            <div className="relative w-24 h-24 mb-8">
-                {/* Mystical rings */}
-                <div className="absolute inset-0 rounded-full border-t-2 border-amber-500/50 animate-spin" style={{ animationDuration: '3s' }}></div>
-                <div className="absolute inset-2 rounded-full border-r-2 border-amber-400/60 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '2s' }}></div>
-                <div className="absolute inset-4 rounded-full border-b-2 border-amber-300/80 animate-spin" style={{ animationDuration: '1.5s' }}></div>
+        <div className="nemosine-loading-screen" role="status" aria-live="polite" aria-label="Preparando Nemosine">
+            <div className="nemosine-loading-shell">
+                <div className="nemosine-loading-sigil" aria-hidden="true">
+                    <span className="nemosine-loading-ring nemosine-loading-ring-one" />
+                    <span className="nemosine-loading-ring nemosine-loading-ring-two" />
+                    <span className="nemosine-loading-axis nemosine-loading-axis-horizontal" />
+                    <span className="nemosine-loading-axis nemosine-loading-axis-vertical" />
+                    <span className="nemosine-loading-diamond" />
+                </div>
 
-                {/* Center glowing orb */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-2 h-2 bg-amber-200 rounded-full animate-pulse shadow-[0_0_15px_rgba(251,191,36,0.8)]"></div>
+                <div className="nemosine-loading-copy">
+                    <p className="nemosine-loading-kicker">Nemosine Nous</p>
+                    <p className="nemosine-loading-title">Abrindo o espaço mental</p>
+                    <p className="nemosine-loading-subtitle">Sincronizando travessia e castelo...</p>
+                </div>
+
+                <div className="nemosine-loading-meter" aria-hidden="true">
+                    <span />
                 </div>
             </div>
-
-            <p className="font-cinzel text-amber-500/80 tracking-widest text-sm animate-pulse">
-                Compondo o espaço-tempo...
-            </p>
         </div>
     );
 }

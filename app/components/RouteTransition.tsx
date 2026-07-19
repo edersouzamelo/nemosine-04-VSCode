@@ -52,11 +52,12 @@ export default function RouteTransition({ children }: { children: React.ReactNod
                         .nemosine-route-transition-root {
                             position: fixed;
                             inset: 0;
-                            z-index: 2147483000;
-                            pointer-events: auto;
+                            z-index: 9997;
+                            pointer-events: none;
                             display: grid;
                             place-items: center;
-                            background: rgba(0, 0, 0, 0.08);
+                            background: rgba(5, 5, 7, 0.18);
+                            backdrop-filter: blur(1.5px);
                             isolation: isolate;
                             contain: layout paint style;
                         }
@@ -95,6 +96,7 @@ export default function RouteTransition({ children }: { children: React.ReactNod
                         .nemosine-route-transition-core {
                             width: 12px;
                             height: 12px;
+                            border-radius: 2px;
                             background: #facc15;
                             box-shadow: 0 0 22px rgba(250, 204, 21, 0.9);
                             animation: nemosine-route-transition-core-pulse 520ms ease-out both;
@@ -105,9 +107,9 @@ export default function RouteTransition({ children }: { children: React.ReactNod
                             100% { opacity: 0; transform: scale(1.45); }
                         }
                         @keyframes nemosine-route-transition-core-pulse {
-                            0% { opacity: 0; transform: scale(0.7); }
-                            35% { opacity: 1; transform: scale(1); }
-                            100% { opacity: 0.88; transform: scale(0.86); }
+                            0% { opacity: 0; transform: rotate(45deg) scale(0.7); }
+                            35% { opacity: 1; transform: rotate(45deg) scale(1); }
+                            100% { opacity: 0.88; transform: rotate(45deg) scale(0.86); }
                         }
                         @media (prefers-reduced-motion: reduce) {
                             .nemosine-route-transition-ring,
