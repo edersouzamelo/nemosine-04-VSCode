@@ -167,6 +167,12 @@ test("config parses threshold, retries, audit and default off mode", () => {
   assert.equal(readCognitiveRuntimeConfig({}).mode, "off");
   assert.equal(shouldUseCognitiveRuntime(readCognitiveRuntimeConfig({})), false);
   assert.equal(shouldUseCognitiveRuntime(readCognitiveRuntimeConfig({ NEMOSINE_COGNITIVE_RUNTIME_MODE: "shadow" })), true);
+  assert.equal(readCognitiveRuntimeConfig({ VERCEL_ENV: "production", NEMOSINE_COGNITIVE_RUNTIME_MODE: "enforce" }).mode, "off");
+  assert.equal(readCognitiveRuntimeConfig({
+    VERCEL_ENV: "production",
+    NEMOSINE_COGNITIVE_RUNTIME_MODE: "enforce",
+    NEMOSINE_ALLOW_COGNITIVE_RUNTIME_IN_PRODUCTION: "1",
+  }).mode, "enforce");
   const config = readCognitiveRuntimeConfig({
     NEMOSINE_COGNITIVE_RUNTIME_MODE: "enforce",
     NEMOSINE_COHERENCE_THRESHOLD: "0.65",

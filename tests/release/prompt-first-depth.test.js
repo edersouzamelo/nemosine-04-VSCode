@@ -51,6 +51,31 @@ test("presence deep preference selects DEEP depth", () => {
   assert.equal(profile.id, "DEEP");
 });
 
+test("simple greeting remains GREETING even with deep presence preference", () => {
+  const profile = selectResponseDepthProfile({
+    userText: "Bom dia, Vidente",
+    personaId: "Vidente",
+    priorHistory: [],
+    presenceContract: {
+      userId: "user-1",
+      personaId: "Vidente",
+      scope: "PERSONA",
+      responseDepth: "DEEP",
+      genericHelpOfferPolicy: "ALLOW",
+      genericContextRequestPolicy: "ALLOW",
+      finalQuestionPolicy: "ALLOW",
+      symbolicLanguagePolicy: "NORMAL",
+      repetitionPolicy: "NORMAL",
+      directnessLevel: "BALANCED",
+      customConstraints: [],
+      createdAt: "2026-07-18T00:00:00.000Z",
+      updatedAt: "2026-07-18T00:00:00.000Z",
+    },
+  });
+
+  assert.equal(profile.id, "GREETING");
+});
+
 test("substantive Nemosine weariness selects DEEP depth", () => {
   const profile = selectResponseDepthProfile({
     userText: "Muito desgastado com o Nemosine. Inumeras correcoes do codigo e nao fica bom. Parece que piora em vez de melhorar. Quero desabafar.",

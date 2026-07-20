@@ -85,7 +85,6 @@ export default function PresenceAdjustmentOverlay({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [removedKeys, setRemovedKeys] = useState<string[]>([]);
   const [conversationOnlyKeys, setConversationOnlyKeys] = useState<string[]>([]);
-  const [escapeNotice, setEscapeNotice] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
 
   const isPulse = flowType === "CONTINUITY_PULSE";
@@ -97,7 +96,6 @@ export default function PresenceAdjustmentOverlay({
     setStep(0);
     setRemovedKeys([]);
     setConversationOnlyKeys([]);
-    setEscapeNotice(false);
     setRecentContext(isPulse ? "" : currentContract?.recentContext || "");
     setCurrentGoal(currentContract?.currentGoal || "");
     setGoalComplement("");
@@ -108,17 +106,17 @@ export default function PresenceAdjustmentOverlay({
   }, [currentContract, flowType, isPulse, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || flowType !== "MANUAL_RECONFIGURATION") return;
     const id = window.setTimeout(() => inputRef.current?.focus(), 80);
     return () => window.clearTimeout(id);
-  }, [open, step, editingKey]);
+  }, [flowType, open, step, editingKey]);
 
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        setEscapeNotice(true);
+        onDismiss();
       }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
@@ -409,13 +407,12 @@ export default function PresenceAdjustmentOverlay({
 
   return (
     <div
-      className="nemosine-presence-overlay fixed inset-0 z-[120] flex items-center justify-center bg-black/92 px-4 py-6 text-[#f5ead4] backdrop-blur-sm transition-opacity duration-700 motion-reduce:transition-none"
+      className="nemosine-presence-overlay pointer-events-none fixed inset-x-0 bottom-24 z-[120] flex justify-center px-4 py-3 text-[#f5ead4] transition-opacity duration-700 motion-reduce:transition-none"
       role="dialog"
-      aria-modal="true"
+      aria-modal="false"
       aria-label="Ajuste de Presenca"
     >
-      <div className="pointer-events-none absolute inset-0 border border-[#c5a059]/10" />
-      <div className="nemosine-presence-dialog relative w-full max-w-[680px] rounded-lg border border-[#c5a059]/25 bg-[#050507]/95 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.55)] sm:p-6">
+      <div className="nemosine-presence-dialog pointer-events-auto relative max-h-[min(78vh,680px)] w-full max-w-[680px] overflow-y-auto rounded-lg border border-[#c5a059]/25 bg-[#050507]/95 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.55)] sm:p-6">
         <div className="mb-5 flex items-center justify-between gap-3">
           <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#c5a059]/65">{stepLabel}</span>
           <button type="button" onClick={enterWithoutAdjustment} className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/70 hover:text-[#f1ddb0]">
@@ -426,12 +423,6 @@ export default function PresenceAdjustmentOverlay({
         <div key={`${flowType}-${step}-${inReview ? "review" : "step"}`} className="nemosine-presence-step transition-opacity duration-700 motion-reduce:transition-none">
           {renderStep()}
         </div>
-
-        {escapeNotice && (
-          <p className="mt-4 rounded-md border border-amber-500/25 bg-amber-950/35 px-3 py-2 text-xs text-amber-100">
-            Use os botoes para concluir, voltar ou entrar sem ajuste.
-          </p>
-        )}
 
         <div className="mt-6 flex flex-wrap justify-between gap-2">
           <div className="flex gap-2">

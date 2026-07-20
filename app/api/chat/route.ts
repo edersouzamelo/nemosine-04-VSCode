@@ -13,6 +13,7 @@ import {
     upsertHandoffEventMessage
 } from '@/app/lib/nemosine/session_store';
 import { auth } from '@/auth';
+import { isAdminEmail } from '@/app/lib/accessControl';
 import { generateText } from 'ai';
 import { openai as vercelOpenai } from '@ai-sdk/openai';
 import { buildSystemPromptAssembly, DEFAULT_CHAT_MAX_OUTPUT_TOKENS, DEFAULT_CHAT_MODEL, DEFAULT_CHAT_TEMPERATURE } from '@/app/lib/nemosine/llm_client';
@@ -23,7 +24,9 @@ import {
 } from '@/app/lib/nemosine/release_candidate_promotion';
 import { isInpiPromptFirstMode } from '@/app/lib/nemosine/release_config';
 import {
+    buildPromptFirstNarrativeRepairInstruction,
     buildInpiPromptFirstAssembly,
+    evaluatePromptFirstNarrativeStyle,
     stripPromptFirstTechnicalMarkers,
 } from '@/app/lib/nemosine/inpi_prompt_first';
 import { countWords, selectResponseDepthProfile } from '@/app/lib/nemosine/response_depth';
@@ -35,6 +38,7 @@ import {
 import { runCognitiveRuntime } from '@/app/lib/nemosine/cognitive-runtime/orchestrator';
 import {
     classifyConversationInputRichness,
+    buildDeterministicInitiativeFallback,
     evaluatePersonaInitiativeQuality,
     isConversationNavigationRequest,
     isPersonaMetaCritique,
@@ -57,14 +61,13 @@ import {
 import {
     detectGenericClosingViolation,
     normalizePresenceMode,
-    createPresenceContract,
-    extractPresenceSignals,
     renderPresenceAnchoredUserText,
     removeGenericClosingByContract,
     renderPresenceContractForRuntime,
     shouldAnchorPresenceContractForTurn,
 } from '@/app/lib/nemosine/presence_adjustment';
 import type { ConversationPresenceContract } from '@/app/lib/nemosine/presence_adjustment';
+import type { PresenceAdjustmentMode } from '@/app/lib/nemosine/presence_adjustment';
 import { retainActiveTopicsFromUserMessage } from '@/app/lib/nemosine/conversation_continuity';
 import {
     commitExtractedMemoryEffects,
@@ -81,6 +84,7 @@ import {
     isHandoffSelectionRequest,
     PersonaHandoffOffer,
     resolveVocationalTargets,
+    stripHandoffMarkers,
 } from '@/app/lib/nemosine/handoff';
 import {
     buildDeterministicThreadTitle,
@@ -88,6 +92,17 @@ import {
     shouldRepairThreadTitle,
 } from '@/app/lib/nemosine/thread_title';
 import { extractPureUserText, PRESENCE_OPENING_MARKER } from '@/app/lib/nemosine/pure_user_text';
+import {
+    buildSocialContinuationAnswer,
+    isTechnicalAssistantFallback,
+} from '@/app/lib/nemosine/social_continuation';
+import { buildReleaseOnePersonaRescueAnswer } from '@/app/lib/nemosine/release_one_persona_rescue';
+import { buildFantasmaReleaseAnswer } from '@/app/lib/nemosine/fantasma_release_rescue';
+import {
+    buildTraceFromPromptStack,
+    getPromptConsoleRuntime,
+} from '@/app/lib/nemosine/prompt_console_store';
+import { isPromptStackInterceptorEnabled } from '@/app/lib/nemosine/prompt_stack';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -96,58 +111,7 @@ const MAX_PDF_SIZE_BYTES = 5 * 1024 * 1024;
 const MAX_EXTRACTED_PDF_TEXT_LENGTH = 100_000;
 const MAX_TEXT_FILE_SIZE_BYTES = 1 * 1024 * 1024;
 const MAX_MESSAGE_TEXT_LENGTH = 120_000;
-function buildPresenceOpeningMessage(input: {
-    userId: string;
-    personaId: string;
-    threadId: string;
-    userText: string;
-}) {
-    const signals = extractPresenceSignals(input.userText);
-    const contract = createPresenceContract({
-        userId: input.userId,
-        personaId: input.personaId,
-        conversationId: input.threadId,
-        scope: "CONVERSATION",
-        recentContext: signals.recentContext || input.userText,
-        currentGoal: signals.currentGoal || "iniciar esta conversa com presenca ajustada",
-        importantEntities: [
-            ...(signals.involvedPeopleOrProjects || []),
-            ...(signals.deadlinesOrEvents || []),
-        ],
-        responseDepth: signals.preferredDepth || "PERSONA_DECIDES",
-        prohibitedPatterns: signals.prohibitedPatterns,
-        customConstraints: ["primeiro turno significativo", "nao usar fechamento generico"],
-    });
-    return [
-        PRESENCE_OPENING_MARKER,
-        "Ajuste de Presenca confirmado. Produza agora a primeira leitura da persona com base neste ajuste.",
-        `Persona ativa: ${input.personaId}.`,
-        contract.recentContext ? `Contexto recente autorizado: ${contract.recentContext}` : "",
-        contract.currentGoal ? `Objetivo atual: ${contract.currentGoal}` : "",
-        contract.importantEntities?.length ? `Entidades importantes: ${contract.importantEntities.join(", ")}` : "",
-        `Profundidade solicitada: ${contract.responseDepth}.`,
-        contract.customConstraints?.length ? `Restricoes aplicadas: ${contract.customConstraints.join("; ")}` : "",
-        `Escopo do ajuste: ${contract.scope}.`,
-        `Politica de oferta generica: ${contract.genericHelpOfferPolicy}.`,
-        `Politica de pedido de contexto: ${contract.genericContextRequestPolicy}.`,
-        `Politica de pergunta final: ${contract.finalQuestionPolicy}.`,
-        `Validade do ajuste: ${contract.validUntil || "sem vencimento automatico"}.`,
-        "Nao mencione contrato, formulario, ajuste, configuracao ou bastidor.",
-        "Abra pela vocacao propria da persona e entregue uma leitura substantiva do caso informado.",
-    ].filter(Boolean).join("\n");
-}
-
-function hasPresenceAdjusted(history: Array<{ role: string; content: string }>) {
-    return history.some((message) => message.content?.startsWith(PRESENCE_OPENING_MARKER));
-}
-
-function isFirstSignificantTurn(history: Array<{ role: string; content: string }>) {
-    return !history.some((message) => (
-        !message.content?.startsWith(PRESENCE_OPENING_MARKER)
-        && (message.role === "user" || message.role === "assistant")
-        && message.content?.trim()
-    ));
-}
+const COLLECTIVE_PERSONA_SYSTEM_FAILURE = "Nao foi possivel formular uma resposta adequada nesta tentativa.";
 
 function isVocationalContinuationQuestion(text: string) {
     const normalized = text
@@ -155,6 +119,109 @@ function isVocationalContinuationQuestion(text: string) {
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase();
     return /\b(qual persona seria|quem voce recomenda|me manda para alguem|qual e a melhor|qual seria melhor|abre o|abrir o|quero falar com)\b/.test(normalized);
+}
+
+function isMultiPersonaSystemEventText(text: string) {
+    const cleaned = stripHandoffMarkers(text)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    return /\b(entrou na conversa|deixou a conversa|foi silenciad[oa]|voltou a falar|falando apenas com|foco exclusivo removido)\b/.test(cleaned);
+}
+
+function isDegradedAssistantFallbackText(text: string) {
+    const normalized = stripHandoffMarkers(text)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return isTechnicalAssistantFallback(normalized)
+        || /^parece que houve um problema vamos tentar novamente\b/.test(normalized)
+        || /^nao foi possivel obter resposta agora\b/.test(normalized);
+}
+
+function isDevOnlyHistoryMessage(message: {
+    role?: string;
+    content?: string;
+    metadata?: unknown | null;
+    messageKind?: string | null;
+    speakerPersonaId?: string | null;
+}, primaryPersonaId?: string | null) {
+    const metadata = message.metadata as { eventType?: string } | null | undefined;
+    const content = stripHandoffMarkers(message.content || "").trim();
+    if (content.startsWith(PRESENCE_OPENING_MARKER)) return true;
+    if (metadata?.eventType === "HANDOFF_OFFERED") return true;
+    if ((message.role === "system" || message.messageKind === "SYSTEM_EVENT") && isMultiPersonaSystemEventText(content)) return true;
+    if (message.role === "assistant" && isDegradedAssistantFallbackText(content)) return true;
+    if (
+        message.role === "assistant"
+        && message.speakerPersonaId
+        && primaryPersonaId
+        && message.speakerPersonaId !== primaryPersonaId
+    ) return true;
+    return false;
+}
+
+function sanitizePublicSinglePersonaHistory<T extends {
+    role?: string;
+    content?: string;
+    metadata?: unknown | null;
+    messageKind?: string | null;
+    speakerPersonaId?: string | null;
+}>(history: T[], primaryPersonaId?: string | null): T[] {
+    return history
+        .filter((message) => !isDevOnlyHistoryMessage(message, primaryPersonaId))
+        .map((message) => {
+            if (message.role !== "assistant" || typeof message.content !== "string") return message;
+            return {
+                ...message,
+                speakerPersonaId: primaryPersonaId || message.speakerPersonaId || null,
+                content: stripHandoffMarkers(message.content),
+            } as T;
+        });
+}
+
+function primaryPersonaFromConversationScope(scope?: string | null) {
+    return scope?.split(/\s+@\s+/)[0]?.trim() || scope || null;
+}
+
+function hideDevOnlyThreadFields<T extends { participants?: unknown[]; messages?: any[]; personaId?: string }>(thread: T): T {
+    const next = { ...thread } as any;
+    if (Array.isArray(next.participants)) next.participants = [];
+    if (Array.isArray(next.messages)) next.messages = sanitizePublicSinglePersonaHistory(next.messages, primaryPersonaFromConversationScope(next.personaId));
+    return next;
+}
+
+function buildPublicPersonaRoutingAnswer(input: {
+    sourcePersona: string;
+    targetPersona?: string | null;
+    userText: string;
+}) {
+    const normalized = input.userText
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    const asksRecommendation = /\b(qual persona|quem voce recomenda|quem seria melhor|quem pode ajudar melhor|qual seria melhor)\b/.test(normalized);
+    const target = input.targetPersona?.trim();
+
+    if (target && target !== input.sourcePersona) {
+        const opening = asksRecommendation
+            ? `Para esse pedido, eu procuraria ${target}.`
+            : `Eu nao consigo chamar ${target} dentro desta conversa nesta versao.`;
+        return [
+            opening,
+            `O caminho limpo e: abra o menu de personas, escolha ${target} e inicie uma nova conversa com ela. Se quiser manter o fio, leve para la uma frase curta com o que voce quer resolver.`,
+            `Daqui eu continuo como ${input.sourcePersona}, sem transformar esta conversa em conselho ou convite coletivo.`,
+        ].join("\n\n");
+    }
+
+    return [
+        `Eu consigo orientar a escolha, mas nao vou acionar outra persona dentro desta conversa nesta versao.`,
+        "O caminho limpo e: abra o menu de personas, escolha a voz mais adequada para o que voce quer fazer e inicie uma nova conversa ali.",
+        `Daqui eu continuo como ${input.sourcePersona}, em conversa individual.`,
+    ].join("\n\n");
 }
 
 function persistedHandoffOffers(history: Array<{ id: string; metadata?: unknown | null }>) {
@@ -634,33 +701,62 @@ function shouldRetainUserInputForContinuity(userText: string) {
         && !isSourceReferenceRequest(userText);
 }
 
-async function getAuthenticatedUserId(): Promise<string | null> {
+async function getAuthenticatedUser(): Promise<{ id: string; email?: string | null } | null> {
     const session = await auth();
-    return session?.user?.id ?? null;
+    const id = session?.user?.id;
+    if (!id) return null;
+    return { id, email: session.user?.email };
+}
+
+async function getAuthenticatedUserId(): Promise<string | null> {
+    return (await getAuthenticatedUser())?.id ?? null;
 }
 
 function unauthorizedResponse() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 }
 
+function resolveEffectivePresenceRuntimeMode(email?: string | null): PresenceAdjustmentMode {
+    const explicitMode = normalizePresenceMode(process.env.PRESENCE_ADJUSTMENT_MODE);
+    const localOrPreview = process.env.NODE_ENV === "development" || process.env.VERCEL_ENV === "preview";
+    if (explicitMode === "off" && isAdminEmail(email) && localOrPreview) return "internal";
+    return explicitMode;
+}
+
 export async function POST(req: NextRequest) {
     try {
-        const userId = await getAuthenticatedUserId();
-        if (!userId) return unauthorizedResponse();
+        const authenticatedUser = await getAuthenticatedUser();
+        if (!authenticatedUser) return unauthorizedResponse();
+        const userId = authenticatedUser.id;
+        const multiPersonaDevOnly = isAdminEmail(authenticatedUser.email);
+        const promptConsoleRuntime = getPromptConsoleRuntime({ userEmail: authenticatedUser.email });
+        const requestId = crypto.randomUUID();
 
         const t0 = Date.now();
         const body = await req.json();
         const { messages, personaId, placeId, threadId, language, voiceTranscript } = body;
-        const presenceRuntimeMode = normalizePresenceMode(process.env.PRESENCE_ADJUSTMENT_MODE);
+        const presenceRuntimeMode = resolveEffectivePresenceRuntimeMode(authenticatedUser.email);
         const submittedPresenceContract = body.presenceContract && typeof body.presenceContract === "object"
             ? body.presenceContract as ConversationPresenceContract
             : null;
+        const submittedPresenceOverlayStatus = body.presenceOverlayStatus && typeof body.presenceOverlayStatus === "object"
+            ? body.presenceOverlayStatus as {
+                overlayEnabled?: boolean;
+                overlayShouldAppear?: boolean;
+                overlayAppeared?: boolean;
+                userConfirmed?: boolean;
+            }
+            : null;
+        const presenceContractConfirmed = body.presenceContractConfirmed === true;
         const activePresenceContract = submittedPresenceContract?.userId === userId
+            && presenceContractConfirmed
             && (presenceRuntimeMode === "internal" || presenceRuntimeMode === "enforce" || presenceRuntimeMode === "shadow")
             ? submittedPresenceContract
             : null;
         const shouldApplyPresenceContract = Boolean(activePresenceContract && presenceRuntimeMode !== "shadow");
-        const presenceRuntimePrompt = renderPresenceContractForRuntime(activePresenceContract, presenceRuntimeMode);
+        const presenceRuntimePrompt = shouldApplyPresenceContract
+            ? renderPresenceContractForRuntime(activePresenceContract, presenceRuntimeMode)
+            : "";
         const applyPresenceContractToResponse = (text: string) => {
             if (!shouldApplyPresenceContract || !activePresenceContract) return text;
             const cleaned = removeGenericClosingByContract(text, activePresenceContract);
@@ -786,20 +882,12 @@ export async function POST(req: NextRequest) {
             currentThreadTitle = thread.title;
         }
 
+        const modelPriorHistory = multiPersonaDevOnly
+            ? priorHistory
+            : sanitizePublicSinglePersonaHistory(priorHistory, personaId);
         const selectedLanguage = language === 'es' || language === 'en' ? language : 'pt-BR';
-        const promptFirstActive = isInpiPromptFirstMode();
+        const promptFirstActive = isInpiPromptFirstMode() || promptConsoleRuntime.enabled;
         if (promptFirstActive) {
-            if (isPresenceOpeningRequest) {
-                await addMessageToThread(
-                    userId,
-                    activeThreadId,
-                    'system',
-                    rawDisplayUserText,
-                    { messageKind: 'SYSTEM_EVENT' },
-                ).catch((error) => {
-                    console.warn("[PresenceAdjustment] prompt-first explicit presence event persistence skipped.", error);
-                });
-            }
             await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
             if (shouldRepairThreadTitle(currentThreadTitle, displayUserText)) {
                 const titleGenerated = buildDeterministicThreadTitle(displayUserText);
@@ -817,19 +905,28 @@ export async function POST(req: NextRequest) {
                 memoryScope,
                 userText,
                 language: selectedLanguage,
-                priorHistory,
+                priorHistory: modelPriorHistory,
                 activeThreadId,
-                presenceContract: activePresenceContract,
+                presenceContract: shouldApplyPresenceContract ? activePresenceContract : null,
                 depthProfile: selectResponseDepthProfile({
                     userText,
-                    priorHistory,
+                    priorHistory: modelPriorHistory,
                     personaId,
-                    presenceContract: activePresenceContract,
+                    presenceContract: shouldApplyPresenceContract ? activePresenceContract : null,
                 }),
+                promptStackPreset: promptConsoleRuntime.preset,
+                overlayStatus: {
+                    overlayEnabled: Boolean(submittedPresenceOverlayStatus?.overlayEnabled ?? presenceRuntimeMode !== "off"),
+                    overlayShouldAppear: Boolean(submittedPresenceOverlayStatus?.overlayShouldAppear ?? !activePresenceContract),
+                    overlayAppeared: Boolean(submittedPresenceOverlayStatus?.overlayAppeared),
+                    userConfirmed: Boolean(activePresenceContract || submittedPresenceOverlayStatus?.userConfirmed),
+                },
             });
             let promptFirstRaw = "";
             let promptFirstResult: any = null;
             const promptFirstModel = getConfiguredInpiPromptFirstChatModel();
+            const stylisticRegenerationAllowed = !promptConsoleRuntime.enabled
+                || isPromptStackInterceptorEnabled(promptFirstAssembly.promptStackPreset, "stylistic_regeneration");
             const promptFirstProviderOptionsValue = promptFirstProviderOptions({
                 modelId: promptFirstModel.model,
                 reasoningEffort: promptFirstAssembly.depthProfile.reasoningEffort,
@@ -861,10 +958,18 @@ export async function POST(req: NextRequest) {
             const initialWordCount = countWords(promptFirstAnswer);
             let expansionApplied = false;
             let expansionFailed = false;
-            if (
-                promptFirstAssembly.depthProfile.id === "EXTENSIVE"
+            let styleRepairApplied = false;
+            let styleRepairFailed = false;
+            let styleRepairFindings: string[] = [];
+            const shouldExpandPromptFirstAnswer = (
+                promptFirstAssembly.depthProfile.id !== "GREETING"
+            )
                 && initialWordCount > 0
-                && initialWordCount < promptFirstAssembly.depthProfile.minWords
+                && initialWordCount < promptFirstAssembly.depthProfile.minWords;
+            if (
+                stylisticRegenerationAllowed
+                &&
+                shouldExpandPromptFirstAnswer
             ) {
                 try {
                     const expansion = await expandPromptFirstAnswer({
@@ -894,6 +999,61 @@ export async function POST(req: NextRequest) {
                     });
                 }
             }
+            const styleEvaluation = evaluatePromptFirstNarrativeStyle({
+                answer: promptFirstAnswer,
+                userText,
+            });
+            if (stylisticRegenerationAllowed && styleEvaluation.shouldRepair) {
+                styleRepairFindings = styleEvaluation.findings;
+                try {
+                    const repair = await generateText({
+                        model: promptFirstModel.modelInstance,
+                        system: promptFirstAssembly.systemPrompt,
+                        messages: [
+                            ...promptFirstAssembly.messages,
+                            { role: "assistant", content: promptFirstAnswer },
+                            {
+                                role: "user",
+                                content: buildPromptFirstNarrativeRepairInstruction({
+                                    personaId,
+                                    userText,
+                                    findings: styleEvaluation.findings,
+                                    minWords: promptFirstAssembly.depthProfile.minWords,
+                                }),
+                            },
+                        ],
+                        temperature: DEFAULT_CHAT_TEMPERATURE,
+                        maxOutputTokens: INPI_PROMPT_FIRST_MAX_OUTPUT_TOKENS,
+                        maxRetries: 1,
+                        providerOptions: promptFirstProviderOptions({
+                            modelId: promptFirstModel.model,
+                            reasoningEffort: "high",
+                        }),
+                    });
+                    promptFirstResult = repair;
+                    const repairedAnswer = stripPromptFirstTechnicalMarkers(repair.text);
+                    const repairedStyle = evaluatePromptFirstNarrativeStyle({
+                        answer: repairedAnswer,
+                        userText,
+                    });
+                    if (repairedAnswer.trim() && !repairedStyle.shouldRepair) {
+                        promptFirstAnswer = repairedAnswer;
+                        styleRepairApplied = true;
+                    } else {
+                        styleRepairFailed = true;
+                    }
+                } catch (error) {
+                    styleRepairFailed = true;
+                    console.warn("[INPI_PROMPT_FIRST_STYLE_REPAIR_FAILED]", {
+                        personaId,
+                        threadId: activeThreadId,
+                        modelId: promptFirstModel.model,
+                        profile: promptFirstAssembly.depthProfile.id,
+                        findings: styleEvaluation.findings,
+                        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+                    });
+                }
+            }
             const finalWordCount = countWords(promptFirstAnswer);
             console.info("[INPI_PROMPT_FIRST_GENERATION]", {
                 event: "INPI_PROMPT_FIRST_GENERATION",
@@ -914,8 +1074,35 @@ export async function POST(req: NextRequest) {
                 depthProfile: promptFirstAssembly.depthProfile.id,
                 expansionApplied,
                 expansionFailed,
+                styleRepairApplied,
+                styleRepairFailed,
+                styleRepairFindings,
                 promptSource: promptFirstAssembly.promptSource,
                 nativePromptKey: promptFirstAssembly.nativePromptKey,
+            });
+            buildTraceFromPromptStack({
+                requestId,
+                personaId,
+                threadId: activeThreadId,
+                model: promptFirstModel.model,
+                preset: promptFirstAssembly.promptStackPreset,
+                modules: promptFirstAssembly.promptStackModules,
+                systemPrompt: promptFirstAssembly.systemPrompt,
+                tokenCount: promptFirstAssembly.promptStackTokenCount,
+                presence: promptFirstAssembly.promptStackPresence,
+                memoryCount: promptFirstAssembly.retrievedMemoryCount,
+                episodeCount: promptFirstAssembly.retrievedEpisodeCount,
+                topicCount: promptFirstAssembly.retrievedTopicCount,
+                codexDirectoryInserted: promptFirstAssembly.codexDirectoryInserted,
+                constitutionInserted: promptFirstAssembly.constitutionInserted,
+                interceptors: promptFirstAssembly.promptStackPreset.interceptors,
+                triggeredInterceptor: null,
+                llmCalled: true,
+                finalResponseOrigin: "persona_llm",
+                responseBeforeSanitizer: promptFirstRaw,
+                responseAfterSanitizer: promptFirstAnswer,
+                persistences: ["chat_message:user", "chat_message:assistant"],
+                durationMs: Date.now() - t0,
             });
             await addMessageToThread(userId, activeThreadId, 'assistant', promptFirstAnswer);
 
@@ -928,7 +1115,7 @@ export async function POST(req: NextRequest) {
                 userText,
                 displayUserText,
                 memoryScope,
-                priorHistory,
+                priorHistory: modelPriorHistory,
             });
             const runtimeConfig = readCognitiveRuntimeConfig();
             if (runtimeConfig.mode === "shadow") {
@@ -965,6 +1152,7 @@ export async function POST(req: NextRequest) {
                     'x-prompt-first-model': promptFirstModel.model,
                     'x-prompt-first-depth': promptFirstAssembly.depthProfile.id,
                     'x-prompt-first-word-count': String(finalWordCount),
+                    'x-prompt-first-style-repair': String(styleRepairApplied),
                 },
             });
         }
@@ -978,33 +1166,6 @@ export async function POST(req: NextRequest) {
         const shouldRetainConversationContinuity = !isPresenceOpeningRequest
             && !presenceAnchoredRouting
             && shouldRetainUserInputForContinuity(userText);
-        if (
-            !isPresenceOpeningRequest
-            && userText.trim()
-            && !hasPresenceAdjusted(priorHistory)
-            && isFirstSignificantTurn(priorHistory)
-        ) {
-            await addMessageToThread(
-                userId,
-                activeThreadId,
-                'system',
-                buildPresenceOpeningMessage({ userId, personaId, threadId: activeThreadId, userText }),
-                { messageKind: 'SYSTEM_EVENT' },
-            ).catch((error) => {
-                console.warn("[PresenceAdjustment] automatic first-turn card skipped.", error);
-            });
-        }
-        if (isPresenceOpeningRequest) {
-            await addMessageToThread(
-                userId,
-                activeThreadId,
-                'system',
-                rawDisplayUserText,
-                { messageKind: 'SYSTEM_EVENT' },
-            ).catch((error) => {
-                console.warn("[PresenceAdjustment] submitted presence event persistence skipped.", error);
-            });
-        }
         await addMessageToThread(userId, activeThreadId, 'user', displayUserText);
         if (shouldRepairThreadTitle(currentThreadTitle, displayUserText)) {
             const titleGenerated = buildDeterministicThreadTitle(displayUserText);
@@ -1040,7 +1201,7 @@ export async function POST(req: NextRequest) {
             userText: routedUserText,
             displayUserText,
             memoryScope,
-            priorHistory,
+            priorHistory: modelPriorHistory,
         });
         const runtimeConfig = readCognitiveRuntimeConfig();
         const responsePipelineConfig = readResponsePipelineConfig();
@@ -1061,9 +1222,10 @@ export async function POST(req: NextRequest) {
                 : await executeCognitiveRuntime(cognitiveRequest);
             const deliveredRuntimeAnswer = runtimeResult.answer;
             const singleAuditHandoff = input.handoffOffer || null;
-            const rawHandoffOffers = input.handoffOffers?.length
+            const requestedHandoffOffers = input.handoffOffers?.length
                 ? input.handoffOffers
                 : singleAuditHandoff ? [singleAuditHandoff] : [];
+            const rawHandoffOffers = multiPersonaDevOnly ? requestedHandoffOffers : [];
             const persistedHandoffOffers: PersonaHandoffOffer[] = [];
             if (rawHandoffOffers.length > 0 && runtimeResult.assistantMessageId && input.persistHandoffEvents !== false) {
                 for (const offer of rawHandoffOffers) {
@@ -1137,9 +1299,96 @@ export async function POST(req: NextRequest) {
             });
         };
 
-        const latestAssistantText = priorHistory.filter((message) => message.role === "assistant").at(-1)?.content || "";
-        const existingHandoffOffers = persistedHandoffOffers(priorHistory);
-        if (isVocationalContinuationQuestion(userText) && existingHandoffOffers.length > 0 && runtimeConfig.mode === "enforce") {
+        const latestRawAssistantText = priorHistory.filter((message) => message.role === "assistant").at(-1)?.content || "";
+        const latestAssistantText = modelPriorHistory.filter((message) => message.role === "assistant").at(-1)?.content || "";
+        const socialContinuationAnswer = buildSocialContinuationAnswer({
+            personaId,
+            userText,
+            latestAssistantText,
+            latestRawAssistantText,
+        });
+        if (socialContinuationAnswer) {
+            buildTraceFromPromptStack({
+                requestId,
+                personaId,
+                threadId: activeThreadId,
+                model: activeChatModel.model,
+                preset: promptConsoleRuntime.preset,
+                modules: [],
+                systemPrompt: "",
+                tokenCount: 0,
+                presence: {
+                    overlayEnabled: Boolean(submittedPresenceOverlayStatus?.overlayEnabled ?? presenceRuntimeMode !== "off"),
+                    overlayShouldAppear: Boolean(submittedPresenceOverlayStatus?.overlayShouldAppear ?? !activePresenceContract),
+                    overlayAppeared: Boolean(submittedPresenceOverlayStatus?.overlayAppeared),
+                    userConfirmed: Boolean(activePresenceContract || submittedPresenceOverlayStatus?.userConfirmed),
+                    resultingContract: activePresenceContract,
+                    selectedDepth: activePresenceContract?.responseDepth || "PERSONA_DECIDES",
+                    tone: activePresenceContract?.directnessLevel || "BALANCED",
+                    restrictions: activePresenceContract?.customConstraints || [],
+                    moduleInserted: false,
+                    reasonWhenNotInserted: "Caminho legacy foi interceptado antes da montagem prompt-first.",
+                },
+                memoryCount: 0,
+                episodeCount: 0,
+                topicCount: 0,
+                codexDirectoryInserted: false,
+                constitutionInserted: false,
+                interceptors: promptConsoleRuntime.preset.interceptors,
+                triggeredInterceptor: "social_continuation",
+                llmCalled: false,
+                finalResponseOrigin: "interceptor",
+                responseBeforeSanitizer: socialContinuationAnswer,
+                responseAfterSanitizer: socialContinuationAnswer,
+                persistences: ["chat_message:user", "chat_message:assistant"],
+                durationMs: Date.now() - t0,
+            });
+            await addMessageToThread(userId, activeThreadId, 'assistant', socialContinuationAnswer);
+            return createPromotedUIMessageStreamResponse({
+                text: socialContinuationAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-nemosine-social-continuation': 'true',
+                    'x-cognitive-runtime': runtimeConfig.mode,
+                },
+            });
+        }
+        const fantasmaReleaseAnswer = buildFantasmaReleaseAnswer({
+            personaId,
+            userText,
+            latestAssistantText,
+            latestRawAssistantText,
+        });
+        if (fantasmaReleaseAnswer) {
+            await addMessageToThread(userId, activeThreadId, 'assistant', fantasmaReleaseAnswer);
+            return createPromotedUIMessageStreamResponse({
+                text: fantasmaReleaseAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-nemosine-fantasma-release-answer': 'true',
+                    'x-cognitive-runtime': runtimeConfig.mode,
+                },
+            });
+        }
+        const releaseOnePersonaRescueAnswer = buildReleaseOnePersonaRescueAnswer({
+            personaId,
+            userText,
+            latestAssistantText,
+            latestRawAssistantText,
+        });
+        if (releaseOnePersonaRescueAnswer) {
+            await addMessageToThread(userId, activeThreadId, 'assistant', releaseOnePersonaRescueAnswer);
+            return createPromotedUIMessageStreamResponse({
+                text: releaseOnePersonaRescueAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-nemosine-release-one-persona-rescue': 'true',
+                    'x-cognitive-runtime': runtimeConfig.mode,
+                },
+            });
+        }
+        const existingHandoffOffers = multiPersonaDevOnly ? persistedHandoffOffers(modelPriorHistory) : [];
+        if (multiPersonaDevOnly && isVocationalContinuationQuestion(userText) && existingHandoffOffers.length > 0 && runtimeConfig.mode === "enforce") {
             console.info("[VocationalTargetResolver]", {
                 event: "HANDOFF_REUSED_FROM_HISTORY",
                 threadId: activeThreadId,
@@ -1160,8 +1409,38 @@ export async function POST(req: NextRequest) {
             contextText: latestAssistantText,
             maxTargets: 3,
         });
+        const requestedHandoffTarget = isHandoffSelectionRequest(userText)
+            ? inferHandoffTarget({ sourcePersona: personaId, userText, priorAssistantText: latestAssistantText })
+            : null;
+        const publicPersonaRoutingAnswer = !multiPersonaDevOnly
+            && (isHandoffSelectionRequest(userText) || isVocationalContinuationQuestion(userText))
+            ? buildPublicPersonaRoutingAnswer({
+                sourcePersona: personaId,
+                targetPersona: requestedHandoffTarget || vocationalResolution.primaryTargetPersonaId,
+                userText,
+            })
+            : null;
+        if (publicPersonaRoutingAnswer) {
+            if (runtimeConfig.mode === "enforce") {
+                return deliverEnforcedCognitiveRuntime({
+                    candidateOverride: publicPersonaRoutingAnswer,
+                    headers: {
+                        'x-nemosine-public-persona-route': 'true',
+                    },
+                });
+            }
+            await addMessageToThread(userId, activeThreadId, 'assistant', publicPersonaRoutingAnswer);
+            return createPromotedUIMessageStreamResponse({
+                text: publicPersonaRoutingAnswer,
+                headers: {
+                    'x-thread-id': activeThreadId,
+                    'x-nemosine-public-persona-route': 'true',
+                },
+            });
+        }
         if (
-            runtimeConfig.mode === "enforce"
+            multiPersonaDevOnly
+            && runtimeConfig.mode === "enforce"
             && vocationalResolution.primaryTargetPersonaId
             && vocationalResolution.confidence >= 0.55
             && (isHandoffSelectionRequest(userText) || vocationalResolution.currentPersonaFit === "incompatible")
@@ -1200,7 +1479,7 @@ export async function POST(req: NextRequest) {
                 },
             });
         }
-        if (isVocationalContinuationQuestion(userText) && runtimeConfig.mode === "enforce") {
+        if (multiPersonaDevOnly && isVocationalContinuationQuestion(userText) && runtimeConfig.mode === "enforce") {
             console.info("[VocationalTargetResolver]", {
                 event: "VOCATIONAL_TARGET_UNRESOLVED",
                 threadId: activeThreadId,
@@ -1213,10 +1492,7 @@ export async function POST(req: NextRequest) {
                 },
             });
         }
-        const requestedHandoffTarget = isHandoffSelectionRequest(userText)
-            ? inferHandoffTarget({ sourcePersona: personaId, userText, priorAssistantText: latestAssistantText })
-            : null;
-        if (requestedHandoffTarget && runtimeConfig.mode === "enforce") {
+        if (multiPersonaDevOnly && requestedHandoffTarget && runtimeConfig.mode === "enforce") {
             const decisionId = crypto.randomUUID();
             const handoff = buildPersonaHandoffOffer({
                 sourcePersona: personaId,
@@ -1359,8 +1635,8 @@ export async function POST(req: NextRequest) {
 
         const promptAssembly = await buildSystemPromptAssembly(userId, personaId, selectedLanguage, normalizedPlaceId, routedUserText, activeThreadId);
         const systemPrompt = promptAssembly.systemPrompt;
-        const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(priorHistory);
-        const recentAssistantTexts = priorHistory
+        const { sanitizedHistory, filteredHistory } = sanitizeConversationHistory(modelPriorHistory);
+        const recentAssistantTexts = modelPriorHistory
             .filter((message) => message.role === 'assistant')
             .slice(-4)
             .map((message) => message.content);
@@ -1495,7 +1771,14 @@ export async function POST(req: NextRequest) {
                 });
             } else {
                 promotedByFallback = true;
-                finalResponse = "Nao foi possivel formular uma resposta adequada nesta tentativa.";
+                finalResponse = buildDeterministicInitiativeFallback({
+                    personaId,
+                    userText: routedUserText,
+                    richness: promptAssembly.initiative.richness,
+                    snapshot: promptAssembly.initiative.snapshot,
+                    brief: promptAssembly.initiative.brief,
+                    contract: promptAssembly.initiative.contract,
+                });
                 selectedRawText = finalResponse;
             }
         }
@@ -1586,8 +1869,10 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
     try {
-        const userId = await getAuthenticatedUserId();
-        if (!userId) return unauthorizedResponse();
+        const authenticatedUser = await getAuthenticatedUser();
+        if (!authenticatedUser) return unauthorizedResponse();
+        const userId = authenticatedUser.id;
+        const multiPersonaDevOnly = isAdminEmail(authenticatedUser.email);
 
         const { searchParams } = new URL(req.url);
         const personaId = searchParams.get('personaId');
@@ -1596,12 +1881,12 @@ export async function GET(req: NextRequest) {
         if (threadId) {
             const thread = await getThread(userId, threadId);
             if (!thread) return NextResponse.json({ error: 'Thread not found' }, { status: 404 });
-            return NextResponse.json({ thread });
+            return NextResponse.json({ thread: multiPersonaDevOnly ? thread : hideDevOnlyThreadFields(thread) });
         }
 
         if (personaId) {
             const threads = await getThreadsForPersona(userId, personaId);
-            return NextResponse.json({ threads });
+            return NextResponse.json({ threads: multiPersonaDevOnly ? threads : threads.map(hideDevOnlyThreadFields) });
         }
 
         return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });

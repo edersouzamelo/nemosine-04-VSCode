@@ -7,7 +7,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const session = await auth();
-  const mode = normalizePresenceMode(process.env.PRESENCE_ADJUSTMENT_MODE);
+  const configuredMode = normalizePresenceMode(process.env.PRESENCE_ADJUSTMENT_MODE);
+  const localOrPreview = process.env.NODE_ENV === "development" || process.env.VERCEL_ENV === "preview";
+  const mode = configuredMode === "off" && isAdminEmail(session?.user?.email) && localOrPreview
+    ? "internal"
+    : configuredMode;
   const internalAllowed = mode === "internal" && isAdminEmail(session?.user?.email);
   const enabled = Boolean(session?.user?.id) && (mode === "enforce" || mode === "shadow" || internalAllowed);
 

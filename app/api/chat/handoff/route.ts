@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { isAdminEmail } from "@/app/lib/accessControl";
 import { hashText } from "@/app/lib/nemosine/cognitive-runtime/audit-redaction";
 import { updateHandoffEventState } from "@/app/lib/nemosine/session_store";
 import type { HandoffState } from "@/app/lib/nemosine/handoff";
@@ -13,6 +14,9 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.email || !session.user.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isAdminEmail(session.user.email)) {
+    return Response.json({ error: "DEV_ONLY" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));

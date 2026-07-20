@@ -39,7 +39,7 @@ test("presence flag defaults to off and accepts only valid modes", () => {
   assert.equal(normalizePresenceMode("surprise"), "off");
 });
 
-test("first agreement gating is per persona and respects skip/session/off", () => {
+test("first agreement gating is per thread and skip does not block future answers", () => {
   assert.equal(shouldTriggerFirstAgreement({
     enabled: true,
     authenticated: true,
@@ -71,7 +71,7 @@ test("first agreement gating is per persona and respects skip/session/off", () =
     hasConfirmedContract: false,
     skippedForPersona: true,
     shownThisSession: false,
-  }), false);
+  }), true);
 });
 
 test("persona question map is deterministic and falls back to general question", () => {
@@ -116,10 +116,11 @@ test("presence runtime block is dynamic and does not replace persona identity", 
   assert.match(rendered, /PRESENCE CONTRACT/);
   assert.match(rendered, /Current goal: decidir publicar o artigo/);
   assert.match(rendered, /must not alter the persona identity/);
-  assert.match(rendered, /greeting or shallow opening/);
+  assert.match(rendered, /Do not infer facts, diagnoses, handoffs/);
+  assert.match(rendered, /only a greeting/);
 });
 
-test("presence contract anchors vague openings but yields to explicit new matter", () => {
+test("presence contract anchors vague openings but leaves simple greetings alone", () => {
   const anchored = contract({
     recentContext: "Produzi um artigo academico em um dia por atraso na chamada de artigos.",
     currentGoal: "entender resistencia dos superiores em encaminhar a submissao",
@@ -128,9 +129,13 @@ test("presence contract anchors vague openings but yields to explicit new matter
   assert.equal(shouldAnchorPresenceContractForTurn({
     userText: "ola astronomo",
     contract: anchored,
+  }), false);
+  assert.equal(renderPresenceAnchoredUserText("ola astronomo", anchored), "ola astronomo");
+  assert.equal(shouldAnchorPresenceContractForTurn({
+    userText: "o que voce ve?",
+    contract: anchored,
   }), true);
-  assert.match(renderPresenceAnchoredUserText("ola astronomo", anchored), /artigo academico/);
-  assert.match(renderPresenceAnchoredUserText("ola astronomo", anchored), /assunto principal/);
+  assert.match(renderPresenceAnchoredUserText("o que voce ve?", anchored), /artigo academico/);
   assert.equal(shouldAnchorPresenceContractForTurn({
     userText: "preciso decidir sobre o desenvolvimento do Sovereign e o teste de notificacao",
     contract: anchored,
@@ -147,6 +152,16 @@ test("generic closing enforcement blocks empty continuation and final question",
   assert.ok(violation.reasons.includes("GENERIC_HELP_OFFER"));
   assert.ok(violation.reasons.includes("FINAL_QUESTION_BLOCKED"));
   assert.equal(removeGenericClosingByContract(text, strict), "O risco central e adiar uma decisao que ja esta madura.");
+});
+
+test("unrestricted presence contract does not block generic closings by default", () => {
+  const neutral = contract();
+  const text = "Podemos seguir por esse caminho. Se quiser, posso aprofundar.";
+  const violation = detectGenericClosingViolation({ responseText: text, contract: neutral });
+  assert.equal(neutral.genericHelpOfferPolicy, "ALLOW");
+  assert.equal(neutral.genericContextRequestPolicy, "ALLOW");
+  assert.equal(neutral.repetitionPolicy, "NORMAL");
+  assert.equal(violation.violation, false);
 });
 
 test("critical context check blocks generic requests but allows exact missing fields", () => {
@@ -243,30 +258,30 @@ test("chat wiring keeps old primer manual and exposes presence overlay controls"
   assert.match(chatSource, /Configuracao avancada da conversa/);
   assert.match(chatSource, /PresenceAdjustmentOverlay/);
   assert.match(chatSource, /NEMOSINE_PRESENCE_OPENING/);
-  assert.match(chatSource, /messagesRef\.current\.length === 0/);
+  assert.match(chatSource, /presenceContractConfirmed/);
+  assert.match(chatSource, /createPresenceDraftId/);
   assert.match(chatSource, /MANUAL_RECONFIGURATION/);
   assert.match(chatSource, /nemosine-chat-action-menu/);
   assert.match(chatSource, /PersonaMessageFeedback/);
   assert.match(chatSource, /\/api\/persona-feedback/);
-  assert.match(chatSource, /PresenceAdjustmentEventCard/);
-  assert.match(chatSource, /Presenca ajustada/);
-  assert.match(chatSource, /Reajustar presenca/);
-  assert.match(chatSource, /Restricoes aplicadas/);
-  assert.match(chatSource, /appendPresenceOpeningCard\(openingMessage\)/);
-  assert.match(chatSource, /renderedPresenceOpeningTexts/);
-  assert.match(chatSource, /presenceFlowType === "MANUAL_RECONFIGURATION"/);
+  assert.doesNotMatch(chatSource, /PresenceAdjustmentEventCard/);
+  assert.doesNotMatch(chatSource, /appendPresenceOpeningCard/);
+  assert.doesNotMatch(chatSource, /submitPreparedMessage\(openingMessage/);
+  assert.doesNotMatch(chatSource, /renderedPresenceOpeningTexts/);
+  assert.match(chatSource, /setPresenceFlowType\("MANUAL_RECONFIGURATION"\)/);
   assert.match(chatRouteSource, /PRESENCE_OPENING_MARKER/);
-  assert.match(chatRouteSource, /buildPresenceOpeningMessage/);
-  assert.match(chatRouteSource, /hasPresenceAdjusted\(priorHistory\)/);
-  assert.match(chatRouteSource, /isFirstSignificantTurn\(priorHistory\)/);
-  assert.match(chatRouteSource, /primeiro turno significativo/);
+  assert.match(chatRouteSource, /presenceContractConfirmed/);
+  assert.doesNotMatch(chatRouteSource, /buildPresenceOpeningMessage/);
+  assert.doesNotMatch(chatRouteSource, /hasPresenceAdjusted/);
+  assert.doesNotMatch(chatRouteSource, /isFirstSignificantTurn/);
+  assert.doesNotMatch(chatRouteSource, /automatic first-turn card/);
+  assert.doesNotMatch(chatRouteSource, /submitted presence event/);
   assert.match(chatRouteSource, /buildDeterministicThreadTitle/);
   assert.doesNotMatch(chatRouteSource, /isPresenceOpeningRequest \? "Ajuste de Presenca"/);
   assert.match(chatRouteSource, /!presenceAnchoredRouting/);
   assert.match(chatRouteSource, /renderPresenceAnchoredUserText/);
-  assert.match(chatSource, /max-h-\[32vh\]/);
-  assert.match(chatSource, /max-w-\[620px\]/);
-  assert.match(chatSource, /sm:grid-cols-2/);
+  assert.match(overlaySource, /pointer-events-none/);
+  assert.match(overlaySource, /aria-modal="false"/);
   assert.match(overlaySource, /nemosine-presence-step/);
   assert.match(overlaySource, /\["DEEP", "Resposta profunda"\]/);
   assert.match(overlaySource, /setResponseDepth\(value\)/);

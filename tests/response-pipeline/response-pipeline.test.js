@@ -97,6 +97,7 @@ test("config defaults off and enables shadow/enforce explicitly", () => {
   assert.equal(readResponsePipelineConfig({}).mode, "off");
   assert.equal(shouldUseResponsePipeline(readResponsePipelineConfig({})), false);
   assert.equal(shouldUseResponsePipeline(readResponsePipelineConfig({ NEMOSINE_RESPONSE_PIPELINE_V2: "shadow" })), true);
+  assert.equal(readResponsePipelineConfig({ VERCEL_ENV: "production", NEMOSINE_RESPONSE_PIPELINE_V2: "enforce" }).mode, "off");
   assert.equal(readResponsePipelineConfig({ NEMOSINE_RESPONSE_PIPELINE_V2: "enforce", NEMOSINE_RESPONSE_PIPELINE_V2_MAX_REGENERATIONS: "5" }).maxRegenerations, 1);
 });
 

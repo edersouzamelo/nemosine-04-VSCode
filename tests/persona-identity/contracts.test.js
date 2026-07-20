@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const { ENTITIES, PERSONAS } = require("../../app/data/entities.ts");
 const {
+  buildNativePersonaPromptPayload,
   buildNativePersonaSoulCard,
   getNativePersonaPromptRecord,
 } = require("../../app/data/nativePersonaPrompts.ts");
@@ -61,6 +62,20 @@ test("all official personas resolve their native prompt records", () => {
     const record = getNativePersonaPromptRecord(persona);
     assert.equal(record.source, "google-drive-native-prompt", persona);
     assert.ok(record.prompt.length > 3000, persona);
+  }
+});
+
+test("all official personas expose rich native prompt payloads for production conversation", () => {
+  for (const persona of PERSONAS) {
+    const entity = Object.values(ENTITIES).find((item) => item.name === persona && item.type === "persona");
+    const payload = buildNativePersonaPromptPayload(persona, entity?.script || entity?.transcription || entity?.prompt);
+
+    assert.equal(payload.source, "google-drive-native-prompt", persona);
+    assert.ok(payload.prompt.includes(`Persona ativa: ${persona}`), persona);
+    assert.ok(payload.prompt.length > 3000, persona);
+    assert.doesNotMatch(payload.prompt, /alma nativa compactada/i, persona);
+    assert.doesNotMatch(payload.prompt, /AQUI TERMINA O PROMPT/i, persona);
+    assert.doesNotMatch(payload.prompt, /linktr\.ee/i, persona);
   }
 });
 

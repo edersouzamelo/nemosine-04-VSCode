@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { isAdminEmail } from "@/app/lib/accessControl";
 import {
   createHandoffContext,
   getHandoffContext,
@@ -15,6 +16,9 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.email || !session.user.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isAdminEmail(session.user.email)) {
+    return Response.json({ error: "DEV_ONLY" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));
@@ -62,6 +66,9 @@ export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user?.email || !session.user.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isAdminEmail(session.user.email)) {
+    return Response.json({ error: "DEV_ONLY" }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);

@@ -13,9 +13,7 @@ import PersonaSpeakerBadge from "./PersonaSpeakerBadge";
 import PresenceAdjustmentOverlay from "./PresenceAdjustmentOverlay";
 import {
     markContinuityPulse,
-    hasPresenceSkipped,
     markPresenceShownThisSession,
-    markPresenceSkipped,
     readAndUpdateLastSeen,
     readPresenceContract,
     resolveClientPresenceContract,
@@ -67,18 +65,10 @@ const PERSONA_FEEDBACK_STORAGE_PREFIX = "nemosine-persona-feedback-v1";
 const COLLECTIVE_PERSONA_SYSTEM_FAILURE = "Nao foi possivel formular uma resposta adequada nesta tentativa.";
 
 type PersonaFeedbackRating = "up" | "down";
-type PresenceAdjustmentSnapshot = {
-    recentContext?: string;
-    currentGoal?: string;
-    importantEntities?: string;
-    responseDepth?: string;
-    customConstraints?: string;
-    scope?: string;
-    genericHelpOfferPolicy?: string;
-    genericContextRequestPolicy?: string;
-    finalQuestionPolicy?: string;
-    validUntil?: string;
-};
+
+function createPresenceDraftId() {
+    return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function normalizeSpeechSegment(value: string): string {
     return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -92,132 +82,25 @@ function stripHiddenResponseTags(text: string) {
         .trim();
 }
 
-function readPresenceOpeningLine(text: string, label: string) {
-    const line = text.split(/\r?\n/).find((item) => item.startsWith(label));
-    if (!line) return undefined;
-    return line.slice(label.length).trim().replace(/\.$/, "");
+function isMultiPersonaSystemEventText(text: string) {
+    const normalized = stripHiddenResponseTags(text)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    return /\b(entrou na conversa|deixou a conversa|foi silenciad[oa]|voltou a falar|falando apenas com|foco exclusivo removido)\b/.test(normalized);
 }
 
-function parsePresenceOpeningSnapshot(text: string): PresenceAdjustmentSnapshot {
-    return {
-        recentContext: readPresenceOpeningLine(text, "Contexto recente autorizado:"),
-        currentGoal: readPresenceOpeningLine(text, "Objetivo atual:"),
-        importantEntities: readPresenceOpeningLine(text, "Entidades importantes:"),
-        responseDepth: readPresenceOpeningLine(text, "Profundidade solicitada:"),
-        customConstraints: readPresenceOpeningLine(text, "Restricoes aplicadas:"),
-        scope: readPresenceOpeningLine(text, "Escopo do ajuste:"),
-        genericHelpOfferPolicy: readPresenceOpeningLine(text, "Politica de oferta generica:"),
-        genericContextRequestPolicy: readPresenceOpeningLine(text, "Politica de pedido de contexto:"),
-        finalQuestionPolicy: readPresenceOpeningLine(text, "Politica de pergunta final:"),
-        validUntil: readPresenceOpeningLine(text, "Validade do ajuste:"),
-    };
-}
-
-function presenceDepthLabel(value?: string) {
-    if (value === "SHORT") return "curta";
-    if (value === "BALANCED") return "equilibrada";
-    if (value === "DEEP") return "profunda";
-    if (value === "PERSONA_DECIDES") return "a persona decide";
-    return value || "nao informado";
-}
-
-function presenceScopeLabel(value?: string) {
-    if (value === "SESSION") return "somente agora";
-    if (value === "CONVERSATION") return "esta conversa";
-    if (value === "PERSONA") return "esta persona";
-    if (value === "GLOBAL") return "global";
-    return value || "nao informado";
-}
-
-function PresenceAdjustmentEventCard({
-    messageId,
-    messageText,
-    onReconfigure,
-    initialExpanded = false,
-}: {
-    messageId: string;
-    messageText: string;
-    onReconfigure: () => void;
-    initialExpanded?: boolean;
-}) {
-    const storageKey = `nemosine-presence-card-open:${messageId}`;
-    const [expanded, setExpanded] = useState(() => {
-        if (typeof window === "undefined") return initialExpanded;
-        const stored = window.sessionStorage.getItem(storageKey);
-        return stored == null ? initialExpanded : stored === "true";
-    });
-    const snapshot = React.useMemo(() => parsePresenceOpeningSnapshot(messageText), [messageText]);
-    const principalQuestion = snapshot.currentGoal || snapshot.recentContext || "Pergunta principal nao registrada.";
-    const rows = [
-        ["Contexto", snapshot.recentContext],
-        ["Objetivo", snapshot.currentGoal],
-        ["Entidades", snapshot.importantEntities],
-        ["Profundidade", presenceDepthLabel(snapshot.responseDepth)],
-        ["Restricoes", snapshot.customConstraints],
-        ["Escopo", presenceScopeLabel(snapshot.scope)],
-        ["Oferta generica", snapshot.genericHelpOfferPolicy],
-        ["Pedido de contexto", snapshot.genericContextRequestPolicy],
-        ["Pergunta final", snapshot.finalQuestionPolicy],
-        ["Validade", snapshot.validUntil],
-    ].filter(([, value]) => Boolean(value && String(value).trim()));
-    const toggleExpanded = React.useCallback(() => {
-        setExpanded((current) => {
-            const next = !current;
-            try {
-                window.sessionStorage.setItem(storageKey, String(next));
-            } catch {
-                // Session storage is best-effort only.
-            }
-            return next;
-        });
-    }, [storageKey]);
-
-    return (
-        <div className="flex justify-center">
-            <div className={`${expanded ? "max-w-[680px]" : "max-w-[620px]"} w-full rounded-xl border border-[#c5a059]/20 bg-[#0a0a0c]/90 p-1 text-[#e8ddc5] shadow-[0_4px_16px_rgba(0,0,0,0.12)]`}>
-                <button
-                    type="button"
-                    onClick={toggleExpanded}
-                    className="flex h-12 w-full items-center gap-2 rounded-lg border border-[#c5a059]/20 bg-[#c5a059]/10 px-2.5 py-1.5 text-left transition-colors hover:border-[#c5a059]/45 hover:bg-[#c5a059]/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c5a059]"
-                    aria-expanded={expanded}
-                    title={principalQuestion}
-                >
-                    <span className="flex shrink-0 items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059]">
-                        <span className="material-icons text-[16px]" aria-hidden="true">tune</span>
-                        Presenca ajustada
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-xs text-[#efe7d7]">
-                        {principalQuestion}
-                    </span>
-                    <span className={`material-icons shrink-0 text-[16px] transition-transform duration-300 motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
-                </button>
-                <div
-                    className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out motion-reduce:transition-none ${expanded ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-2"}`}
-                >
-                    <div className="min-h-0 overflow-hidden">
-                    <div className="mt-2 max-h-[32vh] space-y-1.5 overflow-y-auto px-2 pb-2">
-                        <div className="grid gap-2 sm:grid-cols-2">
-                            {rows.map(([label, value]) => (
-                                <div key={label} className="rounded-lg border border-[#c5a059]/10 bg-black/30 px-2.5 py-1.5">
-                                    <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#c5a059]/65">{label}</div>
-                                    <div className="whitespace-pre-wrap text-xs leading-relaxed text-[#efe7d7]">{value}</div>
-                                </div>
-                            ))}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={onReconfigure}
-                            className="inline-flex h-8 items-center gap-2 rounded-lg border border-[#c5a059]/25 bg-black/35 px-2.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#c5a059] transition-colors hover:border-[#c5a059]/55 hover:bg-[#c5a059]/10"
-                        >
-                            <span className="material-icons text-[16px]" aria-hidden="true">restart_alt</span>
-                            Reajustar presenca
-                        </button>
-                    </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+function isDegradedAssistantFallbackText(text: string) {
+    const normalized = stripHiddenResponseTags(text)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return normalized === COLLECTIVE_PERSONA_SYSTEM_FAILURE.toLowerCase()
+        || /^parece que houve um problema vamos tentar novamente\b/.test(normalized)
+        || /^nao foi possivel obter resposta agora\b/.test(normalized);
 }
 
 function AttachmentChip({ icon, label }: { icon: string; label: string }) {
@@ -463,10 +346,10 @@ function HandoffOfferCard({
                                         recordSelection("invited");
                                         void onInvite(offer.targetPersona);
                                     }}
-                                    className="inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-lg border border-[#c5a059]/35 bg-black/35 px-2.5 text-center text-[9px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
+                                    className="inline-flex min-h-8 flex-1 items-center justify-center gap-2 rounded-lg border border-[#4169e1]/45 bg-[#4169e1]/10 px-2.5 text-center text-[9px] font-bold uppercase tracking-widest text-[#b8ccff] transition-colors hover:border-[#8fb3ff]/70 hover:bg-[#4169e1]/15"
                                 >
                                     <span className="material-icons text-[16px]" aria-hidden="true">group_add</span>
-                                    Convidar {offer.targetPersona} para esta conversa
+                                    Convidar {offer.targetPersona} para esta conversa · devonly
                                 </button>
                             )}
                         </div>
@@ -603,9 +486,9 @@ function HandoffOfferGroupCard({
                                                 recordSelection(offer, "invited");
                                                 void onInvite(offer.targetPersona);
                                             }}
-                                            className="inline-flex min-h-8 items-center justify-center rounded-md border border-[#c5a059]/35 bg-black/35 px-2 text-[9px] font-bold uppercase tracking-widest text-[#fde68a] transition-colors hover:bg-[#c5a059]/10"
+                                            className="inline-flex min-h-8 items-center justify-center rounded-md border border-[#4169e1]/45 bg-[#4169e1]/10 px-2 text-[9px] font-bold uppercase tracking-widest text-[#b8ccff] transition-colors hover:border-[#8fb3ff]/70 hover:bg-[#4169e1]/15"
                                         >
-                                            Convidar
+                                            Convidar · devonly
                                         </button>
                                     )}
                                 </div>
@@ -728,9 +611,10 @@ function ThinkingIndicator() {
 }
 
 export default function MedievalChat({ personaId, placeId, currentThreadId, onThreadCreated, onNewChat, actionMenu, initialDraft }: MedievalChatProps) {
-    const { language, t, entityName } = useLanguage();
+    const { language, t, entityName, isAdmin } = useLanguage();
     const { data: session, status: sessionStatus } = useSession();
     const displayedPersonaName = entityName(personaId);
+    const multiPersonaDevOnly = isAdmin;
     const placeArticle = placeId && FEMININE_PLACES_PT.has(placeId) ? "na" : "no";
     const conversationTitle = !placeId
         ? `${t("conversationWith")} ${displayedPersonaName}`
@@ -783,6 +667,9 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const primerScopeRef = useRef(`${personaId}:${currentThreadId || "new"}`);
     const presenceContractRef = useRef<ConversationPresenceContract | null>(null);
     const presenceBootKeyRef = useRef("");
+    const presenceDraftIdRef = useRef(createPresenceDraftId());
+    const presenceDraftShownRef = useRef(false);
+    const presenceOverlayAppearedRef = useRef(false);
 
     useEffect(() => {
         const openMenuForTourStep = (event: Event) => {
@@ -826,7 +713,8 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         const userId = presenceConfig.userId || session?.user?.id || session?.user?.email || null;
         if (!userId || !personaId || placeId) return;
 
-        const bootKey = `${userId}:${personaId}`;
+        const conversationPresenceId = currentThreadId || presenceDraftIdRef.current;
+        const bootKey = `${userId}:${personaId}:${conversationPresenceId}`;
         const shouldBootFlow = presenceBootKeyRef.current !== bootKey;
         const effective = resolveClientPresenceContract({
             userId,
@@ -837,17 +725,23 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
         if (!shouldBootFlow) return;
         presenceBootKeyRef.current = bootKey;
+        if (currentThreadId && presenceDraftShownRef.current && messagesRef.current.length > 0) {
+            markPresenceShownThisSession(userId, personaId, "FIRST_AGREEMENT", currentThreadId);
+            presenceDraftShownRef.current = false;
+            return;
+        }
         const previousSeenAt = readAndUpdateLastSeen(userId);
         const personaContract = readPresenceContract("PERSONA", { userId, personaId });
 
         if (
-            !personaContract
-            && !hasPresenceSkipped(userId, personaId)
-            && !wasPresenceShownThisSession(userId, personaId, "FIRST_AGREEMENT")
+            !effective
+            && !wasPresenceShownThisSession(userId, personaId, "FIRST_AGREEMENT", conversationPresenceId)
         ) {
             setPresenceFlowType("FIRST_AGREEMENT");
+            presenceOverlayAppearedRef.current = true;
             setPresenceOverlayOpen(true);
-            markPresenceShownThisSession(userId, personaId, "FIRST_AGREEMENT");
+            markPresenceShownThisSession(userId, personaId, "FIRST_AGREEMENT", conversationPresenceId);
+            if (!currentThreadId) presenceDraftShownRef.current = true;
             return;
         }
 
@@ -861,11 +755,12 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 staleDays: presenceConfig.staleDays,
                 minDaysBetweenPulses: presenceConfig.minDaysBetweenPulses,
             })
-            && !wasPresenceShownThisSession(userId, personaId, "CONTINUITY_PULSE")
+            && !wasPresenceShownThisSession(userId, personaId, "CONTINUITY_PULSE", conversationPresenceId)
         ) {
             setPresenceFlowType("CONTINUITY_PULSE");
+            presenceOverlayAppearedRef.current = true;
             setPresenceOverlayOpen(true);
-            markPresenceShownThisSession(userId, personaId, "CONTINUITY_PULSE");
+            markPresenceShownThisSession(userId, personaId, "CONTINUITY_PULSE", conversationPresenceId);
             markContinuityPulse(userId, personaId);
         }
     }, [currentThreadId, personaId, placeId, presenceConfig, session, sessionStatus]);
@@ -879,6 +774,14 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         setPrimerGoal("");
         setPrimerContext("");
         setPrimerLimits("");
+        if (!currentThreadId) {
+            presenceDraftIdRef.current = createPresenceDraftId();
+            presenceBootKeyRef.current = "";
+            presenceDraftShownRef.current = false;
+            presenceOverlayAppearedRef.current = false;
+            setEffectivePresenceContract(null);
+            presenceContractRef.current = null;
+        }
     }, [currentThreadId, personaId]);
 
     useEffect(() => {
@@ -936,9 +839,16 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                         bodyObj.placeId = placeId;
                         bodyObj.threadId = currentThreadIdRef.current || undefined;
                         bodyObj.language = language;
+                        bodyObj.presenceOverlayStatus = {
+                            overlayEnabled: presenceConfig.enabled,
+                            overlayShouldAppear: presenceOverlayOpen || presenceOverlayAppearedRef.current,
+                            overlayAppeared: presenceOverlayAppearedRef.current,
+                            userConfirmed: Boolean(presenceContractRef.current),
+                        };
                         if (presenceConfig.enabled && presenceContractRef.current) {
                             bodyObj.presenceContract = presenceContractRef.current;
                             bodyObj.presenceAdjustmentMode = presenceConfig.mode;
+                            bodyObj.presenceContractConfirmed = true;
                         }
                         init.body = JSON.stringify(bodyObj);
                     } else if (init.body instanceof FormData) {
@@ -947,9 +857,16 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                             init.body.append('placeId', placeId);
                         }
                         init.body.append('language', language);
+                        init.body.append('presenceOverlayStatus', JSON.stringify({
+                            overlayEnabled: presenceConfig.enabled,
+                            overlayShouldAppear: presenceOverlayOpen || presenceOverlayAppearedRef.current,
+                            overlayAppeared: presenceOverlayAppearedRef.current,
+                            userConfirmed: Boolean(presenceContractRef.current),
+                        }));
                         if (presenceConfig.enabled && presenceContractRef.current) {
                             init.body.append('presenceContract', JSON.stringify(presenceContractRef.current));
                             init.body.append('presenceAdjustmentMode', presenceConfig.mode);
+                            init.body.append('presenceContractConfirmed', 'true');
                         }
                         if (currentThreadIdRef.current) {
                             init.body.append('threadId', currentThreadIdRef.current);
@@ -966,7 +883,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             }
             return res;
         }
-    }), [personaId, placeId, onThreadCreated, language, presenceConfig.enabled, presenceConfig.mode]);
+    }), [personaId, placeId, onThreadCreated, language, presenceConfig.enabled, presenceConfig.mode, presenceOverlayOpen]);
 
     const { messages, sendMessage, status, setMessages, error, clearError } = useChat({
         id: placeId ? `${personaId}@${placeId}` : personaId,
@@ -1025,6 +942,16 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     }, [setMessages]);
 
     const fetchParticipants = React.useCallback(async (threadIdOverride?: string | null) => {
+        if (!multiPersonaDevOnly) {
+            setMultiPersonaEnabled(false);
+            setCollectiveMigrationRequired(false);
+            setCollectiveError(null);
+            setParticipants([]);
+            setPendingParticipantIds([]);
+            setParticipantGuestCount(0);
+            return;
+        }
+
         try {
             const params = new URLSearchParams();
             const effectiveThreadId = threadIdOverride ?? currentThreadIdRef.current;
@@ -1050,7 +977,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             setParticipants([]);
             setParticipantGuestCount(0);
         }
-    }, [personaId, placeId]);
+    }, [multiPersonaDevOnly, personaId, placeId]);
 
     useEffect(() => {
         fetchParticipants(currentThreadId);
@@ -1074,6 +1001,8 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const optimisticGuestCount = optimisticParticipants.filter((participant) => participant.active && participant.role === "GUEST").length;
 
     const mutateParticipant = React.useCallback(async (action: "invite" | "remove" | "mute" | "unmute", targetPersonaId: string) => {
+        if (!multiPersonaDevOnly) return;
+
         setCollectiveError(null);
         const alreadyActive = participants.some((participant) => participant.active && participant.personaId === targetPersonaId);
         const alreadyPending = pendingParticipantIds.includes(targetPersonaId);
@@ -1125,7 +1054,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 setPendingParticipantIds((current) => current.filter((personaId) => personaId !== targetPersonaId));
             }
         }
-    }, [onThreadCreated, participants, pendingParticipantIds, personaId, placeId, replaceMessages]);
+    }, [multiPersonaDevOnly, onThreadCreated, participants, pendingParticipantIds, personaId, placeId, replaceMessages]);
 
     const isLoading = status === 'submitted' || status === 'streaming' || collectiveStatus !== "idle" || pendingParticipantIds.length > 0;
     const showThinkingIndicator = status === 'submitted'
@@ -1142,23 +1071,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     const appendMessage = React.useCallback((message: CollectiveMessage) => {
         replaceMessages([...messagesRef.current, message as UIMessage]);
     }, [replaceMessages]);
-
-    const appendPresenceOpeningCard = React.useCallback((messageText: string) => {
-        const alreadyVisible = messagesRef.current.some((message) => (
-            message.role === "user"
-            && getMessageText(message).startsWith(PRESENCE_OPENING_MARKER)
-            && getMessageText(message) === messageText
-        ));
-        if (alreadyVisible) return;
-
-        appendMessage({
-            id: `presence-opening-${Date.now()}`,
-            role: "user",
-            content: messageText,
-            parts: [{ type: "text", text: messageText }],
-            messageKind: "USER",
-        } as CollectiveMessage);
-    }, [appendMessage]);
 
     const updateMessageById = React.useCallback((messageId: string, updater: (message: CollectiveMessage) => CollectiveMessage) => {
         replaceMessages(messagesRef.current.map((message) => (
@@ -1254,6 +1166,8 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     }, [appendMessage, updateMessageById, fetchParticipants]);
 
     const sendCollectiveMessage = React.useCallback(async (messageText: string, hiddenVoiceTranscript: string, file: File | null) => {
+        if (!multiPersonaDevOnly) return;
+
         setCollectiveStatus("submitted");
         setCollectiveError(null);
         const userMessage: CollectiveMessage = {
@@ -1284,6 +1198,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                     fileParts,
                     presenceContract: presenceConfig.enabled ? presenceContractRef.current || undefined : undefined,
                     presenceAdjustmentMode: presenceConfig.mode,
+                    presenceContractConfirmed: Boolean(presenceConfig.enabled && presenceContractRef.current),
                 }),
             });
             const newThreadId = response.headers.get("x-thread-id");
@@ -1320,7 +1235,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             setCollectiveStatus("idle");
             fetchParticipants(currentThreadIdRef.current);
         }
-    }, [appendMessage, fetchParticipants, handleCollectiveEvent, language, onThreadCreated, personaId, placeId, presenceConfig.enabled, presenceConfig.mode]);
+    }, [appendMessage, fetchParticipants, handleCollectiveEvent, language, multiPersonaDevOnly, onThreadCreated, personaId, placeId, presenceConfig.enabled, presenceConfig.mode]);
 
     const clearComposer = React.useCallback(() => {
         shouldKeepListeningRef.current = false;
@@ -1344,14 +1259,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
     ) => {
         clearError();
         clearComposer();
-        const shouldUseCollective = multiPersonaEnabled
+        const shouldUseCollective = multiPersonaDevOnly
+            && multiPersonaEnabled
             && (optimisticGuestCount > 0 || participantGuestCount > 0 || hasLocalPresenceCommand(`${messageText}\n${hiddenVoiceTranscript}`));
         if (shouldUseCollective) {
             await sendCollectiveMessage(messageText, hiddenVoiceTranscript, fileForSend);
         } else {
             await sendMessage({ text: messageText, files }, { body: { voiceTranscript: hiddenVoiceTranscript || undefined } });
         }
-    }, [clearComposer, clearError, multiPersonaEnabled, optimisticGuestCount, participantGuestCount, sendCollectiveMessage, sendMessage]);
+    }, [clearComposer, clearError, multiPersonaDevOnly, multiPersonaEnabled, optimisticGuestCount, participantGuestCount, sendCollectiveMessage, sendMessage]);
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1395,27 +1311,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         await submitPreparedMessage(buildPrimerMessage(), "", null);
     };
 
-    const buildPresenceOpeningMessage = React.useCallback((contract: ConversationPresenceContract) => {
-        return [
-            PRESENCE_OPENING_MARKER,
-            "Ajuste de Presenca confirmado. Produza agora a primeira leitura da persona com base neste ajuste.",
-            `Persona ativa: ${displayedPersonaName}.`,
-            contract.recentContext ? `Contexto recente autorizado: ${contract.recentContext}` : "",
-            contract.currentGoal ? `Objetivo atual: ${contract.currentGoal}` : "",
-            contract.importantEntities?.length ? `Entidades importantes: ${contract.importantEntities.join(", ")}` : "",
-            `Profundidade solicitada: ${contract.responseDepth}.`,
-            contract.customConstraints?.length ? `Restricoes aplicadas: ${contract.customConstraints.join("; ")}` : "",
-            `Escopo do ajuste: ${contract.scope}.`,
-            `Politica de oferta generica: ${contract.genericHelpOfferPolicy}.`,
-            `Politica de pedido de contexto: ${contract.genericContextRequestPolicy}.`,
-            `Politica de pergunta final: ${contract.finalQuestionPolicy}.`,
-            `Validade do ajuste: ${contract.validUntil || "sem vencimento automatico"}.`,
-            "Nao mencione contrato, formulario, ajuste, configuracao ou bastidor.",
-            "Nao puxe memoria recente que nao seja diretamente relevante para esse contexto.",
-            "Abra pela vocacao propria da persona e entregue uma leitura substantiva do caso informado.",
-        ].filter(Boolean).join("\n");
-    }, [displayedPersonaName]);
-
     const recordPresenceTelemetry = React.useCallback((input: {
         outcome: "CONFIRMED" | "SKIPPED";
         scope?: PresenceScope;
@@ -1454,9 +1349,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         if (!userId) return;
 
         if (outcome === "SKIPPED") {
-            if (presenceFlowType === "FIRST_AGREEMENT") {
-                markPresenceSkipped(userId, personaId);
-            }
             recordPresenceTelemetry({ outcome: "SKIPPED", contractApplied: false });
             return;
         }
@@ -1478,23 +1370,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
             scope: options?.scope || contract?.scope,
             contractApplied: presenceConfig.appliesToRuntime,
         });
-
-        const shouldSendPresenceOpening = Boolean(
-            effective
-            && (
-                (presenceFlowType === "FIRST_AGREEMENT" && messagesRef.current.length === 0)
-                || presenceFlowType === "MANUAL_RECONFIGURATION"
-            )
-        );
-
-        if (shouldSendPresenceOpening && effective) {
-            const openingMessage = buildPresenceOpeningMessage(effective);
-            appendPresenceOpeningCard(openingMessage);
-            window.setTimeout(() => {
-                void submitPreparedMessage(openingMessage, "", null);
-            }, 0);
-        }
-    }, [appendPresenceOpeningCard, buildPresenceOpeningMessage, personaId, presenceConfig.appliesToRuntime, presenceConfig.userId, presenceFlowType, recordPresenceTelemetry, session, submitPreparedMessage]);
+    }, [personaId, presenceConfig.appliesToRuntime, presenceConfig.userId, presenceFlowType, recordPresenceTelemetry, session]);
 
     const toggleListening = () => {
         if (isListening) {
@@ -1660,6 +1536,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
 
     const openPresenceReconfiguration = React.useCallback(() => {
         setPresenceFlowType("MANUAL_RECONFIGURATION");
+        presenceOverlayAppearedRef.current = true;
         setPresenceOverlayOpen(true);
         setActionsOpen(false);
     }, []);
@@ -1668,8 +1545,6 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
         window.dispatchEvent(new Event("nemosine:restart-onboarding-tour", { cancelable: true }));
         setActionsOpen(false);
     };
-
-    const renderedPresenceOpeningTexts = new Set<string>();
 
     return (
         <>
@@ -1722,6 +1597,12 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                     type="button"
                                     data-tour="chat-new-thread"
                                     onClick={() => {
+                                        presenceDraftIdRef.current = createPresenceDraftId();
+                                        presenceBootKeyRef.current = "";
+                                        presenceDraftShownRef.current = false;
+                                        presenceOverlayAppearedRef.current = false;
+                                        setEffectivePresenceContract(null);
+                                        presenceContractRef.current = null;
                                         onNewChat();
                                         setActionsOpen(false);
                                     }}
@@ -1749,12 +1630,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         Guia
                                     </span>
                                 </button>
-                                {multiPersonaEnabled && (
+                                {multiPersonaDevOnly && multiPersonaEnabled && (
                                     <InvitePersonaButton
                                         hostPersonaId={personaId}
                                         presentPersonaIds={optimisticParticipants.filter((participant) => participant.active).map((participant) => participant.personaId)}
                                         guestCount={optimisticGuestCount}
                                         disabled={isLoading || collectiveMigrationRequired}
+                                        devOnly
                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                     />
                                 )}
@@ -1797,15 +1679,16 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 </div>
             </div>
 
-            {multiPersonaEnabled && optimisticParticipants.length > 0 && (
+            {multiPersonaDevOnly && multiPersonaEnabled && optimisticParticipants.length > 0 && (
                 <PersonaPresenceStrip
                     participants={optimisticParticipants}
                     disabled={isLoading || collectiveMigrationRequired}
+                    devOnly
                     onRemove={(targetPersonaId) => mutateParticipant("remove", targetPersonaId)}
                     onMuteToggle={(targetPersonaId, muted) => mutateParticipant(muted ? "unmute" : "mute", targetPersonaId)}
                 />
             )}
-            {collectiveMigrationRequired && (
+            {multiPersonaDevOnly && collectiveMigrationRequired && (
                 <div className="border-b border-amber-500/25 bg-amber-950/35 px-3 py-2 text-xs text-amber-100">
                     Migração multi-persona pendente no banco. O convite está desativado até aplicar o SQL aditivo.
                 </div>
@@ -1891,23 +1774,19 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                 {messages.map((rawMsg: UIMessage) => {
                     const msg = rawMsg as CollectiveMessage;
                     const messageText = getMessageText(msg);
-                    if ((msg.role === "user" || msg.role === "system") && messageText.startsWith(PRESENCE_OPENING_MARKER)) {
-                        const presenceOpeningKey = messageText.replace(/\s+/g, " ").trim();
-                        if (renderedPresenceOpeningTexts.has(presenceOpeningKey)) return null;
-                        renderedPresenceOpeningTexts.add(presenceOpeningKey);
-                        return (
-                            <PresenceAdjustmentEventCard
-                                key={msg.id}
-                                messageId={msg.id}
-                                messageText={messageText}
-                                onReconfigure={openPresenceReconfiguration}
-                                initialExpanded={String(msg.id).startsWith("presence-opening-")}
-                            />
-                        );
+                    if (messageText.startsWith(PRESENCE_OPENING_MARKER)) {
+                        return null;
+                    }
+                    if (!multiPersonaDevOnly && msg.role === "assistant" && msg.speakerPersonaId && msg.speakerPersonaId !== personaId) {
+                        return null;
+                    }
+                    if (!multiPersonaDevOnly && msg.role === "assistant" && isDegradedAssistantFallbackText(messageText)) {
+                        return null;
                     }
                     if (msg.role === "system" && handoffOfferFromMessage(msg)) {
                         const persistedOffer = handoffOfferFromMessage(msg);
                         if (!persistedOffer) return null;
+                        if (!multiPersonaDevOnly) return null;
                         return (
                             <div key={msg.id} className="flex justify-start">
                                 <div className="w-full max-w-[680px]">
@@ -1916,12 +1795,15 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                         messageId={msg.id}
                                         originMessageId={persistedOffer.originMessageId || null}
                                         threadId={currentThreadIdRef.current}
-                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                        canInvite={multiPersonaDevOnly && multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                     />
                                 </div>
                             </div>
                         );
+                    }
+                    if (!multiPersonaDevOnly && (msg.role === "system" || msg.messageKind === "SYSTEM_EVENT") && isMultiPersonaSystemEventText(messageText)) {
+                        return null;
                     }
                     if (msg.role === "system" || msg.messageKind === "SYSTEM_EVENT") {
                         return (
@@ -1960,11 +1842,13 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                             </div>
                         );
                     }
-                    const speakerPersonaId = msg.role === "assistant" ? (msg.speakerPersonaId || personaId) : null;
+                    const speakerPersonaId = msg.role === "assistant"
+                        ? (multiPersonaDevOnly ? (msg.speakerPersonaId || personaId) : personaId)
+                        : null;
                     const speakerRole = speakerPersonaId
                         ? (optimisticParticipants.find((participant) => participant.personaId === speakerPersonaId && participant.active)?.role || (speakerPersonaId === personaId ? "HOST" : "GUEST"))
                         : undefined;
-                    const handoffOffers = msg.role === "assistant" ? extractHandoffOffers(messageText) : [];
+                    const handoffOffers = multiPersonaDevOnly && msg.role === "assistant" ? extractHandoffOffers(messageText) : [];
                     const cleanedMessageText = cleanContent(messageText);
                     const feedbackKey = msg.role === "assistant" && speakerPersonaId
                         ? buildPersonaFeedbackKey(msg.id, speakerPersonaId)
@@ -1984,8 +1868,9 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                 {msg.role === "assistant" && speakerPersonaId && (
                                     <PersonaSpeakerBadge
                                         personaId={speakerPersonaId}
-                                        role={speakerRole}
+                                        role={multiPersonaDevOnly ? speakerRole : undefined}
                                         status={msg.generationStatus}
+                                        devOnly={multiPersonaDevOnly && Boolean(speakerRole)}
                                     />
                                 )}
                                 {msg.role === "assistant"
@@ -2002,7 +1887,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                                         offers={handoffOffers}
                                                         messageId={msg.id}
                                                         threadId={currentThreadIdRef.current}
-                                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                                        canInvite={multiPersonaDevOnly && multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
                                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                                     />
                                                 ) : handoffOffers.map((offer) => (
@@ -2013,7 +1898,7 @@ export default function MedievalChat({ personaId, placeId, currentThreadId, onTh
                                                         originMessageId={offer.originMessageId || msg.id}
                                                         initialExpanded
                                                         threadId={currentThreadIdRef.current}
-                                                        canInvite={multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
+                                                        canInvite={multiPersonaDevOnly && multiPersonaEnabled && !collectiveMigrationRequired && Boolean(currentThreadIdRef.current)}
                                                         onInvite={(targetPersonaId) => mutateParticipant("invite", targetPersonaId)}
                                                     />
                                                 ))}

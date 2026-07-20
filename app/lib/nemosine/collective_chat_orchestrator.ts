@@ -529,7 +529,9 @@ async function runPersonaGeneration(input: {
     );
     const presenceMode = input.round.presenceAdjustmentMode || "off";
     const shouldApplyPresenceContract = Boolean(input.round.presenceContract && presenceMode !== "shadow" && presenceMode !== "off");
-    const presenceRuntimePrompt = renderPresenceContractForRuntime(input.round.presenceContract, presenceMode);
+    const presenceRuntimePrompt = shouldApplyPresenceContract
+      ? renderPresenceContractForRuntime(input.round.presenceContract, presenceMode)
+      : "";
     const applyPresenceContractToResponse = (text: string) => {
       if (!shouldApplyPresenceContract || !input.round.presenceContract) return text;
       const cleaned = removeGenericClosingByContract(text, input.round.presenceContract);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { ENTITIES } from "@/app/data/entities";
+import { isAdminEmail } from "@/app/lib/accessControl";
 import {
   createCollectiveThreadWithHost,
   getCollectiveSchemaStatus,
@@ -20,7 +21,9 @@ function unauthorized() {
 
 async function getAuthenticatedUserId() {
   const session = await auth();
-  return session?.user?.id ?? null;
+  const id = session?.user?.id;
+  if (!id) return null;
+  return { id, email: session.user?.email };
 }
 
 function isValidPlace(placeId?: string | null) {
@@ -35,8 +38,11 @@ function isValidPersona(personaId?: string | null) {
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) return unauthorized();
+    const user = await getAuthenticatedUserId();
+    if (!user) return unauthorized();
+    if (!isAdminEmail(user.email)) {
+      return NextResponse.json({ enabled: false, participants: [], guestCount: 0 });
+    }
 
     const { searchParams } = new URL(request.url);
     const threadId = searchParams.get("threadId");
@@ -59,7 +65,7 @@ export async function GET(request: NextRequest) {
           message: "A arquitetura multi-persona esta no codigo, mas a migracao do banco ainda nao foi aplicada.",
         });
       }
-      const snapshot = await getParticipantSnapshot(userId, threadId);
+      const snapshot = await getParticipantSnapshot(user.id, threadId);
       return NextResponse.json({ enabled: true, ...snapshot });
     }
 
@@ -117,8 +123,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) return unauthorized();
+    const user = await getAuthenticatedUserId();
+    if (!user) return unauthorized();
+    if (!isAdminEmail(user.email)) {
+      return NextResponse.json({ error: "DEV_ONLY" }, { status: 403 });
+    }
     if (!isMultiPersonaEnabled()) {
       return NextResponse.json({ error: "Multi-persona disabled" }, { status: 403 });
     }
@@ -143,7 +152,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Thread required" }, { status: 400 });
       }
       const thread = await createCollectiveThreadWithHost({
-        userId,
+        userId: user.id,
         hostPersonaId,
         placeId: placeId || null,
         title: `Conselho: ${hostPersonaId}`,
@@ -152,14 +161,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "invite") {
-      await invitePersona(userId, activeThreadId, personaId);
+      await invitePersona(user.id, activeThreadId, personaId);
     } else if (action === "remove") {
-      await removePersona(userId, activeThreadId, personaId);
+      await removePersona(user.id, activeThreadId, personaId);
     } else {
-      await setPersonaMuted(userId, activeThreadId, personaId, action === "mute");
+      await setPersonaMuted(user.id, activeThreadId, personaId, action === "mute");
     }
 
-    const snapshot = await getParticipantSnapshot(userId, activeThreadId);
+    const snapshot = await getParticipantSnapshot(user.id, activeThreadId);
     return NextResponse.json({ enabled: true, ...snapshot });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Internal Server Error";

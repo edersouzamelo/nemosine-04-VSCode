@@ -17,6 +17,14 @@ export type NativePersonaSoulCard = {
     soulCard: string;
 };
 
+export type NativePersonaPromptPayload = {
+    appName: string;
+    promptKey: string;
+    source: NativePersonaPromptRecord["source"] | "entities-fallback";
+    fullPromptLength: number;
+    prompt: string;
+};
+
 export const NATIVE_PERSONA_PROMPTS_DRIVE_FOLDER = {
     id: "1gpmfXnWjfq65pSOa2r3YcROxKc1bdnkI",
     name: "Prompts dos Personas",
@@ -151,6 +159,30 @@ function stripNativePromptBoilerplate(prompt: string) {
     );
 }
 
+function stripNativePromptPayloadBoilerplate(prompt: string) {
+    const normalized = normalizePromptText(prompt);
+    const cutoffMarkers = [
+        "AQUI TERMINA O PROMPT",
+        "Este prompt faz parte",
+        "Para conhecer outros prompt",
+        "LicenÃ§a:",
+        "Licenca:",
+    ];
+    const cutoff = cutoffMarkers
+        .map((marker) => normalized.indexOf(marker))
+        .filter((index) => index > 0)
+        .sort((a, b) => a - b)[0];
+    const withoutTail = cutoff ? normalized.slice(0, cutoff) : normalized;
+
+    return normalizePromptText(
+        withoutTail
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => !setupLinePatterns.some((pattern) => pattern.test(line)))
+            .join("\n")
+    );
+}
+
 function compactSoulText(prompt: string, maxLength = 2200) {
     const cleaned = stripNativePromptBoilerplate(prompt);
     if (cleaned.length <= maxLength) return cleaned;
@@ -163,6 +195,21 @@ function compactSoulText(prompt: string, maxLength = 2200) {
     );
     return normalizePromptText(
         `${clipped.slice(0, lastBreak > 900 ? lastBreak + 1 : maxLength).trim()}\n\n[alma nativa compactada; detalhes secundarios omitidos do payload vivo]`
+    );
+}
+
+function compactPromptPayloadText(prompt: string, maxLength = 12000) {
+    const cleaned = stripNativePromptPayloadBoilerplate(prompt);
+    if (cleaned.length <= maxLength) return cleaned;
+
+    const clipped = cleaned.slice(0, maxLength);
+    const lastBreak = Math.max(
+        clipped.lastIndexOf("\n\n"),
+        clipped.lastIndexOf(". "),
+        clipped.lastIndexOf("; "),
+    );
+    return normalizePromptText(
+        `${clipped.slice(0, lastBreak > 3000 ? lastBreak + 1 : maxLength).trim()}\n\n[prompt nativo truncado apenas por limite de payload; preserve a alma e a hierarquia acima]`
     );
 }
 
@@ -256,5 +303,25 @@ export function buildNativePersonaSoulCard(appName: string, fallbackPrompt?: str
         source,
         fullPromptLength: sourcePrompt.length,
         soulCard,
+    };
+}
+
+export function buildNativePersonaPromptPayload(appName: string, fallbackPrompt?: string, maxLength = 12000): NativePersonaPromptPayload {
+    const nativePromptRecord = getNativePersonaPromptRecord(appName);
+    const sourcePrompt: string = nativePromptRecord?.prompt || fallbackPrompt || `Voce e ${appName}.`;
+    const promptKey = nativePromptRecord?.promptKey || appName;
+    const source = nativePromptRecord?.source || "entities-fallback";
+
+    return {
+        appName,
+        promptKey,
+        source,
+        fullPromptLength: sourcePrompt.length,
+        prompt: [
+            `Persona ativa: ${appName}`,
+            `Fonte de alma: ${promptKey} (${source})`,
+            "",
+            compactPromptPayloadText(sourcePrompt, maxLength),
+        ].join("\n"),
     };
 }

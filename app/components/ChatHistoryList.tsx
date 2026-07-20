@@ -38,7 +38,7 @@ function formatThreadDate(updatedAt: number) {
 }
 
 export default function ChatHistoryList({ personaId, onSelectThread, currentThreadId, refreshTrigger, expanded = false }: ChatHistoryListProps) {
-    const { entityName } = useLanguage();
+    const { entityName, isAdmin } = useLanguage();
     const [threads, setThreads] = useState<ChatThread[]>([]);
     const [loading, setLoading] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -112,7 +112,7 @@ export default function ChatHistoryList({ personaId, onSelectThread, currentThre
                         <span className="mt-1 block text-[9px] uppercase tracking-[0.14em] text-[#c5a059]/40">
                             {formatThreadDate(thread.updatedAt)}
                         </span>
-                        {thread.participants && thread.participants.length > 1 && (
+                        {isAdmin && thread.participants && thread.participants.length > 1 && (
                             <span className="mt-1 line-clamp-1 break-words text-[9px] uppercase tracking-[0.16em] text-[#c5a059]/45">
                                 Conselho: {thread.participants.map((participant) => participant.personaId).join(", ")}
                             </span>

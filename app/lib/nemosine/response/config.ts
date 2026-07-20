@@ -3,6 +3,7 @@ import {
   ResponsePipelineMode,
   responsePipelineModes,
 } from "./types";
+import { releaseOneProductionRuntimeMode } from "../release_config";
 
 function parseMode(value?: string): ResponsePipelineMode {
   return responsePipelineModes.includes(value as ResponsePipelineMode)
@@ -23,7 +24,7 @@ function parseInteger(value: string | undefined, fallback: number, min: number, 
 
 export function readResponsePipelineConfig(env: NodeJS.ProcessEnv = process.env): ResponsePipelineConfig {
   return {
-    mode: parseMode(env.NEMOSINE_RESPONSE_PIPELINE_V2),
+    mode: releaseOneProductionRuntimeMode(parseMode(env.NEMOSINE_RESPONSE_PIPELINE_V2), env),
     maxRegenerations: parseInteger(env.NEMOSINE_RESPONSE_PIPELINE_V2_MAX_REGENERATIONS, 1, 0, 1),
     auditEnabled: parseBoolean(env.NEMOSINE_RESPONSE_PIPELINE_V2_AUDIT, true),
   };

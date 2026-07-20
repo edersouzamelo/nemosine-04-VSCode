@@ -37,6 +37,11 @@ export function selectResponseDepthProfile(input: {
   const normalized = normalize(input.userText || "");
   const wordCount = countWords(input.userText || "");
   const historyCount = input.priorHistory?.filter((message) => message.role === "user" || message.role === "assistant").length || 0;
+  const greetingOnly = /^(bom dia|boa tarde|boa noite|oi|ola|salve|e ai)([,!\s]*(mentor|inimigo|cientista|terapeuta|estrategista|vidente|.+))?[.!?\s]*$/i.test((input.userText || "").trim());
+
+  if (greetingOnly && wordCount <= 8 && historyCount <= 2) {
+    return RESPONSE_DEPTH_PROFILES.GREETING;
+  }
 
   if (/\b(mais\s+longo|mais\s+longa|longo|longa|mais\s+extenso|mais\s+extensa|extenso|extensa|prolongad[ao]s?|aprofundad[ao]s?|detalhad[ao]s?|desenvolva|rica|densa|maiores|extensiv[ao])\b/.test(normalized)) {
     return RESPONSE_DEPTH_PROFILES.EXTENSIVE;
@@ -44,11 +49,6 @@ export function selectResponseDepthProfile(input: {
 
   if (input.presenceContract?.responseDepth === "DEEP") {
     return RESPONSE_DEPTH_PROFILES.DEEP;
-  }
-
-  const greetingOnly = /^(bom dia|boa tarde|boa noite|oi|ola|salve|e ai)([,!\s]*(mentor|inimigo|cientista|terapeuta|estrategista|vidente|.+))?[.!?\s]*$/i.test((input.userText || "").trim());
-  if (greetingOnly && wordCount <= 8 && historyCount <= 2) {
-    return RESPONSE_DEPTH_PROFILES.GREETING;
   }
 
   const asksForAnalysis = /\b(analise|analisar|compreender|entender|avaliar|mapear|comparar|explique|explicar|aprofundar)\b/.test(normalized);

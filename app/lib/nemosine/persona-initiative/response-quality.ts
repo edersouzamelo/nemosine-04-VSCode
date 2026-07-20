@@ -27,6 +27,10 @@ const genericAssistantPatterns = [
   /\bposso ajudar a (desenhar|montar|tracar|traçar)\b/,
   /\bpodemos focar nisso\b/,
   /\bpara garantir que tudo funcione\b/,
+  /\bsinto muito se nao atendi suas expectativas\b/,
+  /\bvamos tentar novamente\b/,
+  /\btrazer um pouco mais de vida e simbolismo\b/,
+  /\b(imagine que o sistema|imagine o sistema|pense no sistema|sistema como)\b/,
 ];
 
 const falseContextDenialPatterns = [

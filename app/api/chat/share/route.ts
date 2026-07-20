@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getThread, prisma } from "@/app/lib/nemosine/session_store";
-import { sanitizeSharedMessages } from "@/app/lib/nemosine/shared_chat_sanitizer";
+import { sanitizeSharedMessages, sanitizeSharedTitle } from "@/app/lib/nemosine/shared_chat_sanitizer";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,10 @@ function unauthorized() {
   return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 }
 
+function primaryPersonaFromConversationScope(scope?: string | null) {
+  return scope?.split(/\s+@\s+/)[0]?.trim() || scope || null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -39,11 +43,13 @@ export async function POST(request: NextRequest) {
 
     await ensureSharedChatsTable();
     const token = crypto.randomUUID().replace(/-/g, "");
-    const messagesJson = JSON.stringify(sanitizeSharedMessages(thread.messages));
+    const primaryPersonaId = primaryPersonaFromConversationScope(thread.personaId);
+    const messagesJson = JSON.stringify(sanitizeSharedMessages(thread.messages, { primaryPersonaId }));
+    const title = sanitizeSharedTitle(thread.title, thread.personaId);
 
     await prisma.$executeRaw`
       INSERT INTO shared_chats (token, user_id, thread_id, title, persona_id, messages_json)
-      VALUES (${token}, ${userId}, ${thread.id}, ${thread.title}, ${thread.personaId}, ${messagesJson})
+      VALUES (${token}, ${userId}, ${thread.id}, ${title}, ${thread.personaId}, ${messagesJson})
     `;
 
     return NextResponse.json({ url: `/shared/chat/${token}`, token });
@@ -79,9 +85,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       chat: {
         token: row.token,
-        title: row.title,
+        title: sanitizeSharedTitle(row.title, row.persona_id),
         personaId: row.persona_id,
-        messages: sanitizeSharedMessages(JSON.parse(row.messages_json || "[]")),
+        messages: sanitizeSharedMessages(JSON.parse(row.messages_json || "[]"), { primaryPersonaId: primaryPersonaFromConversationScope(row.persona_id) }),
         createdAt: row.created_at.toISOString(),
       },
     });

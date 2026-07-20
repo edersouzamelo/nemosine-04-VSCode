@@ -70,7 +70,7 @@ function AgentActionButton({
 export default function AgentDetailPage() {
     const params = useParams();
     const searchParams = useSearchParams();
-    const { t, entityName, recordCardUse, cognitiveMode } = useLanguage();
+    const { t, entityName, recordCardUse, cognitiveMode, isAdmin } = useLanguage();
     const id = decodeURIComponent(params.id as string);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isEmbedded, setIsEmbedded] = useState(false);
@@ -111,7 +111,7 @@ export default function AgentDetailPage() {
     }, [searchParams]);
 
     React.useEffect(() => {
-        if (!handoffContextId) {
+        if (!handoffContextId || !isAdmin) {
             setHandoffDraft("");
             return;
         }
@@ -129,7 +129,7 @@ export default function AgentDetailPage() {
         return () => {
             cancelled = true;
         };
-    }, [handoffContextId]);
+    }, [handoffContextId, isAdmin]);
 
     React.useEffect(() => {
         let cameFromOrigins = false;
@@ -326,7 +326,7 @@ export default function AgentDetailPage() {
 
             {!isEmbedded && (
                 <div className="navbar-container relative z-20 overflow-visible transition-all duration-300">
-                    <Navbar mobileCollapsible defaultMobileCollapsed />
+                    <Navbar mobileCollapsible />
                 </div>
             )}
 

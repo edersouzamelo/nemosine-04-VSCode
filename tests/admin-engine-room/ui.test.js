@@ -151,12 +151,17 @@ test("cognitive foundation panel explains off modules without activating them", 
 
 test("navbar keeps menu visible by default and persists optional immersive mode", () => {
   const source = fs.readFileSync("app/components/Navbar.tsx", "utf8");
+  const agentSource = fs.readFileSync("app/agents/[id]/page.tsx", "utf8");
 
   assert.match(source, /nemosine-navbar-visibility-mode/);
   assert.match(source, /NavbarVisibilityMode = "visible" \| "auto" \| "immersive"/);
   assert.match(source, /useState<NavbarVisibilityMode>\("visible"\)/);
+  assert.match(source, /encodeURIComponent\(navbarPreferenceScope\)/);
+  assert.match(source, /navbarPreferenceLoadedFor/);
   assert.match(source, /Manter menu visivel/);
   assert.match(source, /Fixar modo imersivo/);
+  assert.match(agentSource, /<Navbar mobileCollapsible \/>/);
+  assert.doesNotMatch(agentSource, /defaultMobileCollapsed/);
 });
 
 test("route transition uses isolated portal and exclusive animation classes", () => {

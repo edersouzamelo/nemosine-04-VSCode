@@ -30,6 +30,12 @@ export function getAdminDropdownLinks(isAdmin: boolean): AdminNavigationItem[] {
       label: "Mensagens ao desenvolvedor",
       icon: "mark_email_unread",
     },
+    {
+      href: "/developer/prompt-console",
+      label: "Prompt Console V1",
+      subtitle: "Montagem real do prompt Stable",
+      icon: "account_tree",
+    },
   ];
 }
 
@@ -47,6 +53,12 @@ export function getAdminDashboardCards(isAdmin: boolean): AdminNavigationItem[] 
       label: "Observatório do Criador",
       subtitle: "Diagnóstico sanitário do sistema",
       icon: "health_and_safety",
+    },
+    {
+      href: "/developer/prompt-console",
+      label: "Prompt Console V1",
+      subtitle: "Montagem real do prompt Stable",
+      icon: "account_tree",
     },
   ];
 }

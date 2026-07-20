@@ -25,11 +25,11 @@ export const DEFAULT_PRESENCE_CONTRACT: Omit<
 > = {
   scope: "PERSONA",
   responseDepth: "PERSONA_DECIDES",
-  genericHelpOfferPolicy: "BLOCK",
-  genericContextRequestPolicy: "BLOCK_UNLESS_CRITICAL",
+  genericHelpOfferPolicy: "ALLOW",
+  genericContextRequestPolicy: "ALLOW",
   finalQuestionPolicy: "ALLOW",
   symbolicLanguagePolicy: "NORMAL",
-  repetitionPolicy: "STRICT",
+  repetitionPolicy: "NORMAL",
   directnessLevel: "BALANCED",
   customConstraints: [],
 };
@@ -68,7 +68,6 @@ export function shouldTriggerFirstAgreement(input: {
     && input.authenticated
     && input.personaId
     && !input.hasConfirmedContract
-    && !input.skippedForPersona
     && !input.shownThisSession,
   );
 }
@@ -203,11 +202,11 @@ export function createPresenceContract(input: {
     currentGoal: input.currentGoal?.trim() || undefined,
     importantEntities: unique(input.importantEntities || []),
     responseDepth: input.responseDepth || "PERSONA_DECIDES",
-    genericHelpOfferPolicy: prohibited.has("nao terminar oferecendo ajuda") || prohibited.has("nao usar se quiser") ? "BLOCK" : "BLOCK",
-    genericContextRequestPolicy: prohibited.has("nao pedir mais contexto sem necessidade") ? "BLOCK_UNLESS_CRITICAL" : "BLOCK_UNLESS_CRITICAL",
+    genericHelpOfferPolicy: prohibited.has("nao terminar oferecendo ajuda") || prohibited.has("nao usar se quiser") ? "BLOCK" : "ALLOW",
+    genericContextRequestPolicy: prohibited.has("nao pedir mais contexto sem necessidade") ? "BLOCK_UNLESS_CRITICAL" : "ALLOW",
     finalQuestionPolicy: prohibited.has("nao terminar com pergunta") ? "BLOCK" : "ALLOW",
     symbolicLanguagePolicy: prohibited.has("nao usar simbolismo excessivo") ? "REDUCED" : "NORMAL",
-    repetitionPolicy: prohibited.has("nao repetir o que eu ja disse") ? "STRICT" : "STRICT",
+    repetitionPolicy: prohibited.has("nao repetir o que eu ja disse") ? "STRICT" : "NORMAL",
     directnessLevel: prohibited.has("nao suavizar criticas") ? "DIRECT" : "BALANCED",
     customConstraints: unique([
       ...(input.customConstraints || []),
@@ -280,7 +279,8 @@ export function renderPresenceContractForRuntime(contract?: ConversationPresence
     `Directness level: ${contract.directnessLevel}`,
     contract.customConstraints.length ? `Custom constraints: ${contract.customConstraints.join("; ")}` : "",
     "This contract controls form, depth and constraints only. It must not alter the persona identity or vocation.",
-    "If the current user input is only a greeting or shallow opening, use this contract as the primary context and do not switch to unrelated recent memories.",
+    "Do not infer facts, diagnoses, handoffs, tool actions, collective conversation, regeneration or fallback from this contract.",
+    "If the current user input is only a greeting, keep it as a greeting; do not transform the presence context into a substantive case.",
   ].filter(Boolean).join("\n");
 }
 
@@ -295,6 +295,9 @@ export function shouldAnchorPresenceContractForTurn(input: {
   if (!hasPresenceAnchor(input.contract)) return false;
   const normalized = normalizePresenceKey(input.userText || "");
   if (!normalized) return true;
+  const greetingOnly = /^(oi|ola|hello|hi|bom dia|boa tarde|boa noite|e ai|salve|fala)(?:\s+[\p{L}\p{N} .'-]+)?[.!?]*$/u.test(normalized)
+    && normalized.split(" ").filter((term) => term.length > 2).length <= 4;
+  if (greetingOnly) return false;
   const lowInformationOpening = /^(oi|ola|hello|hi|bom dia|boa tarde|boa noite|e ai|salve|fala)\b/.test(normalized)
     || /^(o que acha|qual sua leitura|o que voce ve|e entao)\??$/.test(normalized)
     || normalized.split(" ").filter((term) => term.length > 2).length <= 4;
@@ -330,12 +333,19 @@ export function detectGenericClosingViolation(input: {
   responseText: string;
   contract?: ConversationPresenceContract | null;
 }) {
+  const contract = input.contract;
+  if (!contract) {
+    return {
+      violation: false,
+      reasons: [],
+      inspectedText: "",
+    };
+  }
   const segments = sentenceSegments(input.responseText);
   const tail = segments.slice(-2).join(" ");
   const normalized = normalizePresenceKey(tail);
-  const contract = input.contract;
-  const blocksHelp = !contract || contract.genericHelpOfferPolicy === "BLOCK";
-  const blocksContext = !contract || contract.genericContextRequestPolicy === "BLOCK_UNLESS_CRITICAL";
+  const blocksHelp = contract.genericHelpOfferPolicy === "BLOCK";
+  const blocksContext = contract.genericContextRequestPolicy === "BLOCK_UNLESS_CRITICAL";
   const blocksQuestion = contract?.finalQuestionPolicy === "BLOCK";
   const patterns: Array<[boolean, RegExp, string]> = [
     [blocksHelp, /\b(se quiser|caso queira|se precisar|estou aqui para ajudar|estou a disposicao|posso ajudar|podemos aprofundar|podemos explorar|podemos continuar)\b/, "GENERIC_HELP_OFFER"],

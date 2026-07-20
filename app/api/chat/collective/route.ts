@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import pdfParse from "pdf-parse";
 import { auth } from "@/auth";
 import { ENTITIES } from "@/app/data/entities";
+import { isAdminEmail } from "@/app/lib/accessControl";
 import { createCollectiveChatStream } from "@/app/lib/nemosine/collective_chat_orchestrator";
 import {
   createCollectiveThreadWithHost,
@@ -43,7 +44,9 @@ type CollectiveStreamEvent = {
 
 async function getAuthenticatedUserId() {
   const session = await auth();
-  return session?.user?.id ?? null;
+  const id = session?.user?.id;
+  if (!id) return null;
+  return { id, email: session.user?.email };
 }
 
 function unauthorizedResponse() {
@@ -255,8 +258,12 @@ function wrapCollectiveStreamWithPendingCleanup(response: Response, threadId: st
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = await getAuthenticatedUserId();
-    if (!userId) return unauthorizedResponse();
+    const user = await getAuthenticatedUserId();
+    if (!user) return unauthorizedResponse();
+    if (!isAdminEmail(user.email)) {
+      return NextResponse.json({ error: "DEV_ONLY" }, { status: 403 });
+    }
+    const userId = user.id;
     if (!isMultiPersonaEnabled()) {
       return NextResponse.json({ error: "Multi-persona disabled" }, { status: 403 });
     }
@@ -275,7 +282,9 @@ export async function POST(req: NextRequest) {
     const submittedPresenceContract = body.presenceContract && typeof body.presenceContract === "object"
       ? body.presenceContract as ConversationPresenceContract
       : null;
+    const presenceContractConfirmed = body.presenceContractConfirmed === true;
     const activePresenceContract = submittedPresenceContract?.userId === userId
+      && presenceContractConfirmed
       && (presenceRuntimeMode === "internal" || presenceRuntimeMode === "enforce" || presenceRuntimeMode === "shadow")
       ? submittedPresenceContract
       : null;

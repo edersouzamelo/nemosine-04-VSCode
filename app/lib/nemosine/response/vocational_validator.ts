@@ -23,6 +23,8 @@ const genericClosingPatterns = [
   /mantenha (o )?foco/i,
   /busque equilibrio/i,
   /continue ajustando/i,
+  /sinto muito se n.o atendi suas expectativas/i,
+  /vamos tentar novamente/i,
 ];
 
 const internalLeakPatterns = [
@@ -47,6 +49,16 @@ const visibleTemplateHeaders = [
   /^padroes observados\s*:/im,
   /^reflexao final\s*:/im,
   /^conclusao\s*:/im,
+  /^cen.rio (realista|alternativo|otimista|cauteloso)\s*:/im,
+  /^ponto de inflex.o\s*:/im,
+  /^probabilidade\s*:/im,
+  /^momento decisivo\s*:/im,
+];
+
+const shallowTemplatePatterns = [
+  /trazer um pouco mais de vida e simbolismo/i,
+  /(imagine que o sistema|imagine o sistema|pense no sistema|sistema como)/i,
+  /\b(barco|espet.culo|orquestra|mochila)\b/i,
 ];
 
 const sycophancySignals = [
@@ -139,12 +151,15 @@ export function validatePersonaResponse(input: {
   const questionCount = countVisibleQuestions(text);
   const genericClosing = hasGenericClosing(text);
   const templateVisible = visibleTemplateHeaders.some((pattern) => pattern.test(text));
+  const shallowTemplate = shallowTemplatePatterns.some((pattern) => pattern.test(text))
+    && /\bsistema\b/i.test(text);
   const genericQuestion = questionLooksGeneric(text);
   const sycophancy = sycophancySignals.some((signal) => normalized.includes(normalizeResponseText(signal)));
   const tooManyQuestions = questionCount > (input.plan.questionDecision.required ? 1 : 0);
 
   if (genericClosing) findings.push("GENERIC_CLOSING");
   if (templateVisible) findings.push("VISIBLE_TEMPLATE_HEADER");
+  if (shallowTemplate) findings.push("SHALLOW_TEMPLATE_RESPONSE");
   if (genericQuestion) findings.push("GENERIC_QUESTION");
   if (tooManyQuestions) findings.push("QUESTION_ECONOMY_VIOLATION");
   if (sycophancy) findings.push("SYCOPHANCY_SIGNAL");
@@ -167,11 +182,13 @@ export function validatePersonaResponse(input: {
   const overallScore = Object.values(scores).reduce((sum, value) => sum + value, 0) / Object.keys(scores).length;
   const shouldRegenerate = failures.length > 0
     || findings.some((finding) => ["GENERIC_CLOSING", "GENERIC_QUESTION", "QUESTION_ECONOMY_VIOLATION"].includes(finding))
+    || findings.includes("SHALLOW_TEMPLATE_RESPONSE")
     || overallScore < 2.85;
   const regenerationInstructions = [
     ...failures.map((failure) => `Corrija falha critica ${failure}.`),
     genericClosing ? "Troque o fechamento generico por uma entrega substantiva, concreta e vocacional." : "",
     genericQuestion ? "Remova pergunta generica e avance com uma leitura ou decisao baseada no material disponivel." : "",
+    shallowTemplate ? "Remova metafora/template oco e responda na voz viva da persona, com leitura aplicada ao pedido atual." : "",
     tooManyQuestions ? "Use no maximo uma pergunta especifica, somente se ela for indispensavel." : "",
     templateVisible ? "Remova cabecalhos automaticos e responda em fala natural da persona." : "",
     input.plan.recommendedDepth === "deep" ? "Desenvolva a tensao central com mais consequencia e nuance." : "",

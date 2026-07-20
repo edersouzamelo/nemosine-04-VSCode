@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useLanguage } from "./LanguageProvider";
 import type { AppLanguage, AppTheme, CardOrderMode, NemosineLevel, AppFontSize } from "./LanguageProvider";
-import { isAdminEmail } from "../lib/accessControl";
 import RelicPhrase from "./RelicPhrase";
 
 interface NavbarProps {
@@ -29,11 +28,21 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
     const [settingsVisible, setSettingsVisible] = useState(false);
     const [navbarHidden, setNavbarHidden] = useState(defaultMobileCollapsed);
     const [navbarMode, setNavbarMode] = useState<NavbarVisibilityMode>("visible");
+    const [navbarPreferenceLoadedFor, setNavbarPreferenceLoadedFor] = useState<string | null>(null);
     const [globalFullscreen, setGlobalFullscreen] = useState(false);
     const [unreadMessages, setUnreadMessages] = useState(0);
     const menuRef = useRef<HTMLDivElement>(null);
     const userDropdownRef = useRef<HTMLDivElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
+    const isAuthenticated = status === "authenticated" && Boolean(session?.user);
+    const navbarPreferenceScope = isAuthenticated
+        ? session?.user?.email || session?.user?.name || "authenticated"
+        : status === "unauthenticated"
+            ? "guest"
+            : null;
+    const navbarStorageKey = navbarPreferenceScope
+        ? `${NAVBAR_VISIBILITY_STORAGE_KEY}:${encodeURIComponent(navbarPreferenceScope)}`
+        : null;
     const effectiveNavbarHidden = navbarMode === "visible"
         ? false
         : navbarMode === "immersive"
@@ -59,22 +68,33 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
         if (localStorage.getItem("nemosine-global-fullscreen") === "true") {
             setGlobalFullscreen(true);
         }
-        const storedMode = localStorage.getItem(NAVBAR_VISIBILITY_STORAGE_KEY) as NavbarVisibilityMode | null;
+    }, []);
+
+    useEffect(() => {
+        if (!navbarStorageKey) {
+            setNavbarPreferenceLoadedFor(null);
+            return;
+        }
+
+        const storedMode = localStorage.getItem(navbarStorageKey) as NavbarVisibilityMode | null;
         if (storedMode === "visible" || storedMode === "auto" || storedMode === "immersive") {
             setNavbarMode(storedMode);
         } else {
             setNavbarMode("visible");
         }
-    }, []);
+        setNavbarPreferenceLoadedFor(navbarStorageKey);
+    }, [navbarStorageKey]);
 
     useEffect(() => {
-        localStorage.setItem(NAVBAR_VISIBILITY_STORAGE_KEY, navbarMode);
+        if (!navbarStorageKey || navbarPreferenceLoadedFor !== navbarStorageKey) return;
+
+        localStorage.setItem(navbarStorageKey, navbarMode);
         if (navbarMode === "visible") {
             onCollapsedChange?.(false);
         } else if (navbarMode === "immersive") {
             onCollapsedChange?.(true);
         }
-    }, [navbarMode, onCollapsedChange]);
+    }, [navbarMode, navbarPreferenceLoadedFor, navbarStorageKey, onCollapsedChange]);
 
     useEffect(() => {
         document.documentElement.classList.toggle("nemosine-global-fullscreen", globalFullscreen);
@@ -255,7 +275,6 @@ export default function Navbar({ mobileCollapsible = false, defaultMobileCollaps
             ? language.startsWith("pt") ? "Menu automatico" : "Automatic menu"
             : language.startsWith("pt") ? "Fixar modo imersivo" : "Pin immersive mode";
 
-    const isAuthenticated = status === "authenticated" && Boolean(session?.user);
     return (
         <>
             <div

@@ -28,12 +28,8 @@ function storageKey(scope: PresenceScope, userId: string, personaId?: string | n
   return `${PREFIX}:contract:session:${user}:${safeKey(conversationId)}:${safeKey(personaId)}`;
 }
 
-function skippedKey(userId: string, personaId: string) {
-  return `${PREFIX}:skipped:${safeKey(userId)}:${safeKey(personaId)}`;
-}
-
-function shownKey(userId: string, personaId: string, flowType: PresenceFlowType) {
-  return `${PREFIX}:shown:${safeKey(userId)}:${safeKey(personaId)}:${flowType}`;
+function shownKey(userId: string, personaId: string, flowType: PresenceFlowType, conversationId?: string | null) {
+  return `${PREFIX}:shown:${safeKey(userId)}:${safeKey(personaId)}:${flowType}:${safeKey(conversationId || "draft")}`;
 }
 
 function lastSeenKey(userId: string) {
@@ -73,20 +69,12 @@ export function removePresenceContract(scope: PresenceScope, input: {
   storage.removeItem(storageKey(scope, input.userId, input.personaId, input.conversationId));
 }
 
-export function markPresenceSkipped(userId: string, personaId: string) {
-  window.localStorage.setItem(skippedKey(userId, personaId), new Date().toISOString());
+export function markPresenceShownThisSession(userId: string, personaId: string, flowType: PresenceFlowType, conversationId?: string | null) {
+  window.sessionStorage.setItem(shownKey(userId, personaId, flowType, conversationId), "1");
 }
 
-export function hasPresenceSkipped(userId: string, personaId: string) {
-  return Boolean(window.localStorage.getItem(skippedKey(userId, personaId)));
-}
-
-export function markPresenceShownThisSession(userId: string, personaId: string, flowType: PresenceFlowType) {
-  window.sessionStorage.setItem(shownKey(userId, personaId, flowType), "1");
-}
-
-export function wasPresenceShownThisSession(userId: string, personaId: string, flowType: PresenceFlowType) {
-  return Boolean(window.sessionStorage.getItem(shownKey(userId, personaId, flowType)));
+export function wasPresenceShownThisSession(userId: string, personaId: string, flowType: PresenceFlowType, conversationId?: string | null) {
+  return Boolean(window.sessionStorage.getItem(shownKey(userId, personaId, flowType, conversationId)));
 }
 
 export function readAndUpdateLastSeen(userId: string) {
@@ -109,6 +97,15 @@ export function resolveClientPresenceContract(input: {
   personaId: string;
   conversationId?: string | null;
 }) {
+  const globalContract = readPresenceContract("GLOBAL", input);
+  const personaContract = readPresenceContract("PERSONA", input);
+  const conversationContract = input.conversationId ? readPresenceContract("CONVERSATION", input) : null;
+  const sessionContract = readPresenceContract("SESSION", input);
+
+  if (!globalContract && !personaContract && !conversationContract && !sessionContract) {
+    return null;
+  }
+
   const defaultContract = createPresenceContract({
     userId: input.userId,
     personaId: input.personaId,
@@ -118,10 +115,10 @@ export function resolveClientPresenceContract(input: {
 
   return resolveEffectivePresenceContract({
     defaultContract,
-    globalContract: readPresenceContract("GLOBAL", input),
-    personaContract: readPresenceContract("PERSONA", input),
-    conversationContract: input.conversationId ? readPresenceContract("CONVERSATION", input) : null,
-    sessionContract: readPresenceContract("SESSION", input),
+    globalContract,
+    personaContract,
+    conversationContract,
+    sessionContract,
   });
 }
 

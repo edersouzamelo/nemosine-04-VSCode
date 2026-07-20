@@ -18,27 +18,44 @@ export default function PersonaPresenceStrip({
     onRemove,
     onMuteToggle,
     disabled,
+    devOnly = false,
 }: {
     participants: PersonaPresence[];
     onRemove: (personaId: string) => void;
     onMuteToggle: (personaId: string, muted: boolean) => void;
     disabled?: boolean;
+    devOnly?: boolean;
 }) {
     const activeParticipants = participants.filter((participant) => participant.active).slice(0, 5);
     if (activeParticipants.length === 0) return null;
+    const stripClass = devOnly
+        ? "flex min-w-0 items-center gap-2 overflow-x-auto border-b border-[#4169e1]/25 bg-[#071027]/75 px-3 py-2 scrollbar-thin scrollbar-thumb-[#4169e1]/35"
+        : "flex min-w-0 items-center gap-2 overflow-x-auto border-b border-[#c5a059]/10 bg-black/55 px-3 py-2 scrollbar-thin scrollbar-thumb-[#c5a059]/25";
 
     return (
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-[#c5a059]/10 bg-black/55 px-3 py-2 scrollbar-thin scrollbar-thumb-[#c5a059]/25">
+        <div className={stripClass}>
+            {devOnly && (
+                <div className="shrink-0 rounded-md border border-[#4169e1]/35 bg-[#4169e1]/10 px-2 py-1 text-[8px] font-bold uppercase tracking-[0.18em] text-[#8fb3ff]">
+                    devonly
+                </div>
+            )}
             {activeParticipants.map((participant) => {
                 const entity = Object.values(ENTITIES).find((item) => item.name === participant.personaId && item.type === "persona");
+                const participantClass = devOnly
+                    ? `group/presence relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-black/45 ${
+                        participant.pending
+                            ? "animate-pulse border-[#4169e1]/65 opacity-75"
+                            : participant.muted ? "border-sky-300/45 opacity-65 grayscale" : "border-[#4169e1]/35"
+                    }`
+                    : `group/presence relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-black/45 ${
+                        participant.pending
+                            ? "animate-pulse border-[#c5a059]/55 opacity-75"
+                            : participant.muted ? "border-amber-400/45 opacity-65 grayscale" : "border-[#c5a059]/25"
+                    }`;
                 return (
                     <div
                         key={`${participant.id}-${participant.personaId}`}
-                        className={`group/presence relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-black/45 ${
-                            participant.pending
-                                ? "animate-pulse border-[#c5a059]/55 opacity-75"
-                                : participant.muted ? "border-amber-400/45 opacity-65 grayscale" : "border-[#c5a059]/25"
-                        }`}
+                        className={participantClass}
                         title={`${participant.personaId} - ${participant.pending ? "Entrando" : participant.role === "HOST" ? "Anfitriao" : "Convidado"}${participant.muted ? " / Silenciado" : ""}`}
                     >
                         {entity?.image ? (
@@ -46,7 +63,11 @@ export default function PersonaPresenceStrip({
                         ) : (
                             <span className="text-xs font-bold text-[#c5a059]">{participant.personaId.slice(0, 2).toUpperCase()}</span>
                         )}
-                        <span className={`absolute bottom-0 left-0 right-0 truncate px-1 py-0.5 text-center text-[7px] font-bold uppercase tracking-[0.12em] ${participant.role === "HOST" ? "bg-[#c5a059]/85 text-black" : "bg-black/75 text-[#ecd49c]"}`}>
+                        <span className={`absolute bottom-0 left-0 right-0 truncate px-1 py-0.5 text-center text-[7px] font-bold uppercase tracking-[0.12em] ${
+                            devOnly
+                                ? participant.role === "HOST" ? "bg-[#4169e1]/90 text-white" : "bg-[#071027]/90 text-[#8fb3ff]"
+                                : participant.role === "HOST" ? "bg-[#c5a059]/85 text-black" : "bg-black/75 text-[#ecd49c]"
+                        }`}>
                             {participant.pending ? "..." : participant.muted ? "Mudo" : participant.role === "HOST" ? "Host" : "Guest"}
                         </span>
                         <button
@@ -58,12 +79,12 @@ export default function PersonaPresenceStrip({
                             disabled={disabled || participant.pending}
                             title={participant.muted ? `Reativar ${participant.personaId}` : `Silenciar ${participant.personaId}`}
                             aria-label={participant.muted ? `Reativar ${participant.personaId}` : `Silenciar ${participant.personaId}`}
-                            className="absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-md border border-black/45 bg-black/70 text-[#ecd49c] opacity-0 transition-opacity hover:bg-[#c5a059]/20 disabled:cursor-not-allowed disabled:opacity-20 group-hover/presence:opacity-100"
+                            className={`absolute left-1 top-1 grid h-5 w-5 place-items-center rounded-md border border-black/45 bg-black/70 opacity-0 transition-opacity disabled:cursor-not-allowed disabled:opacity-20 group-hover/presence:opacity-100 ${devOnly ? "text-[#8fb3ff] hover:bg-[#4169e1]/20" : "text-[#ecd49c] hover:bg-[#c5a059]/20"}`}
                         >
                             <span className="material-icons text-[13px] leading-none">{participant.muted ? "volume_up" : "volume_off"}</span>
                         </button>
                         {participant.role === "GUEST" && !participant.pending && (
-                            <RemovePersonaAction personaId={participant.personaId} disabled={disabled} onRemove={onRemove} />
+                            <RemovePersonaAction personaId={participant.personaId} disabled={disabled} devOnly={devOnly} onRemove={onRemove} />
                         )}
                     </div>
                 );

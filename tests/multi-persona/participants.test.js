@@ -131,6 +131,10 @@ test("chat UI sends first post-invite message through collective route", () => {
   const source = fs.readFileSync("app/components/MedievalChat.tsx", "utf8");
   const collective = fs.readFileSync("app/lib/nemosine/collective_chat_orchestrator.ts", "utf8");
 
+  assert.match(source, /const multiPersonaDevOnly = isAdmin/);
+  assert.match(source, /multiPersonaDevOnly && multiPersonaEnabled/);
+  assert.match(source, /canInvite=\{multiPersonaDevOnly && multiPersonaEnabled/);
+  assert.match(source, /devOnly/);
   assert.match(source, /optimisticGuestCount > 0/);
   assert.match(source, /entrou na conversa/);
   assert.match(collective, /COLLECTIVE_DUPLICATE_DETECTED/);
@@ -138,4 +142,33 @@ test("chat UI sends first post-invite message through collective route", () => {
   assert.match(collective, /COLLECTIVE_RESPONSE_SUPPRESSED/);
   assert.doesNotMatch(collective, /buildComplementaryCollectiveFallback/);
   assert.doesNotMatch(collective, /minha obrigacao e acrescentar|Se essa leitura nao acrescentar/);
+});
+
+test("multi-persona routes are server-side dev-only", () => {
+  const participantsRoute = fs.readFileSync("app/api/chat/participants/route.ts", "utf8");
+  const collectiveRoute = fs.readFileSync("app/api/chat/collective/route.ts", "utf8");
+  const handoffRoute = fs.readFileSync("app/api/chat/handoff/route.ts", "utf8");
+  const handoffContextRoute = fs.readFileSync("app/api/chat/handoff/context/route.ts", "utf8");
+
+  assert.match(participantsRoute, /isAdminEmail\(user\.email\)/);
+  assert.match(participantsRoute, /error: "DEV_ONLY"/);
+  assert.match(collectiveRoute, /isAdminEmail\(user\.email\)/);
+  assert.match(collectiveRoute, /error: "DEV_ONLY"/);
+  assert.match(handoffRoute, /isAdminEmail\(session\.user\.email\)/);
+  assert.match(handoffRoute, /error: "DEV_ONLY"/);
+  assert.match(handoffContextRoute, /isAdminEmail\(session\.user\.email\)/);
+  assert.match(handoffContextRoute, /error: "DEV_ONLY"/);
+});
+
+test("public chat UI hides handoff and collective residue outside dev account", () => {
+  const chat = fs.readFileSync("app/components/MedievalChat.tsx", "utf8");
+  const history = fs.readFileSync("app/components/ChatHistoryList.tsx", "utf8");
+  const chatRoute = fs.readFileSync("app/api/chat/route.ts", "utf8");
+
+  assert.match(chat, /if \(!multiPersonaDevOnly && msg\.role === "assistant" && msg\.speakerPersonaId/);
+  assert.match(chat, /if \(!multiPersonaDevOnly && \(msg\.role === "system" \|\| msg\.messageKind === "SYSTEM_EVENT"\) && isMultiPersonaSystemEventText/);
+  assert.match(chat, /const handoffOffers = multiPersonaDevOnly && msg\.role === "assistant"/);
+  assert.match(history, /isAdmin && thread\.participants && thread\.participants\.length > 1/);
+  assert.match(chatRoute, /const rawHandoffOffers = multiPersonaDevOnly \? requestedHandoffOffers : \[\]/);
+  assert.match(chatRoute, /x-nemosine-public-persona-route/);
 });
